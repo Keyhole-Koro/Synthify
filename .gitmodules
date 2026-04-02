@@ -1,0 +1,3 @@
+[submodule "paper-in-paper"]
+	path = vender/paper-in-paper
+	url = https://github.com/Keyhole-Koro/paper-in-paper.git
