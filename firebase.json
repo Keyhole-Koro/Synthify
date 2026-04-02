@@ -10,7 +10,7 @@
     "singleProjectMode": true
   },
   "hosting": {
-    "public": "frontend/dist",
+    "public": "frontend/out",
     "ignore": [
       "firebase.json",
       "**/.*",
