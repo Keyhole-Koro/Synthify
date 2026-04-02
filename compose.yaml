@@ -1,0 +1,108 @@
+name: synthify-dev
+
+services:
+  frontend:
+    image: node:22-bookworm
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /workspace/frontend
+    command: >
+      bash -c '
+        set -e;
+        if [ ! -f package.json ]; then
+          echo "frontend/package.json not found. Waiting for frontend implementation...";
+          sleep infinity;
+        fi;
+        rm -rf .next;
+        if [ -f package-lock.json ]; then
+          npm ci;
+        else
+          npm install;
+        fi;
+        npm run dev
+      '
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:8080}
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - .:/workspace
+      - frontend-node-modules:/workspace/frontend/node_modules
+    depends_on:
+      - backend
+
+  backend:
+    image: golang:1.24-bookworm
+    working_dir: /workspace/backend
+    command: >
+      bash -c '
+        if [ ! -f go.mod ]; then
+          echo "backend/go.mod not found. Waiting for backend implementation...";
+          sleep infinity;
+        fi;
+        go run ./cmd/server
+      '
+    environment:
+      PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      ENV: local
+      PORT: "8080"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      GCP_PROJECT_ID: synthify-local
+      GCS_BUCKET: synthify-uploads
+      GCS_EMULATOR_HOST: http://gcs:4443
+      STORAGE_EMULATOR_HOST: http://gcs:4443
+      FIREBASE_PROJECT_ID: synthify-local
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
+      BIGQUERY_PROJECT_ID: synthify-local
+      BIGQUERY_DATASET: graph
+      BIGQUERY_MODE: mock
+      GRAPH_QUERY_MODE: mock
+      GEMINI_CACHE_ENABLED: "true"
+      GEMINI_CACHE_DIR: /workspace/.gemini-cache
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - .:/workspace
+      - go-pkg-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - gemini-cache:/workspace/.gemini-cache
+    depends_on:
+      - gcs
+      - firebase-auth
+
+  gcs:
+    image: fsouza/fake-gcs-server:1.52
+    command:
+      - -scheme
+      - http
+      - -port
+      - "4443"
+      - -public-host
+      - gcs:4443
+      - -external-url
+      - http://localhost:4443
+    ports:
+      - "${GCS_PORT:-4443}:4443"
+    volumes:
+      - gcs-data:/data
+
+  firebase-auth:
+    image: node:22-bookworm
+    working_dir: /tmp/firebase-auth
+    command: >
+      bash -c '
+        npm install -g firebase-tools@13 &&
+        printf "%s\n" "{\"emulators\":{\"auth\":{\"port\":9099}}}" > firebase.json &&
+        firebase emulators:start --only auth --project demo-synthify --config firebase.json
+      '
+    ports:
+      - "${FIREBASE_AUTH_PORT:-9099}:9099"
+
+volumes:
+  frontend-node-modules:
+  go-pkg-cache:
+  go-build-cache:
+  gcs-data:
+  gemini-cache:
