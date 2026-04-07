@@ -1,12 +1,13 @@
 @import "tailwindcss";
+@import "./paper-in-paper.css";
+
+@theme {
+  --font-space: "Space Grotesk", "Noto Sans JP", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", monospace;
+}
 
 :root {
-  color: #0f172a;
-  background: #f8fafc;
-  font-family:
-    "Space Grotesk",
-    "Noto Sans JP",
-    sans-serif;
+  font-family: var(--font-space);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -29,10 +30,7 @@ body {
 }
 
 code {
-  font-family:
-    "JetBrains Mono",
-    "SFMono-Regular",
-    monospace;
+  font-family: var(--font-mono);
 }
 
 a {

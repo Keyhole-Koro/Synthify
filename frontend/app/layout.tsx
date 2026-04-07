@@ -1,19 +1,19 @@
-import type { Metadata } from "next";
-import "../src/index.css";
+import type { Metadata } from 'next';
+import '../src/index.css';
 
 export const metadata: Metadata = {
-  title: "Synthify Frontend",
-  description: "Next.js frontend starter for Synthify"
+  title: 'Synthify',
+  description: 'ドキュメントから知識グラフを生成・探索するシステム',
 };
 
 export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+        {children}
+      </body>
     </html>
   );
 }

@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package synthify.graph.v1;
+
+option go_package = "github.com/synthify/backend/gen/synthify/graph/v1;graphv1";
+
+// Core graph data types shared across graph, node, and related services.
+
+message Node {
+  string id = 1;
+  string document_id = 2;
+  string label = 3;
+  int32 level = 4;
+  NodeCategory category = 5;
+  NodeEntityType entity_type = 6;
+  string description = 7;
+  string summary_html = 8;
+  string source_chunk_id = 9;
+  double confidence = 10;
+  string created_at = 11;
+  string canonical_node_id = 12;
+  GraphProjectionScope scope = 13;
+}
+
+message Graph {
+  string workspace_id = 1;
+  string document_id = 2;
+  repeated Node nodes = 3;
+  bool cross_document = 4;
+}
+
+enum NodeCategory {
+  NODE_CATEGORY_UNSPECIFIED = 0;
+  NODE_CATEGORY_CONCEPT = 1;
+  NODE_CATEGORY_ENTITY = 2;
+  NODE_CATEGORY_CLAIM = 3;
+  NODE_CATEGORY_EVIDENCE = 4;
+  NODE_CATEGORY_COUNTER = 5;
+}
+
+enum NodeEntityType {
+  NODE_ENTITY_TYPE_UNSPECIFIED = 0;
+  NODE_ENTITY_TYPE_ORGANIZATION = 1;
+  NODE_ENTITY_TYPE_PERSON = 2;
+  NODE_ENTITY_TYPE_METRIC = 3;
+  NODE_ENTITY_TYPE_DATE = 4;
+  NODE_ENTITY_TYPE_LOCATION = 5;
+}
+
+enum GraphProjectionScope {
+  GRAPH_PROJECTION_SCOPE_UNSPECIFIED = 0;
+  GRAPH_PROJECTION_SCOPE_DOCUMENT = 1;
+  GRAPH_PROJECTION_SCOPE_CANONICAL = 2;
+}
