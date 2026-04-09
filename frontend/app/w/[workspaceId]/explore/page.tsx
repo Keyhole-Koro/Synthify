@@ -15,7 +15,7 @@ type ExpansionMap = PaperViewState['expansionMap'];
 
 // PaperCanvas must be rendered client-side only (it uses browser APIs)
 const PaperCanvas = dynamic(
-  () => import('@keyhole-koro/paper-in-paper').then((m) => ({ default: m.PaperCanvas })),
+  () => import('@/lib/PaperCanvasClient'),
   { ssr: false, loading: () => <CanvasLoader /> },
 );
 

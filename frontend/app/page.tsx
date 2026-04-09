@@ -1,137 +1,86 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { listWorkspaces, createWorkspace, type Workspace } from '@/features/workspaces/api';
+import dynamic from 'next/dynamic';
+import type { PaperViewState } from '@keyhole-koro/paper-in-paper';
+import { type AuthMode } from '@/features/landing/AuthPaper';
+import { buildLandingPaperMap, LANDING_ROOT_ID } from '@/features/landing/landingPaperMap';
 
-export default function HomePage() {
+type ExpansionMap = PaperViewState['expansionMap'];
+
+const PaperCanvas = dynamic(
+  () => import('@/lib/PaperCanvasClient'),
+  { ssr: false },
+);
+
+const NOOP_PAPER_MAP_CHANGE = () => {};
+
+export default function LandingPage() {
   const router = useRouter();
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    listWorkspaces()
-      .then((ws) => {
-        setWorkspaces(ws);
-        // ワークスペースが1つだけなら自動リダイレクト
-        if (ws.length === 1) {
-          router.replace(`/w/${ws[0].workspace_id}`);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const handleAuthSubmit = useCallback(() => {
+    setLoading(true);
+    setTimeout(() => router.push('/w/ws_demo'), 800);
   }, [router]);
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newName.trim()) return;
-    setCreating(true);
-    try {
-      const ws = await createWorkspace(newName.trim());
-      router.push(`/w/${ws.workspace_id}`);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCreating(false);
-    }
-  }
+  const paperMap = useMemo(
+    () =>
+      buildLandingPaperMap({
+        authMode,
+        loading,
+        onAuthModeChange: setAuthMode,
+        onAuthSubmit: handleAuthSubmit,
+      }),
+    [authMode, loading, handleAuthSubmit],
+  );
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-      </div>
-    );
-  }
+  const [expansionMap, setExpansionMap] = useState<ExpansionMap>(
+    new Map([[LANDING_ROOT_ID, { openChildIds: ['auth'] }]]),
+  );
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16">
-      <div className="mb-10 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Synthify</h1>
-          <p className="mt-1 text-sm text-slate-500">ワークスペースを選択してください</p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors"
-        >
-          + 新規作成
-        </button>
+    <div className="relative h-screen w-screen overflow-hidden bg-transparent">
+      <div className="absolute inset-x-8 bottom-8 top-[30vh]">
+        <PaperCanvas
+          paperMap={paperMap}
+          rootId={LANDING_ROOT_ID}
+          expansionMap={expansionMap}
+          focusedNodeId={focusedNodeId}
+          debug={false}
+          onPaperMapChange={NOOP_PAPER_MAP_CHANGE}
+          onExpansionMapChange={setExpansionMap}
+          onFocusedNodeIdChange={setFocusedNodeId}
+        />
       </div>
 
-      {showCreate && (
-        <form onSubmit={handleCreate} className="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="mb-3 text-sm font-medium text-slate-700">新しいワークスペース</p>
-          <div className="flex gap-2">
-            <input
-              autoFocus
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="例: プロジェクト戦略"
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-            />
-            <button
-              type="submit"
-              disabled={creating || !newName.trim()}
-              className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 hover:bg-indigo-700 transition-colors"
-            >
-              {creating ? '作成中…' : '作成'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCreate(false)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
-            >
-              キャンセル
-            </button>
+      {loading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/45 backdrop-blur-sm transition-opacity">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500/30 border-t-indigo-500" />
+            <p className="text-sm font-medium text-white/80">接続中...</p>
           </div>
-        </form>
-      )}
-
-      {workspaces.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center">
-          <p className="text-slate-500">ワークスペースがありません</p>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="mt-4 text-sm font-semibold text-indigo-600 hover:underline"
-          >
-            最初のワークスペースを作成する
-          </button>
         </div>
-      ) : (
-        <ul className="space-y-3">
-          {workspaces.map((ws) => (
-            <li key={ws.workspace_id}>
-              <a
-                href={`/w/${ws.workspace_id}`}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all"
-              >
-                <div>
-                  <p className="font-semibold text-slate-800">{ws.name}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {ws.plan === 'pro' ? '✦ Pro' : 'Free'} · {ws.workspace_id}
-                  </p>
-                </div>
-                <span className="text-slate-400">→</span>
-              </a>
-            </li>
-          ))}
-        </ul>
       )}
 
-      <div className="fixed bottom-8 right-8">
-        <a
-          href="/synthify"
-          className="flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-xl transition-all hover:bg-emerald-700 hover:scale-105 active:scale-95"
-        >
-          <span>✨</span>
-          Launch Paper Prototype
-        </a>
+      <div className="absolute left-6 top-6 z-20 flex select-none items-center gap-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500">
+          <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+            />
+          </svg>
+        </div>
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold tracking-tight text-white/90">Synthify</span>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-white/45">Knowledge Graph Platform</span>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
