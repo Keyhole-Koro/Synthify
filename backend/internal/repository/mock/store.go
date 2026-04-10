@@ -15,10 +15,17 @@ type Store struct {
 	mu         sync.RWMutex
 	workspaces map[string]*domain.Workspace
 	members    map[string][]*domain.WorkspaceMember // workspace_id → members
-	documents  map[string]*domain.Document           // document_id → document
-	nodes      map[string][]*domain.Node             // document_id → nodes
-	edges      map[string][]*domain.Edge             // document_id → edges
-	views      map[string][]string                   // "user_id:workspace_id" → viewed node_ids
+	documents  map[string]*domain.Document          // document_id → document
+	nodes      map[string][]*domain.Node            // document_id → nodes
+	edges      map[string][]*domain.Edge            // document_id → edges
+	views      map[string][]viewRecord              // "user_id:workspace_id" → view records
+	aliases    map[string]string                    // alias node id -> canonical node id
+}
+
+type viewRecord struct {
+	NodeID       string
+	DocumentID   string
+	LastViewedAt string
 }
 
 func NewStore() *Store {
@@ -28,7 +35,8 @@ func NewStore() *Store {
 		documents:  make(map[string]*domain.Document),
 		nodes:      make(map[string][]*domain.Node),
 		edges:      make(map[string][]*domain.Edge),
-		views:      make(map[string][]string),
+		views:      make(map[string][]viewRecord),
+		aliases:    make(map[string]string),
 	}
 	s.seed()
 	return s
@@ -105,6 +113,67 @@ func (s *Store) InviteMember(wsID, email, role string, isDev bool) (*domain.Work
 	return m, true
 }
 
+func (s *Store) UpdateMemberRole(wsID, userID, role string, isDev bool) (*domain.WorkspaceMember, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	members, ok := s.members[wsID]
+	if !ok {
+		return nil, false
+	}
+	for _, member := range members {
+		if member.UserID == userID {
+			member.Role = domain.WorkspaceRole(role)
+			member.IsDev = isDev
+			return member, true
+		}
+	}
+	return nil, false
+}
+
+func (s *Store) RemoveMember(wsID, userID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	members, ok := s.members[wsID]
+	if !ok {
+		return false
+	}
+	for i, member := range members {
+		if member.UserID == userID {
+			s.members[wsID] = append(members[:i], members[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Store) TransferOwnership(wsID, newOwnerUserID string) (*domain.Workspace, []*domain.WorkspaceMember, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ws, ok := s.workspaces[wsID]
+	if !ok {
+		return nil, nil, false
+	}
+	members, ok := s.members[wsID]
+	if !ok {
+		return nil, nil, false
+	}
+	found := false
+	for _, member := range members {
+		switch member.UserID {
+		case newOwnerUserID:
+			member.Role = domain.WorkspaceRoleOwner
+			found = true
+		case ws.OwnerID:
+			member.Role = domain.WorkspaceRoleEditor
+		}
+	}
+	if !found {
+		return nil, nil, false
+	}
+	ws.OwnerID = newOwnerUserID
+	return ws, members, true
+}
+
 // ─── Document ─────────────────────────────────────────────────────────────────
 
 func (s *Store) ListDocuments(wsID string) []*domain.Document {
@@ -145,6 +214,12 @@ func (s *Store) CreateDocument(wsID, filename, mimeType string, fileSize int64) 
 	return doc, uploadURL
 }
 
+func (s *Store) GetUploadURL(wsID, filename, mimeType string, fileSize int64) (string, string) {
+	token := newID("upload")
+	uploadURL := fmt.Sprintf("http://gcs:4443/synthify-uploads/%s/%s/%s", wsID, token, filename)
+	return uploadURL, token
+}
+
 func (s *Store) StartProcessing(docID string, forceReprocess bool, depth string) (*domain.Document, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -179,6 +254,75 @@ func (s *Store) GetGraph(docID string) ([]*domain.Node, []*domain.Edge, bool) {
 		return nil, nil, false
 	}
 	return nodes, s.edges[docID], true
+}
+
+func (s *Store) FindPaths(docID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	nodes, ok := s.nodes[docID]
+	if !ok {
+		return nil, nil, nil, false
+	}
+	edges := s.edges[docID]
+	if maxDepth <= 0 {
+		maxDepth = 4
+	}
+	if limit <= 0 {
+		limit = 3
+	}
+
+	nodeByID := make(map[string]*domain.Node, len(nodes))
+	for _, node := range nodes {
+		nodeByID[node.NodeID] = node
+	}
+	if nodeByID[sourceNodeID] == nil || nodeByID[targetNodeID] == nil {
+		return nil, nil, nil, false
+	}
+
+	adj := make(map[string][]string)
+	for _, edge := range edges {
+		adj[edge.SourceNodeID] = append(adj[edge.SourceNodeID], edge.TargetNodeID)
+		adj[edge.TargetNodeID] = append(adj[edge.TargetNodeID], edge.SourceNodeID)
+	}
+
+	type item struct {
+		nodeID string
+		path   []string
+	}
+	queue := []item{{nodeID: sourceNodeID, path: []string{sourceNodeID}}}
+	var paths []domain.GraphPath
+	seenPaths := make(map[string]bool)
+
+	for len(queue) > 0 && len(paths) < limit {
+		cur := queue[0]
+		queue = queue[1:]
+		if len(cur.path)-1 > maxDepth {
+			continue
+		}
+		if cur.nodeID == targetNodeID {
+			key := fmt.Sprint(cur.path)
+			if seenPaths[key] {
+				continue
+			}
+			seenPaths[key] = true
+			path := domain.GraphPath{
+				NodeIDs:  append([]string(nil), cur.path...),
+				HopCount: len(cur.path) - 1,
+			}
+			path.Evidence.SourceDocumentIDs = []string{docID}
+			paths = append(paths, path)
+			continue
+		}
+		for _, next := range adj[cur.nodeID] {
+			if contains(cur.path, next) {
+				continue
+			}
+			nextPath := append(append([]string(nil), cur.path...), next)
+			queue = append(queue, item{nodeID: next, path: nextPath})
+		}
+	}
+
+	return nodes, edges, paths, true
 }
 
 // ─── Node ─────────────────────────────────────────────────────────────────────
@@ -235,7 +379,97 @@ func (s *Store) RecordView(userID, wsID, nodeID, docID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := userID + ":" + wsID
-	s.views[key] = append(s.views[key], nodeID)
+	s.views[key] = append(s.views[key], viewRecord{
+		NodeID:       nodeID,
+		DocumentID:   docID,
+		LastViewedAt: now(),
+	})
+}
+
+func (s *Store) GetUserNodeActivity(wsID, userID, documentID string, limit int) domain.UserNodeActivity {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 {
+		limit = 50
+	}
+
+	activity := domain.UserNodeActivity{
+		UserID:      userID,
+		DisplayName: userID,
+	}
+	for _, members := range s.members {
+		for _, member := range members {
+			if member.UserID == userID {
+				activity.DisplayName = member.Email
+			}
+		}
+	}
+
+	viewMap := make(map[string]*domain.ViewedNodeEntry)
+	for _, record := range s.views[userID+":"+wsID] {
+		if documentID != "" && record.DocumentID != documentID {
+			continue
+		}
+		entry := viewMap[record.NodeID]
+		if entry == nil {
+			entry = &domain.ViewedNodeEntry{
+				NodeID:       record.NodeID,
+				DocumentID:   record.DocumentID,
+				Label:        s.lookupNodeLabel(record.NodeID),
+				LastViewedAt: record.LastViewedAt,
+			}
+			viewMap[record.NodeID] = entry
+		}
+		entry.ViewCount++
+		entry.LastViewedAt = record.LastViewedAt
+	}
+	for _, entry := range viewMap {
+		activity.ViewedNodes = append(activity.ViewedNodes, *entry)
+	}
+	if len(activity.ViewedNodes) > limit {
+		activity.ViewedNodes = activity.ViewedNodes[:limit]
+	}
+
+	for _, nodes := range s.nodes {
+		for _, node := range nodes {
+			if node.CreatedBy != userID {
+				continue
+			}
+			if documentID != "" && node.DocumentID != documentID {
+				continue
+			}
+			activity.CreatedNodes = append(activity.CreatedNodes, domain.CreatedNodeEntry{
+				NodeID:     node.NodeID,
+				DocumentID: node.DocumentID,
+				Label:      node.Label,
+				CreatedAt:  node.CreatedAt,
+			})
+		}
+	}
+	if len(activity.CreatedNodes) > limit {
+		activity.CreatedNodes = activity.CreatedNodes[:limit]
+	}
+	return activity
+}
+
+func (s *Store) ApproveAlias(wsID, canonicalNodeID, aliasNodeID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.workspaceExists(wsID) || !s.nodeExists(canonicalNodeID) || !s.nodeExists(aliasNodeID) {
+		return false
+	}
+	s.aliases[aliasNodeID] = canonicalNodeID
+	return true
+}
+
+func (s *Store) RejectAlias(wsID, canonicalNodeID, aliasNodeID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.workspaceExists(wsID) || !s.nodeExists(canonicalNodeID) || !s.nodeExists(aliasNodeID) {
+		return false
+	}
+	delete(s.aliases, aliasNodeID)
+	return true
 }
 
 // ─── Seed data ────────────────────────────────────────────────────────────────
@@ -446,4 +680,33 @@ func cloneSalesEdges(docID string) []*domain.Edge {
 // Edge には CreatedAt が不要だが、将来的に使う可能性があるためフィールドを保持。
 func init() {
 	_ = now
+}
+
+func contains(ids []string, target string) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Store) workspaceExists(wsID string) bool {
+	_, ok := s.workspaces[wsID]
+	return ok
+}
+
+func (s *Store) nodeExists(nodeID string) bool {
+	return s.lookupNodeLabel(nodeID) != ""
+}
+
+func (s *Store) lookupNodeLabel(nodeID string) string {
+	for _, nodes := range s.nodes {
+		for _, node := range nodes {
+			if node.NodeID == nodeID {
+				return node.Label
+			}
+		}
+	}
+	return ""
 }

@@ -1,70 +1,126 @@
 package handler
 
 import (
-	"net/http"
+	"context"
+	"errors"
 
-	"github.com/synthify/backend/internal/repository/mock"
+	connect "connectrpc.com/connect"
+	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
+	"github.com/synthify/backend/internal/domain"
+	"github.com/synthify/backend/internal/service"
 )
 
 type WorkspaceHandler struct {
-	store *mock.Store
+	service *service.WorkspaceService
 }
 
-func NewWorkspaceHandler(store *mock.Store) *WorkspaceHandler {
-	return &WorkspaceHandler{store: store}
+func NewWorkspaceHandler(svc *service.WorkspaceService) *WorkspaceHandler {
+	return &WorkspaceHandler{service: svc}
 }
 
-func (h *WorkspaceHandler) ListWorkspaces(w http.ResponseWriter, r *http.Request) {
-	workspaces := h.store.ListWorkspaces()
-	writeJSON(w, map[string]any{"workspaces": workspaces})
+func (h *WorkspaceHandler) ListWorkspaces(context.Context, *connect.Request[graphv1.ListWorkspacesRequest]) (*connect.Response[graphv1.ListWorkspacesResponse], error) {
+	workspaces := h.service.ListWorkspaces()
+	res := connect.NewResponse(&graphv1.ListWorkspacesResponse{})
+	for _, workspace := range workspaces {
+		res.Msg.Workspaces = append(res.Msg.Workspaces, toProtoWorkspace(workspace))
+	}
+	return res, nil
 }
 
-func (h *WorkspaceHandler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID string `json:"workspace_id"`
+func (h *WorkspaceHandler) GetWorkspace(_ context.Context, req *connect.Request[graphv1.GetWorkspaceRequest]) (*connect.Response[graphv1.GetWorkspaceResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.WorkspaceID == "" {
-		writeError(w, http.StatusBadRequest, "workspace_id is required")
-		return
+	workspace, members, err := h.service.GetWorkspace(req.Msg.GetWorkspaceId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	ws, members, ok := h.store.GetWorkspace(req.WorkspaceID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "workspace not found")
-		return
+	res := connect.NewResponse(&graphv1.GetWorkspaceResponse{
+		Workspace: toProtoWorkspace(workspace),
+	})
+	for _, member := range members {
+		res.Msg.Members = append(res.Msg.Members, toProtoWorkspaceMember(member))
 	}
-	writeJSON(w, map[string]any{"workspace": ws, "members": members})
+	return res, nil
 }
 
-func (h *WorkspaceHandler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Name string `json:"name"`
+func (h *WorkspaceHandler) CreateWorkspace(_ context.Context, req *connect.Request[graphv1.CreateWorkspaceRequest]) (*connect.Response[graphv1.CreateWorkspaceResponse], error) {
+	if req.Msg.GetName() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.Name == "" {
-		writeError(w, http.StatusBadRequest, "name is required")
-		return
-	}
-	ws := h.store.CreateWorkspace(req.Name)
-	writeJSON(w, map[string]any{"workspace": ws})
+	return connect.NewResponse(&graphv1.CreateWorkspaceResponse{
+		Workspace: toProtoWorkspace(h.service.CreateWorkspace(req.Msg.GetName())),
+	}), nil
 }
 
-func (h *WorkspaceHandler) InviteMember(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID string `json:"workspace_id"`
-		Email       string `json:"email"`
-		Role        string `json:"role"`
-		IsDev       bool   `json:"is_dev"`
+func (h *WorkspaceHandler) InviteMember(_ context.Context, req *connect.Request[graphv1.InviteMemberRequest]) (*connect.Response[graphv1.InviteMemberResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetEmail() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and email are required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.WorkspaceID == "" || req.Email == "" {
-		writeError(w, http.StatusBadRequest, "workspace_id and email are required")
-		return
+	member, err := h.service.InviteMember(req.Msg.GetWorkspaceId(), req.Msg.GetEmail(), workspaceRoleToDomain(req.Msg.GetRole()), req.Msg.GetIsDev())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	if req.Role == "" {
-		req.Role = "viewer"
+	return connect.NewResponse(&graphv1.InviteMemberResponse{Member: toProtoWorkspaceMember(member)}), nil
+}
+
+func (h *WorkspaceHandler) UpdateMemberRole(_ context.Context, req *connect.Request[graphv1.UpdateMemberRoleRequest]) (*connect.Response[graphv1.UpdateMemberRoleResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetUserId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and user_id are required"))
 	}
-	member, ok := h.store.InviteMember(req.WorkspaceID, req.Email, req.Role, req.IsDev)
-	if !ok {
-		writeError(w, http.StatusNotFound, "workspace not found")
-		return
+	member, err := h.service.UpdateMemberRole(req.Msg.GetWorkspaceId(), req.Msg.GetUserId(), workspaceRoleToDomain(req.Msg.GetRole()), req.Msg.GetIsDev())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	writeJSON(w, map[string]any{"member": member})
+	return connect.NewResponse(&graphv1.UpdateMemberRoleResponse{Member: toProtoWorkspaceMember(member)}), nil
+}
+
+func (h *WorkspaceHandler) RemoveMember(_ context.Context, req *connect.Request[graphv1.RemoveMemberRequest]) (*connect.Response[graphv1.RemoveMemberResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetUserId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and user_id are required"))
+	}
+	if err := h.service.RemoveMember(req.Msg.GetWorkspaceId(), req.Msg.GetUserId()); err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	return connect.NewResponse(&graphv1.RemoveMemberResponse{}), nil
+}
+
+func (h *WorkspaceHandler) TransferOwnership(_ context.Context, req *connect.Request[graphv1.TransferOwnershipRequest]) (*connect.Response[graphv1.TransferOwnershipResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetNewOwnerUserId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and new_owner_user_id are required"))
+	}
+	workspace, members, err := h.service.TransferOwnership(req.Msg.GetWorkspaceId(), req.Msg.GetNewOwnerUserId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	res := connect.NewResponse(&graphv1.TransferOwnershipResponse{Workspace: toProtoWorkspace(workspace)})
+	for _, member := range members {
+		res.Msg.Members = append(res.Msg.Members, toProtoWorkspaceMember(member))
+	}
+	return res, nil
+}
+
+func toProtoWorkspace(workspace *domain.Workspace) *graphv1.Workspace {
+	return &graphv1.Workspace{
+		WorkspaceId:       workspace.WorkspaceID,
+		Name:              workspace.Name,
+		OwnerId:           workspace.OwnerID,
+		Plan:              workspacePlanToProto(workspace.Plan),
+		StorageUsedBytes:  workspace.StorageUsedBytes,
+		StorageQuotaBytes: workspace.StorageQuotaBytes,
+		MaxFileSizeBytes:  workspace.MaxFileSizeBytes,
+		MaxUploadsPerDay:  workspace.MaxUploadsPerDay,
+		CreatedAt:         workspace.CreatedAt,
+	}
+}
+
+func toProtoWorkspaceMember(member *domain.WorkspaceMember) *graphv1.WorkspaceMember {
+	return &graphv1.WorkspaceMember{
+		UserId:    member.UserID,
+		Email:     member.Email,
+		Role:      workspaceRoleToProto(member.Role),
+		IsDev:     member.IsDev,
+		InvitedAt: member.InvitedAt,
+		InvitedBy: member.InvitedBy,
+	}
 }

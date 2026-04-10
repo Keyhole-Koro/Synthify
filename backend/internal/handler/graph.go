@@ -1,91 +1,102 @@
 package handler
 
 import (
-	"net/http"
+	"context"
+	"errors"
 
-	"github.com/synthify/backend/internal/domain"
-	"github.com/synthify/backend/internal/repository/mock"
+	connect "connectrpc.com/connect"
+	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
+	"github.com/synthify/backend/internal/service"
 )
 
 type GraphHandler struct {
-	store *mock.Store
+	service *service.GraphService
 }
 
-func NewGraphHandler(store *mock.Store) *GraphHandler {
-	return &GraphHandler{store: store}
+func NewGraphHandler(svc *service.GraphService) *GraphHandler {
+	return &GraphHandler{service: svc}
 }
 
-func (h *GraphHandler) GetGraph(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID   string   `json:"workspace_id"`
-		DocumentID    string   `json:"document_id"`
-		LevelFilters  []int    `json:"level_filters"`
-		CategoryFilters []string `json:"category_filters"`
-		Limit         int      `json:"limit"`
+func (h *GraphHandler) GetGraph(_ context.Context, req *connect.Request[graphv1.GetGraphRequest]) (*connect.Response[graphv1.GetGraphResponse], error) {
+	if req.Msg.GetDocumentId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.DocumentID == "" {
-		writeError(w, http.StatusBadRequest, "document_id is required")
-		return
+	nodes, edges, err := h.service.GetGraph(req.Msg.GetDocumentId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
 
-	nodes, edges, ok := h.store.GetGraph(req.DocumentID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "graph not found for document")
-		return
+	levelSet := map[int32]bool{}
+	for _, level := range req.Msg.GetLevelFilters() {
+		levelSet[level] = true
+	}
+	categorySet := map[graphv1.NodeCategory]bool{}
+	for _, category := range req.Msg.GetCategoryFilters() {
+		categorySet[category] = true
 	}
 
-	// Apply level filter
-	levelSet := make(map[int]bool)
-	for _, l := range req.LevelFilters {
-		levelSet[l] = true
+	graph := &graphv1.Graph{
+		WorkspaceId: req.Msg.GetWorkspaceId(),
+		DocumentId:  req.Msg.GetDocumentId(),
 	}
-
-	// Apply category filter
-	catSet := make(map[string]bool)
-	for _, c := range req.CategoryFilters {
-		catSet[c] = true
-	}
-
-	graphNodes := make([]domain.GraphNode, 0, len(nodes))
-	nodeIDs := make(map[string]bool)
-	for _, n := range nodes {
-		if len(levelSet) > 0 && !levelSet[n.Level] {
+	nodeIDs := map[string]bool{}
+	for _, node := range nodes {
+		if len(levelSet) > 0 && !levelSet[int32(node.Level)] {
 			continue
 		}
-		if len(catSet) > 0 && !catSet[n.Category] {
+		if len(categorySet) > 0 && !categorySet[nodeCategoryToProto(node.Category)] {
 			continue
 		}
-		graphNodes = append(graphNodes, domain.GraphNode{
-			ID:          n.NodeID,
-			Scope:       "document",
-			Label:       n.Label,
-			Level:       n.Level,
-			Category:    n.Category,
-			EntityType:  n.EntityType,
-			Description: n.Description,
-			SummaryHTML: n.SummaryHTML,
+		protoNode := toProtoNode(node)
+		graph.Nodes = append(graph.Nodes, protoNode)
+		nodeIDs[protoNode.GetId()] = true
+	}
+	for _, edge := range edges {
+		if !nodeIDs[edge.SourceNodeID] || !nodeIDs[edge.TargetNodeID] {
+			continue
+		}
+		graph.Edges = append(graph.Edges, toProtoEdge(edge))
+	}
+	return connect.NewResponse(&graphv1.GetGraphResponse{Graph: graph}), nil
+}
+
+func (h *GraphHandler) FindPaths(_ context.Context, req *connect.Request[graphv1.FindPathsRequest]) (*connect.Response[graphv1.FindPathsResponse], error) {
+	if req.Msg.GetSourceNodeId() == "" || req.Msg.GetTargetNodeId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("source_node_id and target_node_id are required"))
+	}
+	docID := ""
+	if ids := req.Msg.GetDocumentIds(); len(ids) > 0 {
+		docID = ids[0]
+	}
+	if docID == "" {
+		docID = "doc_sales"
+	}
+
+	nodes, edges, paths, err := h.service.FindPaths(docID, req.Msg.GetSourceNodeId(), req.Msg.GetTargetNodeId(), int(req.Msg.GetMaxDepth()), int(req.Msg.GetLimit()))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	graph := &graphv1.Graph{
+		WorkspaceId:   req.Msg.GetWorkspaceId(),
+		DocumentId:    docID,
+		CrossDocument: req.Msg.GetCrossDocument(),
+	}
+	for _, node := range nodes {
+		graph.Nodes = append(graph.Nodes, toProtoNode(node))
+	}
+	for _, edge := range edges {
+		graph.Edges = append(graph.Edges, toProtoEdge(edge))
+	}
+
+	res := connect.NewResponse(&graphv1.FindPathsResponse{Graph: graph})
+	for _, path := range paths {
+		res.Msg.Paths = append(res.Msg.Paths, &graphv1.GraphPath{
+			NodeIds:  path.NodeIDs,
+			HopCount: int32(path.HopCount),
+			EvidenceRef: &graphv1.PathEvidenceRef{
+				SourceDocumentIds: path.Evidence.SourceDocumentIDs,
+			},
 		})
-		nodeIDs[n.NodeID] = true
 	}
-
-	graphEdges := make([]domain.GraphEdge, 0, len(edges))
-	for _, e := range edges {
-		if !nodeIDs[e.SourceNodeID] || !nodeIDs[e.TargetNodeID] {
-			continue
-		}
-		graphEdges = append(graphEdges, domain.GraphEdge{
-			ID:     e.EdgeID,
-			Source: e.SourceNodeID,
-			Target: e.TargetNodeID,
-			Type:   e.EdgeType,
-			Scope:  "document",
-		})
-	}
-
-	writeJSON(w, map[string]any{
-		"graph": map[string]any{
-			"nodes": graphNodes,
-			"edges": graphEdges,
-		},
-	})
+	return res, nil
 }

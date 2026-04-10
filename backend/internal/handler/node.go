@@ -1,131 +1,169 @@
 package handler
 
 import (
-	"net/http"
+	"context"
+	"errors"
 
+	connect "connectrpc.com/connect"
+	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
 	"github.com/synthify/backend/internal/domain"
-	"github.com/synthify/backend/internal/repository/mock"
+	"github.com/synthify/backend/internal/service"
 )
 
 type NodeHandler struct {
-	store *mock.Store
+	service *service.NodeService
 }
 
-func NewNodeHandler(store *mock.Store) *NodeHandler {
-	return &NodeHandler{store: store}
+func NewNodeHandler(svc *service.NodeService) *NodeHandler {
+	return &NodeHandler{service: svc}
 }
 
-func (h *NodeHandler) GetGraphEntityDetail(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		TargetRef struct {
-			WorkspaceID string `json:"workspace_id"`
-			Scope       string `json:"scope"`
-			ID          string `json:"id"`
-			DocumentID  string `json:"document_id"`
-		} `json:"target_ref"`
-		ResolveAliases bool `json:"resolve_aliases"`
-	}
-	if err := decodeBody(r, &req); err != nil || req.TargetRef.ID == "" {
-		writeError(w, http.StatusBadRequest, "target_ref.id is required")
-		return
+func (h *NodeHandler) GetGraphEntityDetail(_ context.Context, req *connect.Request[graphv1.GetGraphEntityDetailRequest]) (*connect.Response[graphv1.GetGraphEntityDetailResponse], error) {
+	if req.Msg.GetTargetRef() == nil || req.Msg.GetTargetRef().GetId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("target_ref.id is required"))
 	}
 
-	node, relatedEdges, ok := h.store.GetNode(req.TargetRef.ID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "node not found")
-		return
+	node, relatedEdges, err := h.service.GetGraphEntityDetail(req.Msg.GetTargetRef().GetId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	chunk := &graphv1.DocumentChunk{
+		ChunkId:        "chunk_" + node.NodeID,
+		DocumentId:     node.DocumentID,
+		Text:           node.Description + "（出典チャンクのサンプルテキスト。実際の処理ではドキュメントの該当箇所が入ります。）",
+		SourceFilename: "sample.txt",
+		SourcePage:     3,
 	}
 
-	graphNode := domain.GraphNode{
-		ID:          node.NodeID,
-		Scope:       "document",
+	detail := &graphv1.GraphEntityDetail{
+		Ref: &graphv1.EntityRef{
+			WorkspaceId: req.Msg.GetTargetRef().GetWorkspaceId(),
+			Scope:       graphv1.GraphProjectionScope_GRAPH_PROJECTION_SCOPE_DOCUMENT,
+			Id:          node.NodeID,
+			DocumentId:  node.DocumentID,
+		},
+		Node: toProtoNode(node),
+		Evidence: &graphv1.GraphEntityEvidence{
+			SourceChunks:      []*graphv1.DocumentChunk{chunk},
+			SourceDocumentIds: []string{node.DocumentID},
+		},
+	}
+	for _, edge := range relatedEdges {
+		detail.RelatedEdges = append(detail.RelatedEdges, toProtoEdge(edge))
+	}
+	return connect.NewResponse(&graphv1.GetGraphEntityDetailResponse{Detail: detail}), nil
+}
+
+func (h *NodeHandler) RecordNodeView(_ context.Context, req *connect.Request[graphv1.RecordNodeViewRequest]) (*connect.Response[graphv1.RecordNodeViewResponse], error) {
+	h.service.RecordNodeView(req.Msg.GetWorkspaceId(), req.Msg.GetNodeId(), req.Msg.GetDocumentId())
+	return connect.NewResponse(&graphv1.RecordNodeViewResponse{}), nil
+}
+
+func (h *NodeHandler) CreateNode(_ context.Context, req *connect.Request[graphv1.CreateNodeRequest]) (*connect.Response[graphv1.CreateNodeResponse], error) {
+	if req.Msg.GetDocumentId() == "" || req.Msg.GetLabel() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id and label are required"))
+	}
+	category := req.Msg.GetCategory()
+	if category == "" {
+		category = "concept"
+	}
+	node := h.service.CreateNode(req.Msg.GetDocumentId(), req.Msg.GetLabel(), category, req.Msg.GetDescription(), req.Msg.GetParentNodeId(), int(req.Msg.GetLevel()))
+	return connect.NewResponse(&graphv1.CreateNodeResponse{Node: toProtoNode(node)}), nil
+}
+
+func (h *NodeHandler) GetUserNodeActivity(_ context.Context, req *connect.Request[graphv1.GetUserNodeActivityRequest]) (*connect.Response[graphv1.GetUserNodeActivityResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	activity := h.service.GetUserNodeActivity(req.Msg.GetWorkspaceId(), req.Msg.GetUserId(), req.Msg.GetDocumentId(), int(req.Msg.GetLimit()))
+	return connect.NewResponse(&graphv1.GetUserNodeActivityResponse{
+		Activity: &graphv1.UserNodeActivity{
+			UserId:       activity.UserID,
+			DisplayName:  activity.DisplayName,
+			ViewedNodes:  toProtoViewedNodes(activity.ViewedNodes),
+			CreatedNodes: toProtoCreatedNodes(activity.CreatedNodes),
+		},
+	}), nil
+}
+
+func (h *NodeHandler) ApproveAlias(_ context.Context, req *connect.Request[graphv1.ApproveAliasRequest]) (*connect.Response[graphv1.ApproveAliasResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalNodeId() == "" || req.Msg.GetAliasNodeId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_node_id, and alias_node_id are required"))
+	}
+	if err := h.service.ApproveAlias(req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalNodeId(), req.Msg.GetAliasNodeId()); err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	return connect.NewResponse(&graphv1.ApproveAliasResponse{
+		CanonicalNodeId: req.Msg.GetCanonicalNodeId(),
+		AliasNodeId:     req.Msg.GetAliasNodeId(),
+		MergeStatus:     "approved",
+	}), nil
+}
+
+func (h *NodeHandler) RejectAlias(_ context.Context, req *connect.Request[graphv1.RejectAliasRequest]) (*connect.Response[graphv1.RejectAliasResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalNodeId() == "" || req.Msg.GetAliasNodeId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_node_id, and alias_node_id are required"))
+	}
+	if err := h.service.RejectAlias(req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalNodeId(), req.Msg.GetAliasNodeId()); err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	return connect.NewResponse(&graphv1.RejectAliasResponse{
+		CanonicalNodeId: req.Msg.GetCanonicalNodeId(),
+		AliasNodeId:     req.Msg.GetAliasNodeId(),
+		MergeStatus:     "rejected",
+	}), nil
+}
+
+func toProtoNode(node *domain.Node) *graphv1.Node {
+	return &graphv1.Node{
+		Id:          node.NodeID,
+		DocumentId:  node.DocumentID,
 		Label:       node.Label,
-		Level:       node.Level,
-		Category:    node.Category,
-		EntityType:  node.EntityType,
+		Level:       int32(node.Level),
+		Category:    nodeCategoryToProto(node.Category),
+		EntityType:  nodeEntityTypeToProto(node.EntityType),
 		Description: node.Description,
-		SummaryHTML: node.SummaryHTML,
+		SummaryHtml: node.SummaryHTML,
+		CreatedAt:   node.CreatedAt,
+		Scope:       graphv1.GraphProjectionScope_GRAPH_PROJECTION_SCOPE_DOCUMENT,
 	}
+}
 
-	edges := make([]domain.GraphEdge, 0, len(relatedEdges))
-	for _, e := range relatedEdges {
-		edges = append(edges, domain.GraphEdge{
-			ID:     e.EdgeID,
-			Source: e.SourceNodeID,
-			Target: e.TargetNodeID,
-			Type:   e.EdgeType,
-			Scope:  "document",
+func toProtoEdge(edge *domain.Edge) *graphv1.Edge {
+	return &graphv1.Edge{
+		Id:          edge.EdgeID,
+		Source:      edge.SourceNodeID,
+		Target:      edge.TargetNodeID,
+		Type:        edge.EdgeType,
+		Scope:       graphv1.GraphProjectionScope_GRAPH_PROJECTION_SCOPE_DOCUMENT,
+		Description: edge.Description,
+		CreatedAt:   edge.CreatedAt,
+	}
+}
+
+func toProtoViewedNodes(entries []domain.ViewedNodeEntry) []*graphv1.ViewedNodeEntry {
+	out := make([]*graphv1.ViewedNodeEntry, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, &graphv1.ViewedNodeEntry{
+			NodeId:       entry.NodeID,
+			DocumentId:   entry.DocumentID,
+			Label:        entry.Label,
+			LastViewedAt: entry.LastViewedAt,
+			ViewCount:    entry.ViewCount,
 		})
 	}
-
-	// モック: 出典チャンクを生成
-	chunk := domain.DocumentChunk{
-		ChunkID:    "chunk_" + node.NodeID,
-		DocumentID: node.DocumentID,
-		Heading:    node.Label,
-		Text:       node.Description + "（出典チャンクのサンプルテキスト。実際の処理ではドキュメントの該当箇所が入ります。）",
-		SourcePage: 3,
-	}
-
-	writeJSON(w, map[string]any{
-		"detail": map[string]any{
-			"ref": map[string]any{
-				"workspace_id": req.TargetRef.WorkspaceID,
-				"scope":        "document",
-				"id":           node.NodeID,
-				"document_id":  node.DocumentID,
-			},
-			"node":          graphNode,
-			"related_edges": edges,
-			"evidence": map[string]any{
-				"source_chunks":      []domain.DocumentChunk{chunk},
-				"source_document_ids": []string{node.DocumentID},
-			},
-			"representative_nodes": []any{},
-		},
-	})
+	return out
 }
 
-func (h *NodeHandler) RecordNodeView(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID string `json:"workspace_id"`
-		NodeID      string `json:"node_id"`
-		DocumentID  string `json:"document_id"`
+func toProtoCreatedNodes(entries []domain.CreatedNodeEntry) []*graphv1.CreatedNodeEntry {
+	out := make([]*graphv1.CreatedNodeEntry, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, &graphv1.CreatedNodeEntry{
+			NodeId:     entry.NodeID,
+			DocumentId: entry.DocumentID,
+			Label:      entry.Label,
+			CreatedAt:  entry.CreatedAt,
+		})
 	}
-	if err := decodeBody(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request")
-		return
-	}
-	h.store.RecordView("user_demo", req.WorkspaceID, req.NodeID, req.DocumentID)
-	writeJSON(w, map[string]any{})
-}
-
-func (h *NodeHandler) CreateNode(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID  string `json:"workspace_id"`
-		DocumentID   string `json:"document_id"`
-		Label        string `json:"label"`
-		Category     string `json:"category"`
-		Level        int    `json:"level"`
-		Description  string `json:"description"`
-		ParentNodeID string `json:"parent_node_id"`
-	}
-	if err := decodeBody(r, &req); err != nil || req.DocumentID == "" || req.Label == "" {
-		writeError(w, http.StatusBadRequest, "document_id and label are required")
-		return
-	}
-	if req.Category == "" {
-		req.Category = "concept"
-	}
-	node := h.store.CreateNode(req.DocumentID, req.Label, req.Category, req.Description, req.ParentNodeID, req.Level, "user_demo")
-	writeJSON(w, map[string]any{
-		"node": domain.GraphNode{
-			ID:          node.NodeID,
-			Scope:       "document",
-			Label:       node.Label,
-			Level:       node.Level,
-			Category:    node.Category,
-			Description: node.Description,
-		},
-	})
+	return out
 }

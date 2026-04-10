@@ -1,0 +1,9 @@
+version: v2
+modules:
+  - path: ../initial-specs/specifications/gcp-graph-system/contract/proto
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

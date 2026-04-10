@@ -38,6 +38,7 @@ message GraphEntityDetail {
   Node node = 2;
   GraphEntityEvidence evidence = 3;
   repeated Node representative_nodes = 4;
+  repeated Edge related_edges = 5;
 }
 
 message GetGraphEntityDetailRequest {

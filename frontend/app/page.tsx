@@ -44,7 +44,7 @@ export default function LandingPage() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-transparent">
-      <div className="absolute inset-x-8 bottom-8 top-[30vh]">
+      <div className="absolute left-1/2 top-1/2 h-[clamp(360px,58vh,560px)] w-[min(1120px,calc(100vw-32px))] sm:w-[min(1120px,calc(100vw-64px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl [contain:layout_paint] isolate">
         <PaperCanvas
           paperMap={paperMap}
           rootId={LANDING_ROOT_ID}

@@ -23,6 +23,7 @@ export async function callRPC<Req, Res>(
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      'Connect-Protocol-Version': '1',
     },
     body: JSON.stringify(body),
   });

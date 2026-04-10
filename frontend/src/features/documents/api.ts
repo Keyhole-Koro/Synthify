@@ -23,22 +23,82 @@ export interface Document {
   updated_at: string;
 }
 
+interface ConnectDocument {
+  documentId: string;
+  workspaceId: string;
+  uploadedBy?: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number;
+  status: string;
+  extractionDepth?: string;
+  nodeCount?: number;
+  currentStage?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapDocumentStatus(status: string): DocumentStatus {
+  switch (status) {
+    case 'DOCUMENT_LIFECYCLE_STATE_PENDING_NORMALIZATION':
+      return 'pending_normalization';
+    case 'DOCUMENT_LIFECYCLE_STATE_PROCESSING':
+      return 'processing';
+    case 'DOCUMENT_LIFECYCLE_STATE_COMPLETED':
+      return 'completed';
+    case 'DOCUMENT_LIFECYCLE_STATE_FAILED':
+      return 'failed';
+    default:
+      return 'uploaded';
+  }
+}
+
+function mapExtractionDepth(depth?: string): string | undefined {
+  switch (depth) {
+    case 'EXTRACTION_DEPTH_FULL':
+      return 'full';
+    case 'EXTRACTION_DEPTH_SUMMARY':
+      return 'summary';
+    default:
+      return undefined;
+  }
+}
+
+function mapDocument(document: ConnectDocument): Document {
+  return {
+    document_id: document.documentId,
+    workspace_id: document.workspaceId,
+    uploaded_by: document.uploadedBy ?? '',
+    filename: document.filename,
+    mime_type: document.mimeType,
+    file_size: document.fileSize,
+    status: mapDocumentStatus(document.status),
+    extraction_depth: mapExtractionDepth(document.extractionDepth),
+    node_count: document.nodeCount,
+    current_stage: document.currentStage,
+    error_message: document.errorMessage,
+    created_at: document.createdAt,
+    updated_at: document.updatedAt,
+  };
+}
+
 export async function listDocuments(workspaceId: string): Promise<Document[]> {
-  const res = await callRPC<{ workspace_id: string }, { documents: Document[] }>(
+  const res = await callRPC<{ workspaceId: string }, { documents: ConnectDocument[] }>(
     'DocumentService',
     'ListDocuments',
-    { workspace_id: workspaceId },
+    { workspaceId },
   );
-  return res.documents ?? [];
+  return (res.documents ?? []).map(mapDocument);
 }
 
 export async function getDocument(documentId: string): Promise<Document> {
-  const res = await callRPC<{ document_id: string }, { document: Document }>(
+  const res = await callRPC<{ documentId: string }, { document: ConnectDocument }>(
     'DocumentService',
     'GetDocument',
-    { document_id: documentId },
+    { documentId },
   );
-  return res.document;
+  return mapDocument(res.document);
 }
 
 export interface CreateDocumentResult {
@@ -54,15 +114,21 @@ export async function createDocument(
   mimeType: string,
   fileSize: number,
 ): Promise<CreateDocumentResult> {
-  return callRPC<
-    { workspace_id: string; filename: string; mime_type: string; file_size: number },
-    CreateDocumentResult
+  const res = await callRPC<
+    { workspaceId: string; filename: string; mimeType: string; fileSize: number },
+    { document: ConnectDocument; uploadUrl: string; uploadMethod: string; uploadContentType: string }
   >('DocumentService', 'CreateDocument', {
-    workspace_id: workspaceId,
+    workspaceId,
     filename,
-    mime_type: mimeType,
-    file_size: fileSize,
+    mimeType,
+    fileSize,
   });
+  return {
+    document: mapDocument(res.document),
+    upload_url: res.uploadUrl,
+    upload_method: res.uploadMethod,
+    upload_content_type: res.uploadContentType,
+  };
 }
 
 export async function startProcessing(
@@ -70,11 +136,19 @@ export async function startProcessing(
   extractionDepth: 'full' | 'summary' = 'full',
   forceReprocess = false,
 ): Promise<{ document_id: string; status: string; job_id: string }> {
-  return callRPC('DocumentService', 'StartProcessing', {
-    document_id: documentId,
-    extraction_depth: extractionDepth,
-    force_reprocess: forceReprocess,
+  const res = await callRPC<
+    { documentId: string; extractionDepth: string; forceReprocess: boolean },
+    { documentId: string; job: { jobId: string; status: string } }
+  >('DocumentService', 'StartProcessing', {
+    documentId,
+    extractionDepth: extractionDepth === 'summary' ? 'EXTRACTION_DEPTH_SUMMARY' : 'EXTRACTION_DEPTH_FULL',
+    forceReprocess,
   });
+  return {
+    document_id: res.documentId,
+    status: res.job?.status ?? 'JOB_LIFECYCLE_STATE_QUEUED',
+    job_id: res.job?.jobId ?? '',
+  };
 }
 
 /** ファイルを GCS 署名付き URL に PUT アップロードする。 */

@@ -22,11 +22,22 @@ message Node {
   GraphProjectionScope scope = 13;
 }
 
+message Edge {
+  string id = 1;
+  string source = 2;
+  string target = 3;
+  string type = 4;
+  GraphProjectionScope scope = 5;
+  string description = 6;
+  string created_at = 7;
+}
+
 message Graph {
   string workspace_id = 1;
   string document_id = 2;
   repeated Node nodes = 3;
-  bool cross_document = 4;
+  repeated Edge edges = 4;
+  bool cross_document = 5;
 }
 
 enum NodeCategory {

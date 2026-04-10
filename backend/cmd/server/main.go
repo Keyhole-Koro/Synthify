@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"os"
 
+	graphv1connect "github.com/synthify/backend/gen/synthify/graph/v1/graphv1connect"
 	"github.com/synthify/backend/internal/handler"
 	"github.com/synthify/backend/internal/middleware"
 	"github.com/synthify/backend/internal/repository/mock"
+	"github.com/synthify/backend/internal/service"
 )
 
 func main() {
@@ -23,33 +25,22 @@ func main() {
 
 	store := mock.NewStore()
 
-	wh := handler.NewWorkspaceHandler(store)
-	dh := handler.NewDocumentHandler(store)
-	gh := handler.NewGraphHandler(store)
-	nh := handler.NewNodeHandler(store)
+	workspaceService := service.NewWorkspaceService(store)
+	documentService := service.NewDocumentService(store)
+	graphService := service.NewGraphService(store)
+	nodeService := service.NewNodeService(store)
+
+	wh := handler.NewWorkspaceHandler(workspaceService)
+	dh := handler.NewDocumentHandler(documentService)
+	gh := handler.NewGraphHandler(graphService)
+	nh := handler.NewNodeHandler(nodeService)
 
 	mux := http.NewServeMux()
 
-	// WorkspaceService
-	mux.HandleFunc("POST /synthify.graph.v1.WorkspaceService/ListWorkspaces", wh.ListWorkspaces)
-	mux.HandleFunc("POST /synthify.graph.v1.WorkspaceService/GetWorkspace", wh.GetWorkspace)
-	mux.HandleFunc("POST /synthify.graph.v1.WorkspaceService/CreateWorkspace", wh.CreateWorkspace)
-	mux.HandleFunc("POST /synthify.graph.v1.WorkspaceService/InviteMember", wh.InviteMember)
-
-	// DocumentService
-	mux.HandleFunc("POST /synthify.graph.v1.DocumentService/ListDocuments", dh.ListDocuments)
-	mux.HandleFunc("POST /synthify.graph.v1.DocumentService/GetDocument", dh.GetDocument)
-	mux.HandleFunc("POST /synthify.graph.v1.DocumentService/CreateDocument", dh.CreateDocument)
-	mux.HandleFunc("POST /synthify.graph.v1.DocumentService/StartProcessing", dh.StartProcessing)
-	mux.HandleFunc("POST /synthify.graph.v1.DocumentService/ResumeProcessing", dh.ResumeProcessing)
-
-	// GraphService
-	mux.HandleFunc("POST /synthify.graph.v1.GraphService/GetGraph", gh.GetGraph)
-
-	// NodeService
-	mux.HandleFunc("POST /synthify.graph.v1.NodeService/GetGraphEntityDetail", nh.GetGraphEntityDetail)
-	mux.HandleFunc("POST /synthify.graph.v1.NodeService/RecordNodeView", nh.RecordNodeView)
-	mux.HandleFunc("POST /synthify.graph.v1.NodeService/CreateNode", nh.CreateNode)
+	mux.Handle(graphv1connect.NewWorkspaceServiceHandler(wh))
+	mux.Handle(graphv1connect.NewDocumentServiceHandler(dh))
+	mux.Handle(graphv1connect.NewGraphServiceHandler(gh))
+	mux.Handle(graphv1connect.NewNodeServiceHandler(nh))
 
 	// ヘルスチェック
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {

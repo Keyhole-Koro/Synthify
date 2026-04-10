@@ -18,14 +18,18 @@ service DocumentService {
 message Document {
   string document_id = 1;
   string workspace_id = 2;
-  string filename = 3;
-  string gcs_uri = 4;
-  string mime_type = 5;
-  int64 file_size = 6;
-  DocumentLifecycleState status = 7;
-  ExtractionDepth extraction_depth = 8;
-  string created_at = 9;
-  string updated_at = 10;
+  string uploaded_by = 3;
+  string filename = 4;
+  string gcs_uri = 5;
+  string mime_type = 6;
+  int64 file_size = 7;
+  DocumentLifecycleState status = 8;
+  ExtractionDepth extraction_depth = 9;
+  int32 node_count = 10;
+  string current_stage = 11;
+  string error_message = 12;
+  string created_at = 13;
+  string updated_at = 14;
 }
 
 enum DocumentLifecycleState {

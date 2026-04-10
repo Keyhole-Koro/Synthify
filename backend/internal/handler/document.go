@@ -1,105 +1,123 @@
 package handler
 
 import (
-	"net/http"
+	"context"
+	"errors"
 
-	"github.com/synthify/backend/internal/repository/mock"
+	connect "connectrpc.com/connect"
+	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
+	"github.com/synthify/backend/internal/domain"
+	"github.com/synthify/backend/internal/service"
 )
 
 type DocumentHandler struct {
-	store *mock.Store
+	service *service.DocumentService
 }
 
-func NewDocumentHandler(store *mock.Store) *DocumentHandler {
-	return &DocumentHandler{store: store}
+func NewDocumentHandler(svc *service.DocumentService) *DocumentHandler {
+	return &DocumentHandler{service: svc}
 }
 
-func (h *DocumentHandler) ListDocuments(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID string `json:"workspace_id"`
+func (h *DocumentHandler) ListDocuments(_ context.Context, req *connect.Request[graphv1.ListDocumentsRequest]) (*connect.Response[graphv1.ListDocumentsResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.WorkspaceID == "" {
-		writeError(w, http.StatusBadRequest, "workspace_id is required")
-		return
+	docs := h.service.ListDocuments(req.Msg.GetWorkspaceId())
+	res := connect.NewResponse(&graphv1.ListDocumentsResponse{})
+	for _, doc := range docs {
+		res.Msg.Documents = append(res.Msg.Documents, toProtoDocument(doc))
 	}
-	docs := h.store.ListDocuments(req.WorkspaceID)
-	writeJSON(w, map[string]any{"documents": docs})
+	return res, nil
 }
 
-func (h *DocumentHandler) GetDocument(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DocumentID string `json:"document_id"`
+func (h *DocumentHandler) GetDocument(_ context.Context, req *connect.Request[graphv1.GetDocumentRequest]) (*connect.Response[graphv1.GetDocumentResponse], error) {
+	if req.Msg.GetDocumentId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.DocumentID == "" {
-		writeError(w, http.StatusBadRequest, "document_id is required")
-		return
+	doc, err := h.service.GetDocument(req.Msg.GetDocumentId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	doc, ok := h.store.GetDocument(req.DocumentID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "document not found")
-		return
-	}
-	writeJSON(w, map[string]any{"document": doc})
+	return connect.NewResponse(&graphv1.GetDocumentResponse{Document: toProtoDocument(doc)}), nil
 }
 
-func (h *DocumentHandler) CreateDocument(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		WorkspaceID string `json:"workspace_id"`
-		Filename    string `json:"filename"`
-		MimeType    string `json:"mime_type"`
-		FileSize    int64  `json:"file_size"`
+func (h *DocumentHandler) CreateDocument(_ context.Context, req *connect.Request[graphv1.CreateDocumentRequest]) (*connect.Response[graphv1.CreateDocumentResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.WorkspaceID == "" || req.Filename == "" {
-		writeError(w, http.StatusBadRequest, "workspace_id and filename are required")
-		return
-	}
-	doc, uploadURL := h.store.CreateDocument(req.WorkspaceID, req.Filename, req.MimeType, req.FileSize)
-	writeJSON(w, map[string]any{
-		"document":             doc,
-		"upload_url":           uploadURL,
-		"upload_method":        "PUT",
-		"upload_content_type":  req.MimeType,
-	})
+	doc, uploadURL := h.service.CreateDocument(req.Msg.GetWorkspaceId(), req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
+	return connect.NewResponse(&graphv1.CreateDocumentResponse{
+		Document:          toProtoDocument(doc),
+		UploadUrl:         uploadURL,
+		UploadMethod:      "PUT",
+		UploadContentType: req.Msg.GetMimeType(),
+	}), nil
 }
 
-func (h *DocumentHandler) StartProcessing(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DocumentID      string `json:"document_id"`
-		ForceReprocess  bool   `json:"force_reprocess"`
-		ExtractionDepth string `json:"extraction_depth"`
+func (h *DocumentHandler) GetUploadURL(_ context.Context, req *connect.Request[graphv1.GetUploadURLRequest]) (*connect.Response[graphv1.GetUploadURLResponse], error) {
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.DocumentID == "" {
-		writeError(w, http.StatusBadRequest, "document_id is required")
-		return
-	}
-	doc, ok := h.store.StartProcessing(req.DocumentID, req.ForceReprocess, req.ExtractionDepth)
-	if !ok {
-		writeError(w, http.StatusNotFound, "document not found")
-		return
-	}
-	writeJSON(w, map[string]any{
-		"document_id": doc.DocumentID,
-		"status":      doc.Status,
-		"job_id":      "job_" + doc.DocumentID,
-	})
+	uploadURL, token := h.service.GetUploadURL(req.Msg.GetWorkspaceId(), req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
+	return connect.NewResponse(&graphv1.GetUploadURLResponse{
+		UploadUrl:   uploadURL,
+		UploadToken: token,
+		ExpiresAt:   "",
+	}), nil
 }
 
-func (h *DocumentHandler) ResumeProcessing(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		DocumentID string `json:"document_id"`
+func (h *DocumentHandler) StartProcessing(_ context.Context, req *connect.Request[graphv1.StartProcessingRequest]) (*connect.Response[graphv1.StartProcessingResponse], error) {
+	if req.Msg.GetDocumentId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := decodeBody(r, &req); err != nil || req.DocumentID == "" {
-		writeError(w, http.StatusBadRequest, "document_id is required")
-		return
+	doc, err := h.service.StartProcessing(req.Msg.GetDocumentId(), req.Msg.GetForceReprocess(), extractionDepthToDomain(req.Msg.GetExtractionDepth()))
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	doc, ok := h.store.GetDocument(req.DocumentID)
-	if !ok {
-		writeError(w, http.StatusNotFound, "document not found")
-		return
+	return connect.NewResponse(&graphv1.StartProcessingResponse{
+		DocumentId: doc.DocumentID,
+		Job: &graphv1.Job{
+			JobId:      "job_" + doc.DocumentID,
+			DocumentId: doc.DocumentID,
+			Type:       graphv1.JobType_JOB_TYPE_PROCESS_DOCUMENT,
+			Status:     graphv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
+		},
+	}), nil
+}
+
+func (h *DocumentHandler) ResumeProcessing(_ context.Context, req *connect.Request[graphv1.ResumeProcessingRequest]) (*connect.Response[graphv1.ResumeProcessingResponse], error) {
+	if req.Msg.GetDocumentId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	writeJSON(w, map[string]any{
-		"document_id": doc.DocumentID,
-		"status":      "processing",
-		"job_id":      "job_resume_" + doc.DocumentID,
-	})
+	doc, err := h.service.GetDocument(req.Msg.GetDocumentId())
+	if err != nil {
+		return nil, connect.NewError(connect.CodeNotFound, err)
+	}
+	return connect.NewResponse(&graphv1.ResumeProcessingResponse{
+		DocumentId: doc.DocumentID,
+		Job: &graphv1.Job{
+			JobId:      "job_resume_" + doc.DocumentID,
+			DocumentId: doc.DocumentID,
+			Type:       graphv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT,
+			Status:     graphv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
+		},
+	}), nil
+}
+
+func toProtoDocument(doc *domain.Document) *graphv1.Document {
+	return &graphv1.Document{
+		DocumentId:      doc.DocumentID,
+		WorkspaceId:     doc.WorkspaceID,
+		UploadedBy:      doc.UploadedBy,
+		Filename:        doc.Filename,
+		MimeType:        doc.MimeType,
+		FileSize:        doc.FileSize,
+		Status:          documentStatusToProto(doc.Status),
+		ExtractionDepth: extractionDepthToProto(doc.ExtractionDepth),
+		NodeCount:       int32(doc.NodeCount),
+		CurrentStage:    doc.CurrentStage,
+		ErrorMessage:    doc.ErrorMessage,
+		CreatedAt:       doc.CreatedAt,
+		UpdatedAt:       doc.UpdatedAt,
+	}
 }

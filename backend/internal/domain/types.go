@@ -109,3 +109,38 @@ type DocumentChunk struct {
 	Text       string `json:"text"`
 	SourcePage int    `json:"source_page,omitempty"`
 }
+
+type Job struct {
+	JobID  string `json:"job_id"`
+	Status string `json:"status"`
+}
+
+type ViewedNodeEntry struct {
+	NodeID       string `json:"node_id"`
+	DocumentID   string `json:"document_id"`
+	Label        string `json:"label"`
+	LastViewedAt string `json:"last_viewed_at"`
+	ViewCount    int64  `json:"view_count"`
+}
+
+type CreatedNodeEntry struct {
+	NodeID     string `json:"node_id"`
+	DocumentID string `json:"document_id"`
+	Label      string `json:"label"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type UserNodeActivity struct {
+	UserID       string             `json:"user_id"`
+	DisplayName  string             `json:"display_name"`
+	ViewedNodes  []ViewedNodeEntry  `json:"viewed_nodes"`
+	CreatedNodes []CreatedNodeEntry `json:"created_nodes"`
+}
+
+type GraphPath struct {
+	NodeIDs  []string `json:"node_ids"`
+	HopCount int      `json:"hop_count"`
+	Evidence struct {
+		SourceDocumentIDs []string `json:"source_document_ids"`
+	} `json:"evidence_ref"`
+}
