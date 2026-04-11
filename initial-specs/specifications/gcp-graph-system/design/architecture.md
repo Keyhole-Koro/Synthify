@@ -2,7 +2,7 @@
 
 ## System Overview
 
-本システムは、ユーザーがアップロードしたファイルを `Cloud Storage` に保存し、`Cloud Run` 上の `Go` バックエンドが処理を制御する。AI パイプラインでは、まず正規化ツール層が原本を整形し、その後テキスト抽出と chunk 分割を行う。必要に応じて `Vertex AI Gemini` に整形スクリプト生成を依頼し、生成された Python ツールをサンドボックスで dry-run または実行する。その後 `Vertex AI Gemini` により意味構造を JSON 形式で抽出し、`BigQuery` にノード・メタデータを正本として保存する。canonical 化済みの探索用ノード集合は `Spanner Graph` に同期し、多段経路検索に利用する。ここで `Spanner Graph` は API に露出する edge を保持するためではなく、canonical node 間の exploration adjacency を高速に辿るための内部探索ストアとして使う。フロントエンドは `TypeScript + React + @keyhole-koro/paper-in-paper` で実装し、`Firebase Hosting` から配信する。フロントエンドとバックエンド間の同期通信は `Connect RPC` を用いる。
+本システムは、ユーザーがアップロードしたファイルを `Cloud Storage` に保存し、`Cloud Run` 上の `Go` バックエンドが処理を制御する。AI パイプラインでは、まず正規化ツール層が原本を整形し、その後テキスト抽出と chunk 分割を行う。必要に応じて `Vertex AI Gemini` に整形スクリプト生成を依頼し、生成された Python ツールをサンドボックスで dry-run または実行する。その後 `Vertex AI Gemini` により意味構造を JSON 形式で抽出し、`PostgreSQL` に document / chunk / node / edge / evidence を正本として保存する。フロントエンドが必要とする `paper-in-paper` の表示は document 単位の tree と補助的な横断 edge で成立するため、初期は graph database を使わず `PostgreSQL` 上の取得とアプリケーション側の探索ロジックで対応する。フロントエンドは `TypeScript + React + @keyhole-koro/paper-in-paper` で実装し、`Firebase Hosting` から配信する。フロントエンドとバックエンド間の同期通信は `Connect RPC` を用いる。
 
 ## High-Level Architecture
 
@@ -24,8 +24,7 @@
            +--> [Tool Registry]
            +--> [Sandbox Runner]
            +--> [Vertex AI Gemini]
-           +--> [BigQuery]
-           +--> [Spanner Graph]
+           +--> [PostgreSQL]
            |
            +--> [Cloud Tasks] optional
 ```
@@ -38,8 +37,7 @@
 - `Tool Registry`: 正規化ツール定義と履歴保存
 - `Sandbox Runner`: Python 正規化ツールの隔離実行
 - `Vertex AI Gemini`: ノード抽出と HTML サマリ生成
-- `BigQuery`: ドキュメント、chunk、ノード、評価、統計の正本保存
-- `Spanner Graph`: 探索用 adjacency store、多段経路検索
+- `PostgreSQL`: document / chunk / node / edge / workspace / membership / view 履歴の正本保存
 - `Protocol Buffers`: RPC スキーマ定義
 
 ## Logical Processing Flow
@@ -55,9 +53,8 @@
 9. chunk を Gemini に送信する
 10. Gemini が JSON 形式でノード候補を返す
 11. API が重複統合と正規化を実施する
-12. `BigQuery` に document/chunk/node を保存する
-13. canonical 化済み node と exploration adjacency を `Spanner Graph` に同期する
-14. フロントエンドが `Connect RPC` でグラフ取得・経路検索を行い、`paper-in-paper` でペーパーツリーとして表示する
+12. `PostgreSQL` に document/chunk/node/edge を保存する
+13. フロントエンドが `Connect RPC` でグラフ取得・経路検索を行い、`paper-in-paper` でペーパーツリーとして表示する
 
 ## Component Specification
 
@@ -100,10 +97,9 @@
 - chunk 分割
 - Gemini 呼び出し
 - ノード統合
-- BigQuery 書き込み
-- Spanner Graph 同期
+- PostgreSQL 書き込み
 - グラフ取得
-- 近傍探索 / 経路探索
+- 近傍探索 / 経路探索（初期はアプリケーション側ロジックまたは recursive query）
 - 非同期ジョブ投入
 
 #### Stack
@@ -171,31 +167,19 @@
 - 出力先を作業ディレクトリに限定する
 - 実行時間、メモリ、subprocess 利用を制限する
 
-### Structured Data Store
+### Primary Relational Store
 
 #### Responsibility
 
-- document/chunk/node の永続化
-- 分析、再集計、再処理の基盤
+- workspace/document/chunk/node/edge/view の永続化
+- API の一次参照元
+- 再処理、監査、管理操作の基盤
 
 #### Service
 
-- `BigQuery`
+- `PostgreSQL`
 
-### Graph Query Store
+#### Notes
 
-#### Responsibility
-
-- canonical 化済み graph の保持
-- 近傍展開、到達可能性、多段経路検索
-- 対話的な graph traversal の低レイテンシ提供
-
-#### Service
-
-- `Spanner Graph`
-
-#### Constraints
-
-- 正本は `BigQuery` とし、`Spanner Graph` は探索向けの複製とする
-- `Spanner Graph` には canonical node と exploration adjacency だけを持たせ、公開 API の契約は node-only に保つ
-- 同期遅延があっても、評価・再処理・監査は常に `BigQuery` を参照する
+- `paper-in-paper` の主要要件は document 単位の tree 表示と補助的な横断 edge で満たせるため、初期段階では graph database を導入しない
+- `FindPaths` や cross-document exploration が性能上のボトルネックになった場合のみ、探索専用ストアの追加を再検討する

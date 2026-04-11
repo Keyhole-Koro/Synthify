@@ -55,10 +55,7 @@ services:
       STORAGE_EMULATOR_HOST: http://gcs:4443
       FIREBASE_PROJECT_ID: synthify-local
       FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
-      BIGQUERY_PROJECT_ID: synthify-local
-      BIGQUERY_DATASET: graph
-      BIGQUERY_MODE: mock
-      GRAPH_QUERY_MODE: mock
+      DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
     ports:
@@ -69,8 +66,21 @@ services:
       - go-build-cache:/root/.cache/go-build
       - gemini-cache:/workspace/.gemini-cache
     depends_on:
+      - postgres
       - gcs
       - firebase-auth
+
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_DB: synthify
+      POSTGRES_USER: synthify
+      POSTGRES_PASSWORD: synthify
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
 
   gcs:
     image: fsouza/fake-gcs-server:1.52
@@ -104,5 +114,6 @@ volumes:
   frontend-node-modules:
   go-pkg-cache:
   go-build-cache:
+  postgres-data:
   gcs-data:
   gemini-cache:

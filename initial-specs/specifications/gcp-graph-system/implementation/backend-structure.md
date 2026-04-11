@@ -23,16 +23,17 @@ repo/
 - `frontend/`: `PaperViewState`, `PathSearchMode`, `MetaPanelState` など UI state family を実装する
 - `backend/`: `DocumentLifecycleState`, `JobLifecycleState`, `PipelineStageState` を持つ業務ロジックを実装する
 - `proto/`: Connect RPC 契約と生成コードの起点になる
-- `compose.yaml`: ローカル開発時に frontend / backend / GCS / Firebase Auth をまとめて起動する
+- `compose.yaml`: ローカル開発時に frontend / backend / PostgreSQL / GCS / Firebase Auth をまとめて起動する
 - `scripts/`: `buf generate`, fixture 同期、ローカル検証をまとめる
 
 ### Local Docker Compose Stack
 
 - `frontend`: Vite 開発サーバー
 - `backend`: Go API サーバー
+- `postgres`: primary relational store
 - `gcs`: fake-gcs-server による Cloud Storage 代替
 - `firebase-auth`: Firebase Auth Emulator
-- BigQuery / Spanner Graph は初期 compose では含めず、backend は `mock` モードで起動する
+- 初期 compose は graph database を含めず、backend は `PostgreSQL` を正本として起動する
 
 ---
 
@@ -146,16 +147,14 @@ backend/
 │   │   ├── integrator.go      # ノード重複統合 (edit distance + embedding)
 │   │   └── summarizer.go      # summary_html 生成
 │   │
-│   ├── repository/            # データアクセス層 (インターフェース + BigQuery/GCS 実装)
+│   ├── repository/            # データアクセス層 (インターフェース + PostgreSQL/GCS 実装)
 │   │   ├── interfaces.go      # リポジトリインターフェース定義
-│   │   ├── bigquery/
+│   │   ├── postgres/
 │   │   │   ├── document.go
 │   │   │   ├── node.go
 │   │   │   ├── edge.go
 │   │   │   ├── workspace.go
 │   │   │   └── user.go
-│   │   ├── spannergraph/
-│   │   │   └── graph.go       # 近傍探索・経路検索・graph 同期
 │   │   └── gcs/
 │   │       └── upload.go      # 署名付き URL 発行・オブジェクト操作
 │   │
@@ -172,8 +171,6 @@ backend/
 │   │   │   └── webhook.go     # Webhook イベント処理
 │   │   ├── discord/
 │   │   │   └── webhook.go     # 通知送信 (8 イベント)
-│   │   ├── spanner/
-│   │   │   └── graph.go       # Spanner Graph クライアント
 │   │   └── sandbox/
 │   │       └── runner.go      # Cloud Run Jobs 起動・結果ポーリング
 │   │
@@ -232,7 +229,7 @@ func toConnectError(err error) error {
 
 ### service
 
-- `repository.interfaces.go` で定義したインターフェースのみに依存する (BigQuery 実装には直接依存しない)
+- `repository.interfaces.go` で定義したインターフェースのみに依存する (PostgreSQL 実装には直接依存しない)
 - トランザクション相当の操作 (複数テーブル書き込み) はサービス層で調整する
 
 ### repository/interfaces.go
@@ -255,8 +252,7 @@ type NodeRepository interface {
 
 type GraphQueryRepository interface {
     FindPaths(ctx context.Context, sourceNodeID string, targetNodeID string, maxDepth int, edgeTypes []domain.EdgeType, limit int) (domain.Graph, []domain.GraphPath, error)
-    SyncCanonicalGraph(ctx context.Context, nodes []domain.Node, edges []domain.Edge) error
-    // ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
+    // 初期実装では PostgreSQL の recursive query またはアプリケーション側探索で実装する
 }
 
 type GraphEntityDetailRepository interface {
