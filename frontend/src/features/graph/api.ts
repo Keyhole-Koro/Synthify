@@ -1,4 +1,4 @@
-import { callRPC } from '@/shared/lib/api';
+import { callRPC } from '@/lib/rpc';
 
 export interface ApiNode {
   id: string;

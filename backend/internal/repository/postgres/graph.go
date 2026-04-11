@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"slices"
 
@@ -82,45 +83,27 @@ func (s *Store) FindPaths(docID, sourceNodeID, targetNodeID string, maxDepth, li
 }
 
 func (s *Store) listNodesByDocument(docID string) ([]*domain.Node, error) {
-	rows, err := s.db.Query(`
-		SELECT node_id, document_id, label, level, category, entity_type, description, summary_html, created_by, created_at
-		FROM nodes
-		WHERE document_id = $1
-		ORDER BY level ASC, created_at ASC
-	`, docID)
+	rows, err := s.q().ListNodesByDocument(context.Background(), docID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var nodes []*domain.Node
-	for rows.Next() {
-		node, err := scanNode(rows)
-		if err == nil {
-			nodes = append(nodes, node)
-		}
+	for _, row := range rows {
+		nodes = append(nodes, toNode(row))
 	}
 	return nodes, nil
 }
 
 func (s *Store) listEdgesByDocument(docID string) ([]*domain.Edge, error) {
-	rows, err := s.db.Query(`
-		SELECT edge_id, document_id, source_node_id, target_node_id, edge_type, description, created_at
-		FROM edges
-		WHERE document_id = $1
-		ORDER BY created_at ASC
-	`, docID)
+	rows, err := s.q().ListEdgesByDocument(context.Background(), docID)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var edges []*domain.Edge
-	for rows.Next() {
-		edge, err := scanEdge(rows)
-		if err == nil {
-			edges = append(edges, edge)
-		}
+	for _, row := range rows {
+		edges = append(edges, toEdge(row))
 	}
 	return edges, nil
 }

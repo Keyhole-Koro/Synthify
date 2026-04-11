@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "./paper-in-paper.css";
 
 @theme {
   --font-space: "Space Grotesk", "Noto Sans JP", sans-serif;

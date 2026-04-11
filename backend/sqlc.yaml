@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema:
+      - "db/init/001_schema.sql"
+    queries:
+      - "db/queries"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "internal/repository/postgres/sqlcgen"
+        sql_package: "database/sql"

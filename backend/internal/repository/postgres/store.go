@@ -9,10 +9,12 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/synthify/backend/internal/repository/postgres/sqlcgen"
 )
 
 type Store struct {
-	db *sql.DB
+	db      *sql.DB
+	queries *sqlcgen.Queries
 }
 
 func NewStore(ctx context.Context, dsn string) (*Store, error) {
@@ -24,11 +26,18 @@ func NewStore(ctx context.Context, dsn string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, queries: sqlcgen.New(db)}, nil
 }
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+func (s *Store) q() *sqlcgen.Queries {
+	if s.queries == nil {
+		s.queries = sqlcgen.New(s.db)
+	}
+	return s.queries
 }
 
 func newID(prefix string) string {
@@ -38,7 +47,11 @@ func newID(prefix string) string {
 }
 
 func now() string {
-	return time.Now().UTC().Format(time.RFC3339)
+	return nowTime().Format(time.RFC3339)
+}
+
+func nowTime() time.Time {
+	return time.Now().UTC()
 }
 
 type scanner interface {

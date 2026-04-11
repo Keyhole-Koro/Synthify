@@ -1,61 +1,46 @@
 package postgres
 
-import "github.com/synthify/backend/internal/domain"
+import (
+	"context"
+	"time"
+
+	"github.com/synthify/backend/internal/domain"
+	"github.com/synthify/backend/internal/repository/postgres/sqlcgen"
+)
 
 func (s *Store) ListWorkspaces() []*domain.Workspace {
-	rows, err := s.db.Query(`
-		SELECT workspace_id, name, owner_id, plan, storage_used_bytes, storage_quota_bytes, max_file_size_bytes, max_uploads_per_day, created_at
-		FROM workspaces
-		ORDER BY created_at DESC
-	`)
+	rows, err := s.q().ListWorkspaces(context.Background())
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
 
 	var workspaces []*domain.Workspace
-	for rows.Next() {
-		workspace, err := scanWorkspace(rows)
-		if err == nil {
-			workspaces = append(workspaces, workspace)
-		}
+	for _, row := range rows {
+		workspaces = append(workspaces, toWorkspace(row))
 	}
 	return workspaces
 }
 
 func (s *Store) GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool) {
-	row := s.db.QueryRow(`
-		SELECT workspace_id, name, owner_id, plan, storage_used_bytes, storage_quota_bytes, max_file_size_bytes, max_uploads_per_day, created_at
-		FROM workspaces
-		WHERE workspace_id = $1
-	`, id)
-	workspace, err := scanWorkspace(row)
+	ctx := context.Background()
+	row, err := s.q().GetWorkspace(ctx, id)
 	if err != nil {
 		return nil, nil, false
 	}
-
-	rows, err := s.db.Query(`
-		SELECT user_id, email, role, is_dev, invited_at, invited_by
-		FROM workspace_members
-		WHERE workspace_id = $1
-		ORDER BY invited_at ASC
-	`, id)
+	membersRows, err := s.q().ListWorkspaceMembers(ctx, id)
 	if err != nil {
 		return nil, nil, false
 	}
-	defer rows.Close()
 
 	var members []*domain.WorkspaceMember
-	for rows.Next() {
-		member, err := scanWorkspaceMember(rows)
-		if err == nil {
-			members = append(members, member)
-		}
+	for _, memberRow := range membersRows {
+		members = append(members, toWorkspaceMember(memberRow))
 	}
-	return workspace, members, true
+	return toWorkspace(row), members, true
 }
 
 func (s *Store) CreateWorkspace(name string) *domain.Workspace {
+	createdAt := nowTime()
 	workspace := &domain.Workspace{
 		WorkspaceID:       newID("ws"),
 		Name:              name,
@@ -65,7 +50,7 @@ func (s *Store) CreateWorkspace(name string) *domain.Workspace {
 		StorageQuotaBytes: 1 << 30,
 		MaxFileSizeBytes:  50 << 20,
 		MaxUploadsPerDay:  10,
-		CreatedAt:         now(),
+		CreatedAt:         createdAt.Format(time.RFC3339),
 	}
 
 	tx, err := s.db.Begin()
@@ -73,17 +58,31 @@ func (s *Store) CreateWorkspace(name string) *domain.Workspace {
 		return nil
 	}
 	defer tx.Rollback()
+	qtx := s.q().WithTx(tx)
+	ctx := context.Background()
 
-	if _, err := tx.Exec(`
-		INSERT INTO workspaces (workspace_id, name, owner_id, plan, storage_used_bytes, storage_quota_bytes, max_file_size_bytes, max_uploads_per_day, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-	`, workspace.WorkspaceID, workspace.Name, workspace.OwnerID, workspace.Plan, workspace.StorageUsedBytes, workspace.StorageQuotaBytes, workspace.MaxFileSizeBytes, workspace.MaxUploadsPerDay, workspace.CreatedAt); err != nil {
+	if err := qtx.CreateWorkspace(ctx, sqlcgen.CreateWorkspaceParams{
+		WorkspaceID:       workspace.WorkspaceID,
+		Name:              workspace.Name,
+		OwnerID:           workspace.OwnerID,
+		Plan:              workspace.Plan,
+		StorageUsedBytes:  workspace.StorageUsedBytes,
+		StorageQuotaBytes: workspace.StorageQuotaBytes,
+		MaxFileSizeBytes:  workspace.MaxFileSizeBytes,
+		MaxUploadsPerDay:  workspace.MaxUploadsPerDay,
+		CreatedAt:         createdAt,
+	}); err != nil {
 		return nil
 	}
-	if _, err := tx.Exec(`
-		INSERT INTO workspace_members (workspace_id, user_id, email, role, is_dev, invited_at, invited_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
-	`, workspace.WorkspaceID, "user_demo", "demo@synthify.dev", "owner", true, workspace.CreatedAt, "user_demo"); err != nil {
+	if err := qtx.CreateWorkspaceMember(ctx, sqlcgen.CreateWorkspaceMemberParams{
+		WorkspaceID: workspace.WorkspaceID,
+		UserID:      "user_demo",
+		Email:       "demo@synthify.dev",
+		Role:        "owner",
+		IsDev:       true,
+		InvitedAt:   createdAt,
+		InvitedBy:   "user_demo",
+	}); err != nil {
 		return nil
 	}
 	if err := tx.Commit(); err != nil {
@@ -93,49 +92,59 @@ func (s *Store) CreateWorkspace(name string) *domain.Workspace {
 }
 
 func (s *Store) InviteMember(wsID, email, role string, isDev bool) (*domain.WorkspaceMember, bool) {
+	invitedAt := nowTime()
 	member := &domain.WorkspaceMember{
 		UserID:    newID("user"),
 		Email:     email,
 		Role:      domain.WorkspaceRole(role),
 		IsDev:     isDev,
-		InvitedAt: now(),
+		InvitedAt: invitedAt.Format(time.RFC3339),
 		InvitedBy: "user_demo",
 	}
-	_, err := s.db.Exec(`
-		INSERT INTO workspace_members (workspace_id, user_id, email, role, is_dev, invited_at, invited_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
-	`, wsID, member.UserID, member.Email, member.Role, member.IsDev, member.InvitedAt, member.InvitedBy)
+	err := s.q().CreateWorkspaceMember(context.Background(), sqlcgen.CreateWorkspaceMemberParams{
+		WorkspaceID: wsID,
+		UserID:      member.UserID,
+		Email:       member.Email,
+		Role:        string(member.Role),
+		IsDev:       member.IsDev,
+		InvitedAt:   invitedAt,
+		InvitedBy:   member.InvitedBy,
+	})
 	return member, err == nil
 }
 
 func (s *Store) UpdateMemberRole(wsID, userID, role string, isDev bool) (*domain.WorkspaceMember, bool) {
-	res, err := s.db.Exec(`
-		UPDATE workspace_members
-		SET role = $3, is_dev = $4
-		WHERE workspace_id = $1 AND user_id = $2
-	`, wsID, userID, role, isDev)
+	ctx := context.Background()
+	affected, err := s.q().UpdateWorkspaceMemberRole(ctx, sqlcgen.UpdateWorkspaceMemberRoleParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+		Role:        role,
+		IsDev:       isDev,
+	})
 	if err != nil {
 		return nil, false
 	}
-	affected, _ := res.RowsAffected()
 	if affected == 0 {
 		return nil, false
 	}
-	row := s.db.QueryRow(`
-		SELECT user_id, email, role, is_dev, invited_at, invited_by
-		FROM workspace_members
-		WHERE workspace_id = $1 AND user_id = $2
-	`, wsID, userID)
-	member, err := scanWorkspaceMember(row)
-	return member, err == nil
+	memberRow, err := s.q().GetWorkspaceMember(ctx, sqlcgen.GetWorkspaceMemberParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+	})
+	if err != nil {
+		return nil, false
+	}
+	return toWorkspaceMemberFromGet(memberRow), true
 }
 
 func (s *Store) RemoveMember(wsID, userID string) bool {
-	res, err := s.db.Exec(`DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, wsID, userID)
+	affected, err := s.q().DeleteWorkspaceMember(context.Background(), sqlcgen.DeleteWorkspaceMemberParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+	})
 	if err != nil {
 		return false
 	}
-	affected, _ := res.RowsAffected()
 	return affected > 0
 }
 
@@ -145,23 +154,33 @@ func (s *Store) TransferOwnership(wsID, newOwnerUserID string) (*domain.Workspac
 		return nil, nil, false
 	}
 	defer tx.Rollback()
+	qtx := s.q().WithTx(tx)
+	ctx := context.Background()
 
-	var oldOwner string
-	if err := tx.QueryRow(`SELECT owner_id FROM workspaces WHERE workspace_id = $1`, wsID).Scan(&oldOwner); err != nil {
-		return nil, nil, false
-	}
-	res, err := tx.Exec(`UPDATE workspace_members SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, wsID, newOwnerUserID)
+	oldOwner, err := qtx.GetWorkspaceOwnerID(ctx, wsID)
 	if err != nil {
 		return nil, nil, false
 	}
-	affected, _ := res.RowsAffected()
+	affected, err := qtx.PromoteWorkspaceOwner(ctx, sqlcgen.PromoteWorkspaceOwnerParams{
+		WorkspaceID: wsID,
+		UserID:      newOwnerUserID,
+	})
+	if err != nil {
+		return nil, nil, false
+	}
 	if affected == 0 {
 		return nil, nil, false
 	}
-	if _, err := tx.Exec(`UPDATE workspace_members SET role = 'editor' WHERE workspace_id = $1 AND user_id = $2`, wsID, oldOwner); err != nil {
+	if err := qtx.DemoteWorkspaceOwner(ctx, sqlcgen.DemoteWorkspaceOwnerParams{
+		WorkspaceID: wsID,
+		UserID:      oldOwner,
+	}); err != nil {
 		return nil, nil, false
 	}
-	if _, err := tx.Exec(`UPDATE workspaces SET owner_id = $2 WHERE workspace_id = $1`, wsID, newOwnerUserID); err != nil {
+	if err := qtx.UpdateWorkspaceOwner(ctx, sqlcgen.UpdateWorkspaceOwnerParams{
+		WorkspaceID: wsID,
+		OwnerID:     newOwnerUserID,
+	}); err != nil {
 		return nil, nil, false
 	}
 	if err := tx.Commit(); err != nil {

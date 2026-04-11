@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"regexp"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -17,10 +16,7 @@ func TestCreateWorkspace_CommitsTransaction(t *testing.T) {
 	store := &Store{db: db}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`
-		INSERT INTO workspaces (workspace_id, name, owner_id, plan, storage_used_bytes, storage_quota_bytes, max_file_size_bytes, max_uploads_per_day, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-	`)).
+	mock.ExpectExec(`INSERT INTO workspaces`).
 		WithArgs(
 			sqlmock.AnyArg(),
 			"Test Workspace",
@@ -33,10 +29,7 @@ func TestCreateWorkspace_CommitsTransaction(t *testing.T) {
 			sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(regexp.QuoteMeta(`
-		INSERT INTO workspace_members (workspace_id, user_id, email, role, is_dev, invited_at, invited_by)
-		VALUES ($1,$2,$3,$4,$5,$6,$7)
-	`)).
+	mock.ExpectExec(`INSERT INTO workspace_members`).
 		WithArgs(
 			sqlmock.AnyArg(),
 			"user_demo",

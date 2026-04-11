@@ -43,7 +43,7 @@ export default function LandingPage() {
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-transparent">
+    <div className="relative h-screen w-screen overflow-hidden" style={{ background: 'radial-gradient(circle at top left, rgba(255,248,233,0.95), transparent 28%), linear-gradient(180deg, #f6efe3 0%, #eee4d4 100%)' }}>
       <div className="absolute left-1/2 top-1/2 h-[clamp(360px,58vh,560px)] w-[min(1120px,calc(100vw-32px))] sm:w-[min(1120px,calc(100vw-64px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl [contain:layout_paint] isolate">
         <PaperCanvas
           paperMap={paperMap}
@@ -65,22 +65,6 @@ export default function LandingPage() {
           </div>
         </div>
       )}
-
-      <div className="absolute left-6 top-6 z-20 flex select-none items-center gap-2.5">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500">
-          <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-            />
-          </svg>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-semibold tracking-tight text-white/90">Synthify</span>
-          <span className="text-[10px] uppercase tracking-[0.18em] text-white/45">Knowledge Graph Platform</span>
-        </div>
-      </div>
     </div>
   );
 }

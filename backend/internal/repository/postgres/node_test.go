@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"regexp"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -17,10 +16,7 @@ func TestCreateNode_WithParentNode_CreatesHierarchicalEdge(t *testing.T) {
 	store := &Store{db: db}
 
 	mock.ExpectBegin()
-	mock.ExpectExec(regexp.QuoteMeta(`
-		INSERT INTO nodes (node_id, document_id, label, level, category, entity_type, description, summary_html, created_by, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-	`)).
+	mock.ExpectExec(`INSERT INTO nodes`).
 		WithArgs(
 			sqlmock.AnyArg(),
 			"doc_1",
@@ -34,10 +30,7 @@ func TestCreateNode_WithParentNode_CreatesHierarchicalEdge(t *testing.T) {
 			sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(regexp.QuoteMeta(`
-			INSERT INTO edges (edge_id, document_id, source_node_id, target_node_id, edge_type, description, created_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7)
-		`)).
+	mock.ExpectExec(`INSERT INTO edges`).
 		WithArgs(
 			sqlmock.AnyArg(),
 			"doc_1",
@@ -48,7 +41,7 @@ func TestCreateNode_WithParentNode_CreatesHierarchicalEdge(t *testing.T) {
 			sqlmock.AnyArg(),
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(regexp.QuoteMeta(`UPDATE documents SET updated_at = $2 WHERE document_id = $1`)).
+	mock.ExpectExec(`UPDATE documents`).
 		WithArgs("doc_1", sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
