@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	graphv1connect "github.com/synthify/backend/gen/synthify/graph/v1/graphv1connect"
 	"github.com/synthify/backend/internal/domain"
@@ -86,12 +87,18 @@ type appStore interface {
 
 func initStore(ctx context.Context) appStore {
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
-		store, err := postgres.NewStore(ctx, dsn)
-		if err != nil {
-			log.Fatalf("failed to connect postgres: %v", err)
+		var lastErr error
+		for attempt := 1; attempt <= 10; attempt++ {
+			store, err := postgres.NewStore(ctx, dsn)
+			if err == nil {
+				log.Printf("using postgres store")
+				return store
+			}
+			lastErr = err
+			log.Printf("failed to connect postgres (attempt %d/10): %v", attempt, err)
+			time.Sleep(2 * time.Second)
 		}
-		log.Printf("using postgres store")
-		return store
+		log.Fatalf("failed to connect postgres after retries: %v", lastErr)
 	}
 	log.Printf("DATABASE_URL is empty, falling back to mock store")
 	return mock.NewStore()

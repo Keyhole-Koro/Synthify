@@ -8,7 +8,7 @@ import { type AuthMode } from '@/features/landing/AuthPaper';
 import { buildLandingPaperMap, LANDING_ROOT_ID } from '@/features/landing/landingPaperMap';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, type User, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { listWorkspaces, createWorkspace, type Workspace } from '@/features/workspaces/api';
+import { listWorkspaces, type Workspace } from '@/features/workspaces/api';
 
 type ExpansionMap = PaperViewState['expansionMap'];
 
@@ -62,21 +62,9 @@ export default function LandingPage() {
     await signOut(auth);
   }, []);
 
-  const handleEnterWorkspace = useCallback(async () => {
-    setLoading(true);
-    if (workspaces.length > 0) {
-      router.push(`/w/${workspaces[0].workspace_id}`);
-    } else {
-      try {
-        const ws = await createWorkspace('マイワークスペース');
-        router.push(`/w/${ws.workspace_id}`);
-      } catch (err) {
-        console.error(err);
-        alert('ワークスペースの作成に失敗しました。');
-        setLoading(false);
-      }
-    }
-  }, [router, workspaces]);
+  const handleEnterWorkspace = useCallback(() => {
+    router.push('/workspaces');
+  }, [router]);
 
   const paperMap = useMemo(
     () =>
