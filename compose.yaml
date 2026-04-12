@@ -12,12 +12,11 @@ services:
           echo "frontend/package.json not found. Waiting for frontend implementation...";
           sleep infinity;
         fi;
-        rm -rf .next;
-        if [ -f package-lock.json ]; then
-          npm ci;
-        else
-          npm install;
+        if [ ! -x node_modules/.bin/next ]; then
+          echo "frontend/node_modules is missing. Install dependencies on the host first.";
+          sleep infinity;
         fi;
+        rm -rf .next;
         npm run dev
       '
     environment:
@@ -29,7 +28,6 @@ services:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - .:/workspace
-      - frontend-node-modules:/workspace/frontend/node_modules
     depends_on:
       - backend
 
@@ -104,14 +102,13 @@ services:
     command: >
       bash -c '
         npm install -g firebase-tools@13 &&
-        printf "%s\n" "{\"emulators\":{\"auth\":{\"port\":9099}}}" > firebase.json &&
+        printf "%s\n" "{\"emulators\":{\"auth\":{\"host\":\"0.0.0.0\",\"port\":9099}}}" > firebase.json &&
         firebase emulators:start --only auth --project demo-synthify --config firebase.json
       '
     ports:
       - "${FIREBASE_AUTH_PORT:-9099}:9099"
 
 volumes:
-  frontend-node-modules:
   go-pkg-cache:
   go-build-cache:
   postgres-data:

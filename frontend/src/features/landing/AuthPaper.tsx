@@ -1,14 +1,100 @@
+import { type User } from 'firebase/auth';
+import { type Workspace } from '@/features/workspaces/api';
+
 type AuthMode = 'login' | 'register';
 
 type AuthPaperProps = {
+  user: User | null;
+  workspaces: Workspace[];
   mode: AuthMode;
   loading: boolean;
   onModeChange: (mode: AuthMode) => void;
-  onSubmit: () => void;
+  onEmailSubmit: () => void;
+  onGoogleSubmit: () => void;
+  onLogout: () => void;
+  onEnterWorkspace: () => void;
 };
 
-export function AuthPaper({ mode, loading, onModeChange, onSubmit }: AuthPaperProps) {
+export function AuthPaper({
+  user,
+  workspaces,
+  mode,
+  loading,
+  onModeChange,
+  onEmailSubmit,
+  onGoogleSubmit,
+  onLogout,
+  onEnterWorkspace,
+}: AuthPaperProps) {
   const isLogin = mode === 'login';
+
+  if (user) {
+    return (
+      <div style={{ paddingTop: 4 }}>
+        <div style={{ marginBottom: 16 }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', margin: '0 0 4px' }}>
+            ようこそ、{user.displayName || user.email} さん
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+            ログインしました。ワークスペースに入って探索を始めましょう。
+          </p>
+        </div>
+
+        {workspaces.length > 0 && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+            <p style={{ fontSize: '0.7rem', fontWeight: 600, color: '#64748b', marginBottom: 8, textTransform: 'uppercase' }}>
+              あなたのワークスペース
+            </p>
+            {workspaces.map(ws => (
+              <div key={ws.workspace_id} style={{ fontSize: '0.85rem', fontWeight: 500, color: '#1e293b' }}>
+                {ws.name}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button
+            type="button"
+            onClick={onEnterWorkspace}
+            disabled={loading}
+            style={{
+              width: '100%',
+              border: 'none',
+              background: '#4f46e5',
+              borderRadius: 6,
+              padding: '10px 0',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+              color: 'white',
+              cursor: loading ? 'wait' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+            }}
+          >
+            {workspaces.length > 0 ? 'ワークスペースに入る' : 'ワークスペースを作成'}
+          </button>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            style={{
+              width: '100%',
+              border: '1px solid #e2e8f0',
+              background: 'white',
+              borderRadius: 6,
+              padding: '8px 0',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              color: '#64748b',
+              cursor: 'pointer',
+            }}
+          >
+            ログアウト
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ paddingTop: 4 }}>
@@ -97,7 +183,7 @@ export function AuthPaper({ mode, loading, onModeChange, onSubmit }: AuthPaperPr
 
       <button
         type="button"
-        onClick={onSubmit}
+        onClick={onEmailSubmit}
         disabled={loading}
         style={{
           width: '100%',
@@ -123,7 +209,7 @@ export function AuthPaper({ mode, loading, onModeChange, onSubmit }: AuthPaperPr
 
       <button
         type="button"
-        onClick={onSubmit}
+        onClick={onGoogleSubmit}
         disabled={loading}
         style={{
           width: '100%',

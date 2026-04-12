@@ -46,6 +46,11 @@ export default function ExplorePage() {
 
   // Load document list
   useEffect(() => {
+    if (workspaceId === 'ws_demo') {
+      router.replace('/');
+      return;
+    }
+
     listDocuments(workspaceId)
       .then((docs: Document[]) => {
         const completed = docs.filter((d) => d.status === 'completed');
@@ -57,8 +62,11 @@ export default function ExplorePage() {
           setSelectedDocId(completed[0].document_id);
         }
       })
-      .catch(console.error);
-  }, [workspaceId, searchParams]);
+      .catch((err) => {
+        console.error(err);
+        router.replace('/');
+      });
+  }, [workspaceId, searchParams, router]);
 
   // Load graph when document changes
   useEffect(() => {

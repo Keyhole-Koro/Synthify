@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@keyhole-koro/paper-in-paper": "file:./vender/paper-in-paper",
+    "firebase": "^12.12.0",
     "framer-motion": "^12.38.0",
     "next": "^16.2.2",
     "react": "^19.2.0",

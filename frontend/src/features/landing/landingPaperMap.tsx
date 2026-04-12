@@ -1,6 +1,8 @@
 import { buildPaperMap } from '@keyhole-koro/paper-in-paper';
 import type { ContentNode, Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
 import { AuthPaper, type AuthMode } from './AuthPaper';
+import { type User } from 'firebase/auth';
+import { type Workspace } from '@/features/workspaces/api';
 
 export const LANDING_ROOT_ID = 'root';
 
@@ -261,15 +263,25 @@ const LANDING_PAPERS: Paper[] = [
 ];
 
 export function buildLandingPaperMap({
+  user,
+  workspaces,
   authMode,
   loading,
   onAuthModeChange,
-  onAuthSubmit,
+  onEmailSubmit,
+  onGoogleSubmit,
+  onLogout,
+  onEnterWorkspace,
 }: {
+  user: User | null;
+  workspaces: Workspace[];
   authMode: AuthMode;
   loading: boolean;
   onAuthModeChange: (mode: AuthMode) => void;
-  onAuthSubmit: () => void;
+  onEmailSubmit: () => void;
+  onGoogleSubmit: () => void;
+  onLogout: () => void;
+  onEnterWorkspace: () => void;
 }): PaperMap {
   const paperMap = buildPaperMap(LANDING_PAPERS);
   const authPaper = paperMap.get('auth');
@@ -279,10 +291,15 @@ export function buildLandingPaperMap({
       ...authPaper,
       content: (
         <AuthPaper
+          user={user}
+          workspaces={workspaces}
           mode={authMode}
           loading={loading}
           onModeChange={onAuthModeChange}
-          onSubmit={onAuthSubmit}
+          onEmailSubmit={onEmailSubmit}
+          onGoogleSubmit={onGoogleSubmit}
+          onLogout={onLogout}
+          onEnterWorkspace={onEnterWorkspace}
         />
       ),
     });

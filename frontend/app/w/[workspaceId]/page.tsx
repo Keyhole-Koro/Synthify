@@ -69,9 +69,12 @@ export default function WorkspacePage() {
       getWorkspace(workspaceId).then((r) => setWorkspace(r.workspace)),
       listDocuments(workspaceId).then(setDocuments),
     ])
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        router.replace('/');
+      })
       .finally(() => setLoading(false));
-  }, [workspaceId]);
+  }, [workspaceId, router]);
 
   // Poll processing documents
   useEffect(() => {
