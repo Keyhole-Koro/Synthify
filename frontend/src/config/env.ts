@@ -1,17 +1,43 @@
-function readEnv(name: keyof NodeJS.ProcessEnv, fallback: string): string {
-  return process.env[name] || fallback;
+import { z } from 'zod';
+
+const rawEnvSchema = z.object({
+  NODE_ENV: z.enum(['development', 'test', 'production']),
+  NEXT_PUBLIC_API_BASE_URL: z.string().url(),
+  NEXT_PUBLIC_FIREBASE_API_KEY: z.string().min(1),
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: z.string().min(1),
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: z.string().min(1),
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: z.string().min(1),
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1),
+  NEXT_PUBLIC_FIREBASE_APP_ID: z.string().min(1),
+  NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: z.string().url().optional(),
+});
+
+const rawEnv = rawEnvSchema.parse({
+  NODE_ENV: process.env.NODE_ENV,
+  NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL,
+  NEXT_PUBLIC_FIREBASE_API_KEY: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL,
+});
+
+if (rawEnv.NODE_ENV === 'development' && !rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL) {
+  throw new Error('NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL is required in development');
 }
 
 export const env = {
-  nodeEnv: process.env.NODE_ENV || 'development',
-  apiBaseUrl: readEnv('NEXT_PUBLIC_API_BASE_URL', 'http://localhost:8080'),
+  nodeEnv: rawEnv.NODE_ENV,
+  apiBaseUrl: rawEnv.NEXT_PUBLIC_API_BASE_URL,
   firebase: {
-    apiKey: readEnv('NEXT_PUBLIC_FIREBASE_API_KEY', 'demo-api-key'),
-    authDomain: readEnv('NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN', 'demo-project.firebaseapp.com'),
-    projectId: readEnv('NEXT_PUBLIC_FIREBASE_PROJECT_ID', 'demo-project'),
-    storageBucket: readEnv('NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET', 'demo-project.appspot.com'),
-    messagingSenderId: readEnv('NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID', '1234567890'),
-    appId: readEnv('NEXT_PUBLIC_FIREBASE_APP_ID', '1:1234567890:web:1234567890'),
-    authEmulatorUrl: readEnv('NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL', 'http://127.0.0.1:9099'),
+    apiKey: rawEnv.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: rawEnv.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: rawEnv.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: rawEnv.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: rawEnv.NEXT_PUBLIC_FIREBASE_APP_ID,
+    authEmulatorUrl: rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL,
   },
 } as const;

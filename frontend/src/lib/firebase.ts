@@ -7,7 +7,7 @@ const auth = getAuth(app);
 
 if (env.nodeEnv === 'development') {
   // Connect to the Firebase Authentication Emulator if running locally
-  connectAuthEmulator(auth, env.firebase.authEmulatorUrl, { disableWarnings: true });
+  connectAuthEmulator(auth, env.firebase.authEmulatorUrl!, { disableWarnings: true });
 }
 
 export { app, auth };
