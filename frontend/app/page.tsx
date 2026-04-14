@@ -118,7 +118,7 @@ export default function LandingPage() {
       </div>
 
       {/* canvas */}
-      <div className="absolute left-1/2 top-1/2 h-[clamp(360px,52vh,520px)] w-[min(1100px,calc(100vw-32px))] sm:w-[min(1100px,calc(100vw-64px))] -translate-x-1/2 -translate-y-[44%] overflow-hidden rounded-2xl shadow-xl shadow-stone-400/30 ring-1 ring-stone-300/60 [contain:layout_paint] isolate">
+      <div className="absolute left-1/2 top-1/2 aspect-[2.05/1] w-[min(95vw,128vh)] max-h-[62vh] -translate-x-1/2 -translate-y-[44%] overflow-hidden rounded-2xl shadow-xl shadow-stone-400/30 ring-1 ring-stone-300/60 [contain:layout_paint] isolate">
         <PaperCanvas
           paperMap={paperMap}
           rootId={LANDING_ROOT_ID}

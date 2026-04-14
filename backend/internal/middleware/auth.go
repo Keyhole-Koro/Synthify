@@ -69,6 +69,12 @@ func newFirebaseAuthClient(projectID string) (*firebaseauth.Client, error) {
 	return app.Auth(context.Background())
 }
 
+// ContextWithUser returns a copy of ctx carrying user.
+// Intended for use in tests and integration utilities.
+func ContextWithUser(ctx context.Context, user AuthUser) context.Context {
+	return context.WithValue(ctx, authUserContextKey, user)
+}
+
 func bearerToken(header string) string {
 	const prefix = "Bearer "
 	if !strings.HasPrefix(header, prefix) {
