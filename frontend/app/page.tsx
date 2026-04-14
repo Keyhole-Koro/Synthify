@@ -13,7 +13,7 @@ import { listWorkspaces, type Workspace } from '@/features/workspaces/api';
 type ExpansionMap = PaperViewState['expansionMap'];
 
 const PaperCanvas = dynamic(
-  () => import('@/lib/PaperCanvasClient'),
+  () => import('@keyhole-koro/paper-in-paper').then((mod) => mod.PaperCanvas),
   { ssr: false },
 );
 
