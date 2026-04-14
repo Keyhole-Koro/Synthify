@@ -7,20 +7,37 @@ import (
 	connect "connectrpc.com/connect"
 	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
 	"github.com/synthify/backend/internal/domain"
+	"github.com/synthify/backend/internal/repository"
 	"github.com/synthify/backend/internal/service"
 )
 
 type NodeHandler struct {
-	service *service.NodeService
+	service    *service.NodeService
+	workspaces repository.WorkspaceRepository
+	documents  repository.DocumentRepository
+	nodes      repository.NodeRepository
 }
 
-func NewNodeHandler(svc *service.NodeService) *NodeHandler {
-	return &NodeHandler{service: svc}
+func NewNodeHandler(
+	svc *service.NodeService,
+	workspaceRepo repository.WorkspaceRepository,
+	documentRepo repository.DocumentRepository,
+	nodeRepo repository.NodeRepository,
+) *NodeHandler {
+	return &NodeHandler{
+		service:    svc,
+		workspaces: workspaceRepo,
+		documents:  documentRepo,
+		nodes:      nodeRepo,
+	}
 }
 
-func (h *NodeHandler) GetGraphEntityDetail(_ context.Context, req *connect.Request[graphv1.GetGraphEntityDetailRequest]) (*connect.Response[graphv1.GetGraphEntityDetailResponse], error) {
+func (h *NodeHandler) GetGraphEntityDetail(ctx context.Context, req *connect.Request[graphv1.GetGraphEntityDetailRequest]) (*connect.Response[graphv1.GetGraphEntityDetailResponse], error) {
 	if req.Msg.GetTargetRef() == nil || req.Msg.GetTargetRef().GetId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("target_ref.id is required"))
+	}
+	if err := authorizeNode(ctx, h.workspaces, h.documents, h.nodes, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 
 	node, relatedEdges, err := h.service.GetGraphEntityDetail(req.Msg.GetTargetRef().GetId())
@@ -54,28 +71,49 @@ func (h *NodeHandler) GetGraphEntityDetail(_ context.Context, req *connect.Reque
 	return connect.NewResponse(&graphv1.GetGraphEntityDetailResponse{Detail: detail}), nil
 }
 
-func (h *NodeHandler) RecordNodeView(_ context.Context, req *connect.Request[graphv1.RecordNodeViewRequest]) (*connect.Response[graphv1.RecordNodeViewResponse], error) {
-	h.service.RecordNodeView(req.Msg.GetWorkspaceId(), req.Msg.GetNodeId(), req.Msg.GetDocumentId())
+func (h *NodeHandler) RecordNodeView(ctx context.Context, req *connect.Request[graphv1.RecordNodeViewRequest]) (*connect.Response[graphv1.RecordNodeViewResponse], error) {
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
+	}
+	user, err := currentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	h.service.RecordNodeView(user.ID, req.Msg.GetWorkspaceId(), req.Msg.GetNodeId(), req.Msg.GetDocumentId())
 	return connect.NewResponse(&graphv1.RecordNodeViewResponse{}), nil
 }
 
-func (h *NodeHandler) CreateNode(_ context.Context, req *connect.Request[graphv1.CreateNodeRequest]) (*connect.Response[graphv1.CreateNodeResponse], error) {
+func (h *NodeHandler) CreateNode(ctx context.Context, req *connect.Request[graphv1.CreateNodeRequest]) (*connect.Response[graphv1.CreateNodeResponse], error) {
 	if req.Msg.GetDocumentId() == "" || req.Msg.GetLabel() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id and label are required"))
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
+	}
+	user, err := currentUser(ctx)
+	if err != nil {
+		return nil, err
 	}
 	category := req.Msg.GetCategory()
 	if category == "" {
 		category = "concept"
 	}
-	node := h.service.CreateNode(req.Msg.GetDocumentId(), req.Msg.GetLabel(), category, req.Msg.GetDescription(), req.Msg.GetParentNodeId(), int(req.Msg.GetLevel()))
+	node := h.service.CreateNode(user.ID, req.Msg.GetDocumentId(), req.Msg.GetLabel(), category, req.Msg.GetDescription(), req.Msg.GetParentNodeId(), int(req.Msg.GetLevel()))
 	return connect.NewResponse(&graphv1.CreateNodeResponse{Node: toProtoNode(node)}), nil
 }
 
-func (h *NodeHandler) GetUserNodeActivity(_ context.Context, req *connect.Request[graphv1.GetUserNodeActivityRequest]) (*connect.Response[graphv1.GetUserNodeActivityResponse], error) {
+func (h *NodeHandler) GetUserNodeActivity(ctx context.Context, req *connect.Request[graphv1.GetUserNodeActivityRequest]) (*connect.Response[graphv1.GetUserNodeActivityResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	activity := h.service.GetUserNodeActivity(req.Msg.GetWorkspaceId(), req.Msg.GetUserId(), req.Msg.GetDocumentId(), int(req.Msg.GetLimit()))
+	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
+	}
+	user, err := currentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	activity := h.service.GetUserNodeActivity(req.Msg.GetWorkspaceId(), user.ID, req.Msg.GetDocumentId(), int(req.Msg.GetLimit()))
 	return connect.NewResponse(&graphv1.GetUserNodeActivityResponse{
 		Activity: &graphv1.UserNodeActivity{
 			UserId:       activity.UserID,
@@ -86,9 +124,12 @@ func (h *NodeHandler) GetUserNodeActivity(_ context.Context, req *connect.Reques
 	}), nil
 }
 
-func (h *NodeHandler) ApproveAlias(_ context.Context, req *connect.Request[graphv1.ApproveAliasRequest]) (*connect.Response[graphv1.ApproveAliasResponse], error) {
+func (h *NodeHandler) ApproveAlias(ctx context.Context, req *connect.Request[graphv1.ApproveAliasRequest]) (*connect.Response[graphv1.ApproveAliasResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalNodeId() == "" || req.Msg.GetAliasNodeId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_node_id, and alias_node_id are required"))
+	}
+	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	if err := h.service.ApproveAlias(req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalNodeId(), req.Msg.GetAliasNodeId()); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)
@@ -100,9 +141,12 @@ func (h *NodeHandler) ApproveAlias(_ context.Context, req *connect.Request[graph
 	}), nil
 }
 
-func (h *NodeHandler) RejectAlias(_ context.Context, req *connect.Request[graphv1.RejectAliasRequest]) (*connect.Response[graphv1.RejectAliasResponse], error) {
+func (h *NodeHandler) RejectAlias(ctx context.Context, req *connect.Request[graphv1.RejectAliasRequest]) (*connect.Response[graphv1.RejectAliasResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalNodeId() == "" || req.Msg.GetAliasNodeId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_node_id, and alias_node_id are required"))
+	}
+	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	if err := h.service.RejectAlias(req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalNodeId(), req.Msg.GetAliasNodeId()); err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)

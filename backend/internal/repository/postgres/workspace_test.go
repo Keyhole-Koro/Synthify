@@ -20,7 +20,7 @@ func TestCreateWorkspace_CommitsTransaction(t *testing.T) {
 		WithArgs(
 			sqlmock.AnyArg(),
 			"Test Workspace",
-			"user_demo",
+			"user_test",
 			"free",
 			int64(0),
 			int64(1<<30),
@@ -32,25 +32,25 @@ func TestCreateWorkspace_CommitsTransaction(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO workspace_members`).
 		WithArgs(
 			sqlmock.AnyArg(),
-			"user_demo",
-			"demo@synthify.dev",
+			"user_test",
+			"user@example.com",
 			"owner",
 			true,
 			sqlmock.AnyArg(),
-			"user_demo",
+			"user_test",
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	workspace := store.CreateWorkspace("Test Workspace")
+	workspace := store.CreateWorkspace("Test Workspace", "user_test", "user@example.com")
 	if workspace == nil {
 		t.Fatal("CreateWorkspace returned nil")
 	}
 	if workspace.Name != "Test Workspace" {
 		t.Fatalf("workspace.Name = %q, want %q", workspace.Name, "Test Workspace")
 	}
-	if workspace.OwnerID != "user_demo" {
-		t.Fatalf("workspace.OwnerID = %q, want user_demo", workspace.OwnerID)
+	if workspace.OwnerID != "user_test" {
+		t.Fatalf("workspace.OwnerID = %q, want user_test", workspace.OwnerID)
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {

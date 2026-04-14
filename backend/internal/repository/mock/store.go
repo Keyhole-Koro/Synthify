@@ -64,6 +64,21 @@ func (s *Store) ListWorkspaces() []*domain.Workspace {
 	return out
 }
 
+func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []*domain.Workspace
+	for workspaceID, workspace := range s.workspaces {
+		for _, member := range s.members[workspaceID] {
+			if member.UserID == userID {
+				out = append(out, workspace)
+				break
+			}
+		}
+	}
+	return out
+}
+
 func (s *Store) GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -74,13 +89,24 @@ func (s *Store) GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceM
 	return ws, s.members[id], true
 }
 
-func (s *Store) CreateWorkspace(name string) *domain.Workspace {
+func (s *Store) IsWorkspaceMember(wsID, userID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, member := range s.members[wsID] {
+		if member.UserID == userID {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Store) CreateWorkspace(name, ownerUserID, ownerEmail string) *domain.Workspace {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ws := &domain.Workspace{
 		WorkspaceID:       newID("ws"),
 		Name:              name,
-		OwnerID:           "user_demo",
+		OwnerID:           ownerUserID,
 		Plan:              "free",
 		StorageUsedBytes:  0,
 		StorageQuotaBytes: 1 << 30, // 1GB
@@ -90,7 +116,7 @@ func (s *Store) CreateWorkspace(name string) *domain.Workspace {
 	}
 	s.workspaces[ws.WorkspaceID] = ws
 	s.members[ws.WorkspaceID] = []*domain.WorkspaceMember{
-		{UserID: "user_demo", Email: "demo@synthify.dev", Role: "owner", IsDev: true, InvitedAt: now()},
+		{UserID: ownerUserID, Email: ownerEmail, Role: "owner", IsDev: true, InvitedAt: now(), InvitedBy: ownerUserID},
 	}
 	return ws
 }

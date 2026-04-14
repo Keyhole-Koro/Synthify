@@ -18,8 +18,12 @@ func NewWorkspaceHandler(svc *service.WorkspaceService) *WorkspaceHandler {
 	return &WorkspaceHandler{service: svc}
 }
 
-func (h *WorkspaceHandler) ListWorkspaces(context.Context, *connect.Request[graphv1.ListWorkspacesRequest]) (*connect.Response[graphv1.ListWorkspacesResponse], error) {
-	workspaces := h.service.ListWorkspaces()
+func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[graphv1.ListWorkspacesRequest]) (*connect.Response[graphv1.ListWorkspacesResponse], error) {
+	user, err := currentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	workspaces := h.service.ListWorkspaces(user.ID)
 	res := connect.NewResponse(&graphv1.ListWorkspacesResponse{})
 	for _, workspace := range workspaces {
 		res.Msg.Workspaces = append(res.Msg.Workspaces, toProtoWorkspace(workspace))
@@ -27,13 +31,17 @@ func (h *WorkspaceHandler) ListWorkspaces(context.Context, *connect.Request[grap
 	return res, nil
 }
 
-func (h *WorkspaceHandler) GetWorkspace(_ context.Context, req *connect.Request[graphv1.GetWorkspaceRequest]) (*connect.Response[graphv1.GetWorkspaceResponse], error) {
+func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Request[graphv1.GetWorkspaceRequest]) (*connect.Response[graphv1.GetWorkspaceResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	workspace, members, err := h.service.GetWorkspace(req.Msg.GetWorkspaceId())
+	user, err := currentUser(ctx)
 	if err != nil {
-		return nil, connect.NewError(connect.CodeNotFound, err)
+		return nil, err
+	}
+	workspace, members, err := h.service.GetWorkspace(req.Msg.GetWorkspaceId(), user.ID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodePermissionDenied, err)
 	}
 	res := connect.NewResponse(&graphv1.GetWorkspaceResponse{
 		Workspace: toProtoWorkspace(workspace),
@@ -44,12 +52,20 @@ func (h *WorkspaceHandler) GetWorkspace(_ context.Context, req *connect.Request[
 	return res, nil
 }
 
-func (h *WorkspaceHandler) CreateWorkspace(_ context.Context, req *connect.Request[graphv1.CreateWorkspaceRequest]) (*connect.Response[graphv1.CreateWorkspaceResponse], error) {
+func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[graphv1.CreateWorkspaceRequest]) (*connect.Response[graphv1.CreateWorkspaceResponse], error) {
 	if req.Msg.GetName() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
+	user, err := currentUser(ctx)
+	if err != nil {
+		return nil, err
+	}
+	email := user.Email
+	if email == "" {
+		email = user.ID + "@local.invalid"
+	}
 	return connect.NewResponse(&graphv1.CreateWorkspaceResponse{
-		Workspace: toProtoWorkspace(h.service.CreateWorkspace(req.Msg.GetName())),
+		Workspace: toProtoWorkspace(h.service.CreateWorkspace(req.Msg.GetName(), user.ID, email)),
 	}), nil
 }
 

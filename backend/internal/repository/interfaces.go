@@ -4,8 +4,10 @@ import "github.com/synthify/backend/internal/domain"
 
 type WorkspaceRepository interface {
 	ListWorkspaces() []*domain.Workspace
+	ListWorkspacesByUser(userID string) []*domain.Workspace
 	GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool)
-	CreateWorkspace(name string) *domain.Workspace
+	IsWorkspaceMember(wsID, userID string) bool
+	CreateWorkspace(name, ownerUserID, ownerEmail string) *domain.Workspace
 	InviteMember(wsID, email, role string, isDev bool) (*domain.WorkspaceMember, bool)
 	UpdateMemberRole(wsID, userID, role string, isDev bool) (*domain.WorkspaceMember, bool)
 	RemoveMember(wsID, userID string) bool

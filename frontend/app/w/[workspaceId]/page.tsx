@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { onAuthStateChanged } from 'firebase/auth';
 import { listDocuments, createDocument, startProcessing, type Document, type DocumentStatus } from '@/features/documents/api';
 import { getWorkspace, type Workspace } from '@/features/workspaces/api';
+import { ApiError } from '@/lib/rpc';
+import { auth } from '@/lib/firebase';
 
 const STATUS_LABEL: Record<DocumentStatus, string> = {
   uploaded: 'アップロード済',
@@ -59,22 +62,42 @@ export default function WorkspacePage() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [upload, setUpload] = useState<UploadState | null>(null);
   const [defaultDepth, setDefaultDepth] = useState<ExtractionDepth>('full');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.replace('/');
+        return;
+      }
+      setAuthReady(true);
+    });
+  }, [router]);
+
+  useEffect(() => {
+    if (!authReady) return;
     Promise.all([
       getWorkspace(workspaceId).then((r) => setWorkspace(r.workspace)),
       listDocuments(workspaceId).then(setDocuments),
     ])
       .catch((err) => {
         console.error(err);
+        if (err instanceof ApiError && err.status === 401) {
+          router.replace('/');
+          return;
+        }
+        if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+          router.replace('/workspaces');
+          return;
+        }
         router.replace('/');
       })
       .finally(() => setLoading(false));
-  }, [workspaceId, router]);
+  }, [authReady, workspaceId, router]);
 
   // Poll processing documents
   useEffect(() => {

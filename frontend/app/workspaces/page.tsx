@@ -15,6 +15,11 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getUserInitial(user: User | null): string {
+  const source = user?.displayName || user?.email || '';
+  return source.trim().charAt(0).toUpperCase() || '?';
+}
+
 export default function WorkspacesPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -92,6 +97,17 @@ export default function WorkspacesPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {user?.photoURL ? (
+              <img
+                src={user.photoURL}
+                alt={user.displayName || user.email || 'Account avatar'}
+                className="h-8 w-8 rounded-full border border-slate-200 object-cover"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700">
+                {getUserInitial(user)}
+              </div>
+            )}
             <span className="text-sm text-slate-500">{user?.email}</span>
             <button
               onClick={() => signOut(auth)}

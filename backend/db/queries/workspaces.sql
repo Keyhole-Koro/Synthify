@@ -3,6 +3,13 @@ SELECT workspace_id, name, owner_id, plan, storage_used_bytes, storage_quota_byt
 FROM workspaces
 ORDER BY created_at DESC;
 
+-- name: ListWorkspacesByUser :many
+SELECT w.workspace_id, w.name, w.owner_id, w.plan, w.storage_used_bytes, w.storage_quota_bytes, w.max_file_size_bytes, w.max_uploads_per_day, w.created_at
+FROM workspaces w
+JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
+WHERE wm.user_id = $1
+ORDER BY w.created_at DESC;
+
 -- name: GetWorkspace :one
 SELECT workspace_id, name, owner_id, plan, storage_used_bytes, storage_quota_bytes, max_file_size_bytes, max_uploads_per_day, created_at
 FROM workspaces

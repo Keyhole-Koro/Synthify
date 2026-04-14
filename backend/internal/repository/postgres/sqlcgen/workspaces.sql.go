@@ -259,6 +259,47 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 	return items, nil
 }
 
+const listWorkspacesByUser = `-- name: ListWorkspacesByUser :many
+SELECT w.workspace_id, w.name, w.owner_id, w.plan, w.storage_used_bytes, w.storage_quota_bytes, w.max_file_size_bytes, w.max_uploads_per_day, w.created_at
+FROM workspaces w
+JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
+WHERE wm.user_id = $1
+ORDER BY w.created_at DESC
+`
+
+func (q *Queries) ListWorkspacesByUser(ctx context.Context, userID string) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspacesByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Workspace
+	for rows.Next() {
+		var i Workspace
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.Name,
+			&i.OwnerID,
+			&i.Plan,
+			&i.StorageUsedBytes,
+			&i.StorageQuotaBytes,
+			&i.MaxFileSizeBytes,
+			&i.MaxUploadsPerDay,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const promoteWorkspaceOwner = `-- name: PromoteWorkspaceOwner :execrows
 UPDATE workspace_members
 SET role = 'owner'

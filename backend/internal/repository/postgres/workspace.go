@@ -21,6 +21,19 @@ func (s *Store) ListWorkspaces() []*domain.Workspace {
 	return workspaces
 }
 
+func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
+	rows, err := s.q().ListWorkspacesByUser(context.Background(), userID)
+	if err != nil {
+		return nil
+	}
+
+	var workspaces []*domain.Workspace
+	for _, row := range rows {
+		workspaces = append(workspaces, toWorkspace(row))
+	}
+	return workspaces
+}
+
 func (s *Store) GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool) {
 	ctx := context.Background()
 	row, err := s.q().GetWorkspace(ctx, id)
@@ -39,12 +52,20 @@ func (s *Store) GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceM
 	return toWorkspace(row), members, true
 }
 
-func (s *Store) CreateWorkspace(name string) *domain.Workspace {
+func (s *Store) IsWorkspaceMember(wsID, userID string) bool {
+	_, err := s.q().GetWorkspaceMember(context.Background(), sqlcgen.GetWorkspaceMemberParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+	})
+	return err == nil
+}
+
+func (s *Store) CreateWorkspace(name, ownerUserID, ownerEmail string) *domain.Workspace {
 	createdAt := nowTime()
 	workspace := &domain.Workspace{
 		WorkspaceID:       newID("ws"),
 		Name:              name,
-		OwnerID:           "user_demo",
+		OwnerID:           ownerUserID,
 		Plan:              "free",
 		StorageUsedBytes:  0,
 		StorageQuotaBytes: 1 << 30,
@@ -76,12 +97,12 @@ func (s *Store) CreateWorkspace(name string) *domain.Workspace {
 	}
 	if err := qtx.CreateWorkspaceMember(ctx, sqlcgen.CreateWorkspaceMemberParams{
 		WorkspaceID: workspace.WorkspaceID,
-		UserID:      "user_demo",
-		Email:       "demo@synthify.dev",
+		UserID:      ownerUserID,
+		Email:       ownerEmail,
 		Role:        "owner",
 		IsDev:       true,
 		InvitedAt:   createdAt,
-		InvitedBy:   "user_demo",
+		InvitedBy:   ownerUserID,
 	}); err != nil {
 		return nil
 	}

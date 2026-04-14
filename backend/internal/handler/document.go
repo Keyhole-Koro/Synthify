@@ -7,20 +7,34 @@ import (
 	connect "connectrpc.com/connect"
 	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
 	"github.com/synthify/backend/internal/domain"
+	"github.com/synthify/backend/internal/repository"
 	"github.com/synthify/backend/internal/service"
 )
 
 type DocumentHandler struct {
-	service *service.DocumentService
+	service    *service.DocumentService
+	workspaces repository.WorkspaceRepository
+	documents  repository.DocumentRepository
 }
 
-func NewDocumentHandler(svc *service.DocumentService) *DocumentHandler {
-	return &DocumentHandler{service: svc}
+func NewDocumentHandler(
+	svc *service.DocumentService,
+	workspaceRepo repository.WorkspaceRepository,
+	documentRepo repository.DocumentRepository,
+) *DocumentHandler {
+	return &DocumentHandler{
+		service:    svc,
+		workspaces: workspaceRepo,
+		documents:  documentRepo,
+	}
 }
 
-func (h *DocumentHandler) ListDocuments(_ context.Context, req *connect.Request[graphv1.ListDocumentsRequest]) (*connect.Response[graphv1.ListDocumentsResponse], error) {
+func (h *DocumentHandler) ListDocuments(ctx context.Context, req *connect.Request[graphv1.ListDocumentsRequest]) (*connect.Response[graphv1.ListDocumentsResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	docs := h.service.ListDocuments(req.Msg.GetWorkspaceId())
 	res := connect.NewResponse(&graphv1.ListDocumentsResponse{})
@@ -30,9 +44,12 @@ func (h *DocumentHandler) ListDocuments(_ context.Context, req *connect.Request[
 	return res, nil
 }
 
-func (h *DocumentHandler) GetDocument(_ context.Context, req *connect.Request[graphv1.GetDocumentRequest]) (*connect.Response[graphv1.GetDocumentResponse], error) {
+func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[graphv1.GetDocumentRequest]) (*connect.Response[graphv1.GetDocumentResponse], error) {
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+		return nil, err
 	}
 	doc, err := h.service.GetDocument(req.Msg.GetDocumentId())
 	if err != nil {
@@ -41,9 +58,12 @@ func (h *DocumentHandler) GetDocument(_ context.Context, req *connect.Request[gr
 	return connect.NewResponse(&graphv1.GetDocumentResponse{Document: toProtoDocument(doc)}), nil
 }
 
-func (h *DocumentHandler) CreateDocument(_ context.Context, req *connect.Request[graphv1.CreateDocumentRequest]) (*connect.Response[graphv1.CreateDocumentResponse], error) {
+func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Request[graphv1.CreateDocumentRequest]) (*connect.Response[graphv1.CreateDocumentResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
+	}
+	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	doc, uploadURL := h.service.CreateDocument(req.Msg.GetWorkspaceId(), req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
 	return connect.NewResponse(&graphv1.CreateDocumentResponse{
@@ -54,9 +74,12 @@ func (h *DocumentHandler) CreateDocument(_ context.Context, req *connect.Request
 	}), nil
 }
 
-func (h *DocumentHandler) GetUploadURL(_ context.Context, req *connect.Request[graphv1.GetUploadURLRequest]) (*connect.Response[graphv1.GetUploadURLResponse], error) {
+func (h *DocumentHandler) GetUploadURL(ctx context.Context, req *connect.Request[graphv1.GetUploadURLRequest]) (*connect.Response[graphv1.GetUploadURLResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
+	}
+	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	uploadURL, token := h.service.GetUploadURL(req.Msg.GetWorkspaceId(), req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
 	return connect.NewResponse(&graphv1.GetUploadURLResponse{
@@ -66,9 +89,12 @@ func (h *DocumentHandler) GetUploadURL(_ context.Context, req *connect.Request[g
 	}), nil
 }
 
-func (h *DocumentHandler) StartProcessing(_ context.Context, req *connect.Request[graphv1.StartProcessingRequest]) (*connect.Response[graphv1.StartProcessingResponse], error) {
+func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Request[graphv1.StartProcessingRequest]) (*connect.Response[graphv1.StartProcessingResponse], error) {
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+		return nil, err
 	}
 	doc, err := h.service.StartProcessing(req.Msg.GetDocumentId(), req.Msg.GetForceReprocess(), extractionDepthToDomain(req.Msg.GetExtractionDepth()))
 	if err != nil {
@@ -85,9 +111,12 @@ func (h *DocumentHandler) StartProcessing(_ context.Context, req *connect.Reques
 	}), nil
 }
 
-func (h *DocumentHandler) ResumeProcessing(_ context.Context, req *connect.Request[graphv1.ResumeProcessingRequest]) (*connect.Response[graphv1.ResumeProcessingResponse], error) {
+func (h *DocumentHandler) ResumeProcessing(ctx context.Context, req *connect.Request[graphv1.ResumeProcessingRequest]) (*connect.Response[graphv1.ResumeProcessingResponse], error) {
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+		return nil, err
 	}
 	doc, err := h.service.GetDocument(req.Msg.GetDocumentId())
 	if err != nil {

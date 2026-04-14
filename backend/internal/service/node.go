@@ -21,18 +21,15 @@ func (s *NodeService) GetGraphEntityDetail(nodeID string) (*domain.Node, []*doma
 	return node, edges, nil
 }
 
-func (s *NodeService) RecordNodeView(workspaceID, nodeID, documentID string) {
-	s.repo.RecordView("user_demo", workspaceID, nodeID, documentID)
+func (s *NodeService) RecordNodeView(userID, workspaceID, nodeID, documentID string) {
+	s.repo.RecordView(userID, workspaceID, nodeID, documentID)
 }
 
-func (s *NodeService) CreateNode(documentID, label, category, description, parentNodeID string, level int) *domain.Node {
-	return s.repo.CreateNode(documentID, label, category, description, parentNodeID, level, "user_demo")
+func (s *NodeService) CreateNode(userID, documentID, label, category, description, parentNodeID string, level int) *domain.Node {
+	return s.repo.CreateNode(documentID, label, category, description, parentNodeID, level, userID)
 }
 
 func (s *NodeService) GetUserNodeActivity(workspaceID, userID, documentID string, limit int) domain.UserNodeActivity {
-	if userID == "" {
-		userID = "user_demo"
-	}
 	return s.repo.GetUserNodeActivity(workspaceID, userID, documentID, limit)
 }
 

@@ -6,20 +6,34 @@ import (
 
 	connect "connectrpc.com/connect"
 	graphv1 "github.com/synthify/backend/gen/synthify/graph/v1"
+	"github.com/synthify/backend/internal/repository"
 	"github.com/synthify/backend/internal/service"
 )
 
 type GraphHandler struct {
-	service *service.GraphService
+	service    *service.GraphService
+	workspaces repository.WorkspaceRepository
+	documents  repository.DocumentRepository
 }
 
-func NewGraphHandler(svc *service.GraphService) *GraphHandler {
-	return &GraphHandler{service: svc}
+func NewGraphHandler(
+	svc *service.GraphService,
+	workspaceRepo repository.WorkspaceRepository,
+	documentRepo repository.DocumentRepository,
+) *GraphHandler {
+	return &GraphHandler{
+		service:    svc,
+		workspaces: workspaceRepo,
+		documents:  documentRepo,
+	}
 }
 
-func (h *GraphHandler) GetGraph(_ context.Context, req *connect.Request[graphv1.GetGraphRequest]) (*connect.Response[graphv1.GetGraphResponse], error) {
+func (h *GraphHandler) GetGraph(ctx context.Context, req *connect.Request[graphv1.GetGraphRequest]) (*connect.Response[graphv1.GetGraphResponse], error) {
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 	nodes, edges, err := h.service.GetGraph(req.Msg.GetDocumentId())
 	if err != nil {
@@ -60,7 +74,7 @@ func (h *GraphHandler) GetGraph(_ context.Context, req *connect.Request[graphv1.
 	return connect.NewResponse(&graphv1.GetGraphResponse{Graph: graph}), nil
 }
 
-func (h *GraphHandler) FindPaths(_ context.Context, req *connect.Request[graphv1.FindPathsRequest]) (*connect.Response[graphv1.FindPathsResponse], error) {
+func (h *GraphHandler) FindPaths(ctx context.Context, req *connect.Request[graphv1.FindPathsRequest]) (*connect.Response[graphv1.FindPathsResponse], error) {
 	if req.Msg.GetSourceNodeId() == "" || req.Msg.GetTargetNodeId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("source_node_id and target_node_id are required"))
 	}
@@ -70,6 +84,9 @@ func (h *GraphHandler) FindPaths(_ context.Context, req *connect.Request[graphv1
 	}
 	if docID == "" {
 		docID = "doc_sales"
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, docID, req.Msg.GetWorkspaceId()); err != nil {
+		return nil, err
 	}
 
 	nodes, edges, paths, err := h.service.FindPaths(docID, req.Msg.GetSourceNodeId(), req.Msg.GetTargetNodeId(), int(req.Msg.GetMaxDepth()), int(req.Msg.GetLimit()))

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { onAuthStateChanged } from 'firebase/auth';
 import type { PaperMap, PaperViewState } from '@keyhole-koro/paper-in-paper';
 import { buildPaperMapFromGraph, findRootNodeId } from '@/features/graph/buildPaperMap';
 import {
@@ -10,6 +11,8 @@ import {
   type ApiNode, type ApiEdge, type GraphEntityDetail,
 } from '@/features/graph/api';
 import { listDocuments, type Document } from '@/features/documents/api';
+import { ApiError } from '@/lib/rpc';
+import { auth } from '@/lib/firebase';
 
 type ExpansionMap = PaperViewState['expansionMap'];
 
@@ -41,11 +44,23 @@ export default function ExplorePage() {
   const [detail, setDetail] = useState<GraphEntityDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [graphLoading, setGraphLoading] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [nodes, setNodes] = useState<ApiNode[]>([]);
   const [edges, setEdges] = useState<ApiEdge[]>([]);
 
+  useEffect(() => {
+    return onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        router.replace('/');
+        return;
+      }
+      setAuthReady(true);
+    });
+  }, [router]);
+
   // Load document list
   useEffect(() => {
+    if (!authReady) return;
     if (workspaceId === 'ws_demo') {
       router.replace('/');
       return;
@@ -57,23 +72,34 @@ export default function ExplorePage() {
         setDocuments(completed);
         const paramDoc = searchParams.get('doc');
         if (paramDoc && completed.find((d) => d.document_id === paramDoc)) {
+          setGraphLoading(true);
+          setFocusedNodeId(null);
+          setDetail(null);
           setSelectedDocId(paramDoc);
         } else if (completed.length > 0) {
+          setGraphLoading(true);
+          setFocusedNodeId(null);
+          setDetail(null);
           setSelectedDocId(completed[0].document_id);
         }
       })
       .catch((err) => {
         console.error(err);
+        if (err instanceof ApiError && err.status === 401) {
+          router.replace('/');
+          return;
+        }
+        if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+          router.replace('/workspaces');
+          return;
+        }
         router.replace('/');
       });
-  }, [workspaceId, searchParams, router]);
+  }, [authReady, workspaceId, searchParams, router]);
 
   // Load graph when document changes
   useEffect(() => {
-    if (!selectedDocId) return;
-    setGraphLoading(true);
-    setFocusedNodeId(null);
-    setDetail(null);
+    if (!authReady || !selectedDocId) return;
 
     getGraph(workspaceId, selectedDocId)
       .then((graph) => {
@@ -85,17 +111,22 @@ export default function ExplorePage() {
         setRootId(rid);
         setExpansionMap(new Map());
       })
-      .catch(console.error)
+      .catch((err) => {
+        console.error(err);
+        if (err instanceof ApiError && err.status === 401) {
+          router.replace('/');
+          return;
+        }
+        if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
+          router.replace('/workspaces');
+        }
+      })
       .finally(() => setGraphLoading(false));
-  }, [workspaceId, selectedDocId]);
+  }, [authReady, workspaceId, selectedDocId, router]);
 
   // Load detail when node focused
   useEffect(() => {
-    if (!focusedNodeId || !selectedDocId) {
-      setDetail(null);
-      return;
-    }
-    setDetailLoading(true);
+    if (!authReady || !focusedNodeId || !selectedDocId) return;
     recordNodeView(workspaceId, focusedNodeId, selectedDocId).catch(() => {});
     getGraphEntityDetail({
       workspace_id: workspaceId,
@@ -106,12 +137,26 @@ export default function ExplorePage() {
       .then(setDetail)
       .catch(console.error)
       .finally(() => setDetailLoading(false));
-  }, [focusedNodeId, workspaceId, selectedDocId]);
+  }, [authReady, focusedNodeId, workspaceId, selectedDocId]);
 
   const handleDocChange = useCallback((docId: string) => {
+    setGraphLoading(true);
+    setFocusedNodeId(null);
+    setDetail(null);
+    setDetailLoading(false);
     setSelectedDocId(docId);
     router.replace(`/w/${workspaceId}/explore?doc=${docId}`);
   }, [workspaceId, router]);
+
+  const handleFocusedNodeIdChange = useCallback((nodeId: string | null) => {
+    setFocusedNodeId(nodeId);
+    if (!nodeId) {
+      setDetail(null);
+      setDetailLoading(false);
+      return;
+    }
+    setDetailLoading(true);
+  }, []);
 
   const focusedNode = nodes.find((n) => n.id === focusedNodeId);
 
@@ -172,7 +217,7 @@ export default function ExplorePage() {
               focusedNodeId={focusedNodeId}
               onPaperMapChange={setPaperMap}
               onExpansionMapChange={setExpansionMap}
-              onFocusedNodeIdChange={setFocusedNodeId}
+              onFocusedNodeIdChange={handleFocusedNodeIdChange}
             />
           )}
         </div>
@@ -183,7 +228,11 @@ export default function ExplorePage() {
             node={focusedNode ?? null}
             detail={detail}
             loading={detailLoading}
-            onClose={() => setFocusedNodeId(null)}
+            onClose={() => {
+              setFocusedNodeId(null);
+              setDetail(null);
+              setDetailLoading(false);
+            }}
           />
         )}
       </div>

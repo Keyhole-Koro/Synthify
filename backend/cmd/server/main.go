@@ -36,9 +36,9 @@ func main() {
 	nodeService := service.NewNodeService(store)
 
 	wh := handler.NewWorkspaceHandler(workspaceService)
-	dh := handler.NewDocumentHandler(documentService)
-	gh := handler.NewGraphHandler(graphService)
-	nh := handler.NewNodeHandler(nodeService)
+	dh := handler.NewDocumentHandler(documentService, store, store)
+	gh := handler.NewGraphHandler(graphService, store, store)
+	nh := handler.NewNodeHandler(nodeService, store, store, store)
 
 	mux := http.NewServeMux()
 
@@ -53,7 +53,7 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok"}`)
 	})
 
-	h := middleware.Logger(middleware.CORS(corsOrigins, mux))
+	h := middleware.Logger(middleware.CORS(corsOrigins, middleware.WithAuth(os.Getenv("FIREBASE_PROJECT_ID"), mux)))
 
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("Synthify backend listening on %s (CORS: %s)", addr, corsOrigins)
@@ -64,8 +64,10 @@ func main() {
 
 type appStore interface {
 	ListWorkspaces() []*domain.Workspace
+	ListWorkspacesByUser(userID string) []*domain.Workspace
 	GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool)
-	CreateWorkspace(name string) *domain.Workspace
+	IsWorkspaceMember(wsID, userID string) bool
+	CreateWorkspace(name, ownerUserID, ownerEmail string) *domain.Workspace
 	InviteMember(wsID, email, role string, isDev bool) (*domain.WorkspaceMember, bool)
 	UpdateMemberRole(wsID, userID, role string, isDev bool) (*domain.WorkspaceMember, bool)
 	RemoveMember(wsID, userID string) bool

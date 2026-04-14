@@ -1,6 +1,5 @@
-const BASE_URL =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE_URL) ||
-  'http://localhost:8080';
+import { auth } from '@/lib/firebase';
+import { env } from '@/config/env';
 
 export class ApiError extends Error {
   constructor(
@@ -17,12 +16,14 @@ export async function callRPC<Req, Res>(
   method: string,
   body: Req,
 ): Promise<Res> {
-  const url = `${BASE_URL}/synthify.graph.v1.${service}/${method}`;
+  const token = await auth.currentUser?.getIdToken();
+  const url = `${env.apiBaseUrl}/synthify.graph.v1.${service}/${method}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       'Connect-Protocol-Version': '1',
     },
     body: JSON.stringify(body),
