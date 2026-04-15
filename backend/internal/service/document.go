@@ -30,7 +30,7 @@ func (s *DocumentService) CreateDocument(wsID, uploadedBy, filename, mimeType st
 	return s.repo.CreateDocument(wsID, uploadedBy, filename, mimeType, fileSize)
 }
 
-func (s *DocumentService) StartProcessing(wsID, documentID string, forceReprocess bool, extractionDepth string) (*domain.DocumentProcessingJob, error) {
+func (s *DocumentService) StartProcessing(wsID, documentID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
 	if _, ok := s.repo.GetDocument(documentID); !ok {
 		return nil, ErrNotFound
 	}

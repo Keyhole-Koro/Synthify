@@ -1,0 +1,6 @@
+.gemini-cache
+.codex
+.claude
+
+firebase-debug.log
+firestore-debug.log

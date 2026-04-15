@@ -9,11 +9,21 @@ export const LANDING_ROOT_ID = 'root';
 // helpers
 const t = (value: string): ContentNode => ({ type: 'text', value });
 const p = (...children: ContentNode[]): ContentNode => ({ type: 'paragraph', children });
+const prose = (strings: TemplateStringsArray, ...children: ContentNode[]): ContentNode =>
+  p(
+    ...strings.flatMap((chunk, index) => {
+      const nodes: ContentNode[] = [];
+      if (chunk) nodes.push(t(chunk));
+      if (index < children.length) nodes.push(children[index]);
+      return nodes;
+    }),
+  );
 const b = (...children: ContentNode[]): ContentNode => ({ type: 'bold', children });
 const link = (paperId: string, label: string): ContentNode => ({ type: 'paper-link', paperId, label });
 const card = (paperId: string, title: string, description: string): ContentNode => ({ type: 'card', paperId, title, description });
 const section = (title: string, ...children: ContentNode[]): ContentNode => ({ type: 'section', title, children });
 const list = (...items: ContentNode[][]): ContentNode => ({ type: 'list', items });
+const item = (...children: ContentNode[]): ContentNode[] => children;
 const table = (headers: string[], rows: string[][]): ContentNode => ({ type: 'table', headers, rows });
 const callout = (...children: ContentNode[]): ContentNode => ({ type: 'callout', children });
 
@@ -25,16 +35,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 230,
     content: [
       section('Synthify',
-        p(
-          t('複数のドキュメントを読み込み、'),
-          link('extraction', 'AIが概念・主張・根拠を抽出'),
-          t('して'),
-          link('graph', '知識グラフ'),
-          t('を自動生成。そのまま'),
-          link('auth', 'ワークスペースに入って'),
-          link('explore', 'paper-in-paper形式で探索'),
-          t('できます。'),
-        ),
+        prose`複数のドキュメントを読み込み、${link('extraction', 'AIが概念・主張・根拠を抽出')}して${link('graph', '知識グラフ')}を自動生成。そのまま${link('auth', 'ワークスペースに入って')}${link('explore', 'paper-in-paper形式で探索')}できます。`,
         card('auth', 'Start Here', 'まずは ログイン / 新規登録 を開いて、Synthify の入口をこの paper の中で試せます。'),
         table(
           ['機能', '説明'],
@@ -65,20 +66,14 @@ const LANDING_PAPERS: Paper[] = [
     content: [
       section('6ステージ パイプライン',
         list(
-          [t('テキスト正規化・チャンク分割')],
-          [t('エンティティ・概念の抽出')],
-          [link('canonicalization', 'エイリアス正規化')],
-          [t('関係エッジの推論')],
-          [t('重要度スコアリング')],
-          [t('HTMLサマリ生成')],
+          item(t('テキスト正規化・チャンク分割')),
+          item(t('エンティティ・概念の抽出')),
+          item(link('canonicalization', 'エイリアス正規化')),
+          item(t('関係エッジの推論')),
+          item(t('重要度スコアリング')),
+          item(t('HTMLサマリ生成')),
         ),
-        p(
-          t('抽出深度は '),
-          b(t('詳細')),
-          t(' と '),
-          b(t('要約のみ')),
-          t(' から選択できます。'),
-        ),
+        prose`抽出深度は ${b(t('詳細'))} と ${b(t('要約のみ'))} から選択できます。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'root',
@@ -91,12 +86,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 140,
     content: [
       section('グラフ構造',
-        p(
-          link('hierarchy', '階層エッジ'),
-          t('がツリー構造を定義し、'),
-          link('crosslinks', '非階層エッジ'),
-          t('（measured_by・contradicts・supports）が横断的な関係を表現します。'),
-        ),
+        prose`${link('hierarchy', '階層エッジ')}がツリー構造を定義し、${link('crosslinks', '非階層エッジ')}（measured_by・contradicts・supports）が横断的な関係を表現します。`,
         table(
           ['ノード種別', '役割'],
           [
@@ -118,11 +108,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 280,
     content: [
       section('インタラクティブ探索',
-        p(
-          t('ペーパー内のリンクをクリックすると、親の文脈を保ちながら子ノードがインラインで展開されます。'),
-          link('datalink', 'data-paper-id リンク'),
-          t('がグラフの横断リンクも再現します。'),
-        ),
+        prose`ペーパー内のリンクをクリックすると、親の文脈を保ちながら子ノードがインラインで展開されます。${link('datalink', 'data-paper-id リンク')}がグラフの横断リンクも再現します。`,
         callout(
           t('このページ自体が paper-in-paper のデモです。ペーパーをクリックして展開してみてください。'),
         ),
@@ -139,11 +125,11 @@ const LANDING_PAPERS: Paper[] = [
     content: [
       section('ロールベースアクセス',
         list(
-          [b(t('owner')), t(' - 全権限・メンバー管理')],
-          [b(t('editor')), t(' - アップロード・招待')],
-          [b(t('viewer')), t(' - 閲覧のみ')],
+          item(b(t('owner')), t(' - 全権限・メンバー管理')),
+          item(b(t('editor')), t(' - アップロード・招待')),
+          item(b(t('viewer')), t(' - 閲覧のみ')),
         ),
-        p(t('各ユーザーの閲覧ノード履歴・追加ノードが記録され、チームの探索状況を把握できます。')),
+        prose`各ユーザーの閲覧ノード履歴・追加ノードが記録され、チームの探索状況を把握できます。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'root',
@@ -156,7 +142,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 200,
     content: [
       section('正規化の仕組み',
-        p(t('Gemini が候補を提案し、コサイン類似度 + 人手ルールで同義語を一つの canonical ノードに統合します。元の document ノードは参照として残ります。')),
+        prose`Gemini が候補を提案し、コサイン類似度 + 人手ルールで同義語を一つの canonical ノードに統合します。元の document ノードは参照として残ります。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'extraction',
@@ -169,14 +155,8 @@ const LANDING_PAPERS: Paper[] = [
     hue: 200,
     content: [
       section('抽出深度の選択',
-        p(
-          b(t('詳細')),
-          t('：全チャンクを処理し豊富なグラフを生成（時間がかかる）。'),
-        ),
-        p(
-          b(t('要約のみ')),
-          t('：高速だが粗めのグラフ。プロトタイプ確認に最適。'),
-        ),
+        prose`${b(t('詳細'))}：全チャンクを処理し豊富なグラフを生成（時間がかかる）。`,
+        prose`${b(t('要約のみ'))}：高速だが粗めのグラフ。プロトタイプ確認に最適。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'extraction',
@@ -189,7 +169,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 150,
     content: [
       section('hierarchical エッジ',
-        p(t('親子関係を表し、paper-in-paper のキャンバスツリーを決定します。ルートノード（level 0）から深くなるほど詳細な概念になります。')),
+        prose`親子関係を表し、paper-in-paper のキャンバスツリーを決定します。ルートノード（level 0）から深くなるほど詳細な概念になります。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'graph',
@@ -202,7 +182,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 150,
     content: [
       section('非階層エッジ',
-        p(t('supports・contradicts・measured_by など。HTMLサマリ内の data-paper-id リンクとして埋め込まれ、クリックで対象ノードが展開されます。')),
+        prose`supports・contradicts・measured_by など。HTMLサマリ内の data-paper-id リンクとして埋め込まれ、クリックで対象ノードが展開されます。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'graph',
@@ -215,7 +195,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 265,
     content: [
       section('仕組み',
-        p(t('ペーパーの HTML に <a data-paper-id="node_id"> を埋め込むと、クリック時に対象ノードが子として展開されます。非階層リンクもこの仕組みで再現されます。')),
+        prose`ペーパーの HTML に <a data-paper-id="node_id"> を埋め込むと、クリック時に対象ノードが子として展開されます。非階層リンクもこの仕組みで再現されます。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'explore',
@@ -228,7 +208,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 265,
     content: [
       section('フォーカスパネル',
-        p(t('ノードを選択するとサイドパネルが開き、ソースチャンク・関連エッジ・HTMLサマリを詳しく確認できます。閲覧履歴にも自動記録されます。')),
+        prose`ノードを選択するとサイドパネルが開き、ソースチャンク・関連エッジ・HTMLサマリを詳しく確認できます。閲覧履歴にも自動記録されます。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'explore',
@@ -241,7 +221,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 20,
     content: [
       section('user_node_views',
-        p(t('ノードを開くたびに first_viewed_at・last_viewed_at・view_count が記録されます。チームで誰がどの概念を探索したかが一目で分かります。')),
+        prose`ノードを開くたびに first_viewed_at・last_viewed_at・view_count が記録されます。チームで誰がどの概念を探索したかが一目で分かります。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'team',
@@ -254,7 +234,7 @@ const LANDING_PAPERS: Paper[] = [
     hue: 20,
     content: [
       section('招待フロー',
-        p(t('オーナーがメールアドレスとロールを指定して招待。is_dev フラグを付けると開発者モードが有効になり、内部メタデータへのアクセスが解放されます。')),
+        prose`オーナーがメールアドレスとロールを指定して招待。is_dev フラグを付けると開発者モードが有効になり、内部メタデータへのアクセスが解放されます。`,
       ),
     ] satisfies ContentNode[],
     parentId: 'team',

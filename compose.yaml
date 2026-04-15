@@ -111,6 +111,8 @@ services:
     working_dir: /workspace
     command: >
       bash -c '
+        apt-get update &&
+        apt-get install -y openjdk-17-jre-headless &&
         npm install -g firebase-tools@13 &&
         firebase emulators:start --only auth,firestore --project demo-synthify
       '

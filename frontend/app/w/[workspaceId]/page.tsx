@@ -51,11 +51,8 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-type ExtractionDepth = 'full' | 'summary';
-
 interface UploadState {
   file: File;
-  depth: ExtractionDepth;
   phase: 'idle' | 'creating' | 'uploading' | 'starting' | 'done' | 'error';
   progress: number;
   error?: string;
@@ -72,7 +69,6 @@ export default function WorkspacePage() {
   const [authReady, setAuthReady] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [upload, setUpload] = useState<UploadState | null>(null);
-  const [defaultDepth, setDefaultDepth] = useState<ExtractionDepth>('full');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -143,7 +139,7 @@ export default function WorkspacePage() {
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     const file = files[0];
-    setUpload({ file, depth: defaultDepth, phase: 'creating', progress: 0 });
+    setUpload({ file, phase: 'creating', progress: 0 });
 
     try {
       // 1. Create document record
@@ -163,7 +159,7 @@ export default function WorkspacePage() {
 
       // 3. Start processing
       setUpload((u) => u && { ...u, phase: 'starting', progress: 100 });
-      const { job } = await startProcessing(document.document_id, upload?.depth ?? defaultDepth);
+      const { job } = await startProcessing(document.document_id);
 
       setUpload((u) => u && { ...u, phase: 'done' });
       setDocuments((prev) => [document, ...prev]);
@@ -248,22 +244,8 @@ export default function WorkspacePage() {
               <p className="font-medium text-slate-700">ドキュメントをドロップ、またはクリックして選択</p>
               <p className="mt-1 text-sm text-slate-400">PDF · TXT · Markdown · DOCX</p>
 
-              {/* Extraction depth toggle */}
-              <div className="mt-5 inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                {(['full', 'summary'] as ExtractionDepth[]).map((d) => (
-                  <button
-                    key={d}
-                    onClick={(e) => { e.stopPropagation(); setDefaultDepth(d); }}
-                    className={`rounded-md px-4 py-1.5 text-xs font-medium transition-colors
-                      ${defaultDepth === d ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}
-                    `}
-                  >
-                    {d === 'full' ? '詳細抽出' : '要約のみ'}
-                  </button>
-                ))}
-              </div>
               <p className="mt-1.5 text-xs text-slate-400">
-                {defaultDepth === 'full' ? '全チャンクを抽出・グラフ化します' : '要約のみをグラフ化します（高速）'}
+                アップロード後にドキュメントを抽出してグラフ化します
               </p>
             </>
           )}

@@ -24,12 +24,11 @@ message Document {
   string mime_type = 6;
   int64 file_size = 7;
   DocumentLifecycleState status = 8;
-  ExtractionDepth extraction_depth = 9;
-  int32 node_count = 10;
-  string current_stage = 11;
-  string error_message = 12;
-  string created_at = 13;
-  string updated_at = 14;
+  int32 node_count = 9;
+  string current_stage = 10;
+  string error_message = 11;
+  string created_at = 12;
+  string updated_at = 13;
 }
 
 enum DocumentLifecycleState {
@@ -39,12 +38,6 @@ enum DocumentLifecycleState {
   DOCUMENT_LIFECYCLE_STATE_PROCESSING = 3;
   DOCUMENT_LIFECYCLE_STATE_COMPLETED = 4;
   DOCUMENT_LIFECYCLE_STATE_FAILED = 5;
-}
-
-enum ExtractionDepth {
-  EXTRACTION_DEPTH_UNSPECIFIED = 0;
-  EXTRACTION_DEPTH_FULL = 1;    // level 0-3（デフォルト）
-  EXTRACTION_DEPTH_SUMMARY = 2; // level 0-2
 }
 
 message CreateDocumentRequest {
@@ -99,7 +92,6 @@ message StartProcessingRequest {
   // The target document must already be uploaded and currently be in uploaded status.
   string document_id = 1;
   bool force_reprocess = 2;
-  ExtractionDepth extraction_depth = 3;
 }
 
 message StartProcessingResponse {

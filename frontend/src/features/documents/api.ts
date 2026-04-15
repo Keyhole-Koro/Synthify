@@ -146,15 +146,13 @@ export async function getLatestProcessingJob(
 
 export async function startProcessing(
   documentId: string,
-  extractionDepth: 'full' | 'summary' = 'full',
   forceReprocess = false,
 ): Promise<{ document_id: string; job: DocumentProcessingJob }> {
   const res = await callRPC<
-    { documentId: string; extractionDepth: string; forceReprocess: boolean },
+    { documentId: string; forceReprocess: boolean },
     { documentId: string; job: ConnectJob }
   >('DocumentService', 'StartProcessing', {
     documentId,
-    extractionDepth: extractionDepth === 'summary' ? 'EXTRACTION_DEPTH_SUMMARY' : 'EXTRACTION_DEPTH_FULL',
     forceReprocess,
   });
   return {

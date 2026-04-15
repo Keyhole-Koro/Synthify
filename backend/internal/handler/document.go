@@ -111,7 +111,7 @@ func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Requ
 	if !ok {
 		return nil, connect.NewError(connect.CodeNotFound, errors.New("document not found"))
 	}
-	job, err := h.service.StartProcessing(doc.WorkspaceID, req.Msg.GetDocumentId(), req.Msg.GetForceReprocess(), extractionDepthToDomain(req.Msg.GetExtractionDepth()))
+	job, err := h.service.StartProcessing(doc.WorkspaceID, req.Msg.GetDocumentId(), req.Msg.GetForceReprocess())
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
@@ -156,7 +156,7 @@ func toProtoDocument(doc *domain.Document) *graphv1.Document {
 		Filename:    doc.Filename,
 		MimeType:    doc.MimeType,
 		FileSize:    doc.FileSize,
-		// Status, ExtractionDepth, NodeCount, CurrentStage, and ErrorMessage
+		// Status, NodeCount, CurrentStage, and ErrorMessage
 		// were moved to document_processing_jobs, so return default values here.
 		Status:    graphv1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_UPLOADED,
 		CreatedAt: doc.CreatedAt,
