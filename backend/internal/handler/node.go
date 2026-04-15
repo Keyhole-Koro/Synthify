@@ -14,20 +14,17 @@ import (
 type NodeHandler struct {
 	service    *service.NodeService
 	workspaces repository.WorkspaceRepository
-	documents  repository.DocumentRepository
 	nodes      repository.NodeRepository
 }
 
 func NewNodeHandler(
 	svc *service.NodeService,
 	workspaceRepo repository.WorkspaceRepository,
-	documentRepo repository.DocumentRepository,
 	nodeRepo repository.NodeRepository,
 ) *NodeHandler {
 	return &NodeHandler{
 		service:    svc,
 		workspaces: workspaceRepo,
-		documents:  documentRepo,
 		nodes:      nodeRepo,
 	}
 }
@@ -36,7 +33,7 @@ func (h *NodeHandler) GetGraphEntityDetail(ctx context.Context, req *connect.Req
 	if req.Msg.GetTargetRef() == nil || req.Msg.GetTargetRef().GetId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("target_ref.id is required"))
 	}
-	if err := authorizeNode(ctx, h.workspaces, h.documents, h.nodes, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId()); err != nil {
+	if err := authorizeNode(ctx, h.workspaces, h.nodes, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId()); err != nil {
 		return nil, err
 	}
 
@@ -44,25 +41,16 @@ func (h *NodeHandler) GetGraphEntityDetail(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	chunk := &graphv1.DocumentChunk{
-		ChunkId:        "chunk_" + node.NodeID,
-		DocumentId:     node.DocumentID,
-		Text:           node.Description + "（出典チャンクのサンプルテキスト。実際の処理ではドキュメントの該当箇所が入ります。）",
-		SourceFilename: "sample.txt",
-		SourcePage:     3,
-	}
 
 	detail := &graphv1.GraphEntityDetail{
 		Ref: &graphv1.EntityRef{
 			WorkspaceId: req.Msg.GetTargetRef().GetWorkspaceId(),
 			Scope:       graphv1.GraphProjectionScope_GRAPH_PROJECTION_SCOPE_DOCUMENT,
 			Id:          node.NodeID,
-			DocumentId:  node.DocumentID,
 		},
 		Node: toProtoNode(node),
 		Evidence: &graphv1.GraphEntityEvidence{
-			SourceChunks:      []*graphv1.DocumentChunk{chunk},
-			SourceDocumentIds: []string{node.DocumentID},
+			SourceDocumentIds: []string{},
 		},
 	}
 	for _, edge := range relatedEdges {
@@ -71,40 +59,14 @@ func (h *NodeHandler) GetGraphEntityDetail(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&graphv1.GetGraphEntityDetailResponse{Detail: detail}), nil
 }
 
-func (h *NodeHandler) RecordNodeView(ctx context.Context, req *connect.Request[graphv1.RecordNodeViewRequest]) (*connect.Response[graphv1.RecordNodeViewResponse], error) {
-	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), req.Msg.GetWorkspaceId()); err != nil {
-		return nil, err
-	}
-	user, err := currentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	h.service.RecordNodeView(user.ID, req.Msg.GetWorkspaceId(), req.Msg.GetNodeId(), req.Msg.GetDocumentId())
+func (h *NodeHandler) RecordNodeView(_ context.Context, _ *connect.Request[graphv1.RecordNodeViewRequest]) (*connect.Response[graphv1.RecordNodeViewResponse], error) {
+	// Presence is managed in Firestore, so the backend does not write to Postgres here.
 	return connect.NewResponse(&graphv1.RecordNodeViewResponse{}), nil
 }
 
 func (h *NodeHandler) CreateNode(ctx context.Context, req *connect.Request[graphv1.CreateNodeRequest]) (*connect.Response[graphv1.CreateNodeResponse], error) {
-	if req.Msg.GetDocumentId() == "" || req.Msg.GetLabel() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id and label are required"))
-	}
-	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), req.Msg.GetWorkspaceId()); err != nil {
-		return nil, err
-	}
-	user, err := currentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	category := req.Msg.GetCategory()
-	if category == "" {
-		category = "concept"
-	}
-	node := h.service.CreateNode(user.ID, req.Msg.GetDocumentId(), req.Msg.GetLabel(), category, req.Msg.GetDescription(), req.Msg.GetParentNodeId(), int(req.Msg.GetLevel()))
-	return connect.NewResponse(&graphv1.CreateNodeResponse{Node: toProtoNode(node)}), nil
-}
-
-func (h *NodeHandler) GetUserNodeActivity(ctx context.Context, req *connect.Request[graphv1.GetUserNodeActivityRequest]) (*connect.Response[graphv1.GetUserNodeActivityResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetLabel() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and label are required"))
 	}
 	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
 		return nil, err
@@ -113,14 +75,17 @@ func (h *NodeHandler) GetUserNodeActivity(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
-	activity := h.service.GetUserNodeActivity(req.Msg.GetWorkspaceId(), user.ID, req.Msg.GetDocumentId(), int(req.Msg.GetLimit()))
+	node, err := h.service.CreateNode(req.Msg.GetWorkspaceId(), req.Msg.GetLabel(), req.Msg.GetDescription(), req.Msg.GetParentNodeId(), user.ID)
+	if err != nil {
+		return nil, connect.NewError(connect.CodeInternal, err)
+	}
+	return connect.NewResponse(&graphv1.CreateNodeResponse{Node: toProtoNode(node)}), nil
+}
+
+func (h *NodeHandler) GetUserNodeActivity(_ context.Context, _ *connect.Request[graphv1.GetUserNodeActivityRequest]) (*connect.Response[graphv1.GetUserNodeActivityResponse], error) {
+	// Node activity has already been moved to Firestore presence.
 	return connect.NewResponse(&graphv1.GetUserNodeActivityResponse{
-		Activity: &graphv1.UserNodeActivity{
-			UserId:       activity.UserID,
-			DisplayName:  activity.DisplayName,
-			ViewedNodes:  toProtoViewedNodes(activity.ViewedNodes),
-			CreatedNodes: toProtoCreatedNodes(activity.CreatedNodes),
-		},
+		Activity: &graphv1.UserNodeActivity{},
 	}), nil
 }
 
@@ -161,10 +126,9 @@ func (h *NodeHandler) RejectAlias(ctx context.Context, req *connect.Request[grap
 func toProtoNode(node *domain.Node) *graphv1.Node {
 	return &graphv1.Node{
 		Id:          node.NodeID,
-		DocumentId:  node.DocumentID,
+		DocumentId:  node.GraphID, // Use graph_id as the document identifier for backward compatibility.
 		Label:       node.Label,
-		Level:       int32(node.Level),
-		Category:    nodeCategoryToProto(node.Category),
+		Level:       0, // level does not exist in the graph model.
 		EntityType:  nodeEntityTypeToProto(node.EntityType),
 		Description: node.Description,
 		SummaryHtml: node.SummaryHTML,
@@ -183,31 +147,4 @@ func toProtoEdge(edge *domain.Edge) *graphv1.Edge {
 		Description: edge.Description,
 		CreatedAt:   edge.CreatedAt,
 	}
-}
-
-func toProtoViewedNodes(entries []domain.ViewedNodeEntry) []*graphv1.ViewedNodeEntry {
-	out := make([]*graphv1.ViewedNodeEntry, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, &graphv1.ViewedNodeEntry{
-			NodeId:       entry.NodeID,
-			DocumentId:   entry.DocumentID,
-			Label:        entry.Label,
-			LastViewedAt: entry.LastViewedAt,
-			ViewCount:    entry.ViewCount,
-		})
-	}
-	return out
-}
-
-func toProtoCreatedNodes(entries []domain.CreatedNodeEntry) []*graphv1.CreatedNodeEntry {
-	out := make([]*graphv1.CreatedNodeEntry, 0, len(entries))
-	for _, entry := range entries {
-		out = append(out, &graphv1.CreatedNodeEntry{
-			NodeId:     entry.NodeID,
-			DocumentId: entry.DocumentID,
-			Label:      entry.Label,
-			CreatedAt:  entry.CreatedAt,
-		})
-	}
-	return out
 }

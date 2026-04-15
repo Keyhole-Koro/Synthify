@@ -1,12 +1,5 @@
 import { callRPC } from '@/lib/rpc';
 
-export type DocumentStatus =
-  | 'uploaded'
-  | 'pending_normalization'
-  | 'processing'
-  | 'completed'
-  | 'failed';
-
 export interface Document {
   document_id: string;
   workspace_id: string;
@@ -14,9 +7,17 @@ export interface Document {
   filename: string;
   mime_type: string;
   file_size: number;
-  status: DocumentStatus;
-  extraction_depth?: string;
-  node_count?: number;
+  created_at: string;
+}
+
+export type JobStatus = 'queued' | 'running' | 'completed' | 'failed';
+
+export interface DocumentProcessingJob {
+  job_id: string;
+  document_id: string;
+  graph_id: string;
+  job_type: string;
+  status: JobStatus;
   current_stage?: string;
   error_message?: string;
   created_at: string;
@@ -30,39 +31,20 @@ interface ConnectDocument {
   filename: string;
   mimeType: string;
   fileSize: number;
-  status: string;
-  extractionDepth?: string;
-  nodeCount?: number;
-  currentStage?: string;
-  errorMessage?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-function mapDocumentStatus(status: string): DocumentStatus {
-  switch (status) {
-    case 'DOCUMENT_LIFECYCLE_STATE_PENDING_NORMALIZATION':
-      return 'pending_normalization';
-    case 'DOCUMENT_LIFECYCLE_STATE_PROCESSING':
-      return 'processing';
-    case 'DOCUMENT_LIFECYCLE_STATE_COMPLETED':
-      return 'completed';
-    case 'DOCUMENT_LIFECYCLE_STATE_FAILED':
-      return 'failed';
-    default:
-      return 'uploaded';
-  }
-}
-
-function mapExtractionDepth(depth?: string): string | undefined {
-  switch (depth) {
-    case 'EXTRACTION_DEPTH_FULL':
-      return 'full';
-    case 'EXTRACTION_DEPTH_SUMMARY':
-      return 'summary';
-    default:
-      return undefined;
-  }
+interface ConnectJob {
+  jobId: string;
+  documentId: string;
+  graphId?: string;
+  jobType: string;
+  status: string;
+  currentStage?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 function mapDocument(document: ConnectDocument): Document {
@@ -73,13 +55,34 @@ function mapDocument(document: ConnectDocument): Document {
     filename: document.filename,
     mime_type: document.mimeType,
     file_size: document.fileSize,
-    status: mapDocumentStatus(document.status),
-    extraction_depth: mapExtractionDepth(document.extractionDepth),
-    node_count: document.nodeCount,
-    current_stage: document.currentStage,
-    error_message: document.errorMessage,
     created_at: document.createdAt,
-    updated_at: document.updatedAt,
+  };
+}
+
+function mapJobStatus(status: string): JobStatus {
+  switch (status) {
+    case 'JOB_LIFECYCLE_STATE_RUNNING':
+      return 'running';
+    case 'JOB_LIFECYCLE_STATE_COMPLETED':
+      return 'completed';
+    case 'JOB_LIFECYCLE_STATE_FAILED':
+      return 'failed';
+    default:
+      return 'queued';
+  }
+}
+
+function mapJob(job: ConnectJob): DocumentProcessingJob {
+  return {
+    job_id: job.jobId,
+    document_id: job.documentId,
+    graph_id: job.graphId ?? '',
+    job_type: job.jobType,
+    status: mapJobStatus(job.status),
+    current_stage: job.currentStage,
+    error_message: job.errorMessage,
+    created_at: job.createdAt,
+    updated_at: job.updatedAt,
   };
 }
 
@@ -131,14 +134,24 @@ export async function createDocument(
   };
 }
 
+export async function getLatestProcessingJob(
+  documentId: string,
+): Promise<DocumentProcessingJob | null> {
+  const res = await callRPC<
+    { documentId: string },
+    { job?: ConnectJob }
+  >('DocumentService', 'GetLatestProcessingJob', { documentId });
+  return res.job ? mapJob(res.job) : null;
+}
+
 export async function startProcessing(
   documentId: string,
   extractionDepth: 'full' | 'summary' = 'full',
   forceReprocess = false,
-): Promise<{ document_id: string; status: string; job_id: string }> {
+): Promise<{ document_id: string; job: DocumentProcessingJob }> {
   const res = await callRPC<
     { documentId: string; extractionDepth: string; forceReprocess: boolean },
-    { documentId: string; job: { jobId: string; status: string } }
+    { documentId: string; job: ConnectJob }
   >('DocumentService', 'StartProcessing', {
     documentId,
     extractionDepth: extractionDepth === 'summary' ? 'EXTRACTION_DEPTH_SUMMARY' : 'EXTRACTION_DEPTH_FULL',
@@ -146,12 +159,11 @@ export async function startProcessing(
   });
   return {
     document_id: res.documentId,
-    status: res.job?.status ?? 'JOB_LIFECYCLE_STATE_QUEUED',
-    job_id: res.job?.jobId ?? '',
+    job: mapJob(res.job),
   };
 }
 
-/** ファイルを GCS 署名付き URL に PUT アップロードする。 */
+/** Uploads a file to a GCS signed URL with PUT. */
 export async function uploadFile(uploadUrl: string, file: File): Promise<void> {
   const res = await fetch(uploadUrl, {
     method: 'PUT',

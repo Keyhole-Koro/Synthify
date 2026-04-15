@@ -12,6 +12,7 @@ import (
 	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/internal/handler"
 	"github.com/synthify/backend/internal/middleware"
+	"github.com/synthify/backend/internal/repository"
 	"github.com/synthify/backend/internal/repository/mock"
 	"github.com/synthify/backend/internal/repository/postgres"
 	"github.com/synthify/backend/internal/service"
@@ -28,17 +29,27 @@ func main() {
 		corsOrigins = "http://localhost:5173"
 	}
 
-	store := initStore(ctx)
+	uploadURLBase := os.Getenv("GCS_UPLOAD_URL_BASE")
+	if uploadURLBase == "" {
+		uploadURLBase = "http://localhost:4443/synthify-uploads"
+	}
 
-	workspaceService := service.NewWorkspaceService(store)
-	documentService := service.NewDocumentService(store)
+	// URL generation logic.
+	urlGenerator := func(workspaceID, documentID string) string {
+		return fmt.Sprintf("%s/%s/%s", uploadURLBase, workspaceID, documentID)
+	}
+
+	store := initStore(ctx, urlGenerator)
+
+	workspaceService := service.NewWorkspaceService(store, store)
+	documentService := service.NewDocumentService(store, store)
 	graphService := service.NewGraphService(store)
-	nodeService := service.NewNodeService(store)
+	nodeService := service.NewNodeService(store, store)
 
 	wh := handler.NewWorkspaceHandler(workspaceService)
-	dh := handler.NewDocumentHandler(documentService, store, store)
+	dh := handler.NewDocumentHandler(documentService, store, store, urlGenerator)
 	gh := handler.NewGraphHandler(graphService, store, store)
-	nh := handler.NewNodeHandler(nodeService, store, store, store)
+	nh := handler.NewNodeHandler(nodeService, store, store)
 
 	mux := http.NewServeMux()
 
@@ -47,7 +58,7 @@ func main() {
 	mux.Handle(graphv1connect.NewGraphServiceHandler(gh))
 	mux.Handle(graphv1connect.NewNodeServiceHandler(nh))
 
-	// ヘルスチェック
+	// Health check.
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, `{"status":"ok"}`)
@@ -63,35 +74,38 @@ func main() {
 }
 
 type appStore interface {
-	ListWorkspaces() []*domain.Workspace
+	// AccountRepository
+	GetOrCreateAccount(userID string) (*domain.Account, error)
+	GetAccount(accountID string) (*domain.Account, error)
+	// WorkspaceRepository
 	ListWorkspacesByUser(userID string) []*domain.Workspace
-	GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool)
-	IsWorkspaceMember(wsID, userID string) bool
-	CreateWorkspace(name, ownerUserID, ownerEmail string) *domain.Workspace
-	InviteMember(wsID, email, role string, isDev bool) (*domain.WorkspaceMember, bool)
-	UpdateMemberRole(wsID, userID, role string, isDev bool) (*domain.WorkspaceMember, bool)
-	RemoveMember(wsID, userID string) bool
-	TransferOwnership(wsID, newOwnerUserID string) (*domain.Workspace, []*domain.WorkspaceMember, bool)
+	GetWorkspace(id string) (*domain.Workspace, bool)
+	IsWorkspaceAccessible(wsID, userID string) bool
+	CreateWorkspace(accountID, name string) *domain.Workspace
+	// DocumentRepository
 	ListDocuments(wsID string) []*domain.Document
 	GetDocument(id string) (*domain.Document, bool)
-	CreateDocument(wsID, filename, mimeType string, fileSize int64) (*domain.Document, string)
-	GetUploadURL(wsID, filename, mimeType string, fileSize int64) (string, string)
-	StartProcessing(docID string, forceReprocess bool, depth string) (*domain.Document, bool)
-	GetGraph(docID string) ([]*domain.Node, []*domain.Edge, bool)
-	FindPaths(docID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool)
+	CreateDocument(wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string)
+	GetLatestProcessingJob(docID string) (*domain.DocumentProcessingJob, bool)
+	CreateProcessingJob(docID, graphID, jobType string) *domain.DocumentProcessingJob
+	CompleteProcessingJob(jobID string) bool
+	// GraphRepository
+	GetOrCreateGraph(wsID string) (*domain.Graph, error)
+	GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool)
+	FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool)
+	// NodeRepository
 	GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool)
-	CreateNode(docID, label, category, description, parentNodeID string, level int, createdBy string) *domain.Node
-	RecordView(userID, wsID, nodeID, docID string)
-	GetUserNodeActivity(wsID, userID, documentID string, limit int) domain.UserNodeActivity
+	CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node
+	UpsertNodeSource(nodeID, documentID, chunkID, sourceText string, confidence float64) error
 	ApproveAlias(wsID, canonicalNodeID, aliasNodeID string) bool
 	RejectAlias(wsID, canonicalNodeID, aliasNodeID string) bool
 }
 
-func initStore(ctx context.Context) appStore {
+func initStore(ctx context.Context, urlGenerator repository.UploadURLGenerator) appStore {
 	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
-			store, err := postgres.NewStore(ctx, dsn)
+			store, err := postgres.NewStore(ctx, dsn, urlGenerator)
 			if err == nil {
 				log.Printf("using postgres store")
 				return store
@@ -103,5 +117,5 @@ func initStore(ctx context.Context) appStore {
 		log.Fatalf("failed to connect postgres after retries: %v", lastErr)
 	}
 	log.Printf("DATABASE_URL is empty, falling back to mock store")
-	return mock.NewStore()
+	return mock.NewStore(urlGenerator)
 }

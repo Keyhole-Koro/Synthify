@@ -7,20 +7,32 @@ import (
 	"github.com/synthify/backend/internal/repository/mock"
 )
 
-// setupNodeFixtures creates a workspace, document, and processes it so the
-// seed nodes (nd_root, nd_tel, etc.) are available via the mock store.
+// setupNodeFixtures creates an account, workspace, graph, and seed data so
+// that nodes (nd_root, nd_tel, etc.) are available via the mock store.
+// Returns the store and workspaceID.
 func setupNodeFixtures(t *testing.T) (*mock.Store, string) {
 	t.Helper()
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "user_1", "u@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "test.pdf", "application/pdf", 1024)
-	store.StartProcessing(doc.DocumentID, false, "full")
+	acct, err := store.GetOrCreateAccount("user_1")
+	if err != nil {
+		t.Fatalf("GetOrCreateAccount: %v", err)
+	}
+	ws := store.CreateWorkspace(acct.AccountID, "test-workspace")
+	if ws == nil {
+		t.Fatal("CreateWorkspace returned nil")
+	}
+	g, err := store.GetOrCreateGraph(ws.WorkspaceID)
+	if err != nil {
+		t.Fatalf("GetOrCreateGraph: %v", err)
+	}
+	doc, _ := store.CreateDocument(ws.WorkspaceID, "user_1", "test.pdf", "application/pdf", 1024)
+	store.CreateProcessingJob(doc.DocumentID, g.GraphID, "process_document")
 	return store, ws.WorkspaceID
 }
 
 func TestGetGraphEntityDetail_ExistingNode_ReturnsNodeAndEdges(t *testing.T) {
 	store, _ := setupNodeFixtures(t)
-	svc := NewNodeService(store)
+	svc := NewNodeService(store, store)
 
 	node, edges, err := svc.GetGraphEntityDetail("nd_root")
 	if err != nil {
@@ -36,7 +48,7 @@ func TestGetGraphEntityDetail_ExistingNode_ReturnsNodeAndEdges(t *testing.T) {
 
 func TestGetGraphEntityDetail_UnknownNode_ReturnsErrNotFound(t *testing.T) {
 	store := mock.NewStore()
-	svc := NewNodeService(store)
+	svc := NewNodeService(store, store)
 
 	_, _, err := svc.GetGraphEntityDetail("nonexistent")
 	if !errors.Is(err, ErrNotFound) {
@@ -46,10 +58,14 @@ func TestGetGraphEntityDetail_UnknownNode_ReturnsErrNotFound(t *testing.T) {
 
 func TestApproveAlias_UnknownNodes_ReturnsErrNotFound(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "u1", "u@example.com")
-	svc := NewNodeService(store)
+	acct, err := store.GetOrCreateAccount("u1")
+	if err != nil {
+		t.Fatalf("GetOrCreateAccount: %v", err)
+	}
+	ws := store.CreateWorkspace(acct.AccountID, "ws")
+	svc := NewNodeService(store, store)
 
-	err := svc.ApproveAlias(ws.WorkspaceID, "nonexistent_canonical", "nonexistent_alias")
+	err = svc.ApproveAlias(ws.WorkspaceID, "nonexistent_canonical", "nonexistent_alias")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("ApproveAlias unknown nodes: err = %v, want ErrNotFound", err)
 	}
@@ -57,7 +73,7 @@ func TestApproveAlias_UnknownNodes_ReturnsErrNotFound(t *testing.T) {
 
 func TestApproveAlias_ValidNodes_ReturnsNil(t *testing.T) {
 	store, wsID := setupNodeFixtures(t)
-	svc := NewNodeService(store)
+	svc := NewNodeService(store, store)
 
 	err := svc.ApproveAlias(wsID, "nd_root", "nd_tel")
 	if err != nil {
@@ -67,10 +83,14 @@ func TestApproveAlias_ValidNodes_ReturnsNil(t *testing.T) {
 
 func TestRejectAlias_UnknownNodes_ReturnsErrNotFound(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "u1", "u@example.com")
-	svc := NewNodeService(store)
+	acct, err := store.GetOrCreateAccount("u1")
+	if err != nil {
+		t.Fatalf("GetOrCreateAccount: %v", err)
+	}
+	ws := store.CreateWorkspace(acct.AccountID, "ws")
+	svc := NewNodeService(store, store)
 
-	err := svc.RejectAlias(ws.WorkspaceID, "nonexistent_canonical", "nonexistent_alias")
+	err = svc.RejectAlias(ws.WorkspaceID, "nonexistent_canonical", "nonexistent_alias")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("RejectAlias unknown nodes: err = %v, want ErrNotFound", err)
 	}
@@ -78,7 +98,7 @@ func TestRejectAlias_UnknownNodes_ReturnsErrNotFound(t *testing.T) {
 
 func TestRejectAlias_ValidNodes_ReturnsNil(t *testing.T) {
 	store, wsID := setupNodeFixtures(t)
-	svc := NewNodeService(store)
+	svc := NewNodeService(store, store)
 
 	// Approve first so there is something to reject.
 	_ = svc.ApproveAlias(wsID, "nd_root", "nd_tel")

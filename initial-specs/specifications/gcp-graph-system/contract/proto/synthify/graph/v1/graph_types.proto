@@ -11,15 +11,14 @@ message Node {
   string document_id = 2;
   string label = 3;
   int32 level = 4;
-  NodeCategory category = 5;
-  NodeEntityType entity_type = 6;
-  string description = 7;
-  string summary_html = 8;
-  string source_chunk_id = 9;
-  double confidence = 10;
-  string created_at = 11;
-  string canonical_node_id = 12;
-  GraphProjectionScope scope = 13;
+  NodeEntityType entity_type = 5;
+  string description = 6;
+  string summary_html = 7;
+  string source_chunk_id = 8;
+  double confidence = 9;
+  string created_at = 10;
+  string canonical_node_id = 11;
+  GraphProjectionScope scope = 12;
 }
 
 message Edge {
@@ -38,15 +37,6 @@ message Graph {
   repeated Node nodes = 3;
   repeated Edge edges = 4;
   bool cross_document = 5;
-}
-
-enum NodeCategory {
-  NODE_CATEGORY_UNSPECIFIED = 0;
-  NODE_CATEGORY_CONCEPT = 1;
-  NODE_CATEGORY_ENTITY = 2;
-  NODE_CATEGORY_CLAIM = 3;
-  NODE_CATEGORY_EVIDENCE = 4;
-  NODE_CATEGORY_COUNTER = 5;
 }
 
 enum NodeEntityType {

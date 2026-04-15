@@ -2,23 +2,69 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/internal/repository/postgres/sqlcgen"
 )
 
-func (s *Store) ListWorkspaces() []*domain.Workspace {
-	rows, err := s.q().ListWorkspaces(context.Background())
-	if err != nil {
-		return nil
+// defaultRegisteredPlan defines the default plan limits for newly created users.
+var defaultRegisteredPlan = struct {
+	StorageQuotaBytes int64
+	MaxFileSizeBytes  int64
+	MaxUploadsPer5h   int64
+	MaxUploadsPerWeek int64
+}{
+	StorageQuotaBytes: 5 * 1 << 30, // 5GB
+	MaxFileSizeBytes:  100 << 20,   // 100MB
+	MaxUploadsPer5h:   20,
+	MaxUploadsPerWeek: 100,
+}
+
+func (s *Store) GetOrCreateAccount(userID string) (*domain.Account, error) {
+	ctx := context.Background()
+
+	// Return the existing account if present.
+	existing, err := s.q().GetAccountByUser(ctx, userID)
+	if err == nil {
+		acct := toAccount(existing)
+		return acct, nil
 	}
 
-	var workspaces []*domain.Workspace
-	for _, row := range rows {
-		workspaces = append(workspaces, toWorkspace(row))
+	// Otherwise create a new account.
+	accountID := newID()
+	createdAt := nowTime()
+	row, err := s.q().GetOrCreateAccount(ctx, sqlcgen.GetOrCreateAccountParams{
+		AccountID:          accountID,
+		Name:               fmt.Sprintf("account-%s", userID),
+		Plan:               "registered",
+		StorageQuotaBytes:  defaultRegisteredPlan.StorageQuotaBytes,
+		MaxFileSizeBytes:   defaultRegisteredPlan.MaxFileSizeBytes,
+		MaxUploadsPer5h:    defaultRegisteredPlan.MaxUploadsPer5h,
+		MaxUploadsPer1week: defaultRegisteredPlan.MaxUploadsPerWeek,
+		CreatedAt:          createdAt,
+	})
+	if err != nil {
+		return nil, err
 	}
-	return workspaces
+
+	_ = s.q().CreateAccountUser(ctx, sqlcgen.CreateAccountUserParams{
+		AccountID: row.AccountID,
+		UserID:    userID,
+		Role:      "owner",
+		JoinedAt:  createdAt,
+	})
+
+	return toAccount(row), nil
+}
+
+func (s *Store) GetAccount(accountID string) (*domain.Account, error) {
+	row, err := s.q().GetAccount(context.Background(), accountID)
+	if err != nil {
+		return nil, err
+	}
+	return toAccount(row), nil
 }
 
 func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
@@ -26,186 +72,49 @@ func (s *Store) ListWorkspacesByUser(userID string) []*domain.Workspace {
 	if err != nil {
 		return nil
 	}
-
 	var workspaces []*domain.Workspace
 	for _, row := range rows {
-		workspaces = append(workspaces, toWorkspace(row))
+		workspaces = append(workspaces, &domain.Workspace{
+			WorkspaceID: row.WorkspaceID,
+			AccountID:   row.AccountID,
+			Name:        row.Name,
+			CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
+		})
 	}
 	return workspaces
 }
 
-func (s *Store) GetWorkspace(id string) (*domain.Workspace, []*domain.WorkspaceMember, bool) {
-	ctx := context.Background()
-	row, err := s.q().GetWorkspace(ctx, id)
+func (s *Store) GetWorkspace(id string) (*domain.Workspace, bool) {
+	row, err := s.q().GetWorkspace(context.Background(), id)
 	if err != nil {
-		return nil, nil, false
+		return nil, false
 	}
-	membersRows, err := s.q().ListWorkspaceMembers(ctx, id)
-	if err != nil {
-		return nil, nil, false
-	}
-
-	var members []*domain.WorkspaceMember
-	for _, memberRow := range membersRows {
-		members = append(members, toWorkspaceMember(memberRow))
-	}
-	return toWorkspace(row), members, true
+	return toWorkspace(row), true
 }
 
-func (s *Store) IsWorkspaceMember(wsID, userID string) bool {
-	_, err := s.q().GetWorkspaceMember(context.Background(), sqlcgen.GetWorkspaceMemberParams{
+func (s *Store) IsWorkspaceAccessible(wsID, userID string) bool {
+	accessible, err := s.q().IsWorkspaceAccessible(context.Background(), sqlcgen.IsWorkspaceAccessibleParams{
 		WorkspaceID: wsID,
 		UserID:      userID,
 	})
-	return err == nil
+	return err == nil && accessible
 }
 
-func (s *Store) CreateWorkspace(name, ownerUserID, ownerEmail string) *domain.Workspace {
+func (s *Store) CreateWorkspace(accountID, name string) *domain.Workspace {
 	createdAt := nowTime()
-	workspace := &domain.Workspace{
-		WorkspaceID:       newID("ws"),
-		Name:              name,
-		OwnerID:           ownerUserID,
-		Plan:              "free",
-		StorageUsedBytes:  0,
-		StorageQuotaBytes: 1 << 30,
-		MaxFileSizeBytes:  50 << 20,
-		MaxUploadsPerDay:  10,
-		CreatedAt:         createdAt.Format(time.RFC3339),
-	}
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil
-	}
-	defer tx.Rollback()
-	qtx := s.q().WithTx(tx)
-	ctx := context.Background()
-
-	if err := qtx.CreateWorkspace(ctx, sqlcgen.CreateWorkspaceParams{
-		WorkspaceID:       workspace.WorkspaceID,
-		Name:              workspace.Name,
-		OwnerID:           workspace.OwnerID,
-		Plan:              workspace.Plan,
-		StorageUsedBytes:  workspace.StorageUsedBytes,
-		StorageQuotaBytes: workspace.StorageQuotaBytes,
-		MaxFileSizeBytes:  workspace.MaxFileSizeBytes,
-		MaxUploadsPerDay:  workspace.MaxUploadsPerDay,
-		CreatedAt:         createdAt,
+	wsID := newID()
+	if err := s.q().CreateWorkspace(context.Background(), sqlcgen.CreateWorkspaceParams{
+		WorkspaceID: wsID,
+		AccountID:   accountID,
+		Name:        name,
+		CreatedAt:   createdAt,
 	}); err != nil {
 		return nil
 	}
-	if err := qtx.CreateWorkspaceMember(ctx, sqlcgen.CreateWorkspaceMemberParams{
-		WorkspaceID: workspace.WorkspaceID,
-		UserID:      ownerUserID,
-		Email:       ownerEmail,
-		Role:        "owner",
-		IsDev:       true,
-		InvitedAt:   createdAt,
-		InvitedBy:   ownerUserID,
-	}); err != nil {
-		return nil
-	}
-	if err := tx.Commit(); err != nil {
-		return nil
-	}
-	return workspace
-}
-
-func (s *Store) InviteMember(wsID, email, role string, isDev bool) (*domain.WorkspaceMember, bool) {
-	invitedAt := nowTime()
-	member := &domain.WorkspaceMember{
-		UserID:    newID("user"),
-		Email:     email,
-		Role:      domain.WorkspaceRole(role),
-		IsDev:     isDev,
-		InvitedAt: invitedAt.Format(time.RFC3339),
-		InvitedBy: "user_demo",
-	}
-	err := s.q().CreateWorkspaceMember(context.Background(), sqlcgen.CreateWorkspaceMemberParams{
+	return &domain.Workspace{
 		WorkspaceID: wsID,
-		UserID:      member.UserID,
-		Email:       member.Email,
-		Role:        string(member.Role),
-		IsDev:       member.IsDev,
-		InvitedAt:   invitedAt,
-		InvitedBy:   member.InvitedBy,
-	})
-	return member, err == nil
-}
-
-func (s *Store) UpdateMemberRole(wsID, userID, role string, isDev bool) (*domain.WorkspaceMember, bool) {
-	ctx := context.Background()
-	affected, err := s.q().UpdateWorkspaceMemberRole(ctx, sqlcgen.UpdateWorkspaceMemberRoleParams{
-		WorkspaceID: wsID,
-		UserID:      userID,
-		Role:        role,
-		IsDev:       isDev,
-	})
-	if err != nil {
-		return nil, false
+		AccountID:   accountID,
+		Name:        name,
+		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
-	if affected == 0 {
-		return nil, false
-	}
-	memberRow, err := s.q().GetWorkspaceMember(ctx, sqlcgen.GetWorkspaceMemberParams{
-		WorkspaceID: wsID,
-		UserID:      userID,
-	})
-	if err != nil {
-		return nil, false
-	}
-	return toWorkspaceMemberFromGet(memberRow), true
-}
-
-func (s *Store) RemoveMember(wsID, userID string) bool {
-	affected, err := s.q().DeleteWorkspaceMember(context.Background(), sqlcgen.DeleteWorkspaceMemberParams{
-		WorkspaceID: wsID,
-		UserID:      userID,
-	})
-	if err != nil {
-		return false
-	}
-	return affected > 0
-}
-
-func (s *Store) TransferOwnership(wsID, newOwnerUserID string) (*domain.Workspace, []*domain.WorkspaceMember, bool) {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return nil, nil, false
-	}
-	defer tx.Rollback()
-	qtx := s.q().WithTx(tx)
-	ctx := context.Background()
-
-	oldOwner, err := qtx.GetWorkspaceOwnerID(ctx, wsID)
-	if err != nil {
-		return nil, nil, false
-	}
-	affected, err := qtx.PromoteWorkspaceOwner(ctx, sqlcgen.PromoteWorkspaceOwnerParams{
-		WorkspaceID: wsID,
-		UserID:      newOwnerUserID,
-	})
-	if err != nil {
-		return nil, nil, false
-	}
-	if affected == 0 {
-		return nil, nil, false
-	}
-	if err := qtx.DemoteWorkspaceOwner(ctx, sqlcgen.DemoteWorkspaceOwnerParams{
-		WorkspaceID: wsID,
-		UserID:      oldOwner,
-	}); err != nil {
-		return nil, nil, false
-	}
-	if err := qtx.UpdateWorkspaceOwner(ctx, sqlcgen.UpdateWorkspaceOwnerParams{
-		WorkspaceID: wsID,
-		OwnerID:     newOwnerUserID,
-	}); err != nil {
-		return nil, nil, false
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, nil, false
-	}
-	return s.GetWorkspace(wsID)
 }

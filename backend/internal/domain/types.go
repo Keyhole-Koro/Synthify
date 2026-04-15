@@ -1,6 +1,6 @@
 package domain
 
-// DocumentLifecycleState はドキュメント処理ライフサイクルの状態を表す。
+// DocumentLifecycleState represents the document processing lifecycle state.
 type DocumentLifecycleState string
 
 const (
@@ -11,58 +11,67 @@ const (
 	DocumentLifecycleFailed               DocumentLifecycleState = "failed"
 )
 
-// WorkspaceRole はワークスペースのメンバーロールを表す。
-type WorkspaceRole string
-
-const (
-	WorkspaceRoleOwner  WorkspaceRole = "owner"
-	WorkspaceRoleEditor WorkspaceRole = "editor"
-	WorkspaceRoleViewer WorkspaceRole = "viewer"
-)
-
-type Workspace struct {
-	WorkspaceID       string `json:"workspace_id"`
-	Name              string `json:"name"`
-	OwnerID           string `json:"owner_id"`
-	Plan              string `json:"plan"` // "free" | "pro"
-	StorageUsedBytes  int64  `json:"storage_used_bytes"`
-	StorageQuotaBytes int64  `json:"storage_quota_bytes"`
-	MaxFileSizeBytes  int64  `json:"max_file_size_bytes"`
-	MaxUploadsPerDay  int64  `json:"max_uploads_per_day"`
-	CreatedAt         string `json:"created_at"`
+type Account struct {
+	AccountID          string `json:"account_id"`
+	Name               string `json:"name"`
+	Plan               string `json:"plan"` // "anonymous" | "registered" | "pro"
+	StorageQuotaBytes  int64  `json:"storage_quota_bytes"`
+	StorageUsedBytes   int64  `json:"storage_used_bytes"`
+	MaxFileSizeBytes   int64  `json:"max_file_size_bytes"`
+	MaxUploadsPerFiveH int64  `json:"max_uploads_per_5h"`
+	MaxUploadsPerWeek  int64  `json:"max_uploads_per_1week"`
+	CreatedAt          string `json:"created_at"`
 }
 
-type WorkspaceMember struct {
-	UserID    string        `json:"user_id"`
-	Email     string        `json:"email"`
-	Role      WorkspaceRole `json:"role"`
-	IsDev     bool          `json:"is_dev"`
-	InvitedAt string        `json:"invited_at"`
-	InvitedBy string        `json:"invited_by,omitempty"`
+type AccountUser struct {
+	AccountID string `json:"account_id"`
+	UserID    string `json:"user_id"`
+	Role      string `json:"role"`
+	JoinedAt  string `json:"joined_at"`
+}
+
+type Workspace struct {
+	WorkspaceID string `json:"workspace_id"`
+	AccountID   string `json:"account_id"`
+	Name        string `json:"name"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type Document struct {
-	DocumentID      string                 `json:"document_id"`
-	WorkspaceID     string                 `json:"workspace_id"`
-	UploadedBy      string                 `json:"uploaded_by"`
-	Filename        string                 `json:"filename"`
-	MimeType        string                 `json:"mime_type"`
-	FileSize        int64                  `json:"file_size"`
-	Status          DocumentLifecycleState `json:"status"`
-	ExtractionDepth string                 `json:"extraction_depth,omitempty"`
-	NodeCount       int                    `json:"node_count,omitempty"`
-	CurrentStage    string                 `json:"current_stage,omitempty"`
-	ErrorMessage    string                 `json:"error_message,omitempty"`
-	CreatedAt       string                 `json:"created_at"`
-	UpdatedAt       string                 `json:"updated_at"`
+	DocumentID  string `json:"document_id"`
+	WorkspaceID string `json:"workspace_id"`
+	UploadedBy  string `json:"uploaded_by"`
+	Filename    string `json:"filename"`
+	MimeType    string `json:"mime_type"`
+	FileSize    int64  `json:"file_size"`
+	CreatedAt   string `json:"created_at"`
+}
+
+type DocumentProcessingJob struct {
+	JobID        string `json:"job_id"`
+	DocumentID   string `json:"document_id"`
+	GraphID      string `json:"graph_id,omitempty"`
+	JobType      string `json:"job_type"`
+	Status       string `json:"status"`
+	CurrentStage string `json:"current_stage,omitempty"`
+	ErrorMessage string `json:"error_message,omitempty"`
+	ParamsJSON   string `json:"params_json,omitempty"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
+type Graph struct {
+	GraphID     string `json:"graph_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Name        string `json:"name"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 type Node struct {
 	NodeID      string `json:"node_id"`
-	DocumentID  string `json:"document_id"`
+	GraphID     string `json:"graph_id"`
 	Label       string `json:"label"`
-	Level       int    `json:"level"`
-	Category    string `json:"category"`
 	EntityType  string `json:"entity_type,omitempty"`
 	Description string `json:"description"`
 	SummaryHTML string `json:"summary_html,omitempty"`
@@ -72,7 +81,7 @@ type Node struct {
 
 type Edge struct {
 	EdgeID       string `json:"edge_id"`
-	DocumentID   string `json:"document_id"`
+	GraphID      string `json:"graph_id"`
 	SourceNodeID string `json:"source_node_id"`
 	TargetNodeID string `json:"target_node_id"`
 	EdgeType     string `json:"edge_type"`
@@ -80,20 +89,34 @@ type Edge struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
-// GraphNode は API レスポンスで返すノード表現。
+type NodeSource struct {
+	NodeID     string  `json:"node_id"`
+	DocumentID string  `json:"document_id"`
+	ChunkID    string  `json:"chunk_id,omitempty"`
+	SourceText string  `json:"source_text,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+type EdgeSource struct {
+	EdgeID     string  `json:"edge_id"`
+	DocumentID string  `json:"document_id"`
+	ChunkID    string  `json:"chunk_id,omitempty"`
+	SourceText string  `json:"source_text,omitempty"`
+	Confidence float64 `json:"confidence,omitempty"`
+}
+
+// GraphNode is the node representation returned by the API.
 type GraphNode struct {
 	ID              string `json:"id"`
 	CanonicalNodeID string `json:"canonical_node_id,omitempty"`
 	Scope           string `json:"scope"` // "document" | "canonical"
 	Label           string `json:"label"`
-	Level           int    `json:"level"`
-	Category        string `json:"category"`
 	EntityType      string `json:"entity_type,omitempty"`
 	Description     string `json:"description"`
 	SummaryHTML     string `json:"summary_html,omitempty"`
 }
 
-// GraphEdge は API レスポンスで返すエッジ表現。
+// GraphEdge is the edge representation returned by the API.
 type GraphEdge struct {
 	ID     string `json:"id"`
 	Source string `json:"source"`
@@ -113,28 +136,6 @@ type DocumentChunk struct {
 type Job struct {
 	JobID  string `json:"job_id"`
 	Status string `json:"status"`
-}
-
-type ViewedNodeEntry struct {
-	NodeID       string `json:"node_id"`
-	DocumentID   string `json:"document_id"`
-	Label        string `json:"label"`
-	LastViewedAt string `json:"last_viewed_at"`
-	ViewCount    int64  `json:"view_count"`
-}
-
-type CreatedNodeEntry struct {
-	NodeID     string `json:"node_id"`
-	DocumentID string `json:"document_id"`
-	Label      string `json:"label"`
-	CreatedAt  string `json:"created_at"`
-}
-
-type UserNodeActivity struct {
-	UserID       string             `json:"user_id"`
-	DisplayName  string             `json:"display_name"`
-	ViewedNodes  []ViewedNodeEntry  `json:"viewed_nodes"`
-	CreatedNodes []CreatedNodeEntry `json:"created_nodes"`
 }
 
 type GraphPath struct {

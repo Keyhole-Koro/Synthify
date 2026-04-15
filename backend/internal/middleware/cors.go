@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// CORS は許可オリジンに対して CORS ヘッダを付与するミドルウェア。
-// プリフライト (OPTIONS) リクエストはここで終端する。
+// CORS adds CORS headers for allowed origins.
+// Preflight (OPTIONS) requests are terminated here.
 func CORS(allowedOrigins string, next http.Handler) http.Handler {
 	allowed := make(map[string]bool)
 	for _, o := range strings.Split(allowedOrigins, ",") {
@@ -22,7 +22,7 @@ func CORS(allowedOrigins string, next http.Handler) http.Handler {
 		if allowed[origin] || allowedOrigins == "*" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 		} else if len(allowed) == 0 {
-			// 開発用フォールバック
+			// Development fallback.
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
@@ -37,7 +37,7 @@ func CORS(allowedOrigins string, next http.Handler) http.Handler {
 	})
 }
 
-// Logger はリクエストのメソッド・パス・ステータス・レスポンスタイムをログ出力するミドルウェア。
+// Logger logs the request method, path, status, and response time.
 func Logger(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

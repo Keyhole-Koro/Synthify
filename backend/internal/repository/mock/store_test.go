@@ -6,98 +6,52 @@ import (
 	"github.com/synthify/backend/internal/domain"
 )
 
-// ── TransferOwnership ─────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-func TestTransferOwnership_SwapsRoles(t *testing.T) {
+// setupWorkspace creates an account and workspace for a given userID.
+func setupWorkspace(t *testing.T, s *Store, userID string) *domain.Workspace {
+	t.Helper()
+	acct, err := s.GetOrCreateAccount(userID)
+	if err != nil {
+		t.Fatalf("GetOrCreateAccount: %v", err)
+	}
+	ws := s.CreateWorkspace(acct.AccountID, "test-workspace")
+	if ws == nil {
+		t.Fatal("CreateWorkspace returned nil")
+	}
+	return ws
+}
+
+// setupGraph creates a graph and seed nodes/edges for a workspace.
+func setupGraph(t *testing.T, s *Store, wsID string) *domain.Graph {
+	t.Helper()
+	g, err := s.GetOrCreateGraph(wsID)
+	if err != nil {
+		t.Fatalf("GetOrCreateGraph: %v", err)
+	}
+	// Create a processing job to generate seed data.
+	doc, _ := s.CreateDocument(wsID, "user1", "f.pdf", "application/pdf", 100)
+	s.CreateProcessingJob(doc.DocumentID, g.GraphID, "process_document")
+	return g
+}
+
+// ── IsWorkspaceAccessible ─────────────────────────────────────────────────────
+
+func TestIsWorkspaceAccessible_Owner_ReturnsTrue(t *testing.T) {
 	store := NewStore()
-	ws := store.CreateWorkspace("ws", "user_a", "a@example.com")
-	store.InviteMember(ws.WorkspaceID, "b@example.com", string(domain.WorkspaceRoleEditor), false)
+	ws := setupWorkspace(t, store, "owner")
 
-	_, members, _ := store.GetWorkspace(ws.WorkspaceID)
-	var userBID string
-	for _, m := range members {
-		if m.Email == "b@example.com" {
-			userBID = m.UserID
-		}
-	}
-	if userBID == "" {
-		t.Fatal("could not find invited member user B")
-	}
-
-	updatedWS, updatedMembers, ok := store.TransferOwnership(ws.WorkspaceID, userBID)
-	if !ok {
-		t.Fatal("TransferOwnership returned false")
-	}
-	if updatedWS.OwnerID != userBID {
-		t.Errorf("OwnerID = %q, want %q", updatedWS.OwnerID, userBID)
-	}
-
-	roleOf := func(uid string) domain.WorkspaceRole {
-		for _, m := range updatedMembers {
-			if m.UserID == uid {
-				return m.Role
-			}
-		}
-		return ""
-	}
-	if roleOf(userBID) != domain.WorkspaceRoleOwner {
-		t.Errorf("new owner role = %q, want owner", roleOf(userBID))
-	}
-	if roleOf("user_a") != domain.WorkspaceRoleEditor {
-		t.Errorf("old owner role = %q, want editor", roleOf("user_a"))
+	if !store.IsWorkspaceAccessible(ws.WorkspaceID, "owner") {
+		t.Error("owner should have access to their workspace")
 	}
 }
 
-func TestTransferOwnership_NonMemberNewOwner_ReturnsFalse(t *testing.T) {
+func TestIsWorkspaceAccessible_Stranger_ReturnsFalse(t *testing.T) {
 	store := NewStore()
-	ws := store.CreateWorkspace("ws", "user_a", "a@example.com")
+	ws := setupWorkspace(t, store, "owner")
 
-	_, _, ok := store.TransferOwnership(ws.WorkspaceID, "nobody")
-	if ok {
-		t.Error("TransferOwnership with non-member: expected false, got true")
-	}
-}
-
-func TestTransferOwnership_UnknownWorkspace_ReturnsFalse(t *testing.T) {
-	store := NewStore()
-
-	_, _, ok := store.TransferOwnership("nonexistent_ws", "anyone")
-	if ok {
-		t.Error("TransferOwnership unknown workspace: expected false, got true")
-	}
-}
-
-// ── RemoveMember ──────────────────────────────────────────────────────────────
-
-func TestRemoveMember_RemovesMemberFromList(t *testing.T) {
-	store := NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
-	store.InviteMember(ws.WorkspaceID, "member@example.com", "editor", false)
-
-	_, members, _ := store.GetWorkspace(ws.WorkspaceID)
-	var memberID string
-	for _, m := range members {
-		if m.Email == "member@example.com" {
-			memberID = m.UserID
-		}
-	}
-
-	ok := store.RemoveMember(ws.WorkspaceID, memberID)
-	if !ok {
-		t.Fatal("RemoveMember returned false")
-	}
-	if store.IsWorkspaceMember(ws.WorkspaceID, memberID) {
-		t.Error("member still present after removal")
-	}
-}
-
-func TestRemoveMember_UnknownMember_ReturnsFalse(t *testing.T) {
-	store := NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
-
-	ok := store.RemoveMember(ws.WorkspaceID, "nobody")
-	if ok {
-		t.Error("RemoveMember unknown member: expected false, got true")
+	if store.IsWorkspaceAccessible(ws.WorkspaceID, "stranger") {
+		t.Error("stranger should not have access")
 	}
 }
 
@@ -105,9 +59,8 @@ func TestRemoveMember_UnknownMember_ReturnsFalse(t *testing.T) {
 
 func TestApproveAlias_RecordsAlias(t *testing.T) {
 	store := NewStore()
-	ws := store.CreateWorkspace("ws", "u1", "u@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "f.pdf", "application/pdf", 100)
-	store.StartProcessing(doc.DocumentID, false, "full")
+	ws := setupWorkspace(t, store, "u1")
+	setupGraph(t, store, ws.WorkspaceID)
 
 	ok := store.ApproveAlias(ws.WorkspaceID, "nd_root", "nd_tel")
 	if !ok {
@@ -120,7 +73,7 @@ func TestApproveAlias_RecordsAlias(t *testing.T) {
 
 func TestApproveAlias_UnknownNode_ReturnsFalse(t *testing.T) {
 	store := NewStore()
-	ws := store.CreateWorkspace("ws", "u1", "u@example.com")
+	ws := setupWorkspace(t, store, "u1")
 
 	ok := store.ApproveAlias(ws.WorkspaceID, "nonexistent", "also_nonexistent")
 	if ok {
@@ -130,9 +83,8 @@ func TestApproveAlias_UnknownNode_ReturnsFalse(t *testing.T) {
 
 func TestRejectAlias_RemovesAlias(t *testing.T) {
 	store := NewStore()
-	ws := store.CreateWorkspace("ws", "u1", "u@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "f.pdf", "application/pdf", 100)
-	store.StartProcessing(doc.DocumentID, false, "full")
+	ws := setupWorkspace(t, store, "u1")
+	setupGraph(t, store, ws.WorkspaceID)
 
 	store.ApproveAlias(ws.WorkspaceID, "nd_root", "nd_tel")
 
@@ -148,28 +100,32 @@ func TestRejectAlias_RemovesAlias(t *testing.T) {
 // ── FindPaths (BFS) ───────────────────────────────────────────────────────────
 
 func TestFindPaths_BFS_FindsConnectedPath(t *testing.T) {
+	graphID := "g1"
 	store := &Store{
-		workspaces: make(map[string]*domain.Workspace),
-		members:    make(map[string][]*domain.WorkspaceMember),
-		documents:  make(map[string]*domain.Document),
-		aliases:    make(map[string]string),
-		views:      make(map[string][]viewRecord),
+		accounts:     make(map[string]*domain.Account),
+		accountUsers: make(map[string][]string),
+		userAccount:  make(map[string]string),
+		workspaces:   make(map[string]*domain.Workspace),
+		documents:    make(map[string]*domain.Document),
+		jobs:         make(map[string]*domain.DocumentProcessingJob),
+		graphs:       map[string]*domain.Graph{"g1": {GraphID: graphID, WorkspaceID: "ws1"}},
+		aliases:      make(map[string]string),
 		nodes: map[string][]*domain.Node{
-			"doc1": {
-				{NodeID: "n1", DocumentID: "doc1"},
-				{NodeID: "n2", DocumentID: "doc1"},
-				{NodeID: "n3", DocumentID: "doc1"},
+			graphID: {
+				{NodeID: "n1", GraphID: graphID},
+				{NodeID: "n2", GraphID: graphID},
+				{NodeID: "n3", GraphID: graphID},
 			},
 		},
 		edges: map[string][]*domain.Edge{
-			"doc1": {
-				{EdgeID: "e1", DocumentID: "doc1", SourceNodeID: "n1", TargetNodeID: "n2"},
-				{EdgeID: "e2", DocumentID: "doc1", SourceNodeID: "n2", TargetNodeID: "n3"},
+			graphID: {
+				{EdgeID: "e1", GraphID: graphID, SourceNodeID: "n1", TargetNodeID: "n2"},
+				{EdgeID: "e2", GraphID: graphID, SourceNodeID: "n2", TargetNodeID: "n3"},
 			},
 		},
 	}
 
-	_, _, paths, ok := store.FindPaths("doc1", "n1", "n3", 4, 3)
+	_, _, paths, ok := store.FindPaths(graphID, "n1", "n3", 4, 3)
 	if !ok {
 		t.Fatal("FindPaths returned false")
 	}
@@ -189,71 +145,77 @@ func TestFindPaths_BFS_FindsConnectedPath(t *testing.T) {
 }
 
 func TestFindPaths_NoPathExists_ReturnsEmptyPaths(t *testing.T) {
-	// n3 is not connected to n1/n2.
+	graphID := "g1"
 	store := &Store{
-		workspaces: make(map[string]*domain.Workspace),
-		members:    make(map[string][]*domain.WorkspaceMember),
-		documents:  make(map[string]*domain.Document),
-		aliases:    make(map[string]string),
-		views:      make(map[string][]viewRecord),
+		accounts:     make(map[string]*domain.Account),
+		accountUsers: make(map[string][]string),
+		userAccount:  make(map[string]string),
+		workspaces:   make(map[string]*domain.Workspace),
+		documents:    make(map[string]*domain.Document),
+		jobs:         make(map[string]*domain.DocumentProcessingJob),
+		graphs:       map[string]*domain.Graph{"g1": {GraphID: graphID, WorkspaceID: "ws1"}},
+		aliases:      make(map[string]string),
 		nodes: map[string][]*domain.Node{
-			"doc1": {
-				{NodeID: "n1", DocumentID: "doc1"},
-				{NodeID: "n2", DocumentID: "doc1"},
-				{NodeID: "n3", DocumentID: "doc1"},
+			graphID: {
+				{NodeID: "n1", GraphID: graphID},
+				{NodeID: "n2", GraphID: graphID},
+				{NodeID: "n3", GraphID: graphID},
 			},
 		},
 		edges: map[string][]*domain.Edge{
-			"doc1": {
-				{EdgeID: "e1", DocumentID: "doc1", SourceNodeID: "n1", TargetNodeID: "n2"},
+			graphID: {
+				{EdgeID: "e1", GraphID: graphID, SourceNodeID: "n1", TargetNodeID: "n2"},
 			},
 		},
 	}
 
-	_, _, paths, ok := store.FindPaths("doc1", "n1", "n3", 4, 3)
+	_, _, paths, ok := store.FindPaths(graphID, "n1", "n3", 4, 3)
 	if !ok {
-		t.Fatal("FindPaths returned false (document exists)")
+		t.Fatal("FindPaths returned false (graph exists)")
 	}
 	if len(paths) != 0 {
 		t.Errorf("expected no paths, got %d", len(paths))
 	}
 }
 
-func TestFindPaths_DocumentNotFound_ReturnsFalse(t *testing.T) {
+func TestFindPaths_GraphNotFound_ReturnsFalse(t *testing.T) {
 	store := NewStore()
 
-	_, _, _, ok := store.FindPaths("nonexistent", "n1", "n2", 4, 3)
+	_, _, _, ok := store.FindPaths("nonexistent_graph", "n1", "n2", 4, 3)
 	if ok {
-		t.Error("FindPaths unknown document: expected false, got true")
+		t.Error("FindPaths unknown graph: expected false, got true")
 	}
 }
 
 func TestFindPaths_RespectsMaxDepth(t *testing.T) {
-	// n1 → n2 → n3 → n4: path length 3, should be blocked at maxDepth=2.
+	graphID := "g1"
 	store := &Store{
-		workspaces: make(map[string]*domain.Workspace),
-		members:    make(map[string][]*domain.WorkspaceMember),
-		documents:  make(map[string]*domain.Document),
-		aliases:    make(map[string]string),
-		views:      make(map[string][]viewRecord),
+		accounts:     make(map[string]*domain.Account),
+		accountUsers: make(map[string][]string),
+		userAccount:  make(map[string]string),
+		workspaces:   make(map[string]*domain.Workspace),
+		documents:    make(map[string]*domain.Document),
+		jobs:         make(map[string]*domain.DocumentProcessingJob),
+		graphs:       map[string]*domain.Graph{"g1": {GraphID: graphID, WorkspaceID: "ws1"}},
+		aliases:      make(map[string]string),
 		nodes: map[string][]*domain.Node{
-			"doc1": {
-				{NodeID: "n1", DocumentID: "doc1"},
-				{NodeID: "n2", DocumentID: "doc1"},
-				{NodeID: "n3", DocumentID: "doc1"},
-				{NodeID: "n4", DocumentID: "doc1"},
+			graphID: {
+				{NodeID: "n1", GraphID: graphID},
+				{NodeID: "n2", GraphID: graphID},
+				{NodeID: "n3", GraphID: graphID},
+				{NodeID: "n4", GraphID: graphID},
 			},
 		},
 		edges: map[string][]*domain.Edge{
-			"doc1": {
-				{EdgeID: "e1", DocumentID: "doc1", SourceNodeID: "n1", TargetNodeID: "n2"},
-				{EdgeID: "e2", DocumentID: "doc1", SourceNodeID: "n2", TargetNodeID: "n3"},
-				{EdgeID: "e3", DocumentID: "doc1", SourceNodeID: "n3", TargetNodeID: "n4"},
+			graphID: {
+				{EdgeID: "e1", GraphID: graphID, SourceNodeID: "n1", TargetNodeID: "n2"},
+				{EdgeID: "e2", GraphID: graphID, SourceNodeID: "n2", TargetNodeID: "n3"},
+				{EdgeID: "e3", GraphID: graphID, SourceNodeID: "n3", TargetNodeID: "n4"},
 			},
 		},
 	}
 
-	_, _, paths, ok := store.FindPaths("doc1", "n1", "n4", 2, 3)
+	_, _, paths, ok := store.FindPaths(graphID, "n1", "n4", 2, 3)
 	if !ok {
 		t.Fatal("FindPaths returned false")
 	}

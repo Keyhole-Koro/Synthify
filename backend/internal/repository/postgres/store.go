@@ -2,22 +2,22 @@ package postgres
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
-	"fmt"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/oklog/ulid/v2"
+	"github.com/synthify/backend/internal/repository"
 	"github.com/synthify/backend/internal/repository/postgres/sqlcgen"
 )
 
 type Store struct {
-	db      *sql.DB
-	queries *sqlcgen.Queries
+	db                  *sql.DB
+	queries             *sqlcgen.Queries
+	uploadURLGenerator repository.UploadURLGenerator
 }
 
-func NewStore(ctx context.Context, dsn string) (*Store, error) {
+func NewStore(ctx context.Context, dsn string, uploadURLGenerator repository.UploadURLGenerator) (*Store, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -26,7 +26,7 @@ func NewStore(ctx context.Context, dsn string) (*Store, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	return &Store{db: db, queries: sqlcgen.New(db)}, nil
+	return &Store{db: db, queries: sqlcgen.New(db), uploadURLGenerator: uploadURLGenerator}, nil
 }
 
 func (s *Store) Close() error {
@@ -40,14 +40,8 @@ func (s *Store) q() *sqlcgen.Queries {
 	return s.queries
 }
 
-func newID(prefix string) string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(b))
-}
-
-func now() string {
-	return nowTime().Format(time.RFC3339)
+func newID() string {
+	return ulid.Make().String()
 }
 
 func nowTime() time.Time {

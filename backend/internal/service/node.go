@@ -6,11 +6,12 @@ import (
 )
 
 type NodeService struct {
-	repo repository.NodeRepository
+	repo  repository.NodeRepository
+	graph repository.GraphRepository
 }
 
-func NewNodeService(repo repository.NodeRepository) *NodeService {
-	return &NodeService{repo: repo}
+func NewNodeService(repo repository.NodeRepository, graph repository.GraphRepository) *NodeService {
+	return &NodeService{repo: repo, graph: graph}
 }
 
 func (s *NodeService) GetGraphEntityDetail(nodeID string) (*domain.Node, []*domain.Edge, error) {
@@ -21,16 +22,16 @@ func (s *NodeService) GetGraphEntityDetail(nodeID string) (*domain.Node, []*doma
 	return node, edges, nil
 }
 
-func (s *NodeService) RecordNodeView(userID, workspaceID, nodeID, documentID string) {
-	s.repo.RecordView(userID, workspaceID, nodeID, documentID)
-}
-
-func (s *NodeService) CreateNode(userID, documentID, label, category, description, parentNodeID string, level int) *domain.Node {
-	return s.repo.CreateNode(documentID, label, category, description, parentNodeID, level, userID)
-}
-
-func (s *NodeService) GetUserNodeActivity(workspaceID, userID, documentID string, limit int) domain.UserNodeActivity {
-	return s.repo.GetUserNodeActivity(workspaceID, userID, documentID, limit)
+func (s *NodeService) CreateNode(workspaceID, label, description, parentNodeID, createdBy string) (*domain.Node, error) {
+	graph, err := s.graph.GetOrCreateGraph(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	node := s.repo.CreateNode(graph.GraphID, label, description, parentNodeID, createdBy)
+	if node == nil {
+		return nil, ErrNotFound
+	}
+	return node, nil
 }
 
 func (s *NodeService) ApproveAlias(workspaceID, canonicalNodeID, aliasNodeID string) error {

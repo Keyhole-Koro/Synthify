@@ -6,25 +6,50 @@ import (
 	"slices"
 
 	"github.com/synthify/backend/internal/domain"
+	"github.com/synthify/backend/internal/repository/postgres/sqlcgen"
 )
 
-func (s *Store) GetGraph(docID string) ([]*domain.Node, []*domain.Edge, bool) {
-	nodes, err := s.listNodesByDocument(docID)
-	if err != nil || len(nodes) == 0 {
+func (s *Store) GetOrCreateGraph(wsID string) (*domain.Graph, error) {
+	createdAt := nowTime()
+	row, err := s.q().GetOrCreateGraph(context.Background(), sqlcgen.GetOrCreateGraphParams{
+		GraphID:     newID(),
+		WorkspaceID: wsID,
+		Name:        "default",
+		CreatedAt:   createdAt,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toGraph(row), nil
+}
+
+func (s *Store) GetGraphByWorkspace(wsID string) ([]*domain.Node, []*domain.Edge, bool) {
+	ctx := context.Background()
+	graphRow, err := s.q().GetGraphByWorkspace(ctx, wsID)
+	if err != nil {
 		return nil, nil, false
 	}
-	edges, err := s.listEdgesByDocument(docID)
+	nodes, err := s.listNodesByGraph(graphRow.GraphID)
+	if err != nil {
+		return nil, nil, false
+	}
+	edges, err := s.listEdgesByGraph(graphRow.GraphID)
 	if err != nil {
 		return nil, nil, false
 	}
 	return nodes, edges, true
 }
 
-func (s *Store) FindPaths(docID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool) {
-	nodes, edges, ok := s.GetGraph(docID)
-	if !ok {
+func (s *Store) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, bool) {
+	nodes, err := s.listNodesByGraph(graphID)
+	if err != nil || len(nodes) == 0 {
 		return nil, nil, nil, false
 	}
+	edges, err := s.listEdgesByGraph(graphID)
+	if err != nil {
+		return nil, nil, nil, false
+	}
+
 	if maxDepth <= 0 {
 		maxDepth = 4
 	}
@@ -67,7 +92,6 @@ func (s *Store) FindPaths(docID, sourceNodeID, targetNodeID string, maxDepth, li
 			var path domain.GraphPath
 			path.NodeIDs = append(path.NodeIDs, cur.path...)
 			path.HopCount = len(cur.path) - 1
-			path.Evidence.SourceDocumentIDs = []string{docID}
 			paths = append(paths, path)
 			continue
 		}
@@ -82,25 +106,23 @@ func (s *Store) FindPaths(docID, sourceNodeID, targetNodeID string, maxDepth, li
 	return nodes, edges, paths, true
 }
 
-func (s *Store) listNodesByDocument(docID string) ([]*domain.Node, error) {
-	rows, err := s.q().ListNodesByDocument(context.Background(), docID)
+func (s *Store) listNodesByGraph(graphID string) ([]*domain.Node, error) {
+	rows, err := s.q().ListNodesByGraph(context.Background(), graphID)
 	if err != nil {
 		return nil, err
 	}
-
 	var nodes []*domain.Node
 	for _, row := range rows {
-		nodes = append(nodes, toNode(row))
+		nodes = append(nodes, toNodeFromListRow(row))
 	}
 	return nodes, nil
 }
 
-func (s *Store) listEdgesByDocument(docID string) ([]*domain.Edge, error) {
-	rows, err := s.q().ListEdgesByDocument(context.Background(), docID)
+func (s *Store) listEdgesByGraph(graphID string) ([]*domain.Edge, error) {
+	rows, err := s.q().ListEdgesByGraph(context.Background(), graphID)
 	if err != nil {
 		return nil, err
 	}
-
 	var edges []*domain.Edge
 	for _, row := range rows {
 		edges = append(edges, toEdge(row))

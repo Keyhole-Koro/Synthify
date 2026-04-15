@@ -13,18 +13,22 @@ func NewGraphService(repo repository.GraphRepository) *GraphService {
 	return &GraphService{repo: repo}
 }
 
-func (s *GraphService) GetGraph(documentID string) ([]*domain.Node, []*domain.Edge, error) {
-	nodes, edges, ok := s.repo.GetGraph(documentID)
+func (s *GraphService) GetGraphByWorkspace(workspaceID string) ([]*domain.Node, []*domain.Edge, error) {
+	nodes, edges, ok := s.repo.GetGraphByWorkspace(workspaceID)
 	if !ok {
 		return nil, nil, ErrNotFound
 	}
 	return nodes, edges, nil
 }
 
-func (s *GraphService) FindPaths(documentID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, error) {
-	nodes, edges, paths, ok := s.repo.FindPaths(documentID, sourceNodeID, targetNodeID, maxDepth, limit)
+func (s *GraphService) FindPaths(graphID, sourceNodeID, targetNodeID string, maxDepth, limit int) ([]*domain.Node, []*domain.Edge, []domain.GraphPath, error) {
+	nodes, edges, paths, ok := s.repo.FindPaths(graphID, sourceNodeID, targetNodeID, maxDepth, limit)
 	if !ok {
 		return nil, nil, nil, ErrNotFound
 	}
 	return nodes, edges, paths, nil
+}
+
+func (s *GraphService) GetOrCreateGraph(workspaceID string) (*domain.Graph, error) {
+	return s.repo.GetOrCreateGraph(workspaceID)
 }

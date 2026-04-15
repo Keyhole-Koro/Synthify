@@ -25,6 +25,34 @@ func assertConnectCode(t *testing.T, err error, want connect.Code) {
 	}
 }
 
+// setupWorkspaceInStore creates an account and workspace for a given userID.
+func setupWorkspaceInStore(t *testing.T, store *mock.Store, userID string) string {
+	t.Helper()
+	acct, err := store.GetOrCreateAccount(userID)
+	if err != nil {
+		t.Fatalf("GetOrCreateAccount: %v", err)
+	}
+	ws := store.CreateWorkspace(acct.AccountID, "test-workspace")
+	if ws == nil {
+		t.Fatal("CreateWorkspace returned nil")
+	}
+	return ws.WorkspaceID
+}
+
+// setupNodeFixturesInStore creates workspace + graph + seed nodes in the store.
+// Returns workspaceID.
+func setupNodeFixturesInStore(t *testing.T, store *mock.Store, userID string) string {
+	t.Helper()
+	wsID := setupWorkspaceInStore(t, store, userID)
+	g, err := store.GetOrCreateGraph(wsID)
+	if err != nil {
+		t.Fatalf("GetOrCreateGraph: %v", err)
+	}
+	doc, _ := store.CreateDocument(wsID, userID, "f.pdf", "application/pdf", 100)
+	store.CreateProcessingJob(doc.DocumentID, g.GraphID, "process_document")
+	return wsID
+}
+
 // ── currentUser ──────────────────────────────────────────────────────────────
 
 func TestCurrentUser_NoAuthInContext_ReturnsUnauthenticated(t *testing.T) {
@@ -59,19 +87,19 @@ func TestAuthorizeWorkspace_Unauthenticated_ReturnsUnauthenticated(t *testing.T)
 
 func TestAuthorizeWorkspace_NotMember_ReturnsPermissionDenied(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
+	wsID := setupWorkspaceInStore(t, store, "owner")
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "stranger", Email: "s@example.com"})
 
-	err := authorizeWorkspace(ctx, store, ws.WorkspaceID)
+	err := authorizeWorkspace(ctx, store, wsID)
 	assertConnectCode(t, err, connect.CodePermissionDenied)
 }
 
 func TestAuthorizeWorkspace_Member_ReturnsNil(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
+	wsID := setupWorkspaceInStore(t, store, "owner")
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	if err := authorizeWorkspace(ctx, store, ws.WorkspaceID); err != nil {
+	if err := authorizeWorkspace(ctx, store, wsID); err != nil {
 		t.Errorf("authorizeWorkspace: unexpected error: %v", err)
 	}
 }
@@ -88,19 +116,19 @@ func TestAuthorizeDocument_DocumentNotFound_ReturnsNotFound(t *testing.T) {
 
 func TestAuthorizeDocument_WrongWorkspace_ReturnsPermissionDenied(t *testing.T) {
 	store := mock.NewStore()
-	ws1 := store.CreateWorkspace("ws1", "owner", "o@example.com")
-	ws2 := store.CreateWorkspace("ws2", "owner", "o@example.com")
-	doc, _ := store.CreateDocument(ws1.WorkspaceID, "f.pdf", "application/pdf", 100)
+	ws1ID := setupWorkspaceInStore(t, store, "owner")
+	ws2ID := setupWorkspaceInStore(t, store, "owner2")
+	doc, _ := store.CreateDocument(ws1ID, "owner", "f.pdf", "application/pdf", 100)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	err := authorizeDocument(ctx, store, store, doc.DocumentID, ws2.WorkspaceID)
+	err := authorizeDocument(ctx, store, store, doc.DocumentID, ws2ID)
 	assertConnectCode(t, err, connect.CodePermissionDenied)
 }
 
 func TestAuthorizeDocument_NotMember_ReturnsPermissionDenied(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "f.pdf", "application/pdf", 100)
+	wsID := setupWorkspaceInStore(t, store, "owner")
+	doc, _ := store.CreateDocument(wsID, "owner", "f.pdf", "application/pdf", 100)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "stranger", Email: "s@example.com"})
 
 	err := authorizeDocument(ctx, store, store, doc.DocumentID, "")
@@ -109,8 +137,8 @@ func TestAuthorizeDocument_NotMember_ReturnsPermissionDenied(t *testing.T) {
 
 func TestAuthorizeDocument_Member_ReturnsNil(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "f.pdf", "application/pdf", 100)
+	wsID := setupWorkspaceInStore(t, store, "owner")
+	doc, _ := store.CreateDocument(wsID, "owner", "f.pdf", "application/pdf", 100)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
 	if err := authorizeDocument(ctx, store, store, doc.DocumentID, ""); err != nil {
@@ -124,29 +152,25 @@ func TestAuthorizeNode_NodeNotFound_ReturnsNotFound(t *testing.T) {
 	store := mock.NewStore()
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "u1", Email: "u@example.com"})
 
-	err := authorizeNode(ctx, store, store, store, "nonexistent_node", "")
+	err := authorizeNode(ctx, store, store, "nonexistent_node", "")
 	assertConnectCode(t, err, connect.CodeNotFound)
 }
 
-func TestAuthorizeNode_ValidNode_AuthorizesViaDocument(t *testing.T) {
+func TestAuthorizeNode_ValidNode_AuthorizesViaWorkspace(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "f.pdf", "application/pdf", 100)
-	store.StartProcessing(doc.DocumentID, false, "full")
+	wsID := setupNodeFixturesInStore(t, store, "owner")
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	if err := authorizeNode(ctx, store, store, store, "nd_root", ""); err != nil {
+	if err := authorizeNode(ctx, store, store, "nd_root", wsID); err != nil {
 		t.Errorf("authorizeNode: unexpected error: %v", err)
 	}
 }
 
 func TestAuthorizeNode_NotMember_ReturnsPermissionDenied(t *testing.T) {
 	store := mock.NewStore()
-	ws := store.CreateWorkspace("ws", "owner", "o@example.com")
-	doc, _ := store.CreateDocument(ws.WorkspaceID, "f.pdf", "application/pdf", 100)
-	store.StartProcessing(doc.DocumentID, false, "full")
+	wsID := setupNodeFixturesInStore(t, store, "owner")
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "stranger", Email: "s@example.com"})
 
-	err := authorizeNode(ctx, store, store, store, "nd_root", "")
+	err := authorizeNode(ctx, store, store, "nd_root", wsID)
 	assertConnectCode(t, err, connect.CodePermissionDenied)
 }

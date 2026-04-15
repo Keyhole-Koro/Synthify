@@ -29,6 +29,8 @@ services:
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID:-1234567890}
       NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID:-1:1234567890:web:demo-synthify}
       NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: ${NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL:-http://127.0.0.1:${FIREBASE_AUTH_PORT:-9099}}
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: ${NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST:-127.0.0.1}
+      NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: ${NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT:-${FIREBASE_FIRESTORE_PORT:-8282}}
       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:8080}
       WATCHPACK_POLLING: "true"
     ports:
@@ -58,6 +60,7 @@ services:
       GCS_BUCKET: synthify-uploads
       GCS_EMULATOR_HOST: http://gcs:4443
       STORAGE_EMULATOR_HOST: http://gcs:4443
+      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/synthify-uploads}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
       FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
       DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
@@ -105,15 +108,19 @@ services:
 
   firebase-auth:
     image: node:22-bookworm
-    working_dir: /tmp/firebase-auth
+    working_dir: /workspace
     command: >
       bash -c '
         npm install -g firebase-tools@13 &&
-        printf "%s\n" "{\"emulators\":{\"auth\":{\"host\":\"0.0.0.0\",\"port\":9099}}}" > firebase.json &&
-        firebase emulators:start --only auth --project demo-synthify --config firebase.json
+        firebase emulators:start --only auth,firestore --project demo-synthify
       '
+    environment:
+      FIRESTORE_EMULATOR_HOST: 0.0.0.0:8282
     ports:
       - "${FIREBASE_AUTH_PORT:-9099}:9099"
+      - "${FIREBASE_FIRESTORE_PORT:-8282}:8282"
+    volumes:
+      - .:/workspace
 
 volumes:
   go-pkg-cache:

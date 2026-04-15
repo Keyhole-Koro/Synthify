@@ -9,7 +9,10 @@ const rawEnvSchema = z.object({
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: z.string().min(1),
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: z.string().min(1),
   NEXT_PUBLIC_FIREBASE_APP_ID: z.string().min(1),
+  // Connect only when the emulator is configured. Unset means production Firebase.
   NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: z.string().url().optional(),
+  NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: z.string().min(1).optional(),
+  NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: z.coerce.number().int().positive().optional(),
 });
 
 const rawEnv = rawEnvSchema.parse({
@@ -22,11 +25,9 @@ const rawEnv = rawEnvSchema.parse({
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   NEXT_PUBLIC_FIREBASE_APP_ID: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
   NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL,
+  NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST,
+  NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
 });
-
-if (rawEnv.NODE_ENV === 'development' && !rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL) {
-  throw new Error('NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL is required in development');
-}
 
 export const env = {
   nodeEnv: rawEnv.NODE_ENV,
@@ -39,5 +40,7 @@ export const env = {
     messagingSenderId: rawEnv.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     appId: rawEnv.NEXT_PUBLIC_FIREBASE_APP_ID,
     authEmulatorUrl: rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL,
+    firestoreEmulatorHost: rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST,
+    firestoreEmulatorPort: rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
   },
 } as const;

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/synthify/backend/internal/domain"
@@ -18,7 +19,6 @@ func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {
 	if err != nil {
 		return nil, nil, false
 	}
-
 	var edges []*domain.Edge
 	for _, edgeRow := range edgeRows {
 		edges = append(edges, toEdge(edgeRow))
@@ -26,14 +26,12 @@ func (s *Store) GetNode(nodeID string) (*domain.Node, []*domain.Edge, bool) {
 	return toNode(row), edges, true
 }
 
-func (s *Store) CreateNode(docID, label, category, description, parentNodeID string, level int, createdBy string) *domain.Node {
+func (s *Store) CreateNode(graphID, label, description, parentNodeID, createdBy string) *domain.Node {
 	createdAt := nowTime()
 	node := &domain.Node{
-		NodeID:      newID("nd"),
-		DocumentID:  docID,
+		NodeID:      newID(),
+		GraphID:     graphID,
 		Label:       label,
-		Level:       level,
-		Category:    category,
 		Description: description,
 		CreatedBy:   createdBy,
 		CreatedAt:   createdAt.Format(time.RFC3339),
@@ -48,10 +46,8 @@ func (s *Store) CreateNode(docID, label, category, description, parentNodeID str
 
 	if err := qtx.CreateNode(ctx, sqlcgen.CreateNodeParams{
 		NodeID:      node.NodeID,
-		DocumentID:  node.DocumentID,
+		GraphID:     node.GraphID,
 		Label:       node.Label,
-		Level:       int32(node.Level),
-		Category:    node.Category,
 		EntityType:  node.EntityType,
 		Description: node.Description,
 		SummaryHtml: node.SummaryHTML,
@@ -62,8 +58,8 @@ func (s *Store) CreateNode(docID, label, category, description, parentNodeID str
 	}
 	if parentNodeID != "" {
 		if err := qtx.CreateEdge(ctx, sqlcgen.CreateEdgeParams{
-			EdgeID:       newID("ed"),
-			DocumentID:   docID,
+			EdgeID:       newID(),
+			GraphID:      graphID,
 			SourceNodeID: parentNodeID,
 			TargetNodeID: node.NodeID,
 			EdgeType:     "hierarchical",
@@ -73,9 +69,9 @@ func (s *Store) CreateNode(docID, label, category, description, parentNodeID str
 			return nil
 		}
 	}
-	_ = qtx.UpdateDocumentTimestamp(ctx, sqlcgen.UpdateDocumentTimestampParams{
-		DocumentID: docID,
-		UpdatedAt:  nowTime(),
+	_ = qtx.UpdateGraphTimestamp(ctx, sqlcgen.UpdateGraphTimestampParams{
+		GraphID:   graphID,
+		UpdatedAt: nowTime(),
 	})
 	if err := tx.Commit(); err != nil {
 		return nil
@@ -83,66 +79,14 @@ func (s *Store) CreateNode(docID, label, category, description, parentNodeID str
 	return node
 }
 
-func (s *Store) RecordView(userID, wsID, nodeID, docID string) {
-	_ = s.q().InsertNodeView(context.Background(), sqlcgen.InsertNodeViewParams{
-		WorkspaceID: wsID,
-		UserID:      userID,
-		NodeID:      nodeID,
-		DocumentID:  docID,
-		ViewedAt:    nowTime(),
+func (s *Store) UpsertNodeSource(nodeID, documentID, chunkID, sourceText string, confidence float64) error {
+	return s.q().UpsertNodeSource(context.Background(), sqlcgen.UpsertNodeSourceParams{
+		NodeID:     nodeID,
+		DocumentID: documentID,
+		ChunkID:    chunkID,
+		SourceText: sourceText,
+		Confidence: sql.NullFloat64{Float64: confidence, Valid: confidence > 0},
 	})
-}
-
-func (s *Store) GetUserNodeActivity(wsID, userID, documentID string, limit int) domain.UserNodeActivity {
-	if limit <= 0 {
-		limit = 50
-	}
-	ctx := context.Background()
-	activity := domain.UserNodeActivity{
-		UserID:      userID,
-		DisplayName: userID,
-	}
-	if email, err := s.q().GetWorkspaceMemberEmail(ctx, sqlcgen.GetWorkspaceMemberEmailParams{
-		WorkspaceID: wsID,
-		UserID:      userID,
-	}); err == nil {
-		activity.DisplayName = email
-	}
-
-	viewRows, err := s.q().ListViewedNodes(ctx, sqlcgen.ListViewedNodesParams{
-		WorkspaceID:      wsID,
-		UserID:           userID,
-		DocumentIDFilter: documentID,
-		RowLimit:         int32(limit),
-	})
-	if err == nil {
-		for _, row := range viewRows {
-			activity.ViewedNodes = append(activity.ViewedNodes, domain.ViewedNodeEntry{
-				NodeID:       row.NodeID,
-				DocumentID:   row.DocumentID,
-				Label:        row.Label,
-				LastViewedAt: row.LastViewedAt.UTC().Format(time.RFC3339),
-				ViewCount:    row.ViewCount,
-			})
-		}
-	}
-
-	createdRows, err := s.q().ListCreatedNodes(ctx, sqlcgen.ListCreatedNodesParams{
-		CreatedBy:        userID,
-		DocumentIDFilter: documentID,
-		RowLimit:         int32(limit),
-	})
-	if err == nil {
-		for _, row := range createdRows {
-			activity.CreatedNodes = append(activity.CreatedNodes, domain.CreatedNodeEntry{
-				NodeID:     row.NodeID,
-				DocumentID: row.DocumentID,
-				Label:      row.Label,
-				CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
-			})
-		}
-	}
-	return activity
 }
 
 func (s *Store) ApproveAlias(wsID, canonicalNodeID, aliasNodeID string) bool {

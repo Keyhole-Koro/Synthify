@@ -10,10 +10,6 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function getUserInitial(user: User | null): string {
   const source = user?.displayName || user?.email || '';
@@ -201,10 +197,6 @@ export default function WorkspacesPage() {
 }
 
 function WorkspaceCard({ workspace, onClick }: { workspace: Workspace; onClick: () => void }) {
-  const usedPct = workspace.storage_quota_bytes > 0
-    ? Math.min(100, (workspace.storage_used_bytes / workspace.storage_quota_bytes) * 100)
-    : 0;
-
   return (
     <li>
       <button
@@ -220,31 +212,8 @@ function WorkspaceCard({ workspace, onClick }: { workspace: Workspace; onClick: 
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="font-semibold text-slate-800 truncate">{workspace.name}</p>
-            {workspace.plan === 'pro' && (
-              <span className="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-600">
-                ✦ Pro
-              </span>
-            )}
-          </div>
-          <div className="mt-1 flex items-center gap-3 text-xs text-slate-400">
-            <span>作成: {formatDate(workspace.created_at)}</span>
-            {workspace.storage_quota_bytes > 0 && (
-              <>
-                <span>·</span>
-                <span>{formatBytes(workspace.storage_used_bytes)} / {formatBytes(workspace.storage_quota_bytes)}</span>
-              </>
-            )}
-          </div>
-          {workspace.storage_quota_bytes > 0 && (
-            <div className="mt-2 h-1 w-32 rounded-full bg-slate-100">
-              <div
-                className="h-1 rounded-full bg-indigo-400 transition-all"
-                style={{ width: `${usedPct}%` }}
-              />
-            </div>
-          )}
+          <p className="font-semibold text-slate-800 truncate">{workspace.name}</p>
+          <p className="mt-1 text-xs text-slate-400">作成: {formatDate(workspace.created_at)}</p>
         </div>
 
         {/* Arrow */}

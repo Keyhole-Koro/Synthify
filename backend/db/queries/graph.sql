@@ -1,61 +1,66 @@
--- name: ListNodesByDocument :many
-SELECT node_id, document_id, label, level, category, entity_type, description, summary_html, created_by, created_at
-FROM nodes
-WHERE document_id = $1
-ORDER BY level ASC, created_at ASC;
+-- name: GetOrCreateGraph :one
+INSERT INTO graphs (graph_id, workspace_id, name, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $4)
+ON CONFLICT (workspace_id) DO UPDATE SET updated_at = EXCLUDED.updated_at
+RETURNING graph_id, workspace_id, name, created_at, updated_at;
 
--- name: ListEdgesByDocument :many
-SELECT edge_id, document_id, source_node_id, target_node_id, edge_type, description, created_at
+-- name: GetGraphByWorkspace :one
+SELECT graph_id, workspace_id, name, created_at, updated_at
+FROM graphs
+WHERE workspace_id = $1;
+
+-- name: ListNodesByGraph :many
+SELECT node_id, graph_id, label, entity_type, description, summary_html, created_by, created_at
+FROM nodes
+WHERE graph_id = $1
+ORDER BY created_at ASC;
+
+-- name: ListEdgesByGraph :many
+SELECT edge_id, graph_id, source_node_id, target_node_id, edge_type, description, created_at
 FROM edges
-WHERE document_id = $1
+WHERE graph_id = $1
 ORDER BY created_at ASC;
 
 -- name: GetNode :one
-SELECT node_id, document_id, label, level, category, entity_type, description, summary_html, created_by, created_at
+SELECT node_id, graph_id, label, entity_type, description, summary_html, created_by, created_at
 FROM nodes
 WHERE node_id = $1;
 
 -- name: ListNodeEdges :many
-SELECT edge_id, document_id, source_node_id, target_node_id, edge_type, description, created_at
+SELECT edge_id, graph_id, source_node_id, target_node_id, edge_type, description, created_at
 FROM edges
 WHERE source_node_id = $1 OR target_node_id = $1
 ORDER BY created_at ASC;
 
 -- name: CreateNode :exec
-INSERT INTO nodes (node_id, document_id, label, level, category, entity_type, description, summary_html, created_by, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
+VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8);
 
 -- name: CreateEdge :exec
-INSERT INTO edges (edge_id, document_id, source_node_id, target_node_id, edge_type, description, created_at)
+INSERT INTO edges (edge_id, graph_id, source_node_id, target_node_id, edge_type, description, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7);
 
--- name: InsertNodeView :exec
-INSERT INTO node_views (workspace_id, user_id, node_id, document_id, viewed_at)
-VALUES ($1, $2, $3, $4, $5);
+-- name: UpsertNodeSource :exec
+INSERT INTO node_sources (node_id, document_id, chunk_id, source_text, confidence)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (node_id, document_id, chunk_id)
+DO UPDATE SET source_text = EXCLUDED.source_text, confidence = EXCLUDED.confidence;
 
--- name: GetWorkspaceMemberEmail :one
-SELECT email
-FROM workspace_members
-WHERE workspace_id = $1 AND user_id = $2;
+-- name: UpsertEdgeSource :exec
+INSERT INTO edge_sources (edge_id, document_id, chunk_id, source_text, confidence)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (edge_id, document_id, chunk_id)
+DO UPDATE SET source_text = EXCLUDED.source_text, confidence = EXCLUDED.confidence;
 
--- name: ListViewedNodes :many
-SELECT nv.node_id, nv.document_id, COALESCE(n.label, nv.node_id) AS label, MAX(nv.viewed_at)::timestamptz AS last_viewed_at, COUNT(*) AS view_count
-FROM node_views nv
-LEFT JOIN nodes n ON n.node_id = nv.node_id
-WHERE nv.workspace_id = sqlc.arg(workspace_id)
-  AND nv.user_id = sqlc.arg(user_id)
-  AND (sqlc.arg(document_id_filter)::text = '' OR nv.document_id = sqlc.arg(document_id_filter)::text)
-GROUP BY nv.node_id, nv.document_id, label
-ORDER BY last_viewed_at DESC
-LIMIT sqlc.arg(row_limit);
+-- name: ListNodeSources :many
+SELECT node_id, document_id, chunk_id, source_text, COALESCE(confidence, 0) AS confidence
+FROM node_sources
+WHERE node_id = $1;
 
--- name: ListCreatedNodes :many
-SELECT node_id, document_id, label, created_at
-FROM nodes
-WHERE created_by = sqlc.arg(created_by)
-  AND (sqlc.arg(document_id_filter)::text = '' OR document_id = sqlc.arg(document_id_filter)::text)
-ORDER BY created_at DESC
-LIMIT sqlc.arg(row_limit);
+-- name: UpdateGraphTimestamp :exec
+UPDATE graphs
+SET updated_at = $2
+WHERE graph_id = $1;
 
 -- name: UpsertApprovedAlias :exec
 INSERT INTO node_aliases (workspace_id, canonical_node_id, alias_node_id, status, updated_at)

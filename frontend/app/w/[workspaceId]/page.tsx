@@ -3,34 +3,40 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { listDocuments, createDocument, startProcessing, type Document, type DocumentStatus } from '@/features/documents/api';
+import {
+  listDocuments,
+  createDocument,
+  startProcessing,
+  getLatestProcessingJob,
+  type Document,
+  type DocumentProcessingJob,
+  type JobStatus,
+} from '@/features/documents/api';
 import { getWorkspace, type Workspace } from '@/features/workspaces/api';
 import { ApiError } from '@/lib/rpc';
 import { auth } from '@/lib/firebase';
 
-const STATUS_LABEL: Record<DocumentStatus, string> = {
-  uploaded: 'アップロード済',
-  pending_normalization: '正規化待ち',
-  processing: '処理中',
+const JOB_STATUS_LABEL: Record<JobStatus, string> = {
+  queued: 'キュー済',
+  running: '処理中',
   completed: '完了',
   failed: 'エラー',
 };
 
-const STATUS_COLOR: Record<DocumentStatus, string> = {
-  uploaded: 'bg-slate-100 text-slate-600',
-  pending_normalization: 'bg-yellow-100 text-yellow-700',
-  processing: 'bg-blue-100 text-blue-700',
+const JOB_STATUS_COLOR: Record<JobStatus, string> = {
+  queued: 'bg-yellow-100 text-yellow-700',
+  running: 'bg-blue-100 text-blue-700',
   completed: 'bg-emerald-100 text-emerald-700',
   failed: 'bg-red-100 text-red-700',
 };
 
-function StatusBadge({ status }: { status: DocumentStatus }) {
+function StatusBadge({ status }: { status: JobStatus }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR[status]}`}>
-      {status === 'processing' && (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${JOB_STATUS_COLOR[status]}`}>
+      {status === 'running' && (
         <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
       )}
-      {STATUS_LABEL[status]}
+      {JOB_STATUS_LABEL[status]}
     </span>
   );
 }
@@ -61,6 +67,7 @@ export default function WorkspacePage() {
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [jobs, setJobs] = useState<Map<string, DocumentProcessingJob>>(new Map());
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -78,11 +85,28 @@ export default function WorkspacePage() {
     });
   }, [router]);
 
+  async function loadJobsForDocuments(docs: Document[]) {
+    const entries = await Promise.all(
+      docs.map(async (doc) => {
+        const job = await getLatestProcessingJob(doc.document_id).catch(() => null);
+        return [doc.document_id, job] as [string, DocumentProcessingJob | null];
+      }),
+    );
+    const map = new Map<string, DocumentProcessingJob>();
+    for (const [id, job] of entries) {
+      if (job) map.set(id, job);
+    }
+    setJobs(map);
+  }
+
   useEffect(() => {
     if (!authReady) return;
     Promise.all([
-      getWorkspace(workspaceId).then((r) => setWorkspace(r.workspace)),
-      listDocuments(workspaceId).then(setDocuments),
+      getWorkspace(workspaceId).then(setWorkspace),
+      listDocuments(workspaceId).then((docs) => {
+        setDocuments(docs);
+        loadJobsForDocuments(docs);
+      }),
     ])
       .catch((err) => {
         console.error(err);
@@ -101,13 +125,20 @@ export default function WorkspacePage() {
 
   // Poll processing documents
   useEffect(() => {
-    const processing = documents.filter((d) => d.status === 'processing' || d.status === 'pending_normalization');
-    if (processing.length === 0) return;
+    const hasRunning = Array.from(jobs.values()).some(
+      (j) => j.status === 'running' || j.status === 'queued',
+    );
+    if (!hasRunning) return;
     const id = setInterval(() => {
-      listDocuments(workspaceId).then(setDocuments).catch(console.error);
+      listDocuments(workspaceId)
+        .then((docs) => {
+          setDocuments(docs);
+          loadJobsForDocuments(docs);
+        })
+        .catch(console.error);
     }, 4000);
     return () => clearInterval(id);
-  }, [documents, workspaceId]);
+  }, [jobs, workspaceId]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -132,10 +163,11 @@ export default function WorkspacePage() {
 
       // 3. Start processing
       setUpload((u) => u && { ...u, phase: 'starting', progress: 100 });
-      await startProcessing(document.document_id, upload?.depth ?? defaultDepth);
+      const { job } = await startProcessing(document.document_id, upload?.depth ?? defaultDepth);
 
       setUpload((u) => u && { ...u, phase: 'done' });
-      setDocuments((prev) => [{ ...document, status: 'processing' }, ...prev]);
+      setDocuments((prev) => [document, ...prev]);
+      setJobs((prev) => new Map(prev).set(document.document_id, job));
       setTimeout(() => setUpload(null), 1500);
     } catch (err) {
       setUpload((u) => u && { ...u, phase: 'error', error: String(err) });
@@ -156,7 +188,9 @@ export default function WorkspacePage() {
     );
   }
 
-  const completedDocs = documents.filter((d) => d.status === 'completed');
+  const completedDocs = documents.filter(
+    (d) => jobs.get(d.document_id)?.status === 'completed',
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -170,9 +204,6 @@ export default function WorkspacePage() {
             <span className="text-slate-300">/</span>
             <div>
               <h1 className="text-base font-semibold text-slate-900">{workspace?.name ?? workspaceId}</h1>
-              {workspace && (
-                <p className="text-xs text-slate-400">{workspace.plan === 'pro' ? '✦ Pro' : 'Free'}</p>
-              )}
             </div>
           </div>
           {completedDocs.length > 0 && (
@@ -255,6 +286,7 @@ export default function WorkspacePage() {
                 <DocumentCard
                   key={doc.document_id}
                   doc={doc}
+                  job={jobs.get(doc.document_id) ?? null}
                   onExplore={() => router.push(`/w/${workspaceId}/explore?doc=${doc.document_id}`)}
                 />
               ))}
@@ -266,7 +298,15 @@ export default function WorkspacePage() {
   );
 }
 
-function DocumentCard({ doc, onExplore }: { doc: Document; onExplore: () => void }) {
+function DocumentCard({
+  doc,
+  job,
+  onExplore,
+}: {
+  doc: Document;
+  job: DocumentProcessingJob | null;
+  onExplore: () => void;
+}) {
   return (
     <li className="rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm flex items-center gap-4 hover:border-slate-300 transition-colors">
       {/* Icon */}
@@ -281,35 +321,29 @@ function DocumentCard({ doc, onExplore }: { doc: Document; onExplore: () => void
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <p className="font-medium text-slate-800 truncate">{doc.filename}</p>
-          <StatusBadge status={doc.status} />
+          {job && <StatusBadge status={job.status} />}
         </div>
         <div className="mt-0.5 flex items-center gap-3 text-xs text-slate-400">
           <span>{formatBytes(doc.file_size)}</span>
           <span>·</span>
           <span>{formatDate(doc.created_at)}</span>
-          {doc.node_count != null && doc.node_count > 0 && (
+          {job?.current_stage && job.status === 'running' && (
             <>
               <span>·</span>
-              <span>{doc.node_count} ノード</span>
+              <span className="text-blue-500">{job.current_stage}</span>
             </>
           )}
-          {doc.current_stage && doc.status === 'processing' && (
+          {job?.error_message && (
             <>
               <span>·</span>
-              <span className="text-blue-500">{doc.current_stage}</span>
-            </>
-          )}
-          {doc.error_message && (
-            <>
-              <span>·</span>
-              <span className="text-red-500 truncate max-w-xs">{doc.error_message}</span>
+              <span className="text-red-500 truncate max-w-xs">{job.error_message}</span>
             </>
           )}
         </div>
       </div>
 
       {/* Action */}
-      {doc.status === 'completed' && (
+      {job?.status === 'completed' && (
         <button
           onClick={onExplore}
           className="flex-shrink-0 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors"

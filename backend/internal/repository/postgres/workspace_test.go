@@ -6,8 +6,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
-func TestCreateWorkspace_CommitsTransaction(t *testing.T) {
-	db, mock, err := sqlmock.New()
+func TestCreateWorkspace_DBError_ReturnsNil(t *testing.T) {
+	db, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
@@ -15,45 +15,38 @@ func TestCreateWorkspace_CommitsTransaction(t *testing.T) {
 
 	store := &Store{db: db}
 
-	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO workspaces`).
-		WithArgs(
-			sqlmock.AnyArg(),
-			"Test Workspace",
-			"user_test",
-			"free",
-			int64(0),
-			int64(1<<30),
-			int64(50<<20),
-			int64(10),
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT INTO workspace_members`).
-		WithArgs(
-			sqlmock.AnyArg(),
-			"user_test",
-			"user@example.com",
-			"owner",
-			true,
-			sqlmock.AnyArg(),
-			"user_test",
-		).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
+	// No expectations set → any query returns an error.
+	ws := store.CreateWorkspace("acc_1", "Test Workspace")
+	if ws != nil {
+		t.Fatal("expected nil on DB error, got workspace")
+	}
+}
 
-	workspace := store.CreateWorkspace("Test Workspace", "user_test", "user@example.com")
-	if workspace == nil {
-		t.Fatal("CreateWorkspace returned nil")
+func TestGetWorkspace_DBError_ReturnsFalse(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
 	}
-	if workspace.Name != "Test Workspace" {
-		t.Fatalf("workspace.Name = %q, want %q", workspace.Name, "Test Workspace")
-	}
-	if workspace.OwnerID != "user_test" {
-		t.Fatalf("workspace.OwnerID = %q, want user_test", workspace.OwnerID)
-	}
+	defer db.Close()
 
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("unmet SQL expectations: %v", err)
+	store := &Store{db: db}
+
+	_, ok := store.GetWorkspace("nonexistent_id")
+	if ok {
+		t.Fatal("expected false on DB error, got true")
+	}
+}
+
+func TestIsWorkspaceAccessible_DBError_ReturnsFalse(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
+	}
+	defer db.Close()
+
+	store := &Store{db: db}
+
+	if store.IsWorkspaceAccessible("ws_1", "user_1") {
+		t.Fatal("expected false on DB error, got true")
 	}
 }

@@ -2,14 +2,7 @@ import { buildPaperMap } from '@keyhole-koro/paper-in-paper';
 import type { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
 import type { ApiNode, ApiEdge } from './api';
 
-/** ノードカテゴリ → ペーパーの色相 */
-const CATEGORY_HUE: Record<string, number> = {
-  concept: 220,  // 青
-  entity: 140,   // 緑
-  claim: 280,    // 紫
-  evidence: 160, // 緑-シアン
-  counter: 10,   // オレンジ-赤
-};
+const DEFAULT_HUE = 220;
 
 /**
  * GetGraph レスポンスの nodes/edges から PaperMap を構築する。
@@ -35,7 +28,7 @@ export function buildPaperMapFromGraph(nodes: ApiNode[], edges: ApiEdge[]): Pape
     title: node.label,
     description: node.description,
     content: node.summary_html || `<p>${node.description}</p>`,
-    hue: CATEGORY_HUE[node.category] ?? 220,
+    hue: DEFAULT_HUE,
     parentId: parentMap.get(node.id) ?? null,
     childIds: childMap.get(node.id) ?? [],
   }));
@@ -55,12 +48,12 @@ export function findUnplacedNodeIds(nodes: ApiNode[], edges: ApiEdge[]): string[
       connectedByHierarchy.add(edge.target);
     }
   }
-  // 複数のルート候補がある場合、level 0 以外を unplaced とする
+  // If there are multiple root candidates, treat non-level-0 nodes as unplaced.
   const roots = nodes.filter((n) => !connectedByHierarchy.has(n.id));
   return roots.filter((n) => n.level > 0).map((n) => n.id);
 }
 
-/** ルートノード ID（level 0 または親のないノード）を返す。 */
+/** Returns the root node ID (level 0 or a node without a parent). */
 export function findRootNodeId(nodes: ApiNode[], edges: ApiEdge[]): string | undefined {
   const hasParent = new Set<string>();
   for (const edge of edges) {
@@ -70,6 +63,6 @@ export function findRootNodeId(nodes: ApiNode[], edges: ApiEdge[]): string | und
   }
   const root = nodes.find((n) => n.level === 0 && !hasParent.has(n.id));
   if (root) return root.id;
-  // level 0 がなければ親のないノードを返す
+  // If no level-0 node exists, return a node without a parent.
   return nodes.find((n) => !hasParent.has(n.id))?.id;
 }

@@ -7,7 +7,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import type { PaperMap, PaperViewState } from '@keyhole-koro/paper-in-paper';
 import { buildPaperMapFromGraph, findRootNodeId } from '@/features/graph/buildPaperMap';
 import {
-  getGraph, getGraphEntityDetail, recordNodeView,
+  getGraph, getGraphEntityDetail,
   type ApiNode, type ApiEdge, type GraphEntityDetail,
 } from '@/features/graph/api';
 import { listDocuments, type Document } from '@/features/documents/api';
@@ -68,7 +68,7 @@ export default function ExplorePage() {
 
     listDocuments(workspaceId)
       .then((docs: Document[]) => {
-        const completed = docs.filter((d) => d.status === 'completed');
+        const completed = docs;
         setDocuments(completed);
         const paramDoc = searchParams.get('doc');
         if (paramDoc && completed.find((d) => d.document_id === paramDoc)) {
@@ -101,7 +101,7 @@ export default function ExplorePage() {
   useEffect(() => {
     if (!authReady || !selectedDocId) return;
 
-    getGraph(workspaceId, selectedDocId)
+    getGraph(workspaceId)
       .then((graph) => {
         setNodes(graph.nodes);
         setEdges(graph.edges);
@@ -127,7 +127,6 @@ export default function ExplorePage() {
   // Load detail when node focused
   useEffect(() => {
     if (!authReady || !focusedNodeId || !selectedDocId) return;
-    recordNodeView(workspaceId, focusedNodeId, selectedDocId).catch(() => {});
     getGraphEntityDetail({
       workspace_id: workspaceId,
       scope: 'document',
@@ -247,14 +246,6 @@ interface DetailPanelProps {
   onClose: () => void;
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  concept: '概念',
-  entity: 'エンティティ',
-  claim: '主張',
-  evidence: '根拠',
-  counter: '反論',
-};
-
 function DetailPanel({ node, detail, loading, onClose }: DetailPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -269,10 +260,12 @@ function DetailPanel({ node, detail, loading, onClose }: DetailPanelProps) {
           {node ? (
             <>
               <div className="mb-1 flex items-center gap-2">
-                <span className="rounded bg-slate-700 px-1.5 py-0.5 text-xs text-slate-400">
-                  {CATEGORY_LABEL[node.category] ?? node.category}
-                </span>
                 <span className="text-xs text-slate-500">Lv.{node.level}</span>
+                {node.entity_type && (
+                  <span className="rounded bg-slate-700 px-1.5 py-0.5 text-xs text-slate-400">
+                    {node.entity_type}
+                  </span>
+                )}
               </div>
               <h2 className="font-semibold text-slate-100 leading-snug">{node.label}</h2>
             </>

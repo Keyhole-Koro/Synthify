@@ -6,7 +6,6 @@ export interface ApiNode {
   scope: 'document' | 'canonical';
   label: string;
   level: number;
-  category: 'concept' | 'entity' | 'claim' | 'evidence' | 'counter';
   entity_type?: string;
   description: string;
   summary_html?: string;
@@ -55,7 +54,6 @@ interface ConnectNode {
   scope: string;
   label: string;
   level: number;
-  category: string;
   entityType?: string;
   description: string;
   summaryHtml?: string;
@@ -77,21 +75,6 @@ interface ConnectGraph {
 
 function mapScope(scope: string): ApiNode['scope'] {
   return scope === 'GRAPH_PROJECTION_SCOPE_CANONICAL' ? 'canonical' : 'document';
-}
-
-function mapCategory(category: string): ApiNode['category'] {
-  switch (category) {
-    case 'NODE_CATEGORY_ENTITY':
-      return 'entity';
-    case 'NODE_CATEGORY_CLAIM':
-      return 'claim';
-    case 'NODE_CATEGORY_EVIDENCE':
-      return 'evidence';
-    case 'NODE_CATEGORY_COUNTER':
-      return 'counter';
-    default:
-      return 'concept';
-  }
 }
 
 function mapEntityType(entityType?: string): string | undefined {
@@ -118,7 +101,6 @@ function mapNode(node: ConnectNode): ApiNode {
     scope: mapScope(node.scope),
     label: node.label,
     level: node.level,
-    category: mapCategory(node.category),
     entity_type: mapEntityType(node.entityType),
     description: node.description,
     summary_html: node.summaryHtml,
@@ -142,38 +124,20 @@ function mapGraph(graph: ConnectGraph): Graph {
   };
 }
 
-function categoryToProto(category: string): string {
-  switch (category) {
-    case 'entity':
-      return 'NODE_CATEGORY_ENTITY';
-    case 'claim':
-      return 'NODE_CATEGORY_CLAIM';
-    case 'evidence':
-      return 'NODE_CATEGORY_EVIDENCE';
-    case 'counter':
-      return 'NODE_CATEGORY_COUNTER';
-    default:
-      return 'NODE_CATEGORY_CONCEPT';
-  }
-}
-
 function scopeToProto(scope: EntityRef['scope']): string {
   return scope === 'canonical' ? 'GRAPH_PROJECTION_SCOPE_CANONICAL' : 'GRAPH_PROJECTION_SCOPE_DOCUMENT';
 }
 
 export async function getGraph(
   workspaceId: string,
-  documentId: string,
-  opts: { levelFilters?: number[]; categoryFilters?: string[] } = {},
+  opts: { levelFilters?: number[] } = {},
 ): Promise<Graph> {
   const res = await callRPC<
-    { workspaceId: string; documentId: string; levelFilters?: number[]; categoryFilters?: string[] },
+    { workspaceId: string; levelFilters?: number[] },
     { graph: ConnectGraph }
   >('GraphService', 'GetGraph', {
     workspaceId,
-    documentId,
     levelFilters: opts.levelFilters,
-    categoryFilters: opts.categoryFilters?.map(categoryToProto),
   });
   return mapGraph(res.graph);
 }
@@ -234,16 +198,4 @@ export async function getGraphEntityDetail(
     },
     representative_nodes: (res.detail.representativeNodes ?? []).map(mapNode),
   };
-}
-
-export async function recordNodeView(
-  workspaceId: string,
-  nodeId: string,
-  documentId: string,
-): Promise<void> {
-  await callRPC('NodeService', 'RecordNodeView', {
-    workspaceId,
-    nodeId,
-    documentId,
-  });
 }

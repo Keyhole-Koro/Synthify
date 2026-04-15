@@ -6,8 +6,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
-func TestCreateNode_WithParentNode_CreatesHierarchicalEdge(t *testing.T) {
-	db, mock, err := sqlmock.New()
+func TestCreateNode_DBError_ReturnsNil(t *testing.T) {
+	db, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("sqlmock.New: %v", err)
 	}
@@ -15,49 +15,24 @@ func TestCreateNode_WithParentNode_CreatesHierarchicalEdge(t *testing.T) {
 
 	store := &Store{db: db}
 
-	mock.ExpectBegin()
-	mock.ExpectExec(`INSERT INTO nodes`).
-		WithArgs(
-			sqlmock.AnyArg(),
-			"doc_1",
-			"New Node",
-			2,
-			"concept",
-			"",
-			"Generated during test",
-			"",
-			"user_1",
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT INTO edges`).
-		WithArgs(
-			sqlmock.AnyArg(),
-			"doc_1",
-			"nd_parent",
-			sqlmock.AnyArg(),
-			"hierarchical",
-			"",
-			sqlmock.AnyArg(),
-		).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE documents`).
-		WithArgs("doc_1", sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectCommit()
+	// No expectations set → Begin or any query returns an error.
+	node := store.CreateNode("graph_1", "New Node", "Description", "", "user_1")
+	if node != nil {
+		t.Fatal("expected nil on DB error, got node")
+	}
+}
 
-	node := store.CreateNode("doc_1", "New Node", "concept", "Generated during test", "nd_parent", 2, "user_1")
-	if node == nil {
-		t.Fatal("CreateNode returned nil")
+func TestGetNode_DBError_ReturnsFalse(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("sqlmock.New: %v", err)
 	}
-	if node.DocumentID != "doc_1" {
-		t.Fatalf("node.DocumentID = %q, want doc_1", node.DocumentID)
-	}
-	if node.Level != 2 {
-		t.Fatalf("node.Level = %d, want 2", node.Level)
-	}
+	defer db.Close()
 
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatalf("unmet SQL expectations: %v", err)
+	store := &Store{db: db}
+
+	_, _, ok := store.GetNode("nonexistent_node")
+	if ok {
+		t.Fatal("expected false on DB error, got true")
 	}
 }

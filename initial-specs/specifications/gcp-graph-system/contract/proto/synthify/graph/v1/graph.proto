@@ -15,11 +15,10 @@ service GraphService {
 message GetGraphRequest {
   string workspace_id = 1;
   string document_id = 2;
-  repeated NodeCategory category_filters = 3;
-  repeated int32 level_filters = 4;
-  int32 limit = 5;
-  string source_filename_filter = 6;
-  bool resolve_aliases = 7;
+  repeated int32 level_filters = 3;
+  int32 limit = 4;
+  string source_filename_filter = 5;
+  bool resolve_aliases = 6;
 }
 
 message GetGraphResponse {
