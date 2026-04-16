@@ -1,7 +1,0 @@
-node_modules
-.next
-out
-playwright-report
-test-results
-.cache
-*.tsbuildinfo
