@@ -1,224 +1,198 @@
 # Paper Content Authoring
 
-This document defines the current authoring model for paper-in-paper content in this repository.
-
-It is not limited to the landing page.
-The landing page is simply the first place where the authoring style is being made explicit.
-
-The goal of this document is to capture the current shape first, then improve it deliberately.
+このドキュメントは、このリポジトリにおける paper-in-paper コンテンツの現行の authoring モデルを定義する。
 
 ## Scope
 
-This document applies to hand-authored `ContentNode` trees used by paper-in-paper content.
+このドキュメントは、paper-in-paper コンテンツの `content` フィールドに渡す値に適用する。
 
-Current known usage:
+現時点で確認されている使用箇所:
 
 - `frontend/src/features/landing/landingPaperMap.tsx`
 
-Future paper-in-paper authored content should follow the same rules unless the rules are revised here.
+今後 paper-in-paper 用に authoring されるコンテンツも、このドキュメントでルールが改訂されない限り、同じルールに従うこと。
 
 ## Goal
 
-Paper content should be authored for readability first.
+Paper コンテンツは、まず読みやすさを優先して authoring するべきである。
 
-Authors should be able to read a content definition as content, not as a low-level syntax tree.
+作者がコンテンツ定義を、低レベルな構文木ではなく、コンテンツそのものとして読める必要がある。
 
-This matters for both:
+これは次の両方にとって重要である:
 
-- human editing
-- LLM-assisted generation
+- 人間による編集
+- LLM 支援による生成
 
 ## Current Model
 
-The current content model is based on `ContentNode` trees from paper-in-paper.
+コンテンツは **JSX** で authoring する。
 
-At the authoring level, the main helpers currently used are:
+`Paper.content` の型は `string | ReactNode | ContentNode[]` であり、現在は `ReactNode`（JSX）を使う。
 
-- `t(value)` for text nodes
-- `p(...children)` for paragraph nodes
-- `prose\`...\`` for paragraph authoring with inline interpolation
-- `b(...children)` for bold nodes
-- `link(paperId, label)` for paper links
-- `section(title, ...children)` for sections
-- `list(...items)` for lists
-- `table(headers, rows)` for tables
-- `card(paperId, title, description)` for card nodes
-- `callout(...children)` for callout blocks
+### CSS 変数
 
-This is the current implementation model, not yet the final ideal DSL.
+`PaperContentReact` レンダラーがコンテナに以下の CSS 変数を注入する。コンテンツ内のスタイルはこれを使うこと。
 
-## Current Block-Level Primitives
+| 変数 | 用途 |
+|---|---|
+| `--text` | 本文テキスト色 |
+| `--muted` | 補助テキスト・セル色 |
+| `--accent` | リンク・強調色 |
+| `--link-bg` | リンク背景色 |
+| `--link-border` | リンク枠色 |
+| `--surface` | ベース背景色 |
+| `--surface-alt` | 交互行・callout 背景 |
+| `--surface-raised` | テーブルヘッダー背景 |
+| `--line` | 区切り線・callout ボーダー |
 
-These are the current top-level content blocks.
+コンテナ自体に `color: theme.text` が設定されるため、テキスト要素への明示的な `color` 指定は不要。`--muted` など異なる色が必要な場合のみ指定する。
 
-- `section(title, ...children)`
-- `p(...children)`
-- `prose\`...\``
-- `list(...items)`
-- `table(headers, rows)`
-- `card(paperId, title, description)`
-- `callout(...children)`
+### paper-in-paper 固有の操作
 
-## Current Inline Primitives
+クリックすると対象 paper を inline 展開する操作は、`data-paper-id` 属性で表現する。
 
-These are the current inline-level nodes used inside paragraphs or list items.
-
-- plain text via `t(...)`
-- bold via `b(...)`
-- paper links via `link(...)`
-
-## Current Paragraph Rule
-
-For new authoring, paragraph-like content should prefer `prose`.
-
-Preferred:
-
-```ts
-prose`複数のドキュメントを読み込み、${link('graph', '知識グラフ')}を自動生成します。`
+```tsx
+<a data-paper-id="graph">知識グラフ</a>
 ```
 
-Avoid for new content:
+クリックハンドラーはレンダラー側が自動的に処理する。authoring 側は `data-paper-id` を書くだけでよい。
 
-```ts
-p(
-  t('複数のドキュメントを読み込み、'),
-  link('graph', '知識グラフ'),
-  t('を自動生成します。'),
-)
+## Primitives
+
+### PaperLink (`PL`)
+
+paper 展開リンク。各 authoring ファイルにローカル定義する。
+`usePaperStore` を使って `paperMap` から title・description を自動取得する。
+
+```tsx
+import { usePaperStore } from '@keyhole-koro/paper-in-paper';
+
+function PL({ id, children, variant }: { id: string; children?: React.ReactNode; variant?: 'card' }) {
+  const { state } = usePaperStore();
+  const paper = state.paperMap.get(id);
+
+  if (variant === 'card') {
+    return (
+      <a data-paper-id={id} tabIndex={0} style={{ display: 'block', border: '1px solid var(--link-border)', borderRadius: 8, padding: '10px 12px', background: 'var(--link-bg)', cursor: 'pointer', textDecoration: 'none' }}>
+        <p style={{ margin: '0 0 4px', fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--accent)' }}>
+          {paper?.title ?? id}
+        </p>
+        <p style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.55 }}>
+          {paper?.description}
+        </p>
+      </a>
+    );
+  }
+
+  return (
+    <a data-paper-id={id} tabIndex={0} style={{ color: 'var(--accent)', background: 'var(--link-bg)', border: '1px solid var(--link-border)', borderRadius: 4, padding: '1px 5px', cursor: 'pointer', textDecoration: 'none', display: 'inline', fontSize: 'inherit' }}>
+      {children ?? paper?.title ?? id}
+    </a>
+  );
+}
 ```
 
-Reason:
+**3つのバリアント:**
 
-- the sentence remains readable as a sentence
-- inline links are still explicit
-- diffs are smaller
-- LLM generation is easier to constrain
+```tsx
+// chip — paper.title を自動表示。ラベルが paper title と同じ場合に使う
+<PL id="graph" />
 
-`p(...)` is still part of the current model, but it should be treated as a lower-level primitive.
+// inline — children をラベルとして文中に埋め込む。ラベルが paper title と異なる場合
+<PL id="extraction">AIが概念・主張・根拠を抽出</PL>
 
-## Current List Rule
-
-Lists are currently authored in a lower-level shape than paragraphs.
-
-Current shape:
-
-```ts
-list(
-  [t('テキスト正規化・チャンク分割')],
-  [link('canonicalization', 'エイリアス正規化')],
-)
+// card — paper.title + paper.description をブロック表示
+<PL id="auth" variant="card" />
 ```
 
-This reflects the current implementation, not a polished final form.
+### Section
 
-Current rule:
+```tsx
+<section>
+  <h2 style={{ margin: '0 0 8px', fontSize: '1rem' }}>タイトル</h2>
+  <div style={{ display: 'grid', gap: 8 }}>
+    {/* children */}
+  </div>
+</section>
+```
 
-- keep list items simple
-- prefer one semantic unit per item
-- avoid deeply nested inline composition unless needed
+### Paragraph
 
-## Current Problems
+```tsx
+<p style={{ margin: 0, lineHeight: 1.65, fontSize: '0.85rem' }}>
+  テキスト。<PL id="other">リンク</PL>も inline で埋め込める。
+</p>
+```
 
-The current model works, but it still has friction.
+### List
 
-### Paragraphs
+```tsx
+<ul style={{ margin: 0, paddingLeft: 16, lineHeight: 1.8, fontSize: '0.85rem' }}>
+  <li>プレーンテキスト項目</li>
+  <li><strong>bold</strong> - 説明</li>
+  <li><PL id="canonicalization">リンク項目</PL></li>
+</ul>
+```
 
-`prose` improves authoring substantially, but still depends on low-level inline helpers like `t`, `b`, and `link`.
+### Table
 
-### Lists
+```tsx
+<table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+  <thead>
+    <tr style={{ background: 'var(--surface-raised)' }}>
+      <th style={{ padding: '6px 8px', textAlign: 'left' }}>列A</th>
+      <th style={{ padding: '6px 8px', textAlign: 'left' }}>列B</th>
+    </tr>
+  </thead>
+  <tbody>
+    {rows.map(([a, b], i) => (
+      <tr key={a} style={{ background: i % 2 === 1 ? 'var(--surface-alt)' : 'transparent' }}>
+        <td style={{ padding: '5px 8px' }}>{a}</td>
+        <td style={{ padding: '5px 8px', color: 'var(--muted)' }}>{b}</td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+```
 
-`list(...ContentNode[][])` is still too close to the raw AST shape.
+### Callout
 
-It exposes implementation structure directly to the author:
+```tsx
+<div style={{
+  borderLeft: '3px solid var(--line)',
+  background: 'var(--surface-alt)',
+  borderRadius: 4,
+  padding: '8px 12px',
+  fontSize: '0.8rem',
+  color: 'var(--muted)',
+  lineHeight: 1.6,
+}}>
+  callout テキスト
+</div>
+```
 
-- nested arrays
-- manual item grouping
-- low-level node composition
-
-This is acceptable for now, but it is not considered the ideal authoring surface.
-
-### Helper Quality
-
-Thin wrappers that only rename syntax without reducing complexity are not automatically improvements.
-
-For example, replacing `[t('...')]` with a wrapper that still requires the same mental model is not enough by itself.
 
 ## Authoring Principles
 
-Until the DSL is revised, use these principles:
+- コンテンツの読みやすさを、構造上の巧妙さより優先する
+- paper 間リンクは `data-paper-id` 属性で表現する（`PL` コンポーネント、またはインライン `<a data-paper-id="...">` 直書き）
+- スタイルは CSS 変数（`--text`, `--accent` 等）で参照し、ハードコードしない
+- 新しいヘルパーは、実際に authoring の friction を減らす場合にのみ導入する
 
-- content readability comes before structural cleverness
-- prefer `prose` for any sentence-like content
-- use explicit `link(...)` for paper references
-- keep list items structurally simple
-- do not introduce new helpers unless they reduce authoring friction in a real way
+## LLM による生成
+
+LLM にコンテンツを生成させる場合、以下だけ伝えれば十分:
+
+- コンテンツは JSX で書く
+- paper 間リンクは `PL` コンポーネントで表現する（クリックで展開）
+  - `<PL id="graph" />` — paper title を自動表示（chip）
+  - `<PL id="graph">文脈に合ったラベル</PL>` — カスタムラベル（inline）
+  - `<PL id="auth" variant="card" />` — ブロックカード
+- スタイルは `var(--text)`, `var(--accent)`, `var(--muted)` 等の CSS 変数を使う
+- それ以外は普通の HTML/JSX
 
 ## Non-Goals
 
-This document does not define a full CMS or markdown system.
-
-Not goals:
-
-- a general-purpose markdown parser
-- a schema compiler
-- a universal content model for the whole app
-
-## Future Improvement Direction
-
-This section is not the current spec.
-It is the direction to evaluate next.
-
-### 1. Improve `list(...)` Instead of Adding Thin Wrappers
-
-If list authoring remains awkward, the preferred next step is to make `list(...)` smarter.
-
-Preferred future shape:
-
-```ts
-list(
-  'テキスト正規化・チャンク分割',
-  link('canonicalization', 'エイリアス正規化'),
-  prose`${b(t('owner'))} - 全権限・メンバー管理`,
-)
-```
-
-That would allow the implementation to normalize:
-
-- `string` -> text item
-- `ContentNode` -> single-node item
-- paragraph-like node -> list item
-
-### 2. Revisit Inline Helpers
-
-If inline authoring still feels noisy, introduce better authoring helpers only when they actually reduce complexity.
-
-Possible examples:
-
-- `strong('text')` instead of `b(t('text'))`
-- richer list item normalization
-
-### 3. Keep the DSL Thin
-
-The preferred direction is still a thin, local authoring DSL.
-
-The target is:
-
-- readable by humans
-- easy to diff
-- easy to generate with an LLM
-- close enough to the runtime model to stay understandable
-
-## Decision Summary
-
-Current spec:
-
-- paper-in-paper content is authored as `ContentNode` trees
-- `prose` is the preferred paragraph authoring primitive
-- `p(...)` remains valid but should be treated as lower-level
-- `list(...)` is currently valid but not yet ideal
-
-Current improvement stance:
-
-- document the current shape first
-- improve deliberately from there
-- optimize for authoring clarity, not abstraction for its own sake
+- 汎用 markdown parser
+- schema compiler
+- アプリ全体向けの汎用コンテンツモデル
