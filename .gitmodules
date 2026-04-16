@@ -1,3 +1,15 @@
 [submodule "paper-in-paper"]
 	path = frontend/vender/paper-in-paper
 	url = https://github.com/Keyhole-Koro/paper-in-paper.git
+[submodule "shared"]
+	path = shared
+	url = https://github.com/Keyhole-Koro/SynthifyShared.git
+[submodule "worker"]
+	path = worker
+	url = https://github.com/Keyhole-Koro/SynthifyWorker.git
+[submodule "api"]
+	path = api
+	url = https://github.com/Keyhole-Koro/SynthifyAPI.git
+[submodule "web"]
+	path = web
+	url = https://github.com/Keyhole-Koro/SynthifyWeb.git
