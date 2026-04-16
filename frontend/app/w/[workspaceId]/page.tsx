@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
+import { collection, onSnapshot, query } from 'firebase/firestore';
 import {
   listDocuments,
   createDocument,
@@ -14,7 +15,7 @@ import {
 } from '@/features/documents/api';
 import { getWorkspace, type Workspace } from '@/features/workspaces/api';
 import { ApiError } from '@/lib/rpc';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 
 const JOB_STATUS_LABEL: Record<JobStatus, string> = {
   queued: 'キュー済',
@@ -51,6 +52,19 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
+function mapRealtimeJobStatus(status: string): JobStatus {
+  switch (status) {
+    case 'running':
+      return 'running';
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    default:
+      return 'queued';
+  }
+}
+
 interface UploadState {
   file: File;
   phase: 'idle' | 'creating' | 'uploading' | 'starting' | 'done' | 'error';
@@ -70,6 +84,7 @@ export default function WorkspacePage() {
   const [dragging, setDragging] = useState(false);
   const [upload, setUpload] = useState<UploadState | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const completedJobIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     return onAuthStateChanged(auth, (user) => {
@@ -119,22 +134,57 @@ export default function WorkspacePage() {
       .finally(() => setLoading(false));
   }, [authReady, workspaceId, router]);
 
-  // Poll processing documents
   useEffect(() => {
-    const hasRunning = Array.from(jobs.values()).some(
-      (j) => j.status === 'running' || j.status === 'queued',
+    if (!authReady) return;
+    const jobsQuery = query(collection(db, 'workspaces', workspaceId, 'jobs'));
+    return onSnapshot(
+      jobsQuery,
+      (snapshot) => {
+        let shouldRefreshDocuments = false;
+        const nextJobs = new Map<string, DocumentProcessingJob>();
+
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
+          const documentId = typeof data.documentId === 'string' ? data.documentId : '';
+          const jobId = typeof data.jobId === 'string' ? data.jobId : docSnap.id;
+          if (!documentId) continue;
+
+          const status = mapRealtimeJobStatus(typeof data.status === 'string' ? data.status : 'queued');
+          const realtimeJob: DocumentProcessingJob = {
+            job_id: jobId,
+            document_id: documentId,
+            graph_id: typeof data.graphId === 'string' ? data.graphId : '',
+            job_type: typeof data.jobType === 'string' ? data.jobType : 'process_document',
+            status,
+            current_stage: typeof data.currentStage === 'string' ? data.currentStage : '',
+            error_message: typeof data.errorMessage === 'string' ? data.errorMessage : '',
+            created_at: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+            updated_at: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+          };
+          nextJobs.set(documentId, realtimeJob);
+
+          if (status === 'completed' && !completedJobIdsRef.current.has(jobId)) {
+            completedJobIdsRef.current.add(jobId);
+            shouldRefreshDocuments = true;
+          }
+          if (status !== 'completed') {
+            completedJobIdsRef.current.delete(jobId);
+          }
+        }
+
+        setJobs(nextJobs);
+
+        if (shouldRefreshDocuments) {
+          listDocuments(workspaceId)
+            .then(setDocuments)
+            .catch(console.error);
+        }
+      },
+      (err) => {
+        console.error(err);
+      },
     );
-    if (!hasRunning) return;
-    const id = setInterval(() => {
-      listDocuments(workspaceId)
-        .then((docs) => {
-          setDocuments(docs);
-          loadJobsForDocuments(docs);
-        })
-        .catch(console.error);
-    }, 4000);
-    return () => clearInterval(id);
-  }, [jobs, workspaceId]);
+  }, [authReady, workspaceId]);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;

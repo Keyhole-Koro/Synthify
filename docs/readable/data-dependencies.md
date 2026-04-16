@@ -389,6 +389,8 @@ LLM が返す識別子は永続 ID ではなく仮 ID とする。
 
 Firestore は realtime projection、Postgres は source of truth として分ける。
 
+document processing の進捗通知もこの考え方に従い、job status は Firestore に projection してよい。ただし正本は `document_processing_jobs` に残す。詳細は [docs/firestore-job-status.md](/home/unix/Synthify/docs/firestore-job-status.md) を参照。
+
 ### Firestore 形
 
 最初の実装は event log ではなく、ユーザーごとの現在状態を持つ。

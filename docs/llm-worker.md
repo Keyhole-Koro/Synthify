@@ -27,7 +27,7 @@ Cloud Run  min=0         Cloud Run  min=0
 
 **min=0 の理由:** 常時リクエストがあるサービスではないため、コールドスタートを許容してコストを最小化する
 
-**リアルタイム更新:** Worker が Neon に書き込むと PostgreSQL LISTEN/NOTIFY が発火し、API Service の SSE エンドポイント（`GET /api/workspaces/{id}/stream`）がフロントに変更イベントを配信する。フロントは受信後に nodes/edges を再フェッチする。
+**リアルタイム更新:** 当面は worker / API が Firestore の `workspaces/{workspaceId}/jobs/{jobId}` を更新し、フロントがそれを subscribe して進捗と完了を反映する。graph 本体は Postgres を正本とし、`completed` を受けたフロントは API 経由で nodes / edges / documents を再フェッチする。詳細は [docs/firestore-job-status.md](/home/unix/Synthify/docs/firestore-job-status.md) を参照。
 
 ### データストアの役割分担
 
@@ -37,9 +37,10 @@ Cloud Run  min=0         Cloud Run  min=0
 | document_chunks | Neon PostgreSQL | ソーステキスト参照。検索対象 |
 | nodes 全文検索 | Neon PostgreSQL | pg_bigm で日本語 FTS（同一 DB） |
 | workspace / user / membership | Neon PostgreSQL | リレーショナルデータ |
-| jobs / processing 状態 | Neon PostgreSQL | ジョブ管理 |
+| jobs / processing 状態 | Neon PostgreSQL | ジョブ管理の正本 |
+| job progress realtime projection | Firestore | queued/running/completed/failed と stage 通知 |
 
-すべてのデータを Neon 一本に集約する。Cloud Functions（Firestore trigger）は不要。
+source of truth は Neon に集約する。Firestore は通知専用 projection として使い、Cloud Functions（Firestore trigger）は使わない。
 
 ### 起動フロー
 

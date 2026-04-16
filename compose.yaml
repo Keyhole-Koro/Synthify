@@ -4,16 +4,16 @@ services:
   frontend:
     image: node:22-bookworm
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    working_dir: /workspace/frontend
+    working_dir: /workspace/web
     command: >
       bash -c '
         set -e;
         if [ ! -f package.json ]; then
-          echo "frontend/package.json not found. Waiting for frontend implementation...";
+          echo "web/package.json not found. Waiting for web implementation...";
           sleep infinity;
         fi;
         if [ ! -x node_modules/.bin/next ]; then
-          echo "frontend/node_modules is missing. Install dependencies on the host first.";
+          echo "web/node_modules is missing. Install dependencies on the host first.";
           sleep infinity;
         fi;
         rm -rf .next;
@@ -42,16 +42,17 @@ services:
 
   backend:
     image: golang:1.24-bookworm
-    working_dir: /workspace/backend
+    working_dir: /workspace
     command: >
       bash -c '
         if [ ! -f go.mod ]; then
-          echo "backend/go.mod not found. Waiting for backend implementation...";
+          echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
         fi;
-        go run ./cmd/server
+        go run ./api/cmd/server
       '
     environment:
+      SERVICE_MODE: api
       PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       ENV: local
       PORT: "8080"
@@ -61,13 +62,59 @@ services:
       GCS_EMULATOR_HOST: http://gcs:4443
       STORAGE_EMULATOR_HOST: http://gcs:4443
       GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/synthify-uploads}
+      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://gcs:4443/synthify-uploads}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
       FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
+      FIRESTORE_EMULATOR_HOST: firebase-auth:8282
       DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
+      WORKER_BASE_URL: ${WORKER_BASE_URL:-http://worker:8081}
+      INTERNAL_WORKER_TOKEN: ${INTERNAL_WORKER_TOKEN:-dev-worker-token}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - .:/workspace
+      - go-pkg-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - gemini-cache:/workspace/.gemini-cache
+    depends_on:
+      - postgres
+      - gcs
+      - firebase-auth
+      - worker
+
+  worker:
+    image: golang:1.24-bookworm
+    working_dir: /workspace
+    command: >
+      bash -c '
+        if [ ! -f go.mod ]; then
+          echo "go.mod not found. Waiting for Go implementation...";
+          sleep infinity;
+        fi;
+        go run ./worker/cmd/server
+      '
+    environment:
+      SERVICE_MODE: worker
+      PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      ENV: local
+      PORT: "8081"
+      GCP_PROJECT_ID: synthify-local
+      GCS_BUCKET: synthify-uploads
+      GCS_EMULATOR_HOST: http://gcs:4443
+      STORAGE_EMULATOR_HOST: http://gcs:4443
+      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/synthify-uploads}
+      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://gcs:4443/synthify-uploads}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
+      FIRESTORE_EMULATOR_HOST: firebase-auth:8282
+      DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
+      INTERNAL_WORKER_TOKEN: ${INTERNAL_WORKER_TOKEN:-dev-worker-token}
+      GEMINI_CACHE_ENABLED: "true"
+      GEMINI_CACHE_DIR: /workspace/.gemini-cache
+    ports:
+      - "${WORKER_PORT:-8081}:8081"
     volumes:
       - .:/workspace
       - go-pkg-cache:/go/pkg/mod
@@ -88,7 +135,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./backend/db/init:/docker-entrypoint-initdb.d:ro
+      - ./db/init:/docker-entrypoint-initdb.d:ro
 
   gcs:
     image: fsouza/fake-gcs-server:1.52
