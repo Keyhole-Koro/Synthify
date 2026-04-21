@@ -1,0 +1,132 @@
+syntax = "proto3";
+
+package synthify.graph.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1";
+
+// ToolService は dev ロールを持つ管理者のみアクセス可能
+service ToolService {
+  rpc GenerateNormalizationTool(GenerateNormalizationToolRequest) returns (GenerateNormalizationToolResponse);
+  rpc SaveNormalizationTool(SaveNormalizationToolRequest) returns (SaveNormalizationToolResponse);
+  rpc ListNormalizationTools(ListNormalizationToolsRequest) returns (ListNormalizationToolsResponse);
+  rpc UpdateNormalizationToolStatus(UpdateNormalizationToolStatusRequest) returns (UpdateNormalizationToolStatusResponse);
+  rpc RunNormalizationTool(RunNormalizationToolRequest) returns (RunNormalizationToolResponse);
+  rpc GetNormalizationToolRun(GetNormalizationToolRunRequest) returns (GetNormalizationToolRunResponse);
+}
+
+message NormalizationTool {
+  string tool_id = 1;
+  string name = 2;
+  string version = 3;
+  string description = 4;
+  string problem_pattern = 5;
+  string entrypoint = 6;
+  repeated string allowed_file_types = 7;
+  NormalizationReviewState approval_status = 8;
+  string approved_by = 9;       // "llm" or "human"
+  double llm_review_score = 10;
+  string llm_review_reason = 11;
+  string created_by = 12;
+  string created_at = 13;
+  string updated_at = 14;
+}
+
+message NormalizationToolRun {
+  string run_id = 1;
+  string tool_id = 2;
+  string tool_version = 3;
+  string document_id = 4;
+  ToolRunMode mode = 5;
+  ToolRunStatus status = 6;
+  string stdout = 7;
+  string stderr = 8;
+  string diff_summary = 9;
+  string output_uri = 10;
+  string created_at = 11;
+  string started_at = 12;
+  string completed_at = 13;
+}
+
+enum NormalizationReviewState {
+  NORMALIZATION_REVIEW_STATE_UNSPECIFIED = 0;
+  NORMALIZATION_REVIEW_STATE_DRAFT = 1;
+  NORMALIZATION_REVIEW_STATE_REVIEWED = 2;
+  NORMALIZATION_REVIEW_STATE_APPROVED = 3;
+  NORMALIZATION_REVIEW_STATE_DEPRECATED = 4;
+}
+
+enum ToolRunMode {
+  TOOL_RUN_MODE_UNSPECIFIED = 0;
+  TOOL_RUN_MODE_DRY_RUN = 1;
+  TOOL_RUN_MODE_APPLY = 2;
+}
+
+enum ToolRunStatus {
+  TOOL_RUN_STATUS_UNSPECIFIED = 0;
+  TOOL_RUN_STATUS_QUEUED = 1;
+  TOOL_RUN_STATUS_RUNNING = 2;
+  TOOL_RUN_STATUS_SUCCEEDED = 3;
+  TOOL_RUN_STATUS_FAILED = 4;
+}
+
+message GenerateNormalizationToolRequest {
+  string document_id = 1;
+  string problem_statement = 2;
+  string sample_input = 3;
+  string desired_output_description = 4;
+}
+
+message GenerateNormalizationToolResponse {
+  string generated_code = 1;
+  string generated_manifest = 2;
+}
+
+message SaveNormalizationToolRequest {
+  string name = 1;
+  string version = 2;
+  string description = 3;
+  string problem_pattern = 4; // 自動マッチングに使用する問題パターンの説明
+  string code = 5;
+  string manifest = 6;
+}
+
+message SaveNormalizationToolResponse {
+  NormalizationTool tool = 1;
+}
+
+message ListNormalizationToolsRequest {
+  string file_type = 1;
+  NormalizationReviewState approval_status = 2;
+}
+
+message ListNormalizationToolsResponse {
+  repeated NormalizationTool tools = 1;
+}
+
+message UpdateNormalizationToolStatusRequest {
+  string tool_id = 1;
+  NormalizationReviewState status = 2;
+}
+
+message UpdateNormalizationToolStatusResponse {
+  NormalizationTool tool = 1;
+}
+
+message RunNormalizationToolRequest {
+  string tool_id = 1;
+  string tool_version = 2;
+  string document_id = 3;
+  ToolRunMode mode = 4;
+}
+
+message RunNormalizationToolResponse {
+  NormalizationToolRun run = 1;
+}
+
+message GetNormalizationToolRunRequest {
+  string run_id = 1;
+}
+
+message GetNormalizationToolRunResponse {
+  NormalizationToolRun run = 1;
+}

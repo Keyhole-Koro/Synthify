@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package synthify.graph.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1";
+
+import "synthify/graph/v1/graph_types.proto";
+
+service GraphService {
+  rpc GetGraph(GetGraphRequest) returns (GetGraphResponse);
+  rpc FindPaths(FindPathsRequest) returns (FindPathsResponse);
+  // ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
+}
+
+message GetGraphRequest {
+  string workspace_id = 1;
+  string document_id = 2;
+  repeated int32 level_filters = 3;
+  int32 limit = 4;
+  string source_filename_filter = 5;
+  bool resolve_aliases = 6;
+}
+
+message GetGraphResponse {
+  Graph graph = 1;
+}
+
+message FindPathsRequest {
+  string workspace_id = 1;
+  string source_node_id = 2;
+  string target_node_id = 3;
+  int32 max_depth = 4;
+  int32 limit = 5;
+  bool cross_document = 6;
+  repeated string document_ids = 7;
+}
+
+message PathEvidenceRef {
+  repeated string source_document_ids = 1;
+}
+
+message GraphPath {
+  repeated string node_ids = 1;
+  int32 hop_count = 2;
+  PathEvidenceRef evidence_ref = 3;
+}
+
+message FindPathsResponse {
+  Graph graph = 1;
+  repeated GraphPath paths = 2;
+}

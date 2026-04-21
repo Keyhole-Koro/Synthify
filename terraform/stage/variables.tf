@@ -31,10 +31,18 @@ variable "worker_token_secret" {
   type = string
 }
 
+variable "gemini_api_key_secret" {
+  type = string
+}
+
 variable "firebase_project_id" {
   type = string
 }
 
 variable "cors_allowed_origins" {
+  type = string
+}
+
+variable "gemini_model" {
   type = string
 }

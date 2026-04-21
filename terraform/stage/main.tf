@@ -23,7 +23,9 @@ module "worker" {
   uploads_bucket_name   = module.platform.uploads_bucket_name
   database_url_secret   = var.database_url_secret
   worker_token_secret   = var.worker_token_secret
+  gemini_api_key_secret = var.gemini_api_key_secret
   firebase_project_id   = var.firebase_project_id
+  gemini_model          = var.gemini_model
 }
 
 module "api" {
@@ -38,6 +40,8 @@ module "api" {
   uploads_bucket_name   = module.platform.uploads_bucket_name
   database_url_secret   = var.database_url_secret
   worker_token_secret   = var.worker_token_secret
+  gemini_api_key_secret = var.gemini_api_key_secret
   firebase_project_id   = var.firebase_project_id
   cors_allowed_origins  = var.cors_allowed_origins
+  gemini_model          = var.gemini_model
 }

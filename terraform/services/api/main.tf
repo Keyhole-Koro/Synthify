@@ -17,6 +17,7 @@ module "service" {
     INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com/${var.uploads_bucket_name}"
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     CORS_ALLOWED_ORIGINS         = var.cors_allowed_origins
+    GEMINI_MODEL                 = var.gemini_model
   }
 
   secret_env_vars = [
@@ -27,6 +28,10 @@ module "service" {
     {
       name   = "INTERNAL_WORKER_TOKEN"
       secret = var.worker_token_secret
+    },
+    {
+      name   = "GEMINI_API_KEY"
+      secret = var.gemini_api_key_secret
     }
   ]
 }

@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package synthify.graph.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1";
+
+import "synthify/graph/v1/job.proto";
+
+service DocumentService {
+  rpc CreateDocument(CreateDocumentRequest) returns (CreateDocumentResponse);
+  rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
+  rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
+  rpc GetUploadURL(GetUploadURLRequest) returns (GetUploadURLResponse);
+  rpc StartProcessing(StartProcessingRequest) returns (StartProcessingResponse);
+  rpc ResumeProcessing(ResumeProcessingRequest) returns (ResumeProcessingResponse);
+}
+
+message Document {
+  string document_id = 1;
+  string workspace_id = 2;
+  string uploaded_by = 3;
+  string filename = 4;
+  string gcs_uri = 5;
+  string mime_type = 6;
+  int64 file_size = 7;
+  DocumentLifecycleState status = 8;
+  int32 node_count = 9;
+  string current_stage = 10;
+  string error_message = 11;
+  string created_at = 12;
+  string updated_at = 13;
+}
+
+enum DocumentLifecycleState {
+  DOCUMENT_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  DOCUMENT_LIFECYCLE_STATE_UPLOADED = 1;
+  DOCUMENT_LIFECYCLE_STATE_PENDING_NORMALIZATION = 2; // 正規化ツールの承認待ち
+  DOCUMENT_LIFECYCLE_STATE_PROCESSING = 3;
+  DOCUMENT_LIFECYCLE_STATE_COMPLETED = 4;
+  DOCUMENT_LIFECYCLE_STATE_FAILED = 5;
+}
+
+message CreateDocumentRequest {
+  string workspace_id = 1;
+  string filename = 2;
+  string mime_type = 3;
+  int64 file_size = 4;
+}
+
+message CreateDocumentResponse {
+  Document document = 1;
+  string upload_url = 2;
+  string upload_method = 3;
+  string upload_content_type = 4;
+}
+
+message GetDocumentRequest {
+  string document_id = 1;
+}
+
+message GetDocumentResponse {
+  Document document = 1;
+}
+
+message ListDocumentsRequest {
+  string workspace_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  DocumentLifecycleState status_filter = 4;
+}
+
+message ListDocumentsResponse {
+  repeated Document documents = 1;
+  string next_page_token = 2;
+}
+
+// 署名付き URL の発行
+message GetUploadURLRequest {
+  string workspace_id = 1;
+  string filename = 2;
+  string mime_type = 3;
+  int64 file_size = 4;
+}
+
+message GetUploadURLResponse {
+  string upload_url = 1;      // GCS 署名付き PUT URL（有効期限15分）
+  string upload_token = 2;    // CreateDocument に渡すトークン
+  string expires_at = 3;
+}
+
+message StartProcessingRequest {
+  // The target document must already be uploaded and currently be in uploaded status.
+  string document_id = 1;
+  bool force_reprocess = 2;
+}
+
+message StartProcessingResponse {
+  string document_id = 1;
+  Job job = 2;
+}
+
+// pending_normalization 状態の document を手動または自動で処理再開する
+message ResumeProcessingRequest {
+  string document_id = 1;
+}
+
+message ResumeProcessingResponse {
+  string document_id = 1;
+  Job job = 2;
+}

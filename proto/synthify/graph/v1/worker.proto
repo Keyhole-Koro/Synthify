@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package synthify.graph.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1";
+
+service WorkerService {
+  rpc ProcessPipeline(ProcessPipelineRequest) returns (ProcessPipelineResponse);
+}
+
+message ProcessPipelineRequest {
+  string job_id = 1;
+  string job_type = 2;
+  string document_id = 3;
+  string workspace_id = 4;
+  string graph_id = 5;
+  string file_uri = 6;
+  string filename = 7;
+  string mime_type = 8;
+}
+
+message ProcessPipelineResponse {
+  string status = 1;
+}

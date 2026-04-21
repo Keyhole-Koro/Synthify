@@ -69,6 +69,8 @@ services:
       DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
       WORKER_BASE_URL: ${WORKER_BASE_URL:-http://worker:8081}
       INTERNAL_WORKER_TOKEN: ${INTERNAL_WORKER_TOKEN:-dev-worker-token}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.0-flash}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
     ports:
@@ -111,6 +113,8 @@ services:
       FIRESTORE_EMULATOR_HOST: firebase-auth:8282
       DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
       INTERNAL_WORKER_TOKEN: ${INTERNAL_WORKER_TOKEN:-dev-worker-token}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.0-flash}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
     ports:
