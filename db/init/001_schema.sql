@@ -52,6 +52,13 @@ CREATE TABLE IF NOT EXISTS document_processing_jobs (
   current_stage TEXT NOT NULL DEFAULT '',
   error_message TEXT NOT NULL DEFAULT '',
   params_json TEXT NOT NULL DEFAULT '{}',
+  requested_by TEXT NOT NULL DEFAULT '',
+  capability_id TEXT NOT NULL DEFAULT '',
+  execution_plan_id TEXT NOT NULL DEFAULT '',
+  plan_status TEXT NOT NULL DEFAULT '',
+  evaluation_status TEXT NOT NULL DEFAULT '',
+  retry_count INTEGER NOT NULL DEFAULT 0,
+  budget_json TEXT NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL
 );
@@ -69,10 +76,15 @@ CREATE TABLE IF NOT EXISTS nodes (
   graph_id TEXT NOT NULL REFERENCES graphs(graph_id) ON DELETE CASCADE,
   label TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT '',
+  level INTEGER NOT NULL DEFAULT 0,
   entity_type TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   summary_html TEXT NOT NULL DEFAULT '',
   created_by TEXT NOT NULL DEFAULT '',
+  governance_state TEXT NOT NULL DEFAULT 'system_generated',
+  locked_by TEXT NOT NULL DEFAULT '',
+  locked_at TIMESTAMPTZ,
+  last_mutation_job_id TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL
 );
 
@@ -113,6 +125,63 @@ CREATE TABLE IF NOT EXISTS node_aliases (
   PRIMARY KEY (workspace_id, canonical_node_id, alias_node_id)
 );
 
+CREATE TABLE IF NOT EXISTS job_capabilities (
+  capability_id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+  graph_id TEXT NOT NULL REFERENCES graphs(graph_id) ON DELETE CASCADE,
+  allowed_document_ids_json TEXT NOT NULL DEFAULT '[]',
+  allowed_node_ids_json TEXT NOT NULL DEFAULT '[]',
+  allowed_operations_json TEXT NOT NULL DEFAULT '[]',
+  max_llm_calls INTEGER NOT NULL DEFAULT 0,
+  max_tool_runs INTEGER NOT NULL DEFAULT 0,
+  max_node_creations INTEGER NOT NULL DEFAULT 0,
+  max_edge_mutations INTEGER NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_execution_plans (
+  plan_id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  plan_json TEXT NOT NULL,
+  created_by TEXT NOT NULL DEFAULT 'planner',
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_mutation_logs (
+  mutation_id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL DEFAULT '',
+  capability_id TEXT NOT NULL DEFAULT '',
+  graph_id TEXT NOT NULL REFERENCES graphs(graph_id) ON DELETE CASCADE,
+  target_type TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  mutation_type TEXT NOT NULL,
+  risk_tier TEXT NOT NULL DEFAULT '',
+  before_json TEXT NOT NULL DEFAULT '{}',
+  after_json TEXT NOT NULL DEFAULT '{}',
+  provenance_json TEXT NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS job_approval_requests (
+  approval_id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL REFERENCES job_execution_plans(plan_id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  requested_operations_json TEXT NOT NULL DEFAULT '[]',
+  reason TEXT NOT NULL DEFAULT '',
+  risk_tier TEXT NOT NULL DEFAULT '',
+  requested_by TEXT NOT NULL DEFAULT 'governor',
+  reviewed_by TEXT NOT NULL DEFAULT '',
+  requested_at TIMESTAMPTZ NOT NULL,
+  reviewed_at TIMESTAMPTZ
+);
+
 CREATE INDEX IF NOT EXISTS idx_account_users_user_id ON account_users(user_id);
 CREATE INDEX IF NOT EXISTS idx_workspaces_account_id ON workspaces(account_id);
 CREATE INDEX IF NOT EXISTS idx_documents_workspace_id ON documents(workspace_id);
@@ -122,3 +191,6 @@ CREATE INDEX IF NOT EXISTS idx_nodes_graph_id ON nodes(graph_id);
 CREATE INDEX IF NOT EXISTS idx_edges_graph_id ON edges(graph_id);
 CREATE INDEX IF NOT EXISTS idx_node_sources_document_id ON node_sources(document_id);
 CREATE INDEX IF NOT EXISTS idx_edge_sources_document_id ON edge_sources(document_id);
+CREATE INDEX IF NOT EXISTS idx_job_capabilities_job_id ON job_capabilities(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_execution_plans_job_id ON job_execution_plans(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_mutation_logs_job_id ON job_mutation_logs(job_id);

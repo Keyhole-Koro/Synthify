@@ -5,10 +5,10 @@ package synthify.graph.v1;
 option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v1;graphv1";
 
 service WorkerService {
-  rpc ProcessPipeline(ProcessPipelineRequest) returns (ProcessPipelineResponse);
+  rpc ExecuteApprovedPlan(ExecuteApprovedPlanRequest) returns (ExecuteApprovedPlanResponse);
 }
 
-message ProcessPipelineRequest {
+message ExecuteApprovedPlanRequest {
   string job_id = 1;
   string job_type = 2;
   string document_id = 3;
@@ -19,6 +19,6 @@ message ProcessPipelineRequest {
   string mime_type = 8;
 }
 
-message ProcessPipelineResponse {
+message ExecuteApprovedPlanResponse {
   string status = 1;
 }

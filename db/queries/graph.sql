@@ -10,7 +10,7 @@ FROM graphs
 WHERE workspace_id = $1;
 
 -- name: ListNodesByGraph :many
-SELECT node_id, graph_id, label, entity_type, description, summary_html, created_by, created_at
+SELECT node_id, graph_id, label, level, description, summary_html, created_by, created_at
 FROM nodes
 WHERE graph_id = $1
 ORDER BY created_at ASC;
@@ -22,7 +22,7 @@ WHERE graph_id = $1
 ORDER BY created_at ASC;
 
 -- name: GetNode :one
-SELECT node_id, graph_id, label, entity_type, description, summary_html, created_by, created_at
+SELECT node_id, graph_id, label, level, description, summary_html, created_by, created_at
 FROM nodes
 WHERE node_id = $1;
 
@@ -33,7 +33,7 @@ WHERE source_node_id = $1 OR target_node_id = $1
 ORDER BY created_at ASC;
 
 -- name: CreateNode :exec
-INSERT INTO nodes (node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at)
+INSERT INTO nodes (node_id, graph_id, label, category, level, description, summary_html, created_by, created_at)
 VALUES ($1, $2, $3, '', $4, $5, $6, $7, $8);
 
 -- name: CreateEdge :exec
@@ -76,16 +76,16 @@ DO UPDATE SET status = EXCLUDED.status, updated_at = EXCLUDED.updated_at;
 
 -- name: GetSubtreeNodes :many
 WITH RECURSIVE subtree AS (
-  SELECT node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at, 0 AS rel_depth
+  SELECT node_id, graph_id, label, category, level, description, summary_html, created_by, created_at, 0 AS rel_depth
   FROM nodes WHERE node_id = $1
   UNION ALL
-  SELECT n.node_id, n.graph_id, n.label, n.category, n.entity_type, n.description, n.summary_html, n.created_by, n.created_at, s.rel_depth + 1
+  SELECT n.node_id, n.graph_id, n.label, n.category, n.level, n.description, n.summary_html, n.created_by, n.created_at, s.rel_depth + 1
   FROM nodes n
   JOIN edges e ON e.target_node_id = n.node_id AND e.edge_type = 'hierarchical'
   JOIN subtree s ON s.node_id = e.source_node_id
   WHERE s.rel_depth < $2
 )
-SELECT node_id, graph_id, label, category, entity_type, description, summary_html, created_by, created_at,
+SELECT node_id, graph_id, label, category, level, description, summary_html, created_by, created_at,
   EXISTS(
     SELECT 1 FROM edges e2
     WHERE e2.source_node_id = subtree.node_id AND e2.edge_type = 'hierarchical'

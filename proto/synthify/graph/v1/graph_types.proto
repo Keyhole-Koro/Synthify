@@ -8,17 +8,12 @@ option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/graph/v
 
 message Node {
   string id = 1;
-  string document_id = 2;
-  string label = 3;
-  int32 level = 4;
-  NodeEntityType entity_type = 5;
-  string description = 6;
-  string summary_html = 7;
-  string source_chunk_id = 8;
-  double confidence = 9;
-  string created_at = 10;
-  string canonical_node_id = 11;
-  GraphProjectionScope scope = 12;
+  string label = 2;
+  int32 level = 3;
+  string description = 4;
+  string summary_html = 5;
+  string created_at = 6;
+  GraphProjectionScope scope = 7;
 }
 
 message Edge {
@@ -37,15 +32,6 @@ message Graph {
   repeated Node nodes = 3;
   repeated Edge edges = 4;
   bool cross_document = 5;
-}
-
-enum NodeEntityType {
-  NODE_ENTITY_TYPE_UNSPECIFIED = 0;
-  NODE_ENTITY_TYPE_ORGANIZATION = 1;
-  NODE_ENTITY_TYPE_PERSON = 2;
-  NODE_ENTITY_TYPE_METRIC = 3;
-  NODE_ENTITY_TYPE_DATE = 4;
-  NODE_ENTITY_TYPE_LOCATION = 5;
 }
 
 enum GraphProjectionScope {

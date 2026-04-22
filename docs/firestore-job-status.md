@@ -135,7 +135,7 @@ workspaces/{workspaceId}/jobs/{jobId}
   "workspaceId": "ws_01...",
   "graphId": "gr_01...",
   "status": "running",
-  "currentStage": "pass1_extraction",
+  "currentStage": "goal_driven_synthesis",
   "errorMessage": "",
   "createdAt": "2026-04-16T12:34:56Z",
   "updatedAt": "2026-04-16T12:35:12Z"
@@ -166,8 +166,7 @@ workspaces/{workspaceId}/jobs/{jobId}
 - `text_extraction`
 - `semantic_chunking`
 - `brief_generation`
-- `pass1_extraction`
-- `pass2_synthesis`
+- `goal_driven_synthesis`
 - `persistence`
 - `html_summary_generation`
 

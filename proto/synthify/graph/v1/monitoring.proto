@@ -38,10 +38,9 @@ message GetExtractionStatsRequest {
 
 message ExtractionMetrics {
   map<string, int32> nodes_by_level = 1;    // "0" -> 3, "1" -> 12, ...
-  map<string, int32> nodes_by_category = 2; // "concept" -> 58, ...
-  int32 pass1_node_count = 3;
-  int32 pass2_node_count = 4;
-  int32 merged_node_count = 5;
+  int32 synthesized_node_count = 2;
+  int32 synthesized_edge_count = 3;
+  int32 reviewed_node_count = 4;
 }
 
 message WeeklyMetric {
