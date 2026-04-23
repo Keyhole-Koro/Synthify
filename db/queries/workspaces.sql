@@ -1,6 +1,6 @@
 -- name: GetOrCreateAccount :one
-INSERT INTO accounts (account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes, max_uploads_per_5h, max_uploads_per_1week, created_at)
-VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8)
+INSERT INTO accounts (account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes, max_uploads_per_5h, max_uploads_per_1week, created_at, updated_at)
+VALUES ($1, $2, $3, $4, 0, $5, $6, $7, $8, $8)
 ON CONFLICT (account_id) DO UPDATE SET account_id = EXCLUDED.account_id
 RETURNING account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes, max_uploads_per_5h, max_uploads_per_1week, created_at;
 
@@ -41,5 +41,5 @@ SELECT EXISTS(
 )::bool AS accessible;
 
 -- name: CreateWorkspace :exec
-INSERT INTO workspaces (workspace_id, account_id, name, created_at)
-VALUES ($1, $2, $3, $4);
+INSERT INTO workspaces (workspace_id, account_id, name, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $4);

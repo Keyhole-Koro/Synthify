@@ -52,7 +52,7 @@ Paper コンテンツは、まず読みやすさを優先して authoring する
 クリックすると対象 paper を inline 展開する操作は、`data-paper-id` 属性で表現する。
 
 ```tsx
-<a data-paper-id="graph">知識グラフ</a>
+<a data-paper-id="tree">知識構造</a>
 ```
 
 クリックハンドラーはレンダラー側が自動的に処理する。authoring 側は `data-paper-id` を書くだけでよい。
@@ -96,7 +96,7 @@ function PL({ id, children, variant }: { id: string; children?: React.ReactNode;
 
 ```tsx
 // chip — paper.title を自動表示。ラベルが paper title と同じ場合に使う
-<PL id="graph" />
+<PL id="tree" />
 
 // inline — children をラベルとして文中に埋め込む。ラベルが paper title と異なる場合
 <PL id="extraction">AIが概念・主張・根拠を抽出</PL>

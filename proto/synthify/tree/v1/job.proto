@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package synthify.tree.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1;treev1";
+
+service JobService {
+  rpc GetJobStatus(GetJobStatusRequest) returns (GetJobStatusResponse);
+  rpc GetJobExecutionPlan(GetJobExecutionPlanRequest) returns (GetJobExecutionPlanResponse);
+  rpc ListJobApprovalRequests(ListJobApprovalRequestsRequest) returns (ListJobApprovalRequestsResponse);
+  rpc RequestJobApproval(RequestJobApprovalRequest) returns (RequestJobApprovalResponse);
+  rpc ApproveJobApproval(ApproveJobApprovalRequest) returns (ApproveJobApprovalResponse);
+  rpc RejectJobApproval(RejectJobApprovalRequest) returns (RejectJobApprovalResponse);
+}
+
+message Job {
+  string job_id = 1;
+  string document_id = 2;
+  JobType type = 3;
+  JobLifecycleState status = 4;
+  string created_at = 5;
+  string started_at = 6;
+  string completed_at = 7;
+  string error_message = 8;
+}
+
+enum JobType {
+  JOB_TYPE_UNSPECIFIED = 0;
+  JOB_TYPE_PROCESS_DOCUMENT = 1;
+  JOB_TYPE_REPROCESS_DOCUMENT = 2;
+}
+
+enum JobLifecycleState {
+  JOB_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  JOB_LIFECYCLE_STATE_QUEUED = 1;
+  JOB_LIFECYCLE_STATE_RUNNING = 2;
+  JOB_LIFECYCLE_STATE_SUCCEEDED = 3;
+  JOB_LIFECYCLE_STATE_FAILED = 4;
+}
+
+enum JobOperation {
+  JOB_OPERATION_UNSPECIFIED = 0;
+  JOB_OPERATION_READ_TREE = 1;
+  JOB_OPERATION_READ_DOCUMENT = 2;
+  JOB_OPERATION_CREATE_ITEM = 3;
+  JOB_OPERATION_UPDATE_ITEM = 4;
+  JOB_OPERATION_RUN_NORMALIZATION_TOOL_DRY_RUN = 5;
+  JOB_OPERATION_RUN_NORMALIZATION_TOOL_APPLY = 6;
+  JOB_OPERATION_INVOKE_LLM = 7;
+  JOB_OPERATION_EMIT_PLAN = 8;
+  JOB_OPERATION_EMIT_EVAL = 9;
+}
+
+message GetJobStatusRequest {
+  string job_id = 1;
+}
+
+message GetJobStatusResponse {
+  Job job = 1;
+}
+
+message JobExecutionPlan {
+  string plan_id = 1;
+  string job_id = 2;
+  string status = 3;
+  string summary = 4;
+  string plan_json = 5;
+  string created_by = 6;
+  string created_at = 7;
+  string updated_at = 8;
+}
+
+message JobApprovalRequest {
+  string approval_id = 1;
+  string job_id = 2;
+  string plan_id = 3;
+  string status = 4;
+  repeated JobOperation requested_operations = 5;
+  string reason = 6;
+  string risk_tier = 7;
+  string requested_by = 8;
+  string reviewed_by = 9;
+  string requested_at = 10;
+  string reviewed_at = 11;
+}
+
+message GetJobExecutionPlanRequest {
+  string job_id = 1;
+}
+
+message GetJobExecutionPlanResponse {
+  JobExecutionPlan plan = 1;
+}
+
+message ListJobApprovalRequestsRequest {
+  string job_id = 1;
+}
+
+message ListJobApprovalRequestsResponse {
+  repeated JobApprovalRequest requests = 1;
+}
+
+message RequestJobApprovalRequest {
+  string job_id = 1;
+  string reason = 2;
+}
+
+message RequestJobApprovalResponse {
+  JobApprovalRequest request = 1;
+}
+
+message ApproveJobApprovalRequest {
+  string job_id = 1;
+  string approval_id = 2;
+}
+
+message ApproveJobApprovalResponse {
+  string status = 1;
+}
+
+message RejectJobApprovalRequest {
+  string job_id = 1;
+  string approval_id = 2;
+  string reason = 3;
+}
+
+message RejectJobApprovalResponse {
+  string status = 1;
+}

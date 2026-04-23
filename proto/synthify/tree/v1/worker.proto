@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package synthify.tree.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1;treev1";
+
+service WorkerService {
+  rpc GenerateExecutionPlan(GenerateExecutionPlanRequest) returns (GenerateExecutionPlanResponse);
+  rpc ExecuteApprovedPlan(ExecuteApprovedPlanRequest) returns (ExecuteApprovedPlanResponse);
+  rpc EvaluateJobArtifact(EvaluateJobArtifactRequest) returns (EvaluateJobArtifactResponse);
+}
+
+message GenerateExecutionPlanRequest {
+  string job_id = 1;
+  string job_type = 2;
+  string document_id = 3;
+  string workspace_id = 4;
+  string tree_id = 5;
+  string filename = 6;
+  string mime_type = 7;
+}
+
+message GenerateExecutionPlanResponse {
+  string plan_id = 1;
+  string job_id = 2;
+  string status = 3;
+  string summary = 4;
+  string plan_json = 5;
+}
+
+message ExecuteApprovedPlanRequest {
+  string job_id = 1;
+  string job_type = 2;
+  string document_id = 3;
+  string workspace_id = 4;
+  string tree_id = 5;
+  string file_uri = 6;
+  string filename = 7;
+  string mime_type = 8;
+}
+
+message ExecuteApprovedPlanResponse {
+  string status = 1;
+}
+
+message EvaluateJobArtifactRequest {
+  string job_id = 1;
+}
+
+message EvaluateJobArtifactResponse {
+  bool passed = 1;
+  string status = 2;
+  string summary = 3;
+  int32 score = 4;
+  repeated string findings = 5;
+  int32 mutation_count = 6;
+}

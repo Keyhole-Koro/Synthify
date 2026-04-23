@@ -8,5 +8,5 @@ sql:
     gen:
       go:
         package: "sqlcgen"
-        out: "internal/repository/postgres/sqlcgen"
+        out: "shared/repository/postgres/sqlcgen"
         sql_package: "database/sql"

@@ -11,7 +11,7 @@ governance と権限モデルは [docs/llm-worker-governance.md](/home/unix/Synt
 
 - API は job を作成し、worker に `ExecuteApprovedPlan` を投げる
 - worker は job に紐づく capability をロードして実行する
-- node / edge / summary の mutation は capability 経由のみで許可する
+- item / edge / summary の mutation は capability 経由のみで許可する
 - stage pipeline は実行手段であって、権限モデルの中心ではない
 
 旧 2-pass synthesis は廃止し、現在の synthesis は `goal_driven_synthesis` に一本化している。
@@ -30,7 +30,7 @@ Worker Service
   -> ExecuteApprovedPlan
   -> load job + capability
   -> run pipeline stages
-  -> persist graph mutations through capability-aware repository
+  -> persist tree mutations through capability-aware repository
   -> mark plan/job complete
 ```
 
@@ -51,7 +51,7 @@ Worker Service
 7. `persistence`
 8. `html_summary_generation`
 
-`goal_driven_synthesis` は chunk と brief を入力に、必要な node / edge 候補を直接組み立てる。  
+`goal_driven_synthesis` は chunk と brief を入力に、必要な item / edge 候補を直接組み立てる。  
 LLM が失敗した場合は heuristic fallback に落とす。
 
 ---
@@ -65,7 +65,7 @@ type PipelineContext struct {
     JobID       string
     DocumentID  string
     WorkspaceID string
-    GraphID     string
+    TreeID      string
 
     FileURI     string
     SourceFiles []SourceFile
@@ -78,10 +78,10 @@ type PipelineContext struct {
     DocumentBrief *DocumentBrief
     SectionBriefs []SectionBrief
 
-    SynthesizedNodes []SynthesizedNode
+    SynthesizedItems []SynthesizedItem
     SynthesizedEdges []SynthesizedEdge
 
-    NodeIDMap  map[string]string
+    ItemIDMap  map[string]string
     Capability *domain.JobCapability
 }
 ```
@@ -94,14 +94,14 @@ worker は `Capability` が無い状態では mutation stage に進まない。
 
 repository 境界で以下を強制する。
 
-- `CreateStructuredNodeWithCapability`
+- `CreateStructuredItemWithCapability`
 - `CreateEdgeWithCapability`
-- `UpdateNodeSummaryHTMLWithCapability`
+- `UpdateItemSummaryHTMLWithCapability`
 
 チェック対象:
 
 - job capability の存在
-- graph / document / node のスコープ一致
+- tree / document / item のスコープ一致
 - allowed operation
 - mutation budget
 - mutation log 記録
@@ -112,7 +112,7 @@ repository 境界で以下を強制する。
 
 ## 6. Firestore Progress
 
-Firestore は通知専用 projection であり、graph の正本ではない。
+Firestore は通知専用 projection であり、tree の正本ではない。
 
 - `queued`
 - `running`
@@ -128,14 +128,14 @@ Firestore は通知専用 projection であり、graph の正本ではない。
 
 主要な参照先:
 
-- [worker.proto](/home/unix/Synthify/proto/synthify/graph/v1/worker.proto)
-- [worker.pb.go](/home/unix/Synthify/shared/gen/synthify/graph/v1/worker.pb.go)
+- [worker.proto](/home/unix/Synthify/proto/synthify/tree/v1/worker.proto)
+- [worker.pb.go](/home/unix/Synthify/shared/gen/synthify/tree/v1/worker.pb.go)
 - [processor.go](/home/unix/Synthify/worker/pkg/worker/processor.go)
 - [goal_driven_synthesis.go](/home/unix/Synthify/worker/pkg/worker/stages/goal_driven_synthesis.go)
 - [persistence.go](/home/unix/Synthify/worker/pkg/worker/stages/persistence.go)
 - [html_summary_generation.go](/home/unix/Synthify/worker/pkg/worker/stages/html_summary_generation.go)
 - [document.go](/home/unix/Synthify/shared/repository/postgres/document.go)
-- [node.go](/home/unix/Synthify/shared/repository/postgres/node.go)
+- [item.go](/home/unix/Synthify/shared/repository/postgres/item.go)
 
 ---
 
@@ -145,5 +145,5 @@ Firestore は通知専用 projection であり、graph の正本ではない。
 
 - `GenerateExecutionPlan` と `EvaluateJobArtifact` の transport 実装
 - capability / plan / approval の API read model 整備
-- monitoring 指標の evaluator 中心化
+- monitoring 指標 host evaluator 中心化
 - proto / generated code の正式再生成

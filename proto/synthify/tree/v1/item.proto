@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package synthify.tree.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1;treev1";
+
+import "synthify/tree/v1/common.proto";
+import "synthify/tree/v1/tree_types.proto";
+
+service ItemService {
+  rpc GetTreeEntityDetail(GetTreeEntityDetailRequest) returns (GetTreeEntityDetailResponse);
+  // ユーザーがアイテムを開いた記録を保存する（viewer 以上）
+  rpc RecordItemView(RecordItemViewRequest) returns (RecordItemViewResponse);
+  // ユーザーが手動でアイテムを追加する（editor / owner のみ）
+  rpc CreateItem(CreateItemRequest) returns (CreateItemResponse);
+  // ユーザーごとの閲覧・追加アイテム一覧を取得する（workspace メンバー全員が参照可能）
+  rpc GetUserItemActivity(GetUserItemActivityRequest) returns (GetUserItemActivityResponse);
+  // is_dev=true のメンバーのみ。suggested エイリアス候補を承認する
+  rpc ApproveAlias(ApproveAliasRequest) returns (ApproveAliasResponse);
+  // is_dev=true のメンバーのみ。suggested エイリアス候補を却下する
+  rpc RejectAlias(RejectAliasRequest) returns (RejectAliasResponse);
+}
+
+message EntityRef {
+  string workspace_id = 1;
+  TreeProjectionScope scope = 2;
+  string id = 3;
+  string document_id = 4;
+}
+
+message TreeEntityEvidence {
+  repeated DocumentChunk source_chunks = 1;
+  repeated string source_document_ids = 2;
+}
+
+message TreeEntityDetail {
+  EntityRef ref = 1;
+  Item item = 2;
+  TreeEntityEvidence evidence = 3;
+  repeated Item representative_items = 4;
+}
+
+message GetTreeEntityDetailRequest {
+  EntityRef target_ref = 1;
+  bool resolve_aliases = 2;
+}
+
+message GetTreeEntityDetailResponse {
+  TreeEntityDetail detail = 1;
+}
+
+message RecordItemViewRequest {
+  string workspace_id = 1;
+  string item_id = 2;
+  string document_id = 3;
+}
+
+message RecordItemViewResponse {}
+
+message CreateItemRequest {
+  string workspace_id = 1;
+  string document_id = 2;   // 関連づける document（必須）
+  string label = 3;
+  int32 level = 4;          // 0〜3
+  string description = 5;
+  string parent_id = 6; // hierarchical 親アイテム（省略可）
+}
+
+message CreateItemResponse {
+  Item item = 1;
+}
+
+message ViewedItemEntry {
+  string item_id = 1;
+  string document_id = 2;
+  string label = 3;
+  string last_viewed_at = 4;
+  int64 view_count = 5;
+}
+
+message CreatedItemEntry {
+  string item_id = 1;
+  string document_id = 2;
+  string label = 3;
+  string created_at = 4;
+}
+
+message UserItemActivity {
+  string user_id = 1;
+  string display_name = 2;
+  repeated ViewedItemEntry viewed_items = 3;
+  repeated CreatedItemEntry created_items = 4;
+}
+
+message GetUserItemActivityRequest {
+  string workspace_id = 1;
+  string user_id = 2;       // 省略時は自分自身
+  string document_id = 3;   // 省略時は workspace 全体
+  int32 limit = 4;          // viewed_items / created_items それぞれの上限（デフォルト 50）
+}
+
+message GetUserItemActivityResponse {
+  UserItemActivity activity = 1;
+}
+
+message ApproveAliasRequest {
+  string workspace_id = 1;
+  string canonical_item_id = 2;
+  string alias_item_id = 3;
+}
+
+message ApproveAliasResponse {
+  string canonical_item_id = 1;
+  string alias_item_id = 2;
+  string merge_status = 3; // "approved"
+}
+
+message RejectAliasRequest {
+  string workspace_id = 1;
+  string canonical_item_id = 2;
+  string alias_item_id = 3;
+}
+
+message RejectAliasResponse {
+  string canonical_item_id = 1;
+  string alias_item_id = 2;
+  string merge_status = 3; // "rejected"
+}

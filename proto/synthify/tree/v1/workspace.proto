@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package synthify.tree.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1;treev1";
+
+service WorkspaceService {
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  rpc InviteMember(InviteMemberRequest) returns (InviteMemberResponse);
+  rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
+  rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
+  rpc TransferOwnership(TransferOwnershipRequest) returns (TransferOwnershipResponse);
+}
+
+message Workspace {
+  string workspace_id = 1;
+  string name = 2;
+  string owner_id = 3;
+  WorkspacePlan plan = 4;
+  int64 storage_used_bytes = 5;
+  int64 storage_quota_bytes = 6;  // plans テーブルから取得して返す
+  int64 max_file_size_bytes = 7;
+  int64 max_uploads_per_day = 8;
+  string created_at = 9;
+}
+
+enum WorkspacePlan {
+  WORKSPACE_PLAN_UNSPECIFIED = 0;
+  WORKSPACE_PLAN_FREE = 1;
+  WORKSPACE_PLAN_PRO = 2;
+}
+
+message WorkspaceMember {
+  string user_id = 1;
+  string email = 2;
+  WorkspaceRole role = 3;
+  bool is_dev = 4;      // /dev/stats アクセス権（role と独立）
+  string invited_at = 5;
+  string invited_by = 6;
+}
+
+enum WorkspaceRole {
+  WORKSPACE_ROLE_UNSPECIFIED = 0;
+  WORKSPACE_ROLE_EDITOR = 1;
+  WORKSPACE_ROLE_VIEWER = 2;
+  WORKSPACE_ROLE_OWNER = 3; // workspace 管理者。editor 権限を含む
+}
+
+message CreateWorkspaceRequest {
+  string name = 1;
+}
+
+message CreateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message GetWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+message GetWorkspaceResponse {
+  Workspace workspace = 1;
+  repeated WorkspaceMember members = 2;
+}
+
+message ListWorkspacesRequest {}
+
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+}
+
+message InviteMemberRequest {
+  string workspace_id = 1;
+  string email = 2;
+  WorkspaceRole role = 3;
+  bool is_dev = 4;
+}
+
+message InviteMemberResponse {
+  WorkspaceMember member = 1;
+}
+
+message UpdateMemberRoleRequest {
+  string workspace_id = 1;
+  string user_id = 2;
+  WorkspaceRole role = 3;
+  bool is_dev = 4;
+}
+
+message UpdateMemberRoleResponse {
+  WorkspaceMember member = 1;
+}
+
+message RemoveMemberRequest {
+  string workspace_id = 1;
+  string user_id = 2;
+}
+
+message RemoveMemberResponse {}
+
+message TransferOwnershipRequest {
+  string workspace_id = 1;
+  string new_owner_user_id = 2;
+}
+
+message TransferOwnershipResponse {
+  Workspace workspace = 1;
+  repeated WorkspaceMember members = 2;
+}

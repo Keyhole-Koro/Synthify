@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package synthify.tree.v1;
+
+option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1;treev1";
+
+// Core tree data types shared across tree, item, and related services.
+
+message Item {
+  string id = 1;
+  string label = 2;
+  int32 level = 3;
+  string description = 4;
+  string summary_html = 5;
+  string created_at = 6;
+  TreeProjectionScope scope = 7;
+  string parent_id = 8;
+  repeated string child_ids = 9;
+  ItemGovernanceState governance_state = 10;
+}
+
+message Tree {
+  string workspace_id = 1;
+  string document_id = 2;
+  repeated Item items = 3;
+  bool cross_document = 5;
+}
+
+enum TreeProjectionScope {
+  TREE_PROJECTION_SCOPE_UNSPECIFIED = 0;
+  TREE_PROJECTION_SCOPE_DOCUMENT = 1;
+  TREE_PROJECTION_SCOPE_CANONICAL = 2;
+}
+
+enum ItemGovernanceState {
+  ITEM_GOVERNANCE_STATE_UNSPECIFIED = 0;
+  ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED = 1;
+  ITEM_GOVERNANCE_STATE_PENDING_REVIEW = 2;
+  ITEM_GOVERNANCE_STATE_HUMAN_CURATED = 3;
+  ITEM_GOVERNANCE_STATE_LOCKED = 4;
+}

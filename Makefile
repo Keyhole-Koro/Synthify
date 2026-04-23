@@ -1,13 +1,13 @@
 .PHONY: proto-lint proto-build proto-generate proto-format
 
 proto-lint:
-	./scripts/proto.sh lint
+	buf lint
 
 proto-build:
-	./scripts/proto.sh build
+	buf build
 
 proto-generate:
-	./scripts/proto.sh generate
+	buf generate
 
 proto-format:
-	./scripts/proto.sh format
+	buf format -w
