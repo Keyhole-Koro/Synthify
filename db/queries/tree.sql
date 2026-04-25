@@ -5,13 +5,15 @@ WHERE workspace_id = $1 AND parent_id IS NULL
 LIMIT 1;
 
 -- name: ListItemsByWorkspace :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+       COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC;
 
 -- name: GetItem :one
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+       COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE id = $1;
 
@@ -82,7 +84,8 @@ INSERT INTO job_mutation_logs (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
 -- name: ListChildItems :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by, created_at,
+SELECT id, workspace_id, parent_id, label, level, description, summary_html, created_by,
+  COALESCE(governance_state, 'system_generated') AS governance_state, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
 WHERE tree_items.parent_id = $1;

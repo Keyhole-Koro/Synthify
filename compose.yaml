@@ -41,7 +41,7 @@ services:
       - backend
 
   backend:
-    image: golang:1.24-bookworm
+    image: golang:1.25-bookworm
     working_dir: /workspace
     command: >
       bash -c '
@@ -87,7 +87,7 @@ services:
       - worker
 
   worker:
-    image: golang:1.24-bookworm
+    image: golang:1.25-bookworm
     working_dir: /workspace
     command: >
       bash -c '

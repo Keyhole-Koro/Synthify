@@ -78,7 +78,7 @@ WHERE job_id = $1;
 
 -- name: CompleteProcessingJob :execrows
 UPDATE document_processing_jobs
-SET status = 'completed',
+SET status = 'succeeded',
     current_stage = '',
     plan_status = 'completed',
     evaluation_status = 'passed',
@@ -96,6 +96,12 @@ WHERE job_id = $1;
 -- name: UpdateProcessingJobStage :exec
 UPDATE document_processing_jobs
 SET current_stage = $2, updated_at = $3
+WHERE job_id = $1;
+
+-- name: UpdateProcessingJobEvaluationState :exec
+UPDATE document_processing_jobs
+SET evaluation_status = $2,
+    updated_at = $3
 WHERE job_id = $1;
 
 -- name: ListDocumentChunks :many

@@ -185,8 +185,8 @@ LLM にコンテンツを生成させる場合、以下だけ伝えれば十分:
 
 - コンテンツは JSX で書く
 - paper 間リンクは `PL` コンポーネントで表現する（クリックで展開）
-  - `<PL id="graph" />` — paper title を自動表示（chip）
-  - `<PL id="graph">文脈に合ったラベル</PL>` — カスタムラベル（inline）
+  - `<PL id="tree" />` — paper title を自動表示（chip）
+  - `<PL id="tree">文脈に合ったラベル</PL>` — カスタムラベル（inline）
   - `<PL id="auth" variant="card" />` — ブロックカード
 - スタイルは `var(--text)`, `var(--accent)`, `var(--muted)` 等の CSS 変数を使う
 - それ以外は普通の HTML/JSX
