@@ -2,7 +2,7 @@ name: synthify-dev
 
 services:
   frontend:
-    image: node:22-bookworm
+    image: oven/bun:1
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     working_dir: /workspace/web
     command: >
@@ -13,11 +13,10 @@ services:
           sleep infinity;
         fi;
         if [ ! -x node_modules/.bin/next ]; then
-          echo "web/node_modules is missing. Install dependencies on the host first.";
-          sleep infinity;
+          bun install --frozen-lockfile;
         fi;
         rm -rf .next;
-        npm run dev
+        bun run dev
       '
     environment:
       NODE_ENV: development
@@ -158,14 +157,13 @@ services:
       - gcs-data:/data
 
   firebase-auth:
-    image: node:22-bookworm
+    image: oven/bun:1
     working_dir: /workspace
     command: >
       bash -c '
         apt-get update &&
-        apt-get install -y openjdk-17-jre-headless &&
-        npm install -g firebase-tools@13 &&
-        firebase emulators:start --only auth,firestore --project demo-synthify
+        DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jre-headless &&
+        bunx firebase-tools@13 emulators:start --only auth,firestore --project demo-synthify
       '
     environment:
       FIRESTORE_EMULATOR_HOST: 0.0.0.0:8282
