@@ -11,6 +11,35 @@ service JobService {
   rpc RequestJobApproval(RequestJobApprovalRequest) returns (RequestJobApprovalResponse);
   rpc ApproveJobApproval(ApproveJobApprovalRequest) returns (ApproveJobApprovalResponse);
   rpc RejectJobApproval(RejectJobApprovalRequest) returns (RejectJobApprovalResponse);
+  rpc ListJobMutationLogs(ListJobMutationLogsRequest) returns (ListJobMutationLogsResponse);
+  rpc ListAllJobs(ListAllJobsRequest) returns (ListAllJobsResponse);
+}
+
+message ListAllJobsRequest {}
+
+message ListAllJobsResponse {
+  repeated Job jobs = 1;
+}
+
+message ListJobMutationLogsRequest {
+  string job_id = 1;
+}
+
+message JobMutationLog {
+  string mutation_id = 1;
+  string job_id = 2;
+  string target_type = 3;
+  string target_id = 4;
+  string mutation_type = 5;
+  string risk_tier = 6;
+  string before_json = 7;
+  string after_json = 8;
+  string provenance_json = 9;
+  string created_at = 10;
+}
+
+message ListJobMutationLogsResponse {
+  repeated JobMutationLog logs = 1;
 }
 
 message Job {

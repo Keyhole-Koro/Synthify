@@ -104,6 +104,28 @@ SET evaluation_status = $2,
     updated_at = $3
 WHERE job_id = $1;
 
+-- name: CreateJobMutationLog :exec
+INSERT INTO job_mutation_logs (
+  mutation_id, job_id, workspace_id, target_type, target_id, mutation_type, 
+  risk_tier, before_json, after_json, provenance_json, created_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+
+-- name: ListJobMutationLogs :many
+SELECT mutation_id, job_id, plan_id, capability_id, workspace_id, target_type, target_id, mutation_type, 
+       risk_tier, before_json, after_json, provenance_json, created_at
+FROM job_mutation_logs
+WHERE job_id = $1
+ORDER BY created_at ASC;
+
+-- name: ListAllJobs :many
+SELECT job_id, document_id, workspace_id, job_type, status, current_stage, error_message, params_json,
+       requested_by, capability_id, execution_plan_id, plan_status, evaluation_status, retry_count, budget_json,
+       created_at, updated_at
+FROM document_processing_jobs
+ORDER BY created_at DESC
+LIMIT 100;
+
 -- name: ListDocumentChunks :many
 SELECT chunk_id, document_id, heading, text, source_page
 FROM document_chunks
