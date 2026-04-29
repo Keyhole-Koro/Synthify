@@ -129,7 +129,7 @@ services:
       - firebase-auth
 
   postgres:
-    image: postgres:16-bookworm
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: synthify
       POSTGRES_USER: synthify

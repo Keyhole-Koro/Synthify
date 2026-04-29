@@ -132,13 +132,33 @@ FROM document_chunks
 WHERE document_id = $1
 ORDER BY chunk_id;
 
+-- name: SearchWorkspaceDocumentChunksByVector :many
+SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
+       1 - (c.embedding <=> sqlc.arg(query_embedding)::vector) AS similarity
+FROM document_chunks c
+INNER JOIN documents d ON d.document_id = c.document_id
+WHERE d.workspace_id = sqlc.arg(workspace_id)
+  AND c.embedding IS NOT NULL
+  AND 1 - (c.embedding <=> sqlc.arg(query_embedding)::vector) >= sqlc.arg(min_similarity)::float8
+ORDER BY c.embedding <=> sqlc.arg(query_embedding)::vector
+LIMIT sqlc.arg(result_limit);
+
+-- name: SearchWorkspaceDocumentChunksByText :many
+SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page
+FROM document_chunks c
+INNER JOIN documents d ON d.document_id = c.document_id
+WHERE d.workspace_id = $1
+  AND (sqlc.arg(pattern)::text = '%' OR LOWER(c.heading || ' ' || c.text) LIKE sqlc.arg(pattern)::text)
+ORDER BY c.chunk_id
+LIMIT sqlc.arg(result_limit);
+
 -- name: DeleteDocumentChunks :exec
 DELETE FROM document_chunks
 WHERE document_id = $1;
 
 -- name: CreateDocumentChunk :exec
-INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page, embedding)
+VALUES ($1, $2, $3, $4, $5, sqlc.narg(embedding)::vector);
 
 -- name: GetJobCapability :one
 SELECT capability_id, job_id, workspace_id, allowed_document_ids_json, allowed_item_ids_json,
