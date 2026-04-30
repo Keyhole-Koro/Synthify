@@ -24,7 +24,7 @@
 - 出力は CREATE_ITEM のみ。既存 item への変更はしない
 
 **open question**:
-- 既存 items を全件渡すか、関連するものだけ渡すか（トークン上限の問題）
+- 既存 items を全件渡すか、関連するものだけ渡すか（トークン上限の問題） 
 - 関連 items の検索は chunk の embedding で引くか、item の description で引くか
 
 ---
