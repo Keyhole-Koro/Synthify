@@ -17,6 +17,7 @@ message Item {
   string parent_id = 8;
   repeated string child_ids = 9;
   ItemGovernanceState governance_state = 10;
+  string override_css = 11;
 }
 
 message Tree {

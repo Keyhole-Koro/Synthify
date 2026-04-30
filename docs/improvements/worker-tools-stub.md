@@ -1,20 +1,12 @@
-# Worker ツール群が簡易実装のまま
+# Worker ツール群の LLM 実装（完了）
 
 ## 場所
-- `worker/pkg/worker/tools/synthesis.go` — `NewSynthesisTool()`
-- `worker/pkg/worker/tools/merging.go` — `NewMergeTool()`
-- `worker/pkg/worker/tools/briefing.go` — `NewBriefTool()`
-- `worker/pkg/worker/tools/critique.go` — `NewCritiqueTool()`
+- `worker/pkg/worker/tools/process/synthesis.go`
+- `worker/pkg/worker/tools/process/merging.go`
+- `worker/pkg/worker/tools/process/briefing.go`
+- `worker/pkg/worker/tools/process/critique.go`
 
-## 問題
+## 対応済み
 
-**synthesis**: `DocumentBrief` と `Glossary` を受け取っているが使っていない。チャンク → アイテム変換が機械的で LLM を使っていない。
-
-**merging**: 常に最初のアイテム ID を返すだけ。実際のマージ判定ロジックがない。
-
-**briefing**: テキストを単純に結合するだけ。ドキュメントの要約・分析を行っていない。
-
-**critique**: `"stub"` 文字列を含むかどうかの静的チェックのみ。LLM による品質評価が未実装。
-
-## 修正方針
-いずれも LLM（`functiontool` 経由の structured output）を使って実装する。`synthesizeItems` の LLM 化（[synthesize-items-deterministic-stub.md](synthesize-items-deterministic-stub.md)）と合わせて対応する。
+全ツールを `llm.GenerateStructuredSimple` を使った LLM 実装に切り替えた。
+詳細設計・プロンプト・フォールバック方針は [process-tools-llm-implementation.md](process-tools-llm-implementation.md) を参照。

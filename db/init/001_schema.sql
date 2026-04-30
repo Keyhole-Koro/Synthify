@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS tree_items (
   level INTEGER NOT NULL DEFAULT 0,
   description TEXT NOT NULL DEFAULT '',
   summary_html TEXT NOT NULL DEFAULT '',
+  override_css TEXT NOT NULL DEFAULT '',
   created_by TEXT NOT NULL DEFAULT '',
   governance_state TEXT NOT NULL DEFAULT 'system_generated',
   last_mutation_job_id TEXT NOT NULL DEFAULT '',

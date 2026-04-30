@@ -12,9 +12,7 @@
 
 ## P2 — スタブ・簡易実装
 
-- [synthesize-items-deterministic-stub.md](synthesize-items-deterministic-stub.md) — synthesizeItems がdeterministic stubでLLMを使っていない
-- [worker-tools-stub.md](worker-tools-stub.md) — synthesis/merging/briefing/critique ツールが簡易実装のまま
-- [orchestrator-placeholder.md](orchestrator-placeholder.md) — Orchestrator.ProcessDocument がプレースホルダー文字列を返すだけ
+- [worker-tools-stub.md](worker-tools-stub.md) — synthesis/merging/briefing/critique ツールが簡易実装のまま（詳細設計: [process-tools-llm-implementation.md](process-tools-llm-implementation.md)）
 - [resume-processing-stub.md](resume-processing-stub.md) — ResumeProcessing がダミー job_id を返すだけで実際の再開ロジックがない
 
 ## P3 — 仕様ドラフト（実装前に設計が必要）
@@ -24,3 +22,8 @@
 ## Future Improvements（別ファイル）
 
 - [../../docs/llm-worker-tools.md](../llm-worker-tools.md) — semantic_search の two-stage re-rank、PDF/画像対応
+
+## アーキテクチャドキュメント
+
+- [../llm-worker-architecture.md](../llm-worker-architecture.md) — LLM Worker の設計思想・ツール層構造・責任分界
+- [../llm-worker-simulation.md](../llm-worker-simulation.md) — API設計書を例にしたターンごとの処理シミュレーション
