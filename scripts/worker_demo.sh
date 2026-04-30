@@ -13,7 +13,6 @@ set -uo pipefail
 
 DOC_ID="${1:-doc_llm_1}"
 WORKER_URL="${WORKER_URL:-http://localhost:8081}"
-WORKER_TOKEN="${INTERNAL_WORKER_TOKEN:-dev-worker-token}"
 PG_URL="${DATABASE_URL:-postgres://synthify:synthify@localhost:5432/synthify?sslmode=disable}"
 # ホスト側（疎通確認用）とコンテナ内部（workerが実際に使う）でホスト名が異なる
 GCS_UPLOAD_URL_BASE="${GCS_UPLOAD_URL_BASE:-http://localhost:4443/storage/v1/b/synthify-uploads/o}"
@@ -97,7 +96,6 @@ echo "── GenerateExecutionPlan ───────────────
 PLAN_HTTP_FILE=$(mktemp)
 PLAN_BODY=$(curl -s -o "${PLAN_HTTP_FILE}" -w "%{http_code}" \
   -H "Content-Type: application/json" \
-  -H "X-Worker-Token: ${WORKER_TOKEN}" \
   "${WORKER_URL}/synthify.tree.v1.WorkerService/GenerateExecutionPlan" \
   -d "{
     \"job_id\":       \"${JOB_ID}\",
@@ -123,7 +121,6 @@ echo "  (embedding 生成を含むため数十秒かかります)"
 EXEC_HTTP_FILE=$(mktemp)
 EXEC_STATUS=$(curl -s -o "${EXEC_HTTP_FILE}" -w "%{http_code}" \
   -H "Content-Type: application/json" \
-  -H "X-Worker-Token: ${WORKER_TOKEN}" \
   "${WORKER_URL}/synthify.tree.v1.WorkerService/ExecuteApprovedPlan" \
   -d "{
     \"job_id\":       \"${JOB_ID}\",

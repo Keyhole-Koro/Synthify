@@ -22,7 +22,6 @@ module "worker" {
   service_account_email = module.platform.worker_service_account_email
   uploads_bucket_name   = module.platform.uploads_bucket_name
   database_url_secret   = var.database_url_secret
-  worker_token_secret   = var.worker_token_secret
   gemini_api_key_secret = var.gemini_api_key_secret
   firebase_project_id   = var.firebase_project_id
   gemini_model          = var.gemini_model
@@ -39,9 +38,16 @@ module "api" {
   worker_base_url       = module.worker.uri
   uploads_bucket_name   = module.platform.uploads_bucket_name
   database_url_secret   = var.database_url_secret
-  worker_token_secret   = var.worker_token_secret
   gemini_api_key_secret = var.gemini_api_key_secret
   firebase_project_id   = var.firebase_project_id
   cors_allowed_origins  = var.cors_allowed_origins
   gemini_model          = var.gemini_model
+}
+
+resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {
+  project  = var.project_id
+  location = var.region
+  name     = module.worker.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${module.platform.api_service_account_email}"
 }

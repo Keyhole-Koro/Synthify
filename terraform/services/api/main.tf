@@ -26,10 +26,6 @@ module "service" {
       secret = var.database_url_secret
     },
     {
-      name   = "INTERNAL_WORKER_TOKEN"
-      secret = var.worker_token_secret
-    },
-    {
       name   = "GEMINI_API_KEY"
       secret = var.gemini_api_key_secret
     }

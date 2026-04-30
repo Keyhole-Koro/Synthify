@@ -30,10 +30,6 @@ variable "database_url_secret" {
   type = string
 }
 
-variable "worker_token_secret" {
-  type = string
-}
-
 variable "gemini_api_key_secret" {
   type = string
 }

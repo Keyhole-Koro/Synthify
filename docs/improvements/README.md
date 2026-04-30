@@ -6,6 +6,7 @@
 
 - [capability-limits-not-enforced.md](capability-limits-not-enforced.md) — JobCapability のLLM呼び出し上限が実際には強制されていない
 - [synthesize-items-deterministic-stub.md](synthesize-items-deterministic-stub.md) — synthesizeItems がdeterministic stubでLLMを使っていない
+- [generate-execution-plan-hardcoded.md](generate-execution-plan-hardcoded.md) — GenerateExecutionPlan がハードコードされたステップ列を返すだけで signals を使っていない
 - [mock-workspace-access-always-true.md](mock-workspace-access-always-true.md) — mock の IsWorkspaceAccessible が常に true でアクセス制御テストが壊れている
 
 ## P2 — 仕様ドラフト（実装前に設計が必要）
