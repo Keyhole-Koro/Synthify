@@ -14,10 +14,12 @@
 
 - [worker-tools-stub.md](worker-tools-stub.md) — synthesis/merging/briefing/critique ツールが簡易実装のまま（詳細設計: [process-tools-llm-implementation.md](process-tools-llm-implementation.md)）
 - [resume-processing-stub.md](resume-processing-stub.md) — ResumeProcessing がダミー job_id を返すだけで実際の再開ロジックがない
+- [json-snapshot-checkpoints.md](json-snapshot-checkpoints.md) — LLM worker の stage 単位復帰に使う JSON snapshot / checkpoint 設計
 
 ## P3 — 仕様ドラフト（実装前に設計が必要）
 
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
+- [router-job-splitting.md](router-job-splitting.md) — 巨大ドキュメントをジョブ分割して Router プロキシで処理する設計（未決定事項あり）
 
 ## Future Improvements（別ファイル）
 
