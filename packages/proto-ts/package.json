@@ -2,5 +2,11 @@
   "name": "@synthify/proto-ts",
   "version": "0.1.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    "./gen/*": "./gen/*"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.12.0"
+  }
 }

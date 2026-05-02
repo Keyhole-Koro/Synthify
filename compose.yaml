@@ -8,13 +8,15 @@ services:
     command: >
       bash -c '
         set -e;
-        if [ ! -f package.json ]; then
+        if [ ! -f /workspace/apps/web/package.json ]; then
           echo "apps/web/package.json not found. Waiting for web implementation...";
           sleep infinity;
         fi;
-        if [ ! -x node_modules/.bin/next ]; then
+        if [ ! -x /workspace/node_modules/.bin/next ]; then
+          cd /workspace;
           bun install --frozen-lockfile;
         fi;
+        cd /workspace/apps/web;
         rm -rf .next;
         bun run dev
       '
@@ -30,8 +32,10 @@ services:
       NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: ${NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL:-http://127.0.0.1:${FIREBASE_AUTH_PORT:-9099}}
       NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: ${NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST:-127.0.0.1}
       NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: ${NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT:-${FIREBASE_FIRESTORE_PORT:-8282}}
-      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:8080}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://host.docker.internal:${BACKEND_PORT:-8080}}
       WATCHPACK_POLLING: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
@@ -41,6 +45,7 @@ services:
 
   backend:
     image: golang:1.25-bookworm
+    network_mode: host
     working_dir: /workspace
     command: >
       bash -c '
@@ -48,7 +53,8 @@ services:
           echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
         fi;
-        go run ./apps/api/cmd/server
+        go build -buildvcs=false -o /tmp/synthify-api ./apps/api/cmd/server &&
+        exec /tmp/synthify-api
       '
     environment:
       SERVICE_MODE: api
@@ -58,21 +64,19 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
       GCP_PROJECT_ID: synthify-local
       GCS_BUCKET: synthify-uploads
-      GCS_EMULATOR_HOST: http://gcs:4443
-      STORAGE_EMULATOR_HOST: http://gcs:4443
+      GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
+      STORAGE_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
       GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/storage/v1/b/synthify-uploads/o}
-      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://gcs:4443/storage/v1/b/synthify-uploads/o}
+      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}/storage/v1/b/synthify-uploads/o}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
-      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
-      FIRESTORE_EMULATOR_HOST: firebase-auth:8282
-      DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
-      WORKER_BASE_URL: ${WORKER_BASE_URL:-http://worker:8081}
+      FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:${FIREBASE_AUTH_PORT:-9099}
+      FIRESTORE_EMULATOR_HOST: 127.0.0.1:${FIREBASE_FIRESTORE_PORT:-8282}
+      DATABASE_URL: postgres://synthify:synthify@127.0.0.1:${POSTGRES_PORT:-5432}/synthify?sslmode=disable
+      WORKER_BASE_URL: ${WORKER_BASE_URL:-http://127.0.0.1:${WORKER_PORT:-8081}}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
-    ports:
-      - "${BACKEND_PORT:-8080}:8080"
     volumes:
       - .:/workspace
       - go-pkg-cache:/go/pkg/mod
@@ -90,6 +94,7 @@ services:
 
   worker:
     image: golang:1.25-bookworm
+    network_mode: host
     working_dir: /workspace
     command: >
       bash -c '
@@ -97,7 +102,8 @@ services:
           echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
         fi;
-        go run ./apps/worker/cmd/server
+        go build -buildvcs=false -o /tmp/synthify-worker ./apps/worker/cmd/server &&
+        exec /tmp/synthify-worker
       '
     environment:
       SERVICE_MODE: worker
@@ -106,20 +112,18 @@ services:
       PORT: "8081"
       GCP_PROJECT_ID: synthify-local
       GCS_BUCKET: synthify-uploads
-      GCS_EMULATOR_HOST: http://gcs:4443
-      STORAGE_EMULATOR_HOST: http://gcs:4443
+      GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
+      STORAGE_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
       GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/storage/v1/b/synthify-uploads/o}
-      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://gcs:4443/storage/v1/b/synthify-uploads/o}
+      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}/storage/v1/b/synthify-uploads/o}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
-      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
-      FIRESTORE_EMULATOR_HOST: firebase-auth:8282
-      DATABASE_URL: postgres://synthify:synthify@postgres:5432/synthify?sslmode=disable
+      FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:${FIREBASE_AUTH_PORT:-9099}
+      FIRESTORE_EMULATOR_HOST: 127.0.0.1:${FIREBASE_FIRESTORE_PORT:-8282}
+      DATABASE_URL: postgres://synthify:synthify@127.0.0.1:${POSTGRES_PORT:-5432}/synthify?sslmode=disable
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
-    ports:
-      - "${WORKER_PORT:-8081}:8081"
     volumes:
       - .:/workspace
       - go-pkg-cache:/go/pkg/mod
@@ -140,16 +144,21 @@ services:
     command: >
       bash -c '
         set -e;
-        if [ ! -x node_modules/.bin/next ]; then
+        if [ ! -x /workspace/node_modules/.bin/next ]; then
+          cd /workspace;
           bun install --frozen-lockfile;
         fi;
+        cd /workspace/apps/log-viewer/ui;
         bun run dev
       '
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://host.docker.internal:${BACKEND_PORT:-8080}}
     ports:
       - "127.0.0.1:${LOG_VIEWER_PORT:-5174}:5174"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - .:/workspace
     depends_on:
@@ -189,14 +198,10 @@ services:
       - gcs-data:/data
 
   firebase-auth:
-    image: oven/bun:1
+    build:
+      context: ./docker/firebase-emulator
     working_dir: /workspace
-    command: >
-      bash -c '
-        apt-get update &&
-        DEBIAN_FRONTEND=noninteractive apt-get install -y openjdk-21-jre-headless &&
-        bunx firebase-tools@13 emulators:start --only auth,firestore --project demo-synthify
-      '
+    command: firebase emulators:start --only auth,firestore --project demo-synthify
     environment:
       FIRESTORE_EMULATOR_HOST: 0.0.0.0:8282
     ports:
