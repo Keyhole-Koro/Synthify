@@ -1,0 +1,10 @@
+{
+  "name": "synthify-workspace",
+  "private": true,
+  "packageManager": "bun@1.3.13",
+  "workspaces": [
+    "apps/web",
+    "apps/log-viewer/ui",
+    "packages/proto-ts"
+  ]
+}

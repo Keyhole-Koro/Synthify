@@ -12,7 +12,86 @@ service JobService {
   rpc ApproveJobApproval(ApproveJobApprovalRequest) returns (ApproveJobApprovalResponse);
   rpc RejectJobApproval(RejectJobApprovalRequest) returns (RejectJobApprovalResponse);
   rpc ListJobMutationLogs(ListJobMutationLogsRequest) returns (ListJobMutationLogsResponse);
+  rpc ListJobLogs(ListJobLogsRequest) returns (ListJobLogsResponse);
+  rpc SearchJobLogs(SearchJobLogsRequest) returns (SearchJobLogsResponse);
+  rpc ListRelatedJobLogs(ListRelatedJobLogsRequest) returns (ListRelatedJobLogsResponse);
   rpc ListAllJobs(ListAllJobsRequest) returns (ListAllJobsResponse);
+}
+
+message ListJobLogsRequest {
+  string job_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListJobLogsResponse {
+  repeated JobLog logs = 1;
+  string next_page_token = 2;
+}
+
+message JobLog {
+  string timestamp   = 1;
+  string level       = 2;
+  string event       = 3;
+  string message     = 4;
+  string detail_json = 5;
+  string source      = 6; // system / tool
+  string source_id   = 7;
+  string job_id      = 8;
+  string document_id = 9;
+  string workspace_id = 10;
+}
+
+message SearchJobLogsRequest {
+  string query = 1;
+  string workspace_id = 2;
+  string document_id = 3;
+  string job_id = 4;
+  repeated string levels = 5;
+  repeated string events = 6;
+  string from_timestamp = 7;
+  string to_timestamp = 8;
+  int32 page_size = 9;
+  string page_token = 10;
+}
+
+message SearchJobLogsResponse {
+  repeated JobLog logs = 1;
+  string next_page_token = 2;
+}
+
+enum RelatedLogScope {
+  RELATED_LOG_SCOPE_UNSPECIFIED = 0;
+  RELATED_LOG_SCOPE_JOB = 1;
+  RELATED_LOG_SCOPE_DOCUMENT = 2;
+  RELATED_LOG_SCOPE_WORKSPACE = 3;
+}
+
+message ListRelatedJobLogsRequest {
+  string job_id = 1;
+  string document_id = 2;
+  string workspace_id = 3;
+  RelatedLogScope scope = 4;
+  int32 page_size = 5;
+  string page_token = 6;
+}
+
+message JobLogGroup {
+  string workspace_id = 1;
+  string document_id = 2;
+  repeated JobLogJob jobs = 3;
+}
+
+message JobLogJob {
+  string job_id = 1;
+  JobLifecycleState status = 2;
+  string created_at = 3;
+  repeated JobLog logs = 4;
+}
+
+message ListRelatedJobLogsResponse {
+  repeated JobLogGroup groups = 1;
+  string next_page_token = 2;
 }
 
 message ListAllJobsRequest {}
@@ -51,6 +130,7 @@ message Job {
   string started_at = 6;
   string completed_at = 7;
   string error_message = 8;
+  string workspace_id = 9;
 }
 
 enum JobType {

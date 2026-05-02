@@ -4,12 +4,12 @@ services:
   frontend:
     image: oven/bun:1
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    working_dir: /workspace/web
+    working_dir: /workspace/apps/web
     command: >
       bash -c '
         set -e;
         if [ ! -f package.json ]; then
-          echo "web/package.json not found. Waiting for web implementation...";
+          echo "apps/web/package.json not found. Waiting for web implementation...";
           sleep infinity;
         fi;
         if [ ! -x node_modules/.bin/next ]; then
@@ -48,7 +48,7 @@ services:
           echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
         fi;
-        go run ./api/cmd/server
+        go run ./apps/api/cmd/server
       '
     environment:
       SERVICE_MODE: api
@@ -79,10 +79,14 @@ services:
       - go-build-cache:/root/.cache/go-build
       - gemini-cache:/workspace/.gemini-cache
     depends_on:
-      - postgres
-      - gcs
-      - firebase-auth
-      - worker
+      postgres:
+        condition: service_healthy
+      gcs:
+        condition: service_started
+      firebase-auth:
+        condition: service_started
+      worker:
+        condition: service_started
 
   worker:
     image: golang:1.25-bookworm
@@ -93,7 +97,7 @@ services:
           echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
         fi;
-        go run ./worker/cmd/server
+        go run ./apps/worker/cmd/server
       '
     environment:
       SERVICE_MODE: worker
@@ -122,9 +126,34 @@ services:
       - go-build-cache:/root/.cache/go-build
       - gemini-cache:/workspace/.gemini-cache
     depends_on:
-      - postgres
-      - gcs
-      - firebase-auth
+      postgres:
+        condition: service_healthy
+      gcs:
+        condition: service_started
+      firebase-auth:
+        condition: service_started
+
+  log-viewer:
+    image: oven/bun:1
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    working_dir: /workspace/apps/log-viewer/ui
+    command: >
+      bash -c '
+        set -e;
+        if [ ! -x node_modules/.bin/next ]; then
+          bun install --frozen-lockfile;
+        fi;
+        bun run dev
+      '
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}
+    ports:
+      - "127.0.0.1:${LOG_VIEWER_PORT:-5174}:5174"
+    volumes:
+      - .:/workspace
+    depends_on:
+      - backend
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -137,6 +166,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synthify -d synthify"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   gcs:
     image: fsouza/fake-gcs-server:1.52

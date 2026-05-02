@@ -137,6 +137,18 @@ CREATE TABLE IF NOT EXISTS job_mutation_logs (
   created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS job_logs (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+  document_id TEXT NOT NULL DEFAULT '',
+  level TEXT NOT NULL,
+  event TEXT NOT NULL,
+  message TEXT NOT NULL,
+  detail_json JSONB NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS job_approval_requests (
   approval_id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
@@ -166,3 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_item_sources_item_id ON item_sources(item_id);
 CREATE INDEX IF NOT EXISTS idx_job_capabilities_job_id ON job_capabilities(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_execution_plans_job_id ON job_execution_plans(job_id);
 CREATE INDEX IF NOT EXISTS idx_job_mutation_logs_job_id ON job_mutation_logs(job_id);
+CREATE INDEX IF NOT EXISTS idx_job_logs_job_id_created_at ON job_logs(job_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_job_logs_document_id_created_at ON job_logs(document_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_job_logs_workspace_id_created_at ON job_logs(workspace_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_job_logs_level_created_at ON job_logs(level, created_at);

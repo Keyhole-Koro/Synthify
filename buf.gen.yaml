@@ -4,17 +4,17 @@ plugins:
       - go
       - run
       - google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.5
-    out: shared/gen
+    out: packages/shared/gen
     opt:
       - paths=source_relative
   - local:
       - go
       - run
       - connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.18.1
-    out: shared/gen
+    out: packages/shared/gen
     opt:
       - paths=source_relative
   - remote: buf.build/connectrpc/es:v1.6.1
-    out: web/src/gen
+    out: packages/proto-ts/gen
   - remote: buf.build/bufbuild/es:v2.6.0
-    out: web/src/gen
+    out: packages/proto-ts/gen

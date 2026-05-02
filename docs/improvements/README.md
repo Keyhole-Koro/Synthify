@@ -4,6 +4,9 @@
 
 ## P1 — 設計上の問題
 
+- [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `log-viewer` の理想依存構成と段階的移行方針
+- [api-refactor-cleanup.md](api-refactor-cleanup.md) — API 層の仕様変更残骸、mapper 不整合、重複 dispatch、no-op RPC の整理
+- [job-entity-field-spec.md](job-entity-field-spec.md) — Job エンティティの理想フィールド、状態遷移、処理への影響
 - [capability-limits-not-enforced.md](capability-limits-not-enforced.md) — JobCapability のLLM呼び出し上限が実際には強制されていない
 - [generate-execution-plan-hardcoded.md](generate-execution-plan-hardcoded.md) — GenerateExecutionPlan がハードコードされたステップ列を返すだけで signals を使っていない
 - [force-reprocess-ignored.md](force-reprocess-ignored.md) — forceReprocess パラメータが無視されており再処理が機能しない
@@ -24,6 +27,11 @@
 ## Future Improvements（別ファイル）
 
 - [../../docs/llm-worker-tools.md](../llm-worker-tools.md) — semantic_search の two-stage re-rank、PDF/画像対応
+
+## 可観測性・ロギング
+
+- [logging.md](logging.md) — 追加すべきログ一覧（P1〜P3）
+- [log-viewer.md](log-viewer.md) — log-viewer サブモジュール設計（Logger + JobLogViewer コンポーネント）
 
 ## アーキテクチャドキュメント
 
