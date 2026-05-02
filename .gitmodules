@@ -1,12 +1,15 @@
-[submodule "shared"]
-	path = shared
-	url = https://github.com/Keyhole-Koro/SynthifyShared.git
-[submodule "worker"]
-	path = worker
-	url = https://github.com/Keyhole-Koro/SynthifyWorker.git
-[submodule "api"]
-	path = api
+[submodule "apps/api"]
+	path = apps/api
 	url = https://github.com/Keyhole-Koro/SynthifyAPI.git
-[submodule "web"]
-	path = web
+[submodule "apps/worker"]
+	path = apps/worker
+	url = https://github.com/Keyhole-Koro/SynthifyWorker.git
+[submodule "apps/web"]
+	path = apps/web
 	url = https://github.com/Keyhole-Koro/SynthifyWeb.git
+[submodule "apps/log-viewer"]
+	path = apps/log-viewer
+	url = https://github.com/Keyhole-Koro/SynthifyLogViewer.git
+[submodule "packages/shared"]
+	path = packages/shared
+	url = https://github.com/Keyhole-Koro/SynthifyShared.git

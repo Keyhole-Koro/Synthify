@@ -1,6 +1,7 @@
 .gemini-cache
 .codex
 .claude
+node_modules/
 
 firebase-debug.log
 firestore-debug.log
@@ -16,3 +17,5 @@ override.tf.json
 *_override.tf.json
 
 .env
+
+explain_results.txt

@@ -2,9 +2,9 @@ module github.com/synthify/backend
 
 go 1.25.0
 
-require github.com/Keyhole-Koro/SynthifyShared v0.0.0
+require github.com/synthify/backend/packages/shared v0.0.0
 
-replace github.com/Keyhole-Koro/SynthifyShared => ./shared
+replace github.com/synthify/backend/packages/shared => ./packages/shared
 
 require (
 	connectrpc.com/connect v1.18.1
