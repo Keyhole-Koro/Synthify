@@ -33,6 +33,10 @@
 - [logging.md](logging.md) — 追加すべきログ一覧（P1〜P3）
 - [log-viewer.md](log-viewer.md) — log-viewer サブモジュール設計（Logger + JobLogViewer コンポーネント）
 
+## テスト・品質
+
+- [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加
+
 ## アーキテクチャドキュメント
 
 - [../llm-worker-architecture.md](../llm-worker-architecture.md) — LLM Worker の設計思想・ツール層構造・責任分界

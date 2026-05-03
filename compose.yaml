@@ -189,9 +189,15 @@ services:
       - -port
       - "4443"
       - -public-host
-      - gcs:4443
+      - localhost:4443
       - -external-url
       - http://localhost:4443
+      - -data
+      - /data
+      - -cors-headers
+      - Content-Type
+    environment:
+      - GCS_STORAGE_PATH=/data
     ports:
       - "${GCS_PORT:-4443}:4443"
     volumes:

@@ -19,3 +19,4 @@ override.tf.json
 .env
 
 explain_results.txt
+gcs-data
