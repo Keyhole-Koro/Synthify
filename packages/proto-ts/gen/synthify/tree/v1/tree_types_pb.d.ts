@@ -20,9 +20,9 @@ export declare type Item = Message<"synthify.tree.v1.Item"> & {
   id: string;
 
   /**
-   * @generated from field: string label = 2;
+   * @generated from field: string title = 2;
    */
-  label: string;
+  title: string;
 
   /**
    * @generated from field: int32 level = 3;
@@ -35,9 +35,9 @@ export declare type Item = Message<"synthify.tree.v1.Item"> & {
   description: string;
 
   /**
-   * @generated from field: string summary_html = 5;
+   * @generated from field: string content = 5;
    */
-  summaryHtml: string;
+  content: string;
 
   /**
    * @generated from field: string created_at = 6;
@@ -106,6 +106,27 @@ export declare type Tree = Message<"synthify.tree.v1.Tree"> & {
  * Use `create(TreeSchema)` to create a new message.
  */
 export declare const TreeSchema: GenMessage<Tree>;
+
+/**
+ * @generated from message synthify.tree.v1.SubtreeItem
+ */
+export declare type SubtreeItem = Message<"synthify.tree.v1.SubtreeItem"> & {
+  /**
+   * @generated from field: synthify.tree.v1.Item item = 1;
+   */
+  item?: Item;
+
+  /**
+   * @generated from field: bool has_children = 2;
+   */
+  hasChildren: boolean;
+};
+
+/**
+ * Describes the message synthify.tree.v1.SubtreeItem.
+ * Use `create(SubtreeItemSchema)` to create a new message.
+ */
+export declare const SubtreeItemSchema: GenMessage<SubtreeItem>;
 
 /**
  * @generated from enum synthify.tree.v1.TreeProjectionScope

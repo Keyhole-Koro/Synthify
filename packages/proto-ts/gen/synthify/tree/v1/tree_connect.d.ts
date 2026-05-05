@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { FindPathsRequest, FindPathsResponse, GetTreeRequest, GetTreeResponse } from "./tree_pb.js";
+import { FindPathsRequest, FindPathsResponse, GetSubtreeRequest, GetSubtreeResponse, GetTreeRequest, GetTreeResponse } from "./tree_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -22,14 +22,23 @@ export declare const TreeService: {
       readonly kind: MethodKind.Unary,
     },
     /**
-     * ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
-     *
      * @generated from rpc synthify.tree.v1.TreeService.FindPaths
      */
     readonly findPaths: {
       readonly name: "FindPaths",
       readonly I: typeof FindPathsRequest,
       readonly O: typeof FindPathsResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
+     *
+     * @generated from rpc synthify.tree.v1.TreeService.GetSubtree
+     */
+    readonly getSubtree: {
+      readonly name: "GetSubtree",
+      readonly I: typeof GetSubtreeRequest,
+      readonly O: typeof GetSubtreeResponse,
       readonly kind: MethodKind.Unary,
     },
   }

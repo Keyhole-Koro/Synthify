@@ -1,29 +1,29 @@
 -- name: GetTreeRoot :one
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by, created_at
+SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at
 FROM tree_items
 WHERE workspace_id = $1 AND parent_id IS NULL
 LIMIT 1;
 
 -- name: ListItemsByWorkspace :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by,
+SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
        COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC;
 
 -- name: GetItem :one
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by,
+SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
        COALESCE(governance_state, 'system_generated') AS governance_state, created_at
 FROM tree_items
 WHERE id = $1;
 
 -- name: CreateItem :exec
-INSERT INTO tree_items (id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by, created_at, updated_at)
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10);
 
 -- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
-  id, workspace_id, parent_id, label, level, description, summary_html, override_css,
+  id, workspace_id, parent_id, title, level, description, content, override_css,
   created_by, governance_state, last_mutation_job_id, created_at, updated_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12);
@@ -34,13 +34,13 @@ SET parent_id = $2, updated_at = $3
 WHERE id = $1;
 
 -- name: GetItemSummaryUpdateContext :one
-SELECT workspace_id, COALESCE(summary_html, '') AS summary_html, COALESCE(governance_state, 'system_generated') AS governance_state
+SELECT workspace_id, COALESCE(content, '') AS content, COALESCE(governance_state, 'system_generated') AS governance_state
 FROM tree_items
 WHERE id = $1;
 
 -- name: UpdateItemSummaryAndMutation :execrows
 UPDATE tree_items
-SET summary_html = $2, last_mutation_job_id = $3, updated_at = $4
+SET content = $2, last_mutation_job_id = $3, updated_at = $4
 WHERE id = $1;
 
 -- name: UpsertItemSource :exec
@@ -84,7 +84,7 @@ INSERT INTO job_mutation_logs (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
 -- name: ListChildItems :many
-SELECT id, workspace_id, parent_id, label, level, description, summary_html, override_css, created_by,
+SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
   COALESCE(governance_state, 'system_generated') AS governance_state, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items

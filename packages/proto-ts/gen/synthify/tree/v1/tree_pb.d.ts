@@ -4,7 +4,7 @@
 
 import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
-import type { Tree } from "./tree_types_pb";
+import type { SubtreeItem, Tree } from "./tree_types_pb";
 
 /**
  * Describes the file synthify/tree/v1/tree.proto.
@@ -178,6 +178,48 @@ export declare type FindPathsResponse = Message<"synthify.tree.v1.FindPathsRespo
 export declare const FindPathsResponseSchema: GenMessage<FindPathsResponse>;
 
 /**
+ * @generated from message synthify.tree.v1.GetSubtreeRequest
+ */
+export declare type GetSubtreeRequest = Message<"synthify.tree.v1.GetSubtreeRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: string item_id = 2;
+   */
+  itemId: string;
+
+  /**
+   * @generated from field: int32 max_depth = 3;
+   */
+  maxDepth: number;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetSubtreeRequest.
+ * Use `create(GetSubtreeRequestSchema)` to create a new message.
+ */
+export declare const GetSubtreeRequestSchema: GenMessage<GetSubtreeRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.GetSubtreeResponse
+ */
+export declare type GetSubtreeResponse = Message<"synthify.tree.v1.GetSubtreeResponse"> & {
+  /**
+   * @generated from field: repeated synthify.tree.v1.SubtreeItem items = 1;
+   */
+  items: SubtreeItem[];
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetSubtreeResponse.
+ * Use `create(GetSubtreeResponseSchema)` to create a new message.
+ */
+export declare const GetSubtreeResponseSchema: GenMessage<GetSubtreeResponse>;
+
+/**
  * @generated from service synthify.tree.v1.TreeService
  */
 export declare const TreeService: GenService<{
@@ -190,14 +232,22 @@ export declare const TreeService: GenService<{
     output: typeof GetTreeResponseSchema;
   },
   /**
-   * ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
-   *
    * @generated from rpc synthify.tree.v1.TreeService.FindPaths
    */
   findPaths: {
     methodKind: "unary";
     input: typeof FindPathsRequestSchema;
     output: typeof FindPathsResponseSchema;
+  },
+  /**
+   * ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
+   *
+   * @generated from rpc synthify.tree.v1.TreeService.GetSubtree
+   */
+  getSubtree: {
+    methodKind: "unary";
+    input: typeof GetSubtreeRequestSchema;
+    output: typeof GetSubtreeResponseSchema;
   },
 }>;
 

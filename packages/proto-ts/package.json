@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./gen/*": "./gen/*"
+    "./gen/*": {
+      "types": "./gen/*.d.ts",
+      "default": "./gen/*"
+    }
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.12.0"

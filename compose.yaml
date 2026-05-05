@@ -41,7 +41,8 @@ services:
     volumes:
       - .:/workspace
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   backend:
     image: golang:1.25-bookworm
@@ -77,6 +78,12 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/synthify-api"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     volumes:
       - .:/workspace
       - go-pkg-cache:/go/pkg/mod
@@ -90,7 +97,7 @@ services:
       firebase-auth:
         condition: service_started
       worker:
-        condition: service_started
+        condition: service_healthy
 
   worker:
     image: golang:1.25-bookworm
@@ -124,6 +131,12 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/synthify-worker"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     volumes:
       - .:/workspace
       - go-pkg-cache:/go/pkg/mod
@@ -162,7 +175,8 @@ services:
     volumes:
       - .:/workspace
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   postgres:
     image: pgvector/pgvector:pg16

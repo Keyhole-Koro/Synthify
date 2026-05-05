@@ -2,13 +2,14 @@ syntax = "proto3";
 
 package synthify.tree.v1;
 
-option go_package = "github.com/Keyhole-Koro/SynthifyShared/gen/synthify/tree/v1;treev1";
+option go_package = "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1;treev1";
 
 import "synthify/tree/v1/tree_types.proto";
 
 service TreeService {
   rpc GetTree(GetTreeRequest) returns (GetTreeResponse);
   rpc FindPaths(FindPathsRequest) returns (FindPathsResponse);
+  rpc GetSubtree(GetSubtreeRequest) returns (GetSubtreeResponse);
   // ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
 }
 
@@ -48,4 +49,14 @@ message TreePath {
 message FindPathsResponse {
   Tree tree = 1;
   repeated TreePath paths = 2;
+}
+
+message GetSubtreeRequest {
+  string workspace_id = 1;
+  string item_id = 2;
+  int32 max_depth = 3;
+}
+
+message GetSubtreeResponse {
+  repeated SubtreeItem items = 1;
 }

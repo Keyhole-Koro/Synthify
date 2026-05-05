@@ -23,6 +23,8 @@
 
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
 - [router-job-splitting.md](router-job-splitting.md) — 巨大ドキュメントをジョブ分割して Router プロキシで処理する設計（未決定事項あり）
+- [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
+- [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
 
 ## Future Improvements（別ファイル）
 

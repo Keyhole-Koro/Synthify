@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { FindPathsRequest, FindPathsResponse, GetTreeRequest, GetTreeResponse } from "./tree_pb.js";
+import { FindPathsRequest, FindPathsResponse, GetSubtreeRequest, GetSubtreeResponse, GetTreeRequest, GetTreeResponse } from "./tree_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -22,14 +22,23 @@ export const TreeService = {
       kind: MethodKind.Unary,
     },
     /**
-     * ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
-     *
      * @generated from rpc synthify.tree.v1.TreeService.FindPaths
      */
     findPaths: {
       name: "FindPaths",
       I: FindPathsRequest,
       O: FindPathsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * ExpandNeighbors は初期スコープ外（paper-in-paper の data-paper-id リンク展開で代替）
+     *
+     * @generated from rpc synthify.tree.v1.TreeService.GetSubtree
+     */
+    getSubtree: {
+      name: "GetSubtree",
+      I: GetSubtreeRequest,
+      O: GetSubtreeResponse,
       kind: MethodKind.Unary,
     },
   }
