@@ -134,13 +134,13 @@ ORDER BY chunk_id;
 
 -- name: SearchWorkspaceDocumentChunksByVector :many
 SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
-       1 - (c.embedding <=> sqlc.arg(query_embedding)::vector) AS similarity
+       1 - vector_cosine_distance(c.embedding, sqlc.arg(query_embedding)) AS similarity
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
 WHERE d.workspace_id = sqlc.arg(workspace_id)
   AND c.embedding IS NOT NULL
-  AND 1 - (c.embedding <=> sqlc.arg(query_embedding)::vector) >= sqlc.arg(min_similarity)::float8
-ORDER BY c.embedding <=> sqlc.arg(query_embedding)::vector
+  AND 1 - vector_cosine_distance(c.embedding, sqlc.arg(query_embedding)) >= sqlc.arg(min_similarity)::float8
+ORDER BY vector_cosine_distance(c.embedding, sqlc.arg(query_embedding))
 LIMIT sqlc.arg(result_limit);
 
 -- name: SearchWorkspaceDocumentChunksByText :many

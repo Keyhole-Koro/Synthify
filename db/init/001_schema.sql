@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE EXTENSION IF NOT EXISTS vector;
+-- CREATE EXTENSION IF NOT EXISTS vector; -- Removed for CockroachDB
 
 CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_id TEXT PRIMARY KEY,
@@ -45,11 +45,12 @@ CREATE TABLE IF NOT EXISTS document_chunks (
   heading TEXT NOT NULL DEFAULT '',
   text TEXT NOT NULL,
   source_page INTEGER,
-  embedding vector(768)
+  embedding VECTOR(768)
 );
 
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON document_chunks(document_id);
-CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON document_chunks USING hnsw (embedding vector_cosine_ops) WHERE embedding IS NOT NULL;
+-- CockroachDB vector index syntax (Experimental in some versions, but this is the general approach)
+CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON document_chunks USING GIN (embedding);
 
 CREATE TABLE IF NOT EXISTS tree_items (
   id TEXT PRIMARY KEY,

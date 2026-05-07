@@ -79,5 +79,40 @@ Phase 1〜2 の実装後に実態を見て決める。
 ## 現状のギャップ（実装前に解決が必要なもの）
 
 - `GetWorkspaceTreeItems(ctx, workspaceID)` 相当の repository メソッドがない
-- `UpdateItemWithCapability` が label・level・parent の変更をサポートしていない（summary のみ）
-- capability の `allowed_operations_json` に `UPDATE_ITEM` を含める UI/API フローがない
+---
+
+## 実装提案 (Audit 結果に基づく Phase 2 移行案)
+
+現状の「単発ドキュメント処理」から「継続的な知識統合」へ移行するための具体的修正案。
+
+### 1. ツールスキーマの拡張
+
+#### `goal_driven_synthesis` (process/synthesis.go)
+- **変更内容**: 引数に `existing_tree_context` (既存の主要な項目名と ID のリスト) を追加。
+- **目的**: LLM が「新しい情報は既存のどの項目の下に置くべきか」を推論できるようにする。
+
+#### `persist_knowledge_tree` (io/persistence.go)
+- **変更内容**: `SynthesizedItem` 構造体に `parent_existing_item_id` (string) を追加。
+- **ロジック**: `parent_local_id` が空で、かつ `parent_existing_item_id` が指定されている場合、ワークスペースの既存アイテムを親として紐付ける。
+
+### 2. Orchestrator の知識注入 (agents/orchestrator.go)
+
+- **初期化フェーズの追加**:
+  ```go
+  // ジョブ開始時にワークスペースの全アイテム（または主要な骨組み）を取得
+  items := repo.GetTreeByWorkspace(ctx, workspaceID)
+  // 既存ツリーの構造を Working Memory の一部として LLM に提供
+  // 例: "Existing Tree Structure: [id:1] Overview, [id:2] Technical Specs..."
+  ```
+- **プロンプトの更新**: 「新しい概念を見つけたとき、それが既存の項目 X の詳細であるなら、X を親として指定せよ」という指示を強化。
+
+### 3. Capability の権限追加
+
+- `allowed_operations_json` に `UPDATE_EXISTING_ITEM` を追加。
+- これにより、後続のドキュメントが「既存アイテムの要約を、より正確な内容に上書きする」ことを許可する。
+
+### 4. 解決すべき技術的課題
+
+- **コンテキスト溢れ**: 既存ツリーが巨大になった場合、全アイテムをプロンプトに入れることはできない。
+  - **対策**: `semantic_search` を活用し、現在処理中のチャンクに類似した既存アイテムのみを「親候補」として動的に提示する。
+- **冪等性の確保**: 再処理時に同じ親に同じ子が何度もぶら下がるのを防ぐため、`provenance` (どのドキュメント由来か) を使った重複チェックを `persist_knowledge_tree` に実装する。

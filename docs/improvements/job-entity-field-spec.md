@@ -1,5 +1,13 @@
 # Job entity field spec
 
+## ステータス確認 (2026-05-07)
+
+現状の実装とこの指針の乖離状況：
+- **DB/Domain 不一致**: `started_at`, `completed_at` は Proto には追加されたが、DB Schema と Domain 型には未実装。
+- **機能の空振り**: `current_stage` カラムは DB に存在するが、Worker からの更新処理が未実装のため、UI に進捗が反映されない。
+- **Enum 未更新**: `JobLifecycleState` に `waiting_approval` は追加されていない。
+- **残骸**: `budget_json` は依然として DB/Domain に残っている。
+
 ## 背景
 
 `document_processing_jobs` は、Document を Tree に反映する非同期処理の実行単位を表す。

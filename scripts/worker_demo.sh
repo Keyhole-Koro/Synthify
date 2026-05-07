@@ -15,8 +15,8 @@ DOC_ID="${1:-doc_llm_1}"
 WORKER_URL="${WORKER_URL:-http://localhost:8081}"
 PG_URL="${DATABASE_URL:-postgres://synthify:synthify@localhost:5432/synthify?sslmode=disable}"
 # ホスト側（疎通確認用）とコンテナ内部（workerが実際に使う）でホスト名が異なる
-GCS_UPLOAD_URL_BASE="${GCS_UPLOAD_URL_BASE:-http://localhost:4443/storage/v1/b/synthify-uploads/o}"
-GCS_INTERNAL_URL_BASE="${GCS_INTERNAL_URL_BASE:-http://gcs:4443/storage/v1/b/synthify-uploads/o}"
+GCS_UPLOAD_URL_BASE="${GCS_UPLOAD_URL_BASE:-http://localhost:4443}"
+GCS_INTERNAL_URL_BASE="${GCS_INTERNAL_URL_BASE:-http://gcs:4443}"
 PSQL="psql ${PG_URL} --tuples-only --no-align -q"
 
 # ── ドキュメントメタデータを取得 ────────────────────────────────────────────
@@ -31,8 +31,8 @@ if [[ -z "${WS_ID}" ]]; then
 fi
 
 # 疎通確認はホスト側URL、RPCで渡すのはコンテナ内部URL
-FILE_URI_HOST="${GCS_UPLOAD_URL_BASE}/${WS_ID}%2F${DOC_ID}?alt=media"
-FILE_URI_INTERNAL="${GCS_INTERNAL_URL_BASE}/${WS_ID}%2F${DOC_ID}?alt=media"
+FILE_URI_HOST="${GCS_UPLOAD_URL_BASE}/storage/v1/b/synthify-uploads/o/${WS_ID}%2F${DOC_ID}?alt=media"
+FILE_URI_INTERNAL="${GCS_INTERNAL_URL_BASE}/storage/v1/b/synthify-uploads/o/${WS_ID}%2F${DOC_ID}?alt=media"
 
 echo ""
 echo "══════════════════════════════════════════════════════"

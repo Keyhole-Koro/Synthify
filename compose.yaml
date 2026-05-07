@@ -67,8 +67,8 @@ services:
       GCS_BUCKET: synthify-uploads
       GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
       STORAGE_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
-      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/storage/v1/b/synthify-uploads/o}
-      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}/storage/v1/b/synthify-uploads/o}
+      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443}
+      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
       FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:${FIREBASE_AUTH_PORT:-9099}
       FIRESTORE_EMULATOR_HOST: 127.0.0.1:${FIREBASE_FIRESTORE_PORT:-8282}
@@ -92,8 +92,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      gcs:
-        condition: service_started
+      gcs-init:
+        condition: service_completed_successfully
       firebase-auth:
         condition: service_started
       worker:
@@ -121,8 +121,8 @@ services:
       GCS_BUCKET: synthify-uploads
       GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
       STORAGE_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
-      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443/storage/v1/b/synthify-uploads/o}
-      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}/storage/v1/b/synthify-uploads/o}
+      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443}
+      INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
       FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:${FIREBASE_AUTH_PORT:-9099}
       FIRESTORE_EMULATOR_HOST: 127.0.0.1:${FIREBASE_FIRESTORE_PORT:-8282}
@@ -145,14 +145,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      gcs:
-        condition: service_started
+      gcs-init:
+        condition: service_completed_successfully
       firebase-auth:
         condition: service_started
 
   log-viewer:
     image: oven/bun:1
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    network_mode: host
     working_dir: /workspace/apps/log-viewer/ui
     command: >
       bash -c '
@@ -167,11 +168,7 @@ services:
     environment:
       NODE_ENV: development
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8080}}
-      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://host.docker.internal:${BACKEND_PORT:-8080}}
-    ports:
-      - "127.0.0.1:${LOG_VIEWER_PORT:-5174}:5174"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://127.0.0.1:${BACKEND_PORT:-8080}}
     volumes:
       - .:/workspace
     depends_on:
@@ -179,18 +176,16 @@ services:
         condition: service_healthy
 
   postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_DB: synthify
-      POSTGRES_USER: synthify
-      POSTGRES_PASSWORD: synthify
+    image: cockroachdb/cockroach:latest-v23.2
+    command: start-single-node --insecure
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5432}:26257"
+      - "8082:8080"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/cockroach/cockroach-data
       - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U synthify -d synthify"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -216,6 +211,22 @@ services:
       - "${GCS_PORT:-4443}:4443"
     volumes:
       - gcs-data:/data
+
+  gcs-init:
+    image: curlimages/curl:8.13.0
+    depends_on:
+      gcs:
+        condition: service_started
+    command: >
+      sh -c '
+        set -eu;
+        until curl -fsS "http://gcs:4443/storage/v1/b" > /dev/null; do
+          sleep 1;
+        done;
+        curl -fsS -X POST "http://gcs:4443/storage/v1/b?project=synthify-local" \
+          -H "Content-Type: application/json" \
+          -d "{\"name\":\"synthify-uploads\"}" > /dev/null || true
+      '
 
   firebase-auth:
     build:

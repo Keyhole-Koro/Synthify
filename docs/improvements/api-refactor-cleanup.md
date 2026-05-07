@@ -583,11 +583,14 @@ worker/pkg/worker/pipeline/ ディレクトリごと削除
 
 ## 実装順の提案
 
-1. `CreateProcessingJob` 呼び出しを `tree.TreeID` から `wsID` に修正し、テストを追加する（バグ修正）
-2. `Document.updated_at` と `Job.completed_at` の contract を決める（proto 設計）
-3. `StartProcessing` / `ResumeProcessing` の dispatch helper 抽出
-4. `worker/pkg/worker/pipeline/` ディレクトリ削除（依存なしで安全）
-5. `Worker.processDocument` / `Orchestrator.Agent()` の1行ラッパー削除（対応済み）
-6. `GetUploadURL` / workspace membership / item activity RPC を削除または deprecated 化する
+1. [未着手] `CreateProcessingJob` 呼び出しを `tree.TreeID` から `wsID` に修正し、テストを追加する（バグ修正）
+2. [未着手] `Document.updated_at` と `Job.completed_at` の contract を決める（proto 設計）
+3. [未着手] `StartProcessing` / `ResumeProcessing` の dispatch helper 抽出
+4. [未着手] `worker/pkg/worker/pipeline/` ディレクトリ削除（依存なしで安全）
+5. [完了] `Worker.processDocument` / `Orchestrator.Agent()` の1行ラッパー削除
+6. [未着手] `GetUploadURL` / workspace membership / item activity RPC を削除または deprecated 化する
+7. [完了] service 層の薄いラッパー（JobService, TreeService, ItemService 一部）を handler に統合する
+8. [未着手] 未使用 domain 型（`TreeItem`）を削除する
+tUploadURL` / workspace membership / item activity RPC を削除または deprecated 化する
 7. service 層の薄いラッパー（JobService, TreeService, ItemService 一部）を handler に統合する（対応済み）
 8. 未使用 domain 型（`TreeItem`）を削除する
