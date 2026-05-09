@@ -131,6 +131,7 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
+      GCS_FUSE_MOUNT_PATH: /mnt/gcs/synthify-uploads
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/synthify-worker"]
       interval: 5s
@@ -139,6 +140,7 @@ services:
       start_period: 120s
     volumes:
       - .:/workspace
+      - gcs-data:/mnt/gcs:ro
       - go-pkg-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
       - gemini-cache:/workspace/.gemini-cache

@@ -157,6 +157,30 @@ GCS FUSE の `rename` は内部的にコピー＆削除として実装されて�
 - **バケット分離（推奨）:** `synthify-documents`（原本、ReadOnly）と `synthify-cache`（キャッシュ、ReadWrite）の2バケット構成にする。FUSE は2つをそれぞれ別パスにマウントする。
 - **プレフィックス IAM（簡易）:** 単一バケットのまま、Cloud Run の SA に対して `.cache/` プレフィックスのみ `storage.objects.create` を許可する IAM Condition を設定する。
 
+## ローカル開発環境での再現 (Simulation)
+
+ローカル環境（Docker Compose）では `gcsfuse` を使わず、Volume マウントを利用して FUSE 相当の挙動を再現する。
+
+### 設定例 (`compose.yaml`)
+
+`fake-gcs-server` がデータを保持するボリュームを、Worker サービスの `/mnt/gcs` に直接マウントする。
+
+```yaml
+services:
+  worker:
+    # ...
+    volumes:
+      - .:/workspace
+      - gcs-data:/mnt/gcs:ro # データの整合性を保つため ReadOnly 推奨
+    environment:
+      GCS_FUSE_MOUNT_PATH: /mnt/gcs/synthify-uploads # バケット名を含めたパスを指定
+```
+
+### 実装上のメリット
+- **OS 非依存**: macOS や Windows (Docker Desktop) でも特別なカーネル設定なしに動作する。
+- **コードの共通化**: `os.Open` を使うことで、本番の FUSE 環境と全く同じコードパスをテストできる。
+- **高速な I/O**: ネットワーク経由のダウンロードが発生しないため、メディア処理などの重いテストも迅速に行える。
+
 ## データベース (PostgreSQL) からの `LIKE` 検索廃止
 
 GCS FUSE による検索のオフロードに伴い、DB 層での全文検索 (`LIKE` クエリ) を廃止する。
