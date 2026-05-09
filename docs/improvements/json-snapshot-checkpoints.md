@@ -1,5 +1,10 @@
 # LLM worker の JSON snapshot / checkpoint 設計
 
+## ステータス確認 (2026-05-07)
+
+- **Phase 1 (最小実装)**: **完了 (Done)**。`job_stage_checkpoints` テーブル追加、`FUSEHandler` による JSON 保存、および Orchestrator での自動復帰ロジックが実装済み。
+- **GCS FUSE 活用**: 当初案の SDK 直接 PUT ではなく、`shared/storage/FUSEHandler` を経由したディスク I/O に統一し、パフォーマンスを向上。
+
 ## 背景
 
 現状の worker は `text_extraction` → `semantic_chunking` → `goal_driven_synthesis` → `persistence` を 1 回の agent run として実行している。

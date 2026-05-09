@@ -238,3 +238,17 @@ SET status = 'rejected',
     reviewed_at = $4,
     reason = CASE WHEN $5 = '' THEN reason ELSE $5 END
 WHERE job_id = $1 AND approval_id = $2;
+
+-- name: ListJobStageCheckpoints :many
+SELECT job_id, stage, status, gcs_ref, updated_at
+FROM job_stage_checkpoints
+WHERE job_id = $1
+ORDER BY updated_at ASC;
+
+-- name: UpsertJobStageCheckpoint :exec
+INSERT INTO job_stage_checkpoints (job_id, stage, status, gcs_ref, updated_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (job_id, stage) DO UPDATE
+SET status = EXCLUDED.status,
+    gcs_ref = EXCLUDED.gcs_ref,
+    updated_at = EXCLUDED.updated_at;
