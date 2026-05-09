@@ -143,15 +143,6 @@ WHERE d.workspace_id = sqlc.arg(workspace_id)
 ORDER BY vector_cosine_distance(c.embedding, sqlc.arg(query_embedding))
 LIMIT sqlc.arg(result_limit);
 
--- name: SearchWorkspaceDocumentChunksByText :many
-SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page
-FROM document_chunks c
-INNER JOIN documents d ON d.document_id = c.document_id
-WHERE d.workspace_id = $1
-  AND (sqlc.arg(pattern)::text = '%' OR LOWER(c.heading || ' ' || c.text) LIKE sqlc.arg(pattern)::text)
-ORDER BY c.chunk_id
-LIMIT sqlc.arg(result_limit);
-
 -- name: DeleteDocumentChunks :exec
 DELETE FROM document_chunks
 WHERE document_id = $1;
