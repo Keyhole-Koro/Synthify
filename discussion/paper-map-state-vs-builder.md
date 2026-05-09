@@ -469,31 +469,99 @@ subtree patch を適用した結果として整合するように保つ、とい
 
 ---
 
-## 決定事項（2026-05-09）
+## 決定事項と現状把握（2026-05-09）
 
-コードの実態（`useLandingPaperMap`）を確認した結果、以下を方針として確定する。
+このドキュメントは元々「builder vs state」という単純な対立軸で議論を始めたが、
+実際のコードを精査すると現状はもう少し進んでおり、軸そのものを描き直す必要がある。
 
-### 1. source of truth は `paperMap` (Map) — 決定
+### 現状の 3 層構造
+
+実態は「builder か Map 直構築か」の二択ではなく、3 層に役割分担されている。
+
+1. **静的ツリー** — `PaperMapBuilder`
+   - `staticPapers.tsx` のランディングコンテンツ専用
+   - 一度組み立てたら変わらないので `build()` 一回呼びで十分
+2. **動的ツリーの組み立て** — `Map<PaperId, Paper>` を直接構築
+   - `useLandingPaperMap` の `useMemo` で workspace データから組み立てる
+   - `useWorkspaceTree` の `mergeTreeIntoWorkspace` が API レスポンスを incremental に蓄積
+3. **状態管理・更新** — `PaperStoreContext` の Command / Reducer
+   - `commands.ts` に `UPSERT_PAPERS`, `MERGE_PAPERS` などが定義済み
+   - dispatch + reduce で paperMap を更新する仕組みが既に存在
+
+つまり、ドキュメント前半で議論していた `replaceChildren` / `replaceSubtree` のような
+独自 subtree patch API を新設するより、**既存の Command を拡張する方向**の方が実態に合う。
+
+---
+
+### 決定事項
+
+#### 1. source of truth は `paperMap` (Map) — 決定
 
 `useLandingPaperMap` はすでに `Map<PaperId, Paper>` を直接組み立てており、これが正しい形。
 `childIds` を正として map 構築時に `parentId` を決定する。`parentId` は lookup 用の補助値であり、直接書き換えない。
 
-### 2. 動的ツリーでは `PaperMapBuilder` を使わない — 決定
+#### 2. 動的ツリーでは `PaperMapBuilder` を使わない — 決定
 
 `PaperMapBuilder` は **静的コンテンツの一回限りの初期化専用**（例：`staticPapers.tsx`）。
-動的 API データを扱うときは `Map<PaperId, Paper>` を直接組み立てる。
+動的 API データを扱うときは `Map<PaperId, Paper>` を直接組み立てるか、Command を dispatch する。
 クラス側にも JSDoc でその旨を明記済み。
 
-### 3. async 競合は fetch hook 側の責任 — 決定
+#### 3. data state / view state の分離 — すでに実装済み
 
-`useLandingPaperMap` は `workspaces` / `workspacePaperGroups` という state を deps に取り、
-state が変わるたびに map 全体を `useMemo` で再計算する構造になっている。
+ドキュメント前半で「分けるべき」と提案していたが、実態としてはすでに分離が完了している。
 
-これにより古いレスポンスは state に入らない限り map に反映されない。
-**「どのレスポンスを採用するか」は fetch hook 側で管理し、paperMap 層は気にしない**という責任分離が成立している。
+- `PaperViewState` (`types.ts:66-78`) で `paperMap`（data）と `expansionMap` / `focusedNodeId`（view）が
+  同じ struct に並んでいるが、フィールドとしては独立している
+- `useDefaultOpenState` / `usePaperCanvasOpenState` が view state 側を担当
+- `useWorkspaceTree` が data state 側を担当
 
-### 4. 将来の最適化方針（急がなくてよい）
+この分離は維持する。
 
-現在は workspace が増えると `useMemo` が map 全体を再計算する。
-将来的には `workspaceId` 単位で subtree だけ差し替える形（`replaceChildren(parentId, children)`）に移行すると効率が上がる。
-ただし現時点では問題になっていないため、後回しでよい。
+#### 4. 更新単位は Command 経由（独自 API は新設しない）
+
+ドキュメント前半の提案 B（`replaceChildren` / `replaceSubtree` を新設）は実装方針としては不要。
+代わりに既存の Command を使う：
+
+- `UPSERT_PAPERS` — 既存を上書き、childIds は置換
+- `MERGE_PAPERS` — 既存保持、childIds は union
+
+`mergeTreeIntoWorkspace` (`useWorkspaceTree.tsx:232-250`) がすでにこの方針で動いている。
+
+---
+
+### 未解決の課題
+
+#### async 競合管理は不完全
+
+ドキュメント前半で「fetch hook 側の責任」と書いたが、実態は重複防止しかなく、
+**古いレスポンスを破棄する仕組みは存在しない**。
+
+現在 `useWorkspaceTree.tsx:252-268` にあるのは：
+
+- `loadingSubtreeItemsRef` — 同じ item に対する fetch 中の重複防止
+- `loadedSubtreeItemsRef` — 一度ロード済みの item を再 fetch しない
+
+つまり「同一 item の重複 fetch 防止」だけで、
+
+- 複数 workspace を素早く切り替えた場合の競合
+- request 間の順序保証
+- generation counter / abort signal
+
+はいずれも未実装。
+
+実際に問題になるシナリオは限定的（同一 item の subtree fetch では順序が問題にならない）だが、
+ワークスペース横断の操作が増えると顕在化する可能性がある。
+
+**次に検討すべきこと:**
+
+1. `AbortController` を fetch に渡し、workspace 切り替え時に古い request を中断する
+2. parent ごとに request version を持ち、古い version のレスポンスを破棄する
+3. もしくは「特に対処しない」と決定して明示的に放置する
+
+これは設計判断が必要なので、別 issue として切り出す方が適切。
+
+#### post-update rule（消えた node の expansion / focus 掃除）
+
+ドキュメント前半で軽く触れたが、実装上どこで掃除しているかは未確認。
+subtree が削除されたときに `expansionMap` / `focusedNodeId` に消えた id が残らないか、
+別途確認する必要がある。

@@ -173,6 +173,17 @@ CREATE TABLE IF NOT EXISTS item_aliases (
   PRIMARY KEY (workspace_id, canonical_item_id, alias_item_id)
 );
 
+CREATE TABLE IF NOT EXISTS job_stage_checkpoints (
+  job_id     TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,
+  stage      TEXT NOT NULL,
+  status     TEXT NOT NULL,          -- running | succeeded | failed
+  gcs_ref    TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (job_id, stage)
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_stage_checkpoints_job_id ON job_stage_checkpoints(job_id);
+
 CREATE INDEX IF NOT EXISTS idx_tree_items_workspace_id ON tree_items(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_tree_items_parent_id ON tree_items(parent_id);
 CREATE INDEX IF NOT EXISTS idx_item_sources_item_id ON item_sources(item_id);
