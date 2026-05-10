@@ -29,6 +29,12 @@ JOIN account_users au ON au.account_id = a.account_id
 WHERE au.user_id = $1
 LIMIT 1;
 
+-- name: IsAccountAccessible :one
+SELECT EXISTS(
+  SELECT 1 FROM account_users
+  WHERE account_id = $1 AND user_id = $2
+)::bool AS accessible;
+
 -- name: CreateAccountUser :exec
 INSERT INTO account_users (account_id, user_id, role, joined_at)
 VALUES ($1, $2, $3, $4)
