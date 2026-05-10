@@ -15,9 +15,9 @@ export declare const file_synthify_tree_v1_billing: GenFile;
  */
 export declare type CreateCheckoutSessionRequest = Message<"synthify.tree.v1.CreateCheckoutSessionRequest"> & {
   /**
-   * @generated from field: string workspace_id = 1;
+   * @generated from field: string account_id = 1;
    */
-  workspaceId: string;
+  accountId: string;
 };
 
 /**
@@ -47,9 +47,9 @@ export declare const CreateCheckoutSessionResponseSchema: GenMessage<CreateCheck
  */
 export declare type CreatePortalSessionRequest = Message<"synthify.tree.v1.CreatePortalSessionRequest"> & {
   /**
-   * @generated from field: string workspace_id = 1;
+   * @generated from field: string account_id = 1;
    */
-  workspaceId: string;
+  accountId: string;
 };
 
 /**

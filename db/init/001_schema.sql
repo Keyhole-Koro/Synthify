@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   max_file_size_bytes BIGINT NOT NULL DEFAULT 0,
   max_uploads_per_5h INTEGER NOT NULL DEFAULT 0,
   max_uploads_per_1week INTEGER NOT NULL DEFAULT 0,
+  stripe_customer_id TEXT NOT NULL DEFAULT '',
+  stripe_subscription_id TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL
 );

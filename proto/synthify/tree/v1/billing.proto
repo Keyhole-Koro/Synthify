@@ -10,7 +10,7 @@ service BillingService {
 }
 
 message CreateCheckoutSessionRequest {
-  string workspace_id = 1;
+  string account_id = 1;
 }
 
 message CreateCheckoutSessionResponse {
@@ -18,7 +18,7 @@ message CreateCheckoutSessionResponse {
 }
 
 message CreatePortalSessionRequest {
-  string workspace_id = 1;
+  string account_id = 1;
 }
 
 message CreatePortalSessionResponse {
