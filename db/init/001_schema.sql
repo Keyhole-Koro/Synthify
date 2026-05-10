@@ -37,11 +37,22 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TIMESTAMPTZ NOT NULL
 );
 
--- CREATE EXTENSION IF NOT EXISTS vector; -- Removed for CockroachDB
+CREATE TABLE IF NOT EXISTS document_files (
+  file_id     TEXT PRIMARY KEY,
+  document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+  path        TEXT NOT NULL,
+  mime_type   TEXT NOT NULL,
+  file_size   BIGINT NOT NULL DEFAULT 0,
+  created_at  TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_files_doc_id ON document_files(document_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_document_files_doc_path ON document_files(document_id, path);
 
 CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_id TEXT PRIMARY KEY,
   document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+  file_id TEXT REFERENCES document_files(file_id) ON DELETE CASCADE,
   heading TEXT NOT NULL DEFAULT '',
   text TEXT NOT NULL,
   source_page INTEGER,
@@ -49,7 +60,7 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON document_chunks(document_id);
--- CockroachDB vector index syntax (Experimental in some versions, but this is the general approach)
+CREATE INDEX IF NOT EXISTS idx_document_chunks_file_id ON document_chunks(file_id);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON document_chunks USING GIN (embedding);
 
 CREATE TABLE IF NOT EXISTS tree_items (
@@ -91,6 +102,7 @@ CREATE TABLE IF NOT EXISTS document_processing_jobs (
 CREATE TABLE IF NOT EXISTS item_sources (
   item_id TEXT NOT NULL REFERENCES tree_items(id) ON DELETE CASCADE,
   document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+  file_id TEXT NOT NULL REFERENCES document_files(file_id) ON DELETE CASCADE,
   chunk_id TEXT NOT NULL DEFAULT '',
   source_text TEXT NOT NULL DEFAULT '',
   confidence DOUBLE PRECISION,

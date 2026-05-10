@@ -4,6 +4,21 @@ FROM documents
 WHERE workspace_id = $1
 ORDER BY created_at DESC;
 
+-- name: CreateDocumentFile :exec
+INSERT INTO document_files (file_id, document_id, path, mime_type, file_size, created_at)
+VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: ListDocumentFiles :many
+SELECT file_id, document_id, path, mime_type, file_size, created_at
+FROM document_files
+WHERE document_id = $1
+ORDER BY path ASC;
+
+-- name: GetDocumentFileByPath :one
+SELECT file_id, document_id, path, mime_type, file_size, created_at
+FROM document_files
+WHERE document_id = $1 AND path = $2;
+
 -- name: CountSameDocumentItems :one
 SELECT COUNT(DISTINCT item_sources.item_id)
 FROM item_sources
@@ -127,16 +142,18 @@ ORDER BY created_at DESC
 LIMIT 100;
 
 -- name: ListDocumentChunks :many
-SELECT chunk_id, document_id, heading, text, source_page
-FROM document_chunks
-WHERE document_id = $1
-ORDER BY chunk_id;
+SELECT c.chunk_id, c.document_id, c.file_id, f.path AS sub_path, c.heading, c.text, c.source_page
+FROM document_chunks c
+LEFT JOIN document_files f ON f.file_id = c.file_id
+WHERE c.document_id = $1
+ORDER BY c.chunk_id;
 
 -- name: SearchWorkspaceDocumentChunksByVector :many
-SELECT c.chunk_id, c.document_id, c.heading, c.text, c.source_page,
+SELECT c.chunk_id, c.document_id, c.file_id, f.path AS sub_path, c.heading, c.text, c.source_page,
        1 - vector_cosine_distance(c.embedding, sqlc.arg(query_embedding)) AS similarity
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
+LEFT JOIN document_files f ON f.file_id = c.file_id
 WHERE d.workspace_id = sqlc.arg(workspace_id)
   AND c.embedding IS NOT NULL
   AND 1 - vector_cosine_distance(c.embedding, sqlc.arg(query_embedding)) >= sqlc.arg(min_similarity)::float8
@@ -148,8 +165,8 @@ DELETE FROM document_chunks
 WHERE document_id = $1;
 
 -- name: CreateDocumentChunk :exec
-INSERT INTO document_chunks (chunk_id, document_id, heading, text, source_page, embedding)
-VALUES ($1, $2, $3, $4, $5, sqlc.narg(embedding)::vector);
+INSERT INTO document_chunks (chunk_id, document_id, file_id, heading, text, source_page, embedding)
+VALUES ($1, $2, $3, $4, $5, $6, sqlc.narg(embedding)::vector);
 
 -- name: GetJobCapability :one
 SELECT capability_id, job_id, workspace_id, allowed_document_ids_json, allowed_item_ids_json,

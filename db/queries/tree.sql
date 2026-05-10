@@ -44,15 +44,16 @@ SET content = $2, last_mutation_job_id = $3, updated_at = $4
 WHERE id = $1;
 
 -- name: UpsertItemSource :exec
-INSERT INTO item_sources (item_id, document_id, chunk_id, source_text, confidence)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO item_sources (item_id, document_id, file_id, chunk_id, source_text, confidence)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (item_id, document_id, chunk_id)
-DO UPDATE SET source_text = EXCLUDED.source_text, confidence = EXCLUDED.confidence;
+DO UPDATE SET file_id = EXCLUDED.file_id, source_text = EXCLUDED.source_text, confidence = EXCLUDED.confidence;
 
 -- name: ListItemSources :many
-SELECT item_id, document_id, chunk_id, source_text, COALESCE(confidence, 0) AS confidence
-FROM item_sources
-WHERE item_id = $1;
+SELECT s.item_id, s.document_id, s.file_id, f.path AS sub_path, s.chunk_id, s.source_text, COALESCE(s.confidence, 0) AS confidence
+FROM item_sources s
+LEFT JOIN document_files f ON f.file_id = s.file_id
+WHERE s.item_id = $1;
 
 -- name: UpdateTreeTimestamp :exec
 UPDATE tree_items
