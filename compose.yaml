@@ -178,19 +178,35 @@ services:
         condition: service_healthy
 
   postgres:
-    image: cockroachdb/cockroach:latest-v23.2
+    image: cockroachdb/cockroach:latest-v24.2
     command: start-single-node --insecure
     ports:
       - "${POSTGRES_PORT:-5432}:26257"
       - "8082:8080"
     volumes:
       - postgres-data:/cockroach/cockroach-data
-      - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  postgres-init:
+    image: cockroachdb/cockroach:latest-v24.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    entrypoint: ["sh", "-c"]
+    command: >
+      "
+        cockroach sql --insecure --host=postgres:26257 -e \"CREATE USER IF NOT EXISTS synthify; CREATE DATABASE IF NOT EXISTS synthify; GRANT ALL ON DATABASE synthify TO synthify;\" &&
+        for f in /docker-entrypoint-initdb.d/*.sql; do
+          echo \"Executing \$$f...\"
+          cockroach sql --insecure --host=postgres:26257 --user=synthify --database=synthify < \"\$$f\"
+        done
+      "
 
   gcs:
     image: fsouza/fake-gcs-server:1.52

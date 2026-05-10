@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_documents_workspace_created_at ON documents(workspace_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS document_files (
   file_id     TEXT PRIMARY KEY,
   document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
@@ -61,7 +63,8 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 
 CREATE INDEX IF NOT EXISTS idx_document_chunks_document_id ON document_chunks(document_id);
 CREATE INDEX IF NOT EXISTS idx_document_chunks_file_id ON document_chunks(file_id);
-CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON document_chunks USING GIN (embedding);
+-- CockroachDB vector index syntax (Experimental in some versions, but GIN is not supported for VECTOR)
+-- CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding ON document_chunks USING GIN (embedding);
 
 CREATE TABLE IF NOT EXISTS tree_items (
   id TEXT PRIMARY KEY,
