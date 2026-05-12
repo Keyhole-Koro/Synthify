@@ -18,6 +18,11 @@ export declare type CreateCheckoutSessionRequest = Message<"synthify.tree.v1.Cre
    * @generated from field: string account_id = 1;
    */
   accountId: string;
+
+  /**
+   * @generated from field: string currency = 2;
+   */
+  currency: string;
 };
 
 /**

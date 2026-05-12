@@ -9,6 +9,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   max_uploads_per_1week INTEGER NOT NULL DEFAULT 0,
   stripe_customer_id TEXT NOT NULL DEFAULT '',
   stripe_subscription_id TEXT NOT NULL DEFAULT '',
+  billing_status TEXT NOT NULL DEFAULT 'free',
+  stripe_price_id TEXT NOT NULL DEFAULT '',
+  billing_currency TEXT NOT NULL DEFAULT '',
+  billing_amount_minor BIGINT NOT NULL DEFAULT 0,
+  billing_interval TEXT NOT NULL DEFAULT '',
+  current_period_end TIMESTAMPTZ,
+  cancel_at_period_end BOOL NOT NULL DEFAULT FALSE,
+  billing_updated_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL
 );
@@ -52,6 +60,38 @@ CREATE TABLE IF NOT EXISTS document_files (
 
 CREATE INDEX IF NOT EXISTS idx_document_files_doc_id ON document_files(document_id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_document_files_doc_path ON document_files(document_id, path);
+
+CREATE TABLE IF NOT EXISTS upload_reservations (
+  reservation_id TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+  document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+  expected_size_bytes BIGINT NOT NULL,
+  actual_size_bytes BIGINT NOT NULL DEFAULT 0,
+  status TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  confirmed_at TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_upload_reservations_document_id ON upload_reservations(document_id);
+CREATE INDEX IF NOT EXISTS idx_upload_reservations_account_status ON upload_reservations(account_id, status, expires_at);
+
+CREATE TABLE IF NOT EXISTS billing_events (
+  provider TEXT NOT NULL,
+  event_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL,
+  processed_at TIMESTAMPTZ,
+  processing_status TEXT NOT NULL,
+  error_message TEXT NOT NULL DEFAULT '',
+  account_id TEXT NOT NULL DEFAULT '',
+  stripe_customer_id TEXT NOT NULL DEFAULT '',
+  stripe_subscription_id TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (provider, event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_billing_events_account_id ON billing_events(account_id);
 
 CREATE TABLE IF NOT EXISTS document_chunks (
   chunk_id TEXT PRIMARY KEY,

@@ -11,6 +11,7 @@ service BillingService {
 
 message CreateCheckoutSessionRequest {
   string account_id = 1;
+  string currency = 2;
 }
 
 message CreateCheckoutSessionResponse {

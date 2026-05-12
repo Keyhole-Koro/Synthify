@@ -8,6 +8,9 @@ replace github.com/synthify/backend/packages/shared => ./packages/shared
 
 require (
 	connectrpc.com/connect v1.18.1
+	github.com/newrelic/go-agent/v3 v3.43.3
+	github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1
+	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/text v0.36.0
@@ -79,7 +82,7 @@ require (
 	google.golang.org/genproto v0.0.0-20260217215200-42d3e9bedb6d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
-	google.golang.org/grpc v1.79.3 // indirect
+	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/omap v1.2.0 // indirect
