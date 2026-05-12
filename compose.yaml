@@ -67,7 +67,7 @@ services:
       GCS_BUCKET: synthify-uploads
       GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
       STORAGE_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
-      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443}
+      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:${GCS_PORT:-4443}}
       INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
       FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:${FIREBASE_AUTH_PORT:-9099}
@@ -121,7 +121,7 @@ services:
       GCS_BUCKET: synthify-uploads
       GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
       STORAGE_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}
-      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:4443}
+      GCS_UPLOAD_URL_BASE: ${GCS_UPLOAD_URL_BASE:-http://localhost:${GCS_PORT:-4443}}
       INTERNAL_GCS_UPLOAD_URL_BASE: ${INTERNAL_GCS_UPLOAD_URL_BASE:-http://127.0.0.1:${GCS_PORT:-4443}}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-demo-synthify}
       FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:${FIREBASE_AUTH_PORT:-9099}
@@ -193,6 +193,7 @@ services:
 
   postgres-init:
     image: cockroachdb/cockroach:latest-v24.1
+    network_mode: host
     depends_on:
       postgres:
         condition: service_healthy
@@ -201,10 +202,10 @@ services:
     entrypoint: ["sh", "-c"]
     command: >
       "
-        cockroach sql --insecure --host=postgres:26257 -e \"CREATE USER IF NOT EXISTS synthify; CREATE DATABASE IF NOT EXISTS synthify; GRANT ALL ON DATABASE synthify TO synthify;\" &&
+        cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} -e \"CREATE USER IF NOT EXISTS synthify; CREATE DATABASE IF NOT EXISTS synthify; GRANT ALL ON DATABASE synthify TO synthify;\" &&
         for f in /docker-entrypoint-initdb.d/*.sql; do
           echo \"Executing \$$f...\"
-          cockroach sql --insecure --host=postgres:26257 --user=synthify --database=synthify < \"\$$f\"
+          cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} --user=synthify --database=synthify < \"\$$f\"
         done
       "
 
@@ -216,9 +217,9 @@ services:
       - -port
       - "4443"
       - -public-host
-      - localhost:4443
+      - localhost:${GCS_PORT:-4443}
       - -external-url
-      - http://localhost:4443
+      - http://localhost:${GCS_PORT:-4443}
       - -data
       - /data
       - -cors-headers
@@ -232,18 +233,19 @@ services:
 
   gcs-init:
     image: curlimages/curl:8.13.0
+    network_mode: host
     depends_on:
       gcs:
         condition: service_started
     command: >
       sh -c '
         set -eu;
-        until curl -fsS "http://gcs:4443/storage/v1/b" > /dev/null; do
+        until curl -fsS "http://127.0.0.1:${GCS_PORT:-4443}/storage/v1/b" > /dev/null; do
           sleep 1;
         done;
-        curl -fsS -X POST "http://gcs:4443/storage/v1/b?project=synthify-local" \
+        curl -fsS -X POST "http://127.0.0.1:${GCS_PORT:-4443}/storage/v1/b?project=synthify-local" \
           -H "Content-Type: application/json" \
-          -d "{\"name\":\"synthify-uploads\"}" > /dev/null || true
+          -d "{\"name\":\"synthify-uploads\"}" > /dev/null 2>&1 || true
       '
 
   firebase-auth:
