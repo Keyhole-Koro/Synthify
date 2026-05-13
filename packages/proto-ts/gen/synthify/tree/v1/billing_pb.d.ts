@@ -11,6 +11,120 @@ import type { Message } from "@bufbuild/protobuf";
 export declare const file_synthify_tree_v1_billing: GenFile;
 
 /**
+ * @generated from message synthify.tree.v1.GetBillingAccountRequest
+ */
+export declare type GetBillingAccountRequest = Message<"synthify.tree.v1.GetBillingAccountRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetBillingAccountRequest.
+ * Use `create(GetBillingAccountRequestSchema)` to create a new message.
+ */
+export declare const GetBillingAccountRequestSchema: GenMessage<GetBillingAccountRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.GetBillingAccountResponse
+ */
+export declare type GetBillingAccountResponse = Message<"synthify.tree.v1.GetBillingAccountResponse"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string plan = 2;
+   */
+  plan: string;
+
+  /**
+   * @generated from field: string billing_status = 3;
+   */
+  billingStatus: string;
+
+  /**
+   * @generated from field: int64 storage_quota_bytes = 4;
+   */
+  storageQuotaBytes: bigint;
+
+  /**
+   * @generated from field: int64 storage_used_bytes = 5;
+   */
+  storageUsedBytes: bigint;
+
+  /**
+   * @generated from field: int64 max_file_size_bytes = 6;
+   */
+  maxFileSizeBytes: bigint;
+
+  /**
+   * @generated from field: string stripe_price_id = 7;
+   */
+  stripePriceId: string;
+
+  /**
+   * @generated from field: string billing_currency = 8;
+   */
+  billingCurrency: string;
+
+  /**
+   * @generated from field: string billing_interval = 9;
+   */
+  billingInterval: string;
+
+  /**
+   * @generated from field: int64 billing_amount_minor = 10;
+   */
+  billingAmountMinor: bigint;
+
+  /**
+   * @generated from field: string current_period_end = 11;
+   */
+  currentPeriodEnd: string;
+
+  /**
+   * @generated from field: bool cancel_at_period_end = 12;
+   */
+  cancelAtPeriodEnd: boolean;
+
+  /**
+   * Phase 2: budget state
+   * 金額は decimal string (例: "12.34") で返す
+   *
+   * 月次上限。"0" なら無制限
+   *
+   * @generated from field: string budget_limit = 13;
+   */
+  budgetLimit: string;
+
+  /**
+   * 当月累計
+   *
+   * @generated from field: string current_period_usage = 14;
+   */
+  currentPeriodUsage: string;
+
+  /**
+   * @generated from field: string current_period_started_at = 15;
+   */
+  currentPeriodStartedAt: string;
+
+  /**
+   * @generated from field: bool budget_exceeded = 16;
+   */
+  budgetExceeded: boolean;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetBillingAccountResponse.
+ * Use `create(GetBillingAccountResponseSchema)` to create a new message.
+ */
+export declare const GetBillingAccountResponseSchema: GenMessage<GetBillingAccountResponse>;
+
+/**
  * @generated from message synthify.tree.v1.CreateCheckoutSessionRequest
  */
 export declare type CreateCheckoutSessionRequest = Message<"synthify.tree.v1.CreateCheckoutSessionRequest"> & {
@@ -80,9 +194,473 @@ export declare type CreatePortalSessionResponse = Message<"synthify.tree.v1.Crea
 export declare const CreatePortalSessionResponseSchema: GenMessage<CreatePortalSessionResponse>;
 
 /**
+ * =========================================================
+ * Phase 1: Usage Metering
+ * =========================================================
+ *
+ * @generated from message synthify.tree.v1.GetUsageRequest
+ */
+export declare type GetUsageRequest = Message<"synthify.tree.v1.GetUsageRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * ISO 8601 (例: "2026-05-01T00:00:00Z")。空なら当月初。
+   *
+   * @generated from field: string period_start = 2;
+   */
+  periodStart: string;
+
+  /**
+   * 同上。空なら現在時刻。
+   *
+   * @generated from field: string period_end = 3;
+   */
+  periodEnd: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetUsageRequest.
+ * Use `create(GetUsageRequestSchema)` to create a new message.
+ */
+export declare const GetUsageRequestSchema: GenMessage<GetUsageRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.GetUsageResponse
+ */
+export declare type GetUsageResponse = Message<"synthify.tree.v1.GetUsageResponse"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string period_start = 2;
+   */
+  periodStart: string;
+
+  /**
+   * @generated from field: string period_end = 3;
+   */
+  periodEnd: string;
+
+  /**
+   * decimal string
+   *
+   * @generated from field: string total_cost = 4;
+   */
+  totalCost: string;
+
+  /**
+   * @generated from field: string currency = 5;
+   */
+  currency: string;
+
+  /**
+   * @generated from field: repeated synthify.tree.v1.ModelUsage by_model = 6;
+   */
+  byModel: ModelUsage[];
+
+  /**
+   * @generated from field: repeated synthify.tree.v1.DailyUsage by_day = 7;
+   */
+  byDay: DailyUsage[];
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetUsageResponse.
+ * Use `create(GetUsageResponseSchema)` to create a new message.
+ */
+export declare const GetUsageResponseSchema: GenMessage<GetUsageResponse>;
+
+/**
+ * @generated from message synthify.tree.v1.ModelUsage
+ */
+export declare type ModelUsage = Message<"synthify.tree.v1.ModelUsage"> & {
+  /**
+   * @generated from field: string model = 1;
+   */
+  model: string;
+
+  /**
+   * @generated from field: int64 input_tokens = 2;
+   */
+  inputTokens: bigint;
+
+  /**
+   * @generated from field: int64 output_tokens = 3;
+   */
+  outputTokens: bigint;
+
+  /**
+   * decimal string
+   *
+   * @generated from field: string input_cost = 4;
+   */
+  inputCost: string;
+
+  /**
+   * @generated from field: string output_cost = 5;
+   */
+  outputCost: string;
+
+  /**
+   * @generated from field: string total_cost = 6;
+   */
+  totalCost: string;
+
+  /**
+   * @generated from field: int64 event_count = 7;
+   */
+  eventCount: bigint;
+};
+
+/**
+ * Describes the message synthify.tree.v1.ModelUsage.
+ * Use `create(ModelUsageSchema)` to create a new message.
+ */
+export declare const ModelUsageSchema: GenMessage<ModelUsage>;
+
+/**
+ * @generated from message synthify.tree.v1.DailyUsage
+ */
+export declare type DailyUsage = Message<"synthify.tree.v1.DailyUsage"> & {
+  /**
+   * YYYY-MM-DD
+   *
+   * @generated from field: string date = 1;
+   */
+  date: string;
+
+  /**
+   * @generated from field: string total_cost = 2;
+   */
+  totalCost: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.DailyUsage.
+ * Use `create(DailyUsageSchema)` to create a new message.
+ */
+export declare const DailyUsageSchema: GenMessage<DailyUsage>;
+
+/**
+ * Worker -> API への記録用 (内部 RPC)
+ *
+ * @generated from message synthify.tree.v1.RecordUsageRequest
+ */
+export declare type RecordUsageRequest = Message<"synthify.tree.v1.RecordUsageRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: string job_id = 3;
+   */
+  jobId: string;
+
+  /**
+   * @generated from field: string model = 4;
+   */
+  model: string;
+
+  /**
+   * @generated from field: int64 input_tokens = 5;
+   */
+  inputTokens: bigint;
+
+  /**
+   * @generated from field: int64 output_tokens = 6;
+   */
+  outputTokens: bigint;
+};
+
+/**
+ * Describes the message synthify.tree.v1.RecordUsageRequest.
+ * Use `create(RecordUsageRequestSchema)` to create a new message.
+ */
+export declare const RecordUsageRequestSchema: GenMessage<RecordUsageRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.RecordUsageResponse
+ */
+export declare type RecordUsageResponse = Message<"synthify.tree.v1.RecordUsageResponse"> & {
+  /**
+   * @generated from field: string event_id = 1;
+   */
+  eventId: string;
+
+  /**
+   * decimal string
+   *
+   * @generated from field: string cost = 2;
+   */
+  cost: string;
+
+  /**
+   * @generated from field: bool budget_exceeded = 3;
+   */
+  budgetExceeded: boolean;
+};
+
+/**
+ * Describes the message synthify.tree.v1.RecordUsageResponse.
+ * Use `create(RecordUsageResponseSchema)` to create a new message.
+ */
+export declare const RecordUsageResponseSchema: GenMessage<RecordUsageResponse>;
+
+/**
+ * =========================================================
+ * Phase 2: Budget
+ * =========================================================
+ *
+ * @generated from message synthify.tree.v1.UpdateBudgetRequest
+ */
+export declare type UpdateBudgetRequest = Message<"synthify.tree.v1.UpdateBudgetRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * decimal string。"0" で解除。
+   *
+   * @generated from field: string budget_limit = 2;
+   */
+  budgetLimit: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.UpdateBudgetRequest.
+ * Use `create(UpdateBudgetRequestSchema)` to create a new message.
+ */
+export declare const UpdateBudgetRequestSchema: GenMessage<UpdateBudgetRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.UpdateBudgetResponse
+ */
+export declare type UpdateBudgetResponse = Message<"synthify.tree.v1.UpdateBudgetResponse"> & {
+  /**
+   * @generated from field: string budget_limit = 1;
+   */
+  budgetLimit: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.UpdateBudgetResponse.
+ * Use `create(UpdateBudgetResponseSchema)` to create a new message.
+ */
+export declare const UpdateBudgetResponseSchema: GenMessage<UpdateBudgetResponse>;
+
+/**
+ * =========================================================
+ * Phase 3: Invoices & Payment Methods
+ * =========================================================
+ *
+ * @generated from message synthify.tree.v1.ListInvoicesRequest
+ */
+export declare type ListInvoicesRequest = Message<"synthify.tree.v1.ListInvoicesRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: int32 limit = 2;
+   */
+  limit: number;
+};
+
+/**
+ * Describes the message synthify.tree.v1.ListInvoicesRequest.
+ * Use `create(ListInvoicesRequestSchema)` to create a new message.
+ */
+export declare const ListInvoicesRequestSchema: GenMessage<ListInvoicesRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.ListInvoicesResponse
+ */
+export declare type ListInvoicesResponse = Message<"synthify.tree.v1.ListInvoicesResponse"> & {
+  /**
+   * @generated from field: repeated synthify.tree.v1.Invoice invoices = 1;
+   */
+  invoices: Invoice[];
+
+  /**
+   * decimal string
+   *
+   * @generated from field: string upcoming_amount = 2;
+   */
+  upcomingAmount: string;
+
+  /**
+   * @generated from field: string upcoming_period_end = 3;
+   */
+  upcomingPeriodEnd: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.ListInvoicesResponse.
+ * Use `create(ListInvoicesResponseSchema)` to create a new message.
+ */
+export declare const ListInvoicesResponseSchema: GenMessage<ListInvoicesResponse>;
+
+/**
+ * @generated from message synthify.tree.v1.Invoice
+ */
+export declare type Invoice = Message<"synthify.tree.v1.Invoice"> & {
+  /**
+   * @generated from field: string invoice_id = 1;
+   */
+  invoiceId: string;
+
+  /**
+   * decimal string
+   *
+   * @generated from field: string amount = 2;
+   */
+  amount: string;
+
+  /**
+   * @generated from field: string currency = 3;
+   */
+  currency: string;
+
+  /**
+   * @generated from field: string status = 4;
+   */
+  status: string;
+
+  /**
+   * @generated from field: string hosted_invoice_url = 5;
+   */
+  hostedInvoiceUrl: string;
+
+  /**
+   * @generated from field: string invoice_pdf_url = 6;
+   */
+  invoicePdfUrl: string;
+
+  /**
+   * @generated from field: string period_start = 7;
+   */
+  periodStart: string;
+
+  /**
+   * @generated from field: string period_end = 8;
+   */
+  periodEnd: string;
+
+  /**
+   * @generated from field: string paid_at = 9;
+   */
+  paidAt: string;
+
+  /**
+   * @generated from field: string created_at = 10;
+   */
+  createdAt: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.Invoice.
+ * Use `create(InvoiceSchema)` to create a new message.
+ */
+export declare const InvoiceSchema: GenMessage<Invoice>;
+
+/**
+ * @generated from message synthify.tree.v1.ListPaymentMethodsRequest
+ */
+export declare type ListPaymentMethodsRequest = Message<"synthify.tree.v1.ListPaymentMethodsRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.ListPaymentMethodsRequest.
+ * Use `create(ListPaymentMethodsRequestSchema)` to create a new message.
+ */
+export declare const ListPaymentMethodsRequestSchema: GenMessage<ListPaymentMethodsRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.ListPaymentMethodsResponse
+ */
+export declare type ListPaymentMethodsResponse = Message<"synthify.tree.v1.ListPaymentMethodsResponse"> & {
+  /**
+   * @generated from field: repeated synthify.tree.v1.PaymentMethod payment_methods = 1;
+   */
+  paymentMethods: PaymentMethod[];
+};
+
+/**
+ * Describes the message synthify.tree.v1.ListPaymentMethodsResponse.
+ * Use `create(ListPaymentMethodsResponseSchema)` to create a new message.
+ */
+export declare const ListPaymentMethodsResponseSchema: GenMessage<ListPaymentMethodsResponse>;
+
+/**
+ * @generated from message synthify.tree.v1.PaymentMethod
+ */
+export declare type PaymentMethod = Message<"synthify.tree.v1.PaymentMethod"> & {
+  /**
+   * @generated from field: string payment_method_id = 1;
+   */
+  paymentMethodId: string;
+
+  /**
+   * @generated from field: string brand = 2;
+   */
+  brand: string;
+
+  /**
+   * @generated from field: string last4 = 3;
+   */
+  last4: string;
+
+  /**
+   * @generated from field: int32 exp_month = 4;
+   */
+  expMonth: number;
+
+  /**
+   * @generated from field: int32 exp_year = 5;
+   */
+  expYear: number;
+
+  /**
+   * @generated from field: bool is_default = 6;
+   */
+  isDefault: boolean;
+};
+
+/**
+ * Describes the message synthify.tree.v1.PaymentMethod.
+ * Use `create(PaymentMethodSchema)` to create a new message.
+ */
+export declare const PaymentMethodSchema: GenMessage<PaymentMethod>;
+
+/**
  * @generated from service synthify.tree.v1.BillingService
  */
 export declare const BillingService: GenService<{
+  /**
+   * @generated from rpc synthify.tree.v1.BillingService.GetBillingAccount
+   */
+  getBillingAccount: {
+    methodKind: "unary";
+    input: typeof GetBillingAccountRequestSchema;
+    output: typeof GetBillingAccountResponseSchema;
+  },
   /**
    * @generated from rpc synthify.tree.v1.BillingService.CreateCheckoutSession
    */
@@ -98,6 +676,52 @@ export declare const BillingService: GenService<{
     methodKind: "unary";
     input: typeof CreatePortalSessionRequestSchema;
     output: typeof CreatePortalSessionResponseSchema;
+  },
+  /**
+   * Phase 1: usage metering
+   *
+   * @generated from rpc synthify.tree.v1.BillingService.GetUsage
+   */
+  getUsage: {
+    methodKind: "unary";
+    input: typeof GetUsageRequestSchema;
+    output: typeof GetUsageResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.tree.v1.BillingService.RecordUsage
+   */
+  recordUsage: {
+    methodKind: "unary";
+    input: typeof RecordUsageRequestSchema;
+    output: typeof RecordUsageResponseSchema;
+  },
+  /**
+   * Phase 2: budget
+   *
+   * @generated from rpc synthify.tree.v1.BillingService.UpdateBudget
+   */
+  updateBudget: {
+    methodKind: "unary";
+    input: typeof UpdateBudgetRequestSchema;
+    output: typeof UpdateBudgetResponseSchema;
+  },
+  /**
+   * Phase 3: invoices & payment methods
+   *
+   * @generated from rpc synthify.tree.v1.BillingService.ListInvoices
+   */
+  listInvoices: {
+    methodKind: "unary";
+    input: typeof ListInvoicesRequestSchema;
+    output: typeof ListInvoicesResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.tree.v1.BillingService.ListPaymentMethods
+   */
+  listPaymentMethods: {
+    methodKind: "unary";
+    input: typeof ListPaymentMethodsRequestSchema;
+    output: typeof ListPaymentMethodsResponseSchema;
   },
 }>;
 

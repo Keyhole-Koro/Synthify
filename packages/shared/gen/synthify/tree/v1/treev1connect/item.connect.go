@@ -36,14 +36,8 @@ const (
 	// ItemServiceGetTreeEntityDetailProcedure is the fully-qualified name of the ItemService's
 	// GetTreeEntityDetail RPC.
 	ItemServiceGetTreeEntityDetailProcedure = "/synthify.tree.v1.ItemService/GetTreeEntityDetail"
-	// ItemServiceRecordItemViewProcedure is the fully-qualified name of the ItemService's
-	// RecordItemView RPC.
-	ItemServiceRecordItemViewProcedure = "/synthify.tree.v1.ItemService/RecordItemView"
 	// ItemServiceCreateItemProcedure is the fully-qualified name of the ItemService's CreateItem RPC.
 	ItemServiceCreateItemProcedure = "/synthify.tree.v1.ItemService/CreateItem"
-	// ItemServiceGetUserItemActivityProcedure is the fully-qualified name of the ItemService's
-	// GetUserItemActivity RPC.
-	ItemServiceGetUserItemActivityProcedure = "/synthify.tree.v1.ItemService/GetUserItemActivity"
 	// ItemServiceApproveAliasProcedure is the fully-qualified name of the ItemService's ApproveAlias
 	// RPC.
 	ItemServiceApproveAliasProcedure = "/synthify.tree.v1.ItemService/ApproveAlias"
@@ -54,12 +48,8 @@ const (
 // ItemServiceClient is a client for the synthify.tree.v1.ItemService service.
 type ItemServiceClient interface {
 	GetTreeEntityDetail(context.Context, *connect.Request[v1.GetTreeEntityDetailRequest]) (*connect.Response[v1.GetTreeEntityDetailResponse], error)
-	// ユーザーがアイテムを開いた記録を保存する（viewer 以上）
-	RecordItemView(context.Context, *connect.Request[v1.RecordItemViewRequest]) (*connect.Response[v1.RecordItemViewResponse], error)
 	// ユーザーが手動でアイテムを追加する（editor / owner のみ）
 	CreateItem(context.Context, *connect.Request[v1.CreateItemRequest]) (*connect.Response[v1.CreateItemResponse], error)
-	// ユーザーごとの閲覧・追加アイテム一覧を取得する（workspace メンバー全員が参照可能）
-	GetUserItemActivity(context.Context, *connect.Request[v1.GetUserItemActivityRequest]) (*connect.Response[v1.GetUserItemActivityResponse], error)
 	// is_dev=true のメンバーのみ。suggested エイリアス候補を承認する
 	ApproveAlias(context.Context, *connect.Request[v1.ApproveAliasRequest]) (*connect.Response[v1.ApproveAliasResponse], error)
 	// is_dev=true のメンバーのみ。suggested エイリアス候補を却下する
@@ -83,22 +73,10 @@ func NewItemServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(itemServiceMethods.ByName("GetTreeEntityDetail")),
 			connect.WithClientOptions(opts...),
 		),
-		recordItemView: connect.NewClient[v1.RecordItemViewRequest, v1.RecordItemViewResponse](
-			httpClient,
-			baseURL+ItemServiceRecordItemViewProcedure,
-			connect.WithSchema(itemServiceMethods.ByName("RecordItemView")),
-			connect.WithClientOptions(opts...),
-		),
 		createItem: connect.NewClient[v1.CreateItemRequest, v1.CreateItemResponse](
 			httpClient,
 			baseURL+ItemServiceCreateItemProcedure,
 			connect.WithSchema(itemServiceMethods.ByName("CreateItem")),
-			connect.WithClientOptions(opts...),
-		),
-		getUserItemActivity: connect.NewClient[v1.GetUserItemActivityRequest, v1.GetUserItemActivityResponse](
-			httpClient,
-			baseURL+ItemServiceGetUserItemActivityProcedure,
-			connect.WithSchema(itemServiceMethods.ByName("GetUserItemActivity")),
 			connect.WithClientOptions(opts...),
 		),
 		approveAlias: connect.NewClient[v1.ApproveAliasRequest, v1.ApproveAliasResponse](
@@ -119,9 +97,7 @@ func NewItemServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 // itemServiceClient implements ItemServiceClient.
 type itemServiceClient struct {
 	getTreeEntityDetail *connect.Client[v1.GetTreeEntityDetailRequest, v1.GetTreeEntityDetailResponse]
-	recordItemView      *connect.Client[v1.RecordItemViewRequest, v1.RecordItemViewResponse]
 	createItem          *connect.Client[v1.CreateItemRequest, v1.CreateItemResponse]
-	getUserItemActivity *connect.Client[v1.GetUserItemActivityRequest, v1.GetUserItemActivityResponse]
 	approveAlias        *connect.Client[v1.ApproveAliasRequest, v1.ApproveAliasResponse]
 	rejectAlias         *connect.Client[v1.RejectAliasRequest, v1.RejectAliasResponse]
 }
@@ -131,19 +107,9 @@ func (c *itemServiceClient) GetTreeEntityDetail(ctx context.Context, req *connec
 	return c.getTreeEntityDetail.CallUnary(ctx, req)
 }
 
-// RecordItemView calls synthify.tree.v1.ItemService.RecordItemView.
-func (c *itemServiceClient) RecordItemView(ctx context.Context, req *connect.Request[v1.RecordItemViewRequest]) (*connect.Response[v1.RecordItemViewResponse], error) {
-	return c.recordItemView.CallUnary(ctx, req)
-}
-
 // CreateItem calls synthify.tree.v1.ItemService.CreateItem.
 func (c *itemServiceClient) CreateItem(ctx context.Context, req *connect.Request[v1.CreateItemRequest]) (*connect.Response[v1.CreateItemResponse], error) {
 	return c.createItem.CallUnary(ctx, req)
-}
-
-// GetUserItemActivity calls synthify.tree.v1.ItemService.GetUserItemActivity.
-func (c *itemServiceClient) GetUserItemActivity(ctx context.Context, req *connect.Request[v1.GetUserItemActivityRequest]) (*connect.Response[v1.GetUserItemActivityResponse], error) {
-	return c.getUserItemActivity.CallUnary(ctx, req)
 }
 
 // ApproveAlias calls synthify.tree.v1.ItemService.ApproveAlias.
@@ -159,12 +125,8 @@ func (c *itemServiceClient) RejectAlias(ctx context.Context, req *connect.Reques
 // ItemServiceHandler is an implementation of the synthify.tree.v1.ItemService service.
 type ItemServiceHandler interface {
 	GetTreeEntityDetail(context.Context, *connect.Request[v1.GetTreeEntityDetailRequest]) (*connect.Response[v1.GetTreeEntityDetailResponse], error)
-	// ユーザーがアイテムを開いた記録を保存する（viewer 以上）
-	RecordItemView(context.Context, *connect.Request[v1.RecordItemViewRequest]) (*connect.Response[v1.RecordItemViewResponse], error)
 	// ユーザーが手動でアイテムを追加する（editor / owner のみ）
 	CreateItem(context.Context, *connect.Request[v1.CreateItemRequest]) (*connect.Response[v1.CreateItemResponse], error)
-	// ユーザーごとの閲覧・追加アイテム一覧を取得する（workspace メンバー全員が参照可能）
-	GetUserItemActivity(context.Context, *connect.Request[v1.GetUserItemActivityRequest]) (*connect.Response[v1.GetUserItemActivityResponse], error)
 	// is_dev=true のメンバーのみ。suggested エイリアス候補を承認する
 	ApproveAlias(context.Context, *connect.Request[v1.ApproveAliasRequest]) (*connect.Response[v1.ApproveAliasResponse], error)
 	// is_dev=true のメンバーのみ。suggested エイリアス候補を却下する
@@ -184,22 +146,10 @@ func NewItemServiceHandler(svc ItemServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(itemServiceMethods.ByName("GetTreeEntityDetail")),
 		connect.WithHandlerOptions(opts...),
 	)
-	itemServiceRecordItemViewHandler := connect.NewUnaryHandler(
-		ItemServiceRecordItemViewProcedure,
-		svc.RecordItemView,
-		connect.WithSchema(itemServiceMethods.ByName("RecordItemView")),
-		connect.WithHandlerOptions(opts...),
-	)
 	itemServiceCreateItemHandler := connect.NewUnaryHandler(
 		ItemServiceCreateItemProcedure,
 		svc.CreateItem,
 		connect.WithSchema(itemServiceMethods.ByName("CreateItem")),
-		connect.WithHandlerOptions(opts...),
-	)
-	itemServiceGetUserItemActivityHandler := connect.NewUnaryHandler(
-		ItemServiceGetUserItemActivityProcedure,
-		svc.GetUserItemActivity,
-		connect.WithSchema(itemServiceMethods.ByName("GetUserItemActivity")),
 		connect.WithHandlerOptions(opts...),
 	)
 	itemServiceApproveAliasHandler := connect.NewUnaryHandler(
@@ -218,12 +168,8 @@ func NewItemServiceHandler(svc ItemServiceHandler, opts ...connect.HandlerOption
 		switch r.URL.Path {
 		case ItemServiceGetTreeEntityDetailProcedure:
 			itemServiceGetTreeEntityDetailHandler.ServeHTTP(w, r)
-		case ItemServiceRecordItemViewProcedure:
-			itemServiceRecordItemViewHandler.ServeHTTP(w, r)
 		case ItemServiceCreateItemProcedure:
 			itemServiceCreateItemHandler.ServeHTTP(w, r)
-		case ItemServiceGetUserItemActivityProcedure:
-			itemServiceGetUserItemActivityHandler.ServeHTTP(w, r)
 		case ItemServiceApproveAliasProcedure:
 			itemServiceApproveAliasHandler.ServeHTTP(w, r)
 		case ItemServiceRejectAliasProcedure:
@@ -241,16 +187,8 @@ func (UnimplementedItemServiceHandler) GetTreeEntityDetail(context.Context, *con
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.ItemService.GetTreeEntityDetail is not implemented"))
 }
 
-func (UnimplementedItemServiceHandler) RecordItemView(context.Context, *connect.Request[v1.RecordItemViewRequest]) (*connect.Response[v1.RecordItemViewResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.ItemService.RecordItemView is not implemented"))
-}
-
 func (UnimplementedItemServiceHandler) CreateItem(context.Context, *connect.Request[v1.CreateItemRequest]) (*connect.Response[v1.CreateItemResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.ItemService.CreateItem is not implemented"))
-}
-
-func (UnimplementedItemServiceHandler) GetUserItemActivity(context.Context, *connect.Request[v1.GetUserItemActivityRequest]) (*connect.Response[v1.GetUserItemActivityResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.ItemService.GetUserItemActivity is not implemented"))
 }
 
 func (UnimplementedItemServiceHandler) ApproveAlias(context.Context, *connect.Request[v1.ApproveAliasRequest]) (*connect.Response[v1.ApproveAliasResponse], error) {

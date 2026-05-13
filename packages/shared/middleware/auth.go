@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
+	"os"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
@@ -15,6 +17,8 @@ type contextKey string
 
 const authUserContextKey contextKey = "auth_user"
 const anonymousReadAllowedContextKey contextKey = "anonymous_read_allowed"
+const serviceCallContextKey contextKey = "service_call"
+const adminUserContextKey contextKey = "admin_user"
 
 type AuthUser struct {
 	ID    string
@@ -31,6 +35,31 @@ func AnonymousReadAllowed(ctx context.Context) bool {
 	return allowed
 }
 
+// IsServiceCall は worker -> API のような内部サービス間呼び出しを示す。
+// service token (環境変数 SYNTHIFY_INTERNAL_SERVICE_TOKEN) が一致した場合のみ true。
+func IsServiceCall(ctx context.Context) bool {
+	allowed, _ := ctx.Value(serviceCallContextKey).(bool)
+	return allowed
+}
+
+// IsAdmin は管理者権限を持つユーザーのリクエストか。
+// 現状は ADMIN_USER_EMAILS の allowlist で判定する暫定実装。
+func IsAdmin(ctx context.Context) bool {
+	admin, _ := ctx.Value(adminUserContextKey).(bool)
+	return admin
+}
+
+// ContextWithServiceCall はテストおよび手動構築用に service call フラグを立てる。
+func ContextWithServiceCall(ctx context.Context) context.Context {
+	return context.WithValue(ctx, serviceCallContextKey, true)
+}
+
+// ContextWithAdmin はテストおよび手動構築用に admin フラグを立てる。
+func ContextWithAdmin(ctx context.Context, user AuthUser) context.Context {
+	ctx = context.WithValue(ctx, authUserContextKey, user)
+	return context.WithValue(ctx, adminUserContextKey, true)
+}
+
 func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next http.Handler) http.Handler {
 	if logger == nil {
 		logger = applog.NoopLogger{}
@@ -40,10 +69,28 @@ func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next
 		panic(err)
 	}
 
+	expectedServiceToken := strings.TrimSpace(os.Getenv("SYNTHIFY_INTERNAL_SERVICE_TOKEN"))
+	adminEmails := parseAdminEmails(os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"))
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isStripeWebhookPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
+		}
+
+		// 内部サービス間呼び出し (worker -> API 等)。SYNTHIFY_INTERNAL_SERVICE_TOKEN が
+		// 設定されていて、リクエストの X-Synthify-Service-Token がそれと一致する場合のみ通す。
+		if expectedServiceToken != "" {
+			if got := r.Header.Get("X-Synthify-Service-Token"); got != "" {
+				if subtle.ConstantTimeCompare([]byte(got), []byte(expectedServiceToken)) == 1 {
+					ctx := context.WithValue(r.Context(), serviceCallContextKey, true)
+					next.ServeHTTP(w, r.WithContext(ctx))
+					return
+				}
+				logger.Warn(r.Context(), "auth.service_token_mismatch", nil, map[string]any{"path": r.URL.Path})
+				http.Error(w, "invalid service token", http.StatusUnauthorized)
+				return
+			}
 		}
 
 		// allowAnonymous is primarily used by tools like log-viewer to access job/log data without per-workspace membership.
@@ -75,8 +122,22 @@ func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next
 			Email: email,
 		}
 		ctx := context.WithValue(r.Context(), authUserContextKey, user)
+		if email != "" && adminEmails[strings.ToLower(email)] {
+			ctx = context.WithValue(ctx, adminUserContextKey, true)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func parseAdminEmails(csv string) map[string]bool {
+	result := map[string]bool{}
+	for _, raw := range strings.Split(csv, ",") {
+		e := strings.ToLower(strings.TrimSpace(raw))
+		if e != "" {
+			result[e] = true
+		}
+	}
+	return result
 }
 
 func isAnonymousPathAllowed(path string) bool {

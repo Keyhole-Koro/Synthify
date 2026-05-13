@@ -24,6 +24,12 @@ func ToError(err error) error {
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, domain.ErrBillingCurrencyUnsupported):
 		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, domain.ErrBillingUsageEventInvalid):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, domain.ErrBillingBudgetInvalid):
+		return connect.NewError(connect.CodeInvalidArgument, err)
+	case errors.Is(err, domain.ErrBillingBudgetExceeded):
+		return connect.NewError(connect.CodeResourceExhausted, err)
 	case errors.Is(err, domain.ErrBillingWebhookSignatureInvalid):
 		return connect.NewError(connect.CodeUnauthenticated, err)
 	case errors.Is(err, domain.ErrFileTooLarge), errors.Is(err, domain.ErrStorageQuotaExceeded):

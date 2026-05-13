@@ -33,18 +33,44 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// BillingServiceGetBillingAccountProcedure is the fully-qualified name of the BillingService's
+	// GetBillingAccount RPC.
+	BillingServiceGetBillingAccountProcedure = "/synthify.tree.v1.BillingService/GetBillingAccount"
 	// BillingServiceCreateCheckoutSessionProcedure is the fully-qualified name of the BillingService's
 	// CreateCheckoutSession RPC.
 	BillingServiceCreateCheckoutSessionProcedure = "/synthify.tree.v1.BillingService/CreateCheckoutSession"
 	// BillingServiceCreatePortalSessionProcedure is the fully-qualified name of the BillingService's
 	// CreatePortalSession RPC.
 	BillingServiceCreatePortalSessionProcedure = "/synthify.tree.v1.BillingService/CreatePortalSession"
+	// BillingServiceGetUsageProcedure is the fully-qualified name of the BillingService's GetUsage RPC.
+	BillingServiceGetUsageProcedure = "/synthify.tree.v1.BillingService/GetUsage"
+	// BillingServiceRecordUsageProcedure is the fully-qualified name of the BillingService's
+	// RecordUsage RPC.
+	BillingServiceRecordUsageProcedure = "/synthify.tree.v1.BillingService/RecordUsage"
+	// BillingServiceUpdateBudgetProcedure is the fully-qualified name of the BillingService's
+	// UpdateBudget RPC.
+	BillingServiceUpdateBudgetProcedure = "/synthify.tree.v1.BillingService/UpdateBudget"
+	// BillingServiceListInvoicesProcedure is the fully-qualified name of the BillingService's
+	// ListInvoices RPC.
+	BillingServiceListInvoicesProcedure = "/synthify.tree.v1.BillingService/ListInvoices"
+	// BillingServiceListPaymentMethodsProcedure is the fully-qualified name of the BillingService's
+	// ListPaymentMethods RPC.
+	BillingServiceListPaymentMethodsProcedure = "/synthify.tree.v1.BillingService/ListPaymentMethods"
 )
 
 // BillingServiceClient is a client for the synthify.tree.v1.BillingService service.
 type BillingServiceClient interface {
+	GetBillingAccount(context.Context, *connect.Request[v1.GetBillingAccountRequest]) (*connect.Response[v1.GetBillingAccountResponse], error)
 	CreateCheckoutSession(context.Context, *connect.Request[v1.CreateCheckoutSessionRequest]) (*connect.Response[v1.CreateCheckoutSessionResponse], error)
 	CreatePortalSession(context.Context, *connect.Request[v1.CreatePortalSessionRequest]) (*connect.Response[v1.CreatePortalSessionResponse], error)
+	// Phase 1: usage metering
+	GetUsage(context.Context, *connect.Request[v1.GetUsageRequest]) (*connect.Response[v1.GetUsageResponse], error)
+	RecordUsage(context.Context, *connect.Request[v1.RecordUsageRequest]) (*connect.Response[v1.RecordUsageResponse], error)
+	// Phase 2: budget
+	UpdateBudget(context.Context, *connect.Request[v1.UpdateBudgetRequest]) (*connect.Response[v1.UpdateBudgetResponse], error)
+	// Phase 3: invoices & payment methods
+	ListInvoices(context.Context, *connect.Request[v1.ListInvoicesRequest]) (*connect.Response[v1.ListInvoicesResponse], error)
+	ListPaymentMethods(context.Context, *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error)
 }
 
 // NewBillingServiceClient constructs a client for the synthify.tree.v1.BillingService service. By
@@ -58,6 +84,12 @@ func NewBillingServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 	baseURL = strings.TrimRight(baseURL, "/")
 	billingServiceMethods := v1.File_synthify_tree_v1_billing_proto.Services().ByName("BillingService").Methods()
 	return &billingServiceClient{
+		getBillingAccount: connect.NewClient[v1.GetBillingAccountRequest, v1.GetBillingAccountResponse](
+			httpClient,
+			baseURL+BillingServiceGetBillingAccountProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("GetBillingAccount")),
+			connect.WithClientOptions(opts...),
+		),
 		createCheckoutSession: connect.NewClient[v1.CreateCheckoutSessionRequest, v1.CreateCheckoutSessionResponse](
 			httpClient,
 			baseURL+BillingServiceCreateCheckoutSessionProcedure,
@@ -70,13 +102,54 @@ func NewBillingServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(billingServiceMethods.ByName("CreatePortalSession")),
 			connect.WithClientOptions(opts...),
 		),
+		getUsage: connect.NewClient[v1.GetUsageRequest, v1.GetUsageResponse](
+			httpClient,
+			baseURL+BillingServiceGetUsageProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("GetUsage")),
+			connect.WithClientOptions(opts...),
+		),
+		recordUsage: connect.NewClient[v1.RecordUsageRequest, v1.RecordUsageResponse](
+			httpClient,
+			baseURL+BillingServiceRecordUsageProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("RecordUsage")),
+			connect.WithClientOptions(opts...),
+		),
+		updateBudget: connect.NewClient[v1.UpdateBudgetRequest, v1.UpdateBudgetResponse](
+			httpClient,
+			baseURL+BillingServiceUpdateBudgetProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("UpdateBudget")),
+			connect.WithClientOptions(opts...),
+		),
+		listInvoices: connect.NewClient[v1.ListInvoicesRequest, v1.ListInvoicesResponse](
+			httpClient,
+			baseURL+BillingServiceListInvoicesProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("ListInvoices")),
+			connect.WithClientOptions(opts...),
+		),
+		listPaymentMethods: connect.NewClient[v1.ListPaymentMethodsRequest, v1.ListPaymentMethodsResponse](
+			httpClient,
+			baseURL+BillingServiceListPaymentMethodsProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("ListPaymentMethods")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // billingServiceClient implements BillingServiceClient.
 type billingServiceClient struct {
+	getBillingAccount     *connect.Client[v1.GetBillingAccountRequest, v1.GetBillingAccountResponse]
 	createCheckoutSession *connect.Client[v1.CreateCheckoutSessionRequest, v1.CreateCheckoutSessionResponse]
 	createPortalSession   *connect.Client[v1.CreatePortalSessionRequest, v1.CreatePortalSessionResponse]
+	getUsage              *connect.Client[v1.GetUsageRequest, v1.GetUsageResponse]
+	recordUsage           *connect.Client[v1.RecordUsageRequest, v1.RecordUsageResponse]
+	updateBudget          *connect.Client[v1.UpdateBudgetRequest, v1.UpdateBudgetResponse]
+	listInvoices          *connect.Client[v1.ListInvoicesRequest, v1.ListInvoicesResponse]
+	listPaymentMethods    *connect.Client[v1.ListPaymentMethodsRequest, v1.ListPaymentMethodsResponse]
+}
+
+// GetBillingAccount calls synthify.tree.v1.BillingService.GetBillingAccount.
+func (c *billingServiceClient) GetBillingAccount(ctx context.Context, req *connect.Request[v1.GetBillingAccountRequest]) (*connect.Response[v1.GetBillingAccountResponse], error) {
+	return c.getBillingAccount.CallUnary(ctx, req)
 }
 
 // CreateCheckoutSession calls synthify.tree.v1.BillingService.CreateCheckoutSession.
@@ -89,10 +162,44 @@ func (c *billingServiceClient) CreatePortalSession(ctx context.Context, req *con
 	return c.createPortalSession.CallUnary(ctx, req)
 }
 
+// GetUsage calls synthify.tree.v1.BillingService.GetUsage.
+func (c *billingServiceClient) GetUsage(ctx context.Context, req *connect.Request[v1.GetUsageRequest]) (*connect.Response[v1.GetUsageResponse], error) {
+	return c.getUsage.CallUnary(ctx, req)
+}
+
+// RecordUsage calls synthify.tree.v1.BillingService.RecordUsage.
+func (c *billingServiceClient) RecordUsage(ctx context.Context, req *connect.Request[v1.RecordUsageRequest]) (*connect.Response[v1.RecordUsageResponse], error) {
+	return c.recordUsage.CallUnary(ctx, req)
+}
+
+// UpdateBudget calls synthify.tree.v1.BillingService.UpdateBudget.
+func (c *billingServiceClient) UpdateBudget(ctx context.Context, req *connect.Request[v1.UpdateBudgetRequest]) (*connect.Response[v1.UpdateBudgetResponse], error) {
+	return c.updateBudget.CallUnary(ctx, req)
+}
+
+// ListInvoices calls synthify.tree.v1.BillingService.ListInvoices.
+func (c *billingServiceClient) ListInvoices(ctx context.Context, req *connect.Request[v1.ListInvoicesRequest]) (*connect.Response[v1.ListInvoicesResponse], error) {
+	return c.listInvoices.CallUnary(ctx, req)
+}
+
+// ListPaymentMethods calls synthify.tree.v1.BillingService.ListPaymentMethods.
+func (c *billingServiceClient) ListPaymentMethods(ctx context.Context, req *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error) {
+	return c.listPaymentMethods.CallUnary(ctx, req)
+}
+
 // BillingServiceHandler is an implementation of the synthify.tree.v1.BillingService service.
 type BillingServiceHandler interface {
+	GetBillingAccount(context.Context, *connect.Request[v1.GetBillingAccountRequest]) (*connect.Response[v1.GetBillingAccountResponse], error)
 	CreateCheckoutSession(context.Context, *connect.Request[v1.CreateCheckoutSessionRequest]) (*connect.Response[v1.CreateCheckoutSessionResponse], error)
 	CreatePortalSession(context.Context, *connect.Request[v1.CreatePortalSessionRequest]) (*connect.Response[v1.CreatePortalSessionResponse], error)
+	// Phase 1: usage metering
+	GetUsage(context.Context, *connect.Request[v1.GetUsageRequest]) (*connect.Response[v1.GetUsageResponse], error)
+	RecordUsage(context.Context, *connect.Request[v1.RecordUsageRequest]) (*connect.Response[v1.RecordUsageResponse], error)
+	// Phase 2: budget
+	UpdateBudget(context.Context, *connect.Request[v1.UpdateBudgetRequest]) (*connect.Response[v1.UpdateBudgetResponse], error)
+	// Phase 3: invoices & payment methods
+	ListInvoices(context.Context, *connect.Request[v1.ListInvoicesRequest]) (*connect.Response[v1.ListInvoicesResponse], error)
+	ListPaymentMethods(context.Context, *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error)
 }
 
 // NewBillingServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -102,6 +209,12 @@ type BillingServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewBillingServiceHandler(svc BillingServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	billingServiceMethods := v1.File_synthify_tree_v1_billing_proto.Services().ByName("BillingService").Methods()
+	billingServiceGetBillingAccountHandler := connect.NewUnaryHandler(
+		BillingServiceGetBillingAccountProcedure,
+		svc.GetBillingAccount,
+		connect.WithSchema(billingServiceMethods.ByName("GetBillingAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
 	billingServiceCreateCheckoutSessionHandler := connect.NewUnaryHandler(
 		BillingServiceCreateCheckoutSessionProcedure,
 		svc.CreateCheckoutSession,
@@ -114,12 +227,54 @@ func NewBillingServiceHandler(svc BillingServiceHandler, opts ...connect.Handler
 		connect.WithSchema(billingServiceMethods.ByName("CreatePortalSession")),
 		connect.WithHandlerOptions(opts...),
 	)
+	billingServiceGetUsageHandler := connect.NewUnaryHandler(
+		BillingServiceGetUsageProcedure,
+		svc.GetUsage,
+		connect.WithSchema(billingServiceMethods.ByName("GetUsage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	billingServiceRecordUsageHandler := connect.NewUnaryHandler(
+		BillingServiceRecordUsageProcedure,
+		svc.RecordUsage,
+		connect.WithSchema(billingServiceMethods.ByName("RecordUsage")),
+		connect.WithHandlerOptions(opts...),
+	)
+	billingServiceUpdateBudgetHandler := connect.NewUnaryHandler(
+		BillingServiceUpdateBudgetProcedure,
+		svc.UpdateBudget,
+		connect.WithSchema(billingServiceMethods.ByName("UpdateBudget")),
+		connect.WithHandlerOptions(opts...),
+	)
+	billingServiceListInvoicesHandler := connect.NewUnaryHandler(
+		BillingServiceListInvoicesProcedure,
+		svc.ListInvoices,
+		connect.WithSchema(billingServiceMethods.ByName("ListInvoices")),
+		connect.WithHandlerOptions(opts...),
+	)
+	billingServiceListPaymentMethodsHandler := connect.NewUnaryHandler(
+		BillingServiceListPaymentMethodsProcedure,
+		svc.ListPaymentMethods,
+		connect.WithSchema(billingServiceMethods.ByName("ListPaymentMethods")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.tree.v1.BillingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case BillingServiceGetBillingAccountProcedure:
+			billingServiceGetBillingAccountHandler.ServeHTTP(w, r)
 		case BillingServiceCreateCheckoutSessionProcedure:
 			billingServiceCreateCheckoutSessionHandler.ServeHTTP(w, r)
 		case BillingServiceCreatePortalSessionProcedure:
 			billingServiceCreatePortalSessionHandler.ServeHTTP(w, r)
+		case BillingServiceGetUsageProcedure:
+			billingServiceGetUsageHandler.ServeHTTP(w, r)
+		case BillingServiceRecordUsageProcedure:
+			billingServiceRecordUsageHandler.ServeHTTP(w, r)
+		case BillingServiceUpdateBudgetProcedure:
+			billingServiceUpdateBudgetHandler.ServeHTTP(w, r)
+		case BillingServiceListInvoicesProcedure:
+			billingServiceListInvoicesHandler.ServeHTTP(w, r)
+		case BillingServiceListPaymentMethodsProcedure:
+			billingServiceListPaymentMethodsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -129,10 +284,34 @@ func NewBillingServiceHandler(svc BillingServiceHandler, opts ...connect.Handler
 // UnimplementedBillingServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedBillingServiceHandler struct{}
 
+func (UnimplementedBillingServiceHandler) GetBillingAccount(context.Context, *connect.Request[v1.GetBillingAccountRequest]) (*connect.Response[v1.GetBillingAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.GetBillingAccount is not implemented"))
+}
+
 func (UnimplementedBillingServiceHandler) CreateCheckoutSession(context.Context, *connect.Request[v1.CreateCheckoutSessionRequest]) (*connect.Response[v1.CreateCheckoutSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.CreateCheckoutSession is not implemented"))
 }
 
 func (UnimplementedBillingServiceHandler) CreatePortalSession(context.Context, *connect.Request[v1.CreatePortalSessionRequest]) (*connect.Response[v1.CreatePortalSessionResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.CreatePortalSession is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) GetUsage(context.Context, *connect.Request[v1.GetUsageRequest]) (*connect.Response[v1.GetUsageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.GetUsage is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) RecordUsage(context.Context, *connect.Request[v1.RecordUsageRequest]) (*connect.Response[v1.RecordUsageResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.RecordUsage is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) UpdateBudget(context.Context, *connect.Request[v1.UpdateBudgetRequest]) (*connect.Response[v1.UpdateBudgetResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.UpdateBudget is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) ListInvoices(context.Context, *connect.Request[v1.ListInvoicesRequest]) (*connect.Response[v1.ListInvoicesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.ListInvoices is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) ListPaymentMethods(context.Context, *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.ListPaymentMethods is not implemented"))
 }

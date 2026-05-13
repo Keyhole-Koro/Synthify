@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ApproveAliasRequest, ApproveAliasResponse, CreateItemRequest, CreateItemResponse, GetTreeEntityDetailRequest, GetTreeEntityDetailResponse, GetUserItemActivityRequest, GetUserItemActivityResponse, RecordItemViewRequest, RecordItemViewResponse, RejectAliasRequest, RejectAliasResponse } from "./item_pb.js";
+import { ApproveAliasRequest, ApproveAliasResponse, CreateItemRequest, CreateItemResponse, GetTreeEntityDetailRequest, GetTreeEntityDetailResponse, RejectAliasRequest, RejectAliasResponse } from "./item_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -22,17 +22,6 @@ export const ItemService = {
       kind: MethodKind.Unary,
     },
     /**
-     * ユーザーがアイテムを開いた記録を保存する（viewer 以上）
-     *
-     * @generated from rpc synthify.tree.v1.ItemService.RecordItemView
-     */
-    recordItemView: {
-      name: "RecordItemView",
-      I: RecordItemViewRequest,
-      O: RecordItemViewResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
      * ユーザーが手動でアイテムを追加する（editor / owner のみ）
      *
      * @generated from rpc synthify.tree.v1.ItemService.CreateItem
@@ -41,17 +30,6 @@ export const ItemService = {
       name: "CreateItem",
       I: CreateItemRequest,
       O: CreateItemResponse,
-      kind: MethodKind.Unary,
-    },
-    /**
-     * ユーザーごとの閲覧・追加アイテム一覧を取得する（workspace メンバー全員が参照可能）
-     *
-     * @generated from rpc synthify.tree.v1.ItemService.GetUserItemActivity
-     */
-    getUserItemActivity: {
-      name: "GetUserItemActivity",
-      I: GetUserItemActivityRequest,
-      O: GetUserItemActivityResponse,
       kind: MethodKind.Unary,
     },
     /**

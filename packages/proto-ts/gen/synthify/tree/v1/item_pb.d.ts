@@ -133,44 +133,6 @@ export declare type GetTreeEntityDetailResponse = Message<"synthify.tree.v1.GetT
 export declare const GetTreeEntityDetailResponseSchema: GenMessage<GetTreeEntityDetailResponse>;
 
 /**
- * @generated from message synthify.tree.v1.RecordItemViewRequest
- */
-export declare type RecordItemViewRequest = Message<"synthify.tree.v1.RecordItemViewRequest"> & {
-  /**
-   * @generated from field: string workspace_id = 1;
-   */
-  workspaceId: string;
-
-  /**
-   * @generated from field: string item_id = 2;
-   */
-  itemId: string;
-
-  /**
-   * @generated from field: string document_id = 3;
-   */
-  documentId: string;
-};
-
-/**
- * Describes the message synthify.tree.v1.RecordItemViewRequest.
- * Use `create(RecordItemViewRequestSchema)` to create a new message.
- */
-export declare const RecordItemViewRequestSchema: GenMessage<RecordItemViewRequest>;
-
-/**
- * @generated from message synthify.tree.v1.RecordItemViewResponse
- */
-export declare type RecordItemViewResponse = Message<"synthify.tree.v1.RecordItemViewResponse"> & {
-};
-
-/**
- * Describes the message synthify.tree.v1.RecordItemViewResponse.
- * Use `create(RecordItemViewResponseSchema)` to create a new message.
- */
-export declare const RecordItemViewResponseSchema: GenMessage<RecordItemViewResponse>;
-
-/**
  * @generated from message synthify.tree.v1.CreateItemRequest
  */
 export declare type CreateItemRequest = Message<"synthify.tree.v1.CreateItemRequest"> & {
@@ -232,157 +194,6 @@ export declare type CreateItemResponse = Message<"synthify.tree.v1.CreateItemRes
  * Use `create(CreateItemResponseSchema)` to create a new message.
  */
 export declare const CreateItemResponseSchema: GenMessage<CreateItemResponse>;
-
-/**
- * @generated from message synthify.tree.v1.ViewedItemEntry
- */
-export declare type ViewedItemEntry = Message<"synthify.tree.v1.ViewedItemEntry"> & {
-  /**
-   * @generated from field: string item_id = 1;
-   */
-  itemId: string;
-
-  /**
-   * @generated from field: string document_id = 2;
-   */
-  documentId: string;
-
-  /**
-   * @generated from field: string label = 3;
-   */
-  label: string;
-
-  /**
-   * @generated from field: string last_viewed_at = 4;
-   */
-  lastViewedAt: string;
-
-  /**
-   * @generated from field: int64 view_count = 5;
-   */
-  viewCount: bigint;
-};
-
-/**
- * Describes the message synthify.tree.v1.ViewedItemEntry.
- * Use `create(ViewedItemEntrySchema)` to create a new message.
- */
-export declare const ViewedItemEntrySchema: GenMessage<ViewedItemEntry>;
-
-/**
- * @generated from message synthify.tree.v1.CreatedItemEntry
- */
-export declare type CreatedItemEntry = Message<"synthify.tree.v1.CreatedItemEntry"> & {
-  /**
-   * @generated from field: string item_id = 1;
-   */
-  itemId: string;
-
-  /**
-   * @generated from field: string document_id = 2;
-   */
-  documentId: string;
-
-  /**
-   * @generated from field: string label = 3;
-   */
-  label: string;
-
-  /**
-   * @generated from field: string created_at = 4;
-   */
-  createdAt: string;
-};
-
-/**
- * Describes the message synthify.tree.v1.CreatedItemEntry.
- * Use `create(CreatedItemEntrySchema)` to create a new message.
- */
-export declare const CreatedItemEntrySchema: GenMessage<CreatedItemEntry>;
-
-/**
- * @generated from message synthify.tree.v1.UserItemActivity
- */
-export declare type UserItemActivity = Message<"synthify.tree.v1.UserItemActivity"> & {
-  /**
-   * @generated from field: string user_id = 1;
-   */
-  userId: string;
-
-  /**
-   * @generated from field: string display_name = 2;
-   */
-  displayName: string;
-
-  /**
-   * @generated from field: repeated synthify.tree.v1.ViewedItemEntry viewed_items = 3;
-   */
-  viewedItems: ViewedItemEntry[];
-
-  /**
-   * @generated from field: repeated synthify.tree.v1.CreatedItemEntry created_items = 4;
-   */
-  createdItems: CreatedItemEntry[];
-};
-
-/**
- * Describes the message synthify.tree.v1.UserItemActivity.
- * Use `create(UserItemActivitySchema)` to create a new message.
- */
-export declare const UserItemActivitySchema: GenMessage<UserItemActivity>;
-
-/**
- * @generated from message synthify.tree.v1.GetUserItemActivityRequest
- */
-export declare type GetUserItemActivityRequest = Message<"synthify.tree.v1.GetUserItemActivityRequest"> & {
-  /**
-   * @generated from field: string workspace_id = 1;
-   */
-  workspaceId: string;
-
-  /**
-   * 省略時は自分自身
-   *
-   * @generated from field: string user_id = 2;
-   */
-  userId: string;
-
-  /**
-   * 省略時は workspace 全体
-   *
-   * @generated from field: string document_id = 3;
-   */
-  documentId: string;
-
-  /**
-   * viewed_items / created_items それぞれの上限（デフォルト 50）
-   *
-   * @generated from field: int32 limit = 4;
-   */
-  limit: number;
-};
-
-/**
- * Describes the message synthify.tree.v1.GetUserItemActivityRequest.
- * Use `create(GetUserItemActivityRequestSchema)` to create a new message.
- */
-export declare const GetUserItemActivityRequestSchema: GenMessage<GetUserItemActivityRequest>;
-
-/**
- * @generated from message synthify.tree.v1.GetUserItemActivityResponse
- */
-export declare type GetUserItemActivityResponse = Message<"synthify.tree.v1.GetUserItemActivityResponse"> & {
-  /**
-   * @generated from field: synthify.tree.v1.UserItemActivity activity = 1;
-   */
-  activity?: UserItemActivity;
-};
-
-/**
- * Describes the message synthify.tree.v1.GetUserItemActivityResponse.
- * Use `create(GetUserItemActivityResponseSchema)` to create a new message.
- */
-export declare const GetUserItemActivityResponseSchema: GenMessage<GetUserItemActivityResponse>;
 
 /**
  * @generated from message synthify.tree.v1.ApproveAliasRequest
@@ -505,16 +316,6 @@ export declare const ItemService: GenService<{
     output: typeof GetTreeEntityDetailResponseSchema;
   },
   /**
-   * ユーザーがアイテムを開いた記録を保存する（viewer 以上）
-   *
-   * @generated from rpc synthify.tree.v1.ItemService.RecordItemView
-   */
-  recordItemView: {
-    methodKind: "unary";
-    input: typeof RecordItemViewRequestSchema;
-    output: typeof RecordItemViewResponseSchema;
-  },
-  /**
    * ユーザーが手動でアイテムを追加する（editor / owner のみ）
    *
    * @generated from rpc synthify.tree.v1.ItemService.CreateItem
@@ -523,16 +324,6 @@ export declare const ItemService: GenService<{
     methodKind: "unary";
     input: typeof CreateItemRequestSchema;
     output: typeof CreateItemResponseSchema;
-  },
-  /**
-   * ユーザーごとの閲覧・追加アイテム一覧を取得する（workspace メンバー全員が参照可能）
-   *
-   * @generated from rpc synthify.tree.v1.ItemService.GetUserItemActivity
-   */
-  getUserItemActivity: {
-    methodKind: "unary";
-    input: typeof GetUserItemActivityRequestSchema;
-    output: typeof GetUserItemActivityResponseSchema;
   },
   /**
    * is_dev=true のメンバーのみ。suggested エイリアス候補を承認する

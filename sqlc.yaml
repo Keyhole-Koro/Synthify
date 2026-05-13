@@ -2,7 +2,13 @@ version: "2"
 sql:
   - engine: "postgresql"
     schema:
-      - "db/init/001_schema.sql"
+      - "db/init/001_accounts.sql"
+      - "db/init/002_workspaces.sql"
+      - "db/init/003_documents.sql"
+      - "db/init/004_billing.sql"
+      - "db/init/005_usage_billing.sql"
+      - "db/init/006_jobs.sql"
+      - "db/init/007_tree.sql"
     queries:
       - "db/queries"
     gen:

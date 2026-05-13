@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse, CreatePortalSessionRequest, CreatePortalSessionResponse } from "./billing_pb.js";
+import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse, CreatePortalSessionRequest, CreatePortalSessionResponse, GetBillingAccountRequest, GetBillingAccountResponse, GetUsageRequest, GetUsageResponse, ListInvoicesRequest, ListInvoicesResponse, ListPaymentMethodsRequest, ListPaymentMethodsResponse, RecordUsageRequest, RecordUsageResponse, UpdateBudgetRequest, UpdateBudgetResponse } from "./billing_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -12,6 +12,15 @@ import { MethodKind } from "@bufbuild/protobuf";
 export const BillingService = {
   typeName: "synthify.tree.v1.BillingService",
   methods: {
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.GetBillingAccount
+     */
+    getBillingAccount: {
+      name: "GetBillingAccount",
+      I: GetBillingAccountRequest,
+      O: GetBillingAccountResponse,
+      kind: MethodKind.Unary,
+    },
     /**
      * @generated from rpc synthify.tree.v1.BillingService.CreateCheckoutSession
      */
@@ -28,6 +37,57 @@ export const BillingService = {
       name: "CreatePortalSession",
       I: CreatePortalSessionRequest,
       O: CreatePortalSessionResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Phase 1: usage metering
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.GetUsage
+     */
+    getUsage: {
+      name: "GetUsage",
+      I: GetUsageRequest,
+      O: GetUsageResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.RecordUsage
+     */
+    recordUsage: {
+      name: "RecordUsage",
+      I: RecordUsageRequest,
+      O: RecordUsageResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Phase 2: budget
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.UpdateBudget
+     */
+    updateBudget: {
+      name: "UpdateBudget",
+      I: UpdateBudgetRequest,
+      O: UpdateBudgetResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Phase 3: invoices & payment methods
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.ListInvoices
+     */
+    listInvoices: {
+      name: "ListInvoices",
+      I: ListInvoicesRequest,
+      O: ListInvoicesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.ListPaymentMethods
+     */
+    listPaymentMethods: {
+      name: "ListPaymentMethods",
+      I: ListPaymentMethodsRequest,
+      O: ListPaymentMethodsResponse,
       kind: MethodKind.Unary,
     },
   }

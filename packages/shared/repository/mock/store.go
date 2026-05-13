@@ -532,7 +532,13 @@ func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*d
 }
 
 func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error) {
-	return &domain.JobApprovalRequest{JobID: jobID, Status: "pending"}, nil
+	return &domain.JobApprovalRequest{
+		ApprovalID:  "approval-" + jobID,
+		JobID:       jobID,
+		Status:      "pending",
+		Reason:      reason,
+		RequestedBy: requestedBy,
+	}, nil
 }
 
 func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error {

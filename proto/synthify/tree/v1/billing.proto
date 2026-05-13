@@ -5,8 +5,46 @@ package synthify.tree.v1;
 option go_package = "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1;treev1";
 
 service BillingService {
+  rpc GetBillingAccount(GetBillingAccountRequest) returns (GetBillingAccountResponse);
   rpc CreateCheckoutSession(CreateCheckoutSessionRequest) returns (CreateCheckoutSessionResponse);
   rpc CreatePortalSession(CreatePortalSessionRequest) returns (CreatePortalSessionResponse);
+
+  // Phase 1: usage metering
+  rpc GetUsage(GetUsageRequest) returns (GetUsageResponse);
+  rpc RecordUsage(RecordUsageRequest) returns (RecordUsageResponse);
+
+  // Phase 2: budget
+  rpc UpdateBudget(UpdateBudgetRequest) returns (UpdateBudgetResponse);
+
+  // Phase 3: invoices & payment methods
+  rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
+  rpc ListPaymentMethods(ListPaymentMethodsRequest) returns (ListPaymentMethodsResponse);
+}
+
+message GetBillingAccountRequest {
+  string account_id = 1;
+}
+
+message GetBillingAccountResponse {
+  string account_id = 1;
+  string plan = 2;
+  string billing_status = 3;
+  int64 storage_quota_bytes = 4;
+  int64 storage_used_bytes = 5;
+  int64 max_file_size_bytes = 6;
+  string stripe_price_id = 7;
+  string billing_currency = 8;
+  string billing_interval = 9;
+  int64 billing_amount_minor = 10;
+  string current_period_end = 11;
+  bool cancel_at_period_end = 12;
+
+  // Phase 2: budget state
+  // 金額は decimal string (例: "12.34") で返す
+  string budget_limit = 13;             // 月次上限。"0" なら無制限
+  string current_period_usage = 14;     // 当月累計
+  string current_period_started_at = 15;
+  bool budget_exceeded = 16;
 }
 
 message CreateCheckoutSessionRequest {
@@ -24,4 +62,112 @@ message CreatePortalSessionRequest {
 
 message CreatePortalSessionResponse {
   string portal_url = 1;
+}
+
+// =========================================================
+// Phase 1: Usage Metering
+// =========================================================
+message GetUsageRequest {
+  string account_id = 1;
+  // ISO 8601 (例: "2026-05-01T00:00:00Z")。空なら当月初。
+  string period_start = 2;
+  // 同上。空なら現在時刻。
+  string period_end = 3;
+}
+
+message GetUsageResponse {
+  string account_id = 1;
+  string period_start = 2;
+  string period_end = 3;
+  string total_cost = 4;  // decimal string
+  string currency = 5;
+  repeated ModelUsage by_model = 6;
+  repeated DailyUsage by_day = 7;
+}
+
+message ModelUsage {
+  string model = 1;
+  int64 input_tokens = 2;
+  int64 output_tokens = 3;
+  string input_cost = 4;   // decimal string
+  string output_cost = 5;
+  string total_cost = 6;
+  int64 event_count = 7;
+}
+
+message DailyUsage {
+  string date = 1;  // YYYY-MM-DD
+  string total_cost = 2;
+}
+
+// Worker -> API への記録用 (内部 RPC)
+message RecordUsageRequest {
+  string account_id = 1;
+  string workspace_id = 2;
+  string job_id = 3;
+  string model = 4;
+  int64 input_tokens = 5;
+  int64 output_tokens = 6;
+}
+
+message RecordUsageResponse {
+  string event_id = 1;
+  string cost = 2;  // decimal string
+  bool budget_exceeded = 3;
+}
+
+// =========================================================
+// Phase 2: Budget
+// =========================================================
+message UpdateBudgetRequest {
+  string account_id = 1;
+  string budget_limit = 2;  // decimal string。"0" で解除。
+}
+
+message UpdateBudgetResponse {
+  string budget_limit = 1;
+}
+
+// =========================================================
+// Phase 3: Invoices & Payment Methods
+// =========================================================
+message ListInvoicesRequest {
+  string account_id = 1;
+  int32 limit = 2;
+}
+
+message ListInvoicesResponse {
+  repeated Invoice invoices = 1;
+  string upcoming_amount = 2;       // decimal string
+  string upcoming_period_end = 3;
+}
+
+message Invoice {
+  string invoice_id = 1;
+  string amount = 2;  // decimal string
+  string currency = 3;
+  string status = 4;
+  string hosted_invoice_url = 5;
+  string invoice_pdf_url = 6;
+  string period_start = 7;
+  string period_end = 8;
+  string paid_at = 9;
+  string created_at = 10;
+}
+
+message ListPaymentMethodsRequest {
+  string account_id = 1;
+}
+
+message ListPaymentMethodsResponse {
+  repeated PaymentMethod payment_methods = 1;
+}
+
+message PaymentMethod {
+  string payment_method_id = 1;
+  string brand = 2;
+  string last4 = 3;
+  int32 exp_month = 4;
+  int32 exp_year = 5;
+  bool is_default = 6;
 }

@@ -26,7 +26,7 @@ FILENAME=$(${PSQL} -c "SELECT filename FROM documents WHERE document_id = '${DOC
 if [[ -z "${WS_ID}" ]]; then
   echo "ERROR: document '${DOC_ID}' が DB にありません。"
   echo "  1. docker compose up -d postgres"
-  echo "  2. DB が起動したら 002_seed.sql が自動適用されます"
+  echo "  2. DB が起動したら 100_seed.sql が自動適用されます"
   exit 1
 fi
 

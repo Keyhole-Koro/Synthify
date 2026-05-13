@@ -11,6 +11,11 @@ var (
 	ErrBillingPlanInvalid             = errors.New("billing plan is invalid")
 	ErrBillingCurrencyUnsupported     = errors.New("billing currency is unsupported")
 	ErrBillingWebhookSignatureInvalid = errors.New("billing webhook signature is invalid")
+
+	// Usage-Based Billing (Phase 1-3)
+	ErrBillingUsageEventInvalid = errors.New("usage event is missing required fields")
+	ErrBillingBudgetInvalid     = errors.New("budget limit is invalid")
+	ErrBillingBudgetExceeded    = errors.New("account budget has been exceeded")
 )
 
 type BillingPlan string
@@ -103,4 +108,80 @@ type ProviderWebhookEvent struct {
 	Interval               BillingInterval `json:"interval,omitempty"`
 	CurrentPeriodEnd       string          `json:"current_period_end,omitempty"`
 	CancelAtPeriodEnd      bool            `json:"cancel_at_period_end,omitempty"`
+}
+
+// =========================================================
+// Usage-Based Billing (Phase 1-3)
+// =========================================================
+
+type UsageEvent struct {
+	EventID      string `json:"event_id"`
+	AccountID    string `json:"account_id"`
+	WorkspaceID  string `json:"workspace_id,omitempty"`
+	JobID        string `json:"job_id,omitempty"`
+	Model        string `json:"model"`
+	InputTokens  int64  `json:"input_tokens"`
+	OutputTokens int64  `json:"output_tokens"`
+	CostMinor    int64  `json:"cost_minor"`
+	Currency     string `json:"currency"`
+	CreatedAt    string `json:"created_at"`
+}
+
+type UsageRecordResult struct {
+	EventID         string `json:"event_id"`
+	Cost            string `json:"cost"`
+	BudgetExceeded  bool   `json:"budget_exceeded"`
+}
+
+type ModelUsage struct {
+	Model        string `json:"model"`
+	InputTokens  int64  `json:"input_tokens"`
+	OutputTokens int64  `json:"output_tokens"`
+	InputCost    string `json:"input_cost"`
+	OutputCost   string `json:"output_cost"`
+	TotalCost    string `json:"total_cost"`
+	EventCount   int64  `json:"event_count"`
+}
+
+type DailyUsage struct {
+	Date      string `json:"date"`
+	TotalCost string `json:"total_cost"`
+}
+
+type UsageReport struct {
+	AccountID   string        `json:"account_id"`
+	PeriodStart string        `json:"period_start"`
+	PeriodEnd   string        `json:"period_end"`
+	TotalCost   string        `json:"total_cost"`
+	Currency    string        `json:"currency"`
+	ByModel     []ModelUsage  `json:"by_model"`
+	ByDay       []DailyUsage  `json:"by_day"`
+}
+
+type Invoice struct {
+	InvoiceID        string `json:"invoice_id"`
+	Amount           string `json:"amount"`
+	Currency         string `json:"currency"`
+	Status           string `json:"status"`
+	HostedInvoiceURL string `json:"hosted_invoice_url"`
+	InvoicePDFURL    string `json:"invoice_pdf_url"`
+	PeriodStart      string `json:"period_start"`
+	PeriodEnd        string `json:"period_end"`
+	PaidAt           string `json:"paid_at,omitempty"`
+	CreatedAt        string `json:"created_at"`
+}
+
+type InvoiceList struct {
+	Invoices           []*Invoice `json:"invoices"`
+	UpcomingAmount     string     `json:"upcoming_amount"`
+	UpcomingPeriodEnd  string     `json:"upcoming_period_end"`
+}
+
+type PaymentMethod struct {
+	PaymentMethodID string `json:"payment_method_id"`
+	Brand           string `json:"brand"`
+	Last4           string `json:"last4"`
+	ExpMonth        int32  `json:"exp_month"`
+	ExpYear         int32  `json:"exp_year"`
+	IsDefault       bool   `json:"is_default"`
 }

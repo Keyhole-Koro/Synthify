@@ -172,7 +172,7 @@ job job_123 exceeded item creation limit: 4097 > 4096
 ## 関連ファイル
 
 - `shared/domain/types.go` — `JobCapability` と `DefaultJobCapability`
-- `db/init/001_schema.sql` — `job_capabilities`
+- `db/init/006_jobs.sql` — `job_capabilities`
 - `shared/repository/postgres/document.go` — capability の保存・取得
 - `shared/repository/postgres/item.go` — mutation 時の capability 検査
 - `worker/pkg/worker/tools/base/usage.go` — runtime usage enforcement

@@ -28,6 +28,7 @@
 
 ## P3 — 仕様ドラフト（実装前に設計が必要）
 
+- [usage-based-billing.md](usage-based-billing.md) — LLM 従量課金への移行設計（usage metering、予算アラート、Worker 緊急停止、Stripe Meters 連携）
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
 - [router-job-splitting.md](router-job-splitting.md) — 巨大ドキュメントをジョブ分割して Router プロキシで処理する設計（未決定事項あり）
 - [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
@@ -45,5 +46,6 @@
 
 ## テスト・品質
 
+- [handler-auth-test-coverage.md](handler-auth-test-coverage.md) — handler-level 認証・認可テストの残カバレッジと `ListAllJobs` admin 認可 TODO
 - [tool-calling-tests.md](tool-calling-tests.md) — LLM エージェントが各ツールを正しく呼び出せているかを確認するテストの追加
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加

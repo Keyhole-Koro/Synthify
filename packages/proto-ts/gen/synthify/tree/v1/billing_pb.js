@@ -8,35 +8,147 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
  * Describes the file synthify/tree/v1/billing.proto.
  */
 export const file_synthify_tree_v1_billing = /*@__PURE__*/
-  fileDesc("Ch5zeW50aGlmeS90cmVlL3YxL2JpbGxpbmcucHJvdG8SEHN5bnRoaWZ5LnRyZWUudjEiRAocQ3JlYXRlQ2hlY2tvdXRTZXNzaW9uUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJEhAKCGN1cnJlbmN5GAIgASgJIjUKHUNyZWF0ZUNoZWNrb3V0U2Vzc2lvblJlc3BvbnNlEhQKDGNoZWNrb3V0X3VybBgBIAEoCSIwChpDcmVhdGVQb3J0YWxTZXNzaW9uUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIjEKG0NyZWF0ZVBvcnRhbFNlc3Npb25SZXNwb25zZRISCgpwb3J0YWxfdXJsGAEgASgJMv4BCg5CaWxsaW5nU2VydmljZRJ4ChVDcmVhdGVDaGVja291dFNlc3Npb24SLi5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZUNoZWNrb3V0U2Vzc2lvblJlcXVlc3QaLy5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZUNoZWNrb3V0U2Vzc2lvblJlc3BvbnNlEnIKE0NyZWF0ZVBvcnRhbFNlc3Npb24SLC5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZVBvcnRhbFNlc3Npb25SZXF1ZXN0Gi0uc3ludGhpZnkudHJlZS52MS5DcmVhdGVQb3J0YWxTZXNzaW9uUmVzcG9uc2VCSVpHZ2l0aHViLmNvbS9zeW50aGlmeS9iYWNrZW5kL3BhY2thZ2VzL3NoYXJlZC9nZW4vc3ludGhpZnkvdHJlZS92MTt0cmVldjFiBnByb3RvMw");
+  fileDesc("Ch5zeW50aGlmeS90cmVlL3YxL2JpbGxpbmcucHJvdG8SEHN5bnRoaWZ5LnRyZWUudjEiLgoYR2V0QmlsbGluZ0FjY291bnRSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkiwAMKGUdldEJpbGxpbmdBY2NvdW50UmVzcG9uc2USEgoKYWNjb3VudF9pZBgBIAEoCRIMCgRwbGFuGAIgASgJEhYKDmJpbGxpbmdfc3RhdHVzGAMgASgJEhsKE3N0b3JhZ2VfcXVvdGFfYnl0ZXMYBCABKAMSGgoSc3RvcmFnZV91c2VkX2J5dGVzGAUgASgDEhsKE21heF9maWxlX3NpemVfYnl0ZXMYBiABKAMSFwoPc3RyaXBlX3ByaWNlX2lkGAcgASgJEhgKEGJpbGxpbmdfY3VycmVuY3kYCCABKAkSGAoQYmlsbGluZ19pbnRlcnZhbBgJIAEoCRIcChRiaWxsaW5nX2Ftb3VudF9taW5vchgKIAEoAxIaChJjdXJyZW50X3BlcmlvZF9lbmQYCyABKAkSHAoUY2FuY2VsX2F0X3BlcmlvZF9lbmQYDCABKAgSFAoMYnVkZ2V0X2xpbWl0GA0gASgJEhwKFGN1cnJlbnRfcGVyaW9kX3VzYWdlGA4gASgJEiEKGWN1cnJlbnRfcGVyaW9kX3N0YXJ0ZWRfYXQYDyABKAkSFwoPYnVkZ2V0X2V4Y2VlZGVkGBAgASgIIkQKHENyZWF0ZUNoZWNrb3V0U2Vzc2lvblJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIQCghjdXJyZW5jeRgCIAEoCSI1Ch1DcmVhdGVDaGVja291dFNlc3Npb25SZXNwb25zZRIUCgxjaGVja291dF91cmwYASABKAkiMAoaQ3JlYXRlUG9ydGFsU2Vzc2lvblJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCSIxChtDcmVhdGVQb3J0YWxTZXNzaW9uUmVzcG9uc2USEgoKcG9ydGFsX3VybBgBIAEoCSJPCg9HZXRVc2FnZVJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxwZXJpb2Rfc3RhcnQYAiABKAkSEgoKcGVyaW9kX2VuZBgDIAEoCSLUAQoQR2V0VXNhZ2VSZXNwb25zZRISCgphY2NvdW50X2lkGAEgASgJEhQKDHBlcmlvZF9zdGFydBgCIAEoCRISCgpwZXJpb2RfZW5kGAMgASgJEhIKCnRvdGFsX2Nvc3QYBCABKAkSEAoIY3VycmVuY3kYBSABKAkSLgoIYnlfbW9kZWwYBiADKAsyHC5zeW50aGlmeS50cmVlLnYxLk1vZGVsVXNhZ2USLAoGYnlfZGF5GAcgAygLMhwuc3ludGhpZnkudHJlZS52MS5EYWlseVVzYWdlIpoBCgpNb2RlbFVzYWdlEg0KBW1vZGVsGAEgASgJEhQKDGlucHV0X3Rva2VucxgCIAEoAxIVCg1vdXRwdXRfdG9rZW5zGAMgASgDEhIKCmlucHV0X2Nvc3QYBCABKAkSEwoLb3V0cHV0X2Nvc3QYBSABKAkSEgoKdG90YWxfY29zdBgGIAEoCRITCgtldmVudF9jb3VudBgHIAEoAyIuCgpEYWlseVVzYWdlEgwKBGRhdGUYASABKAkSEgoKdG90YWxfY29zdBgCIAEoCSKKAQoSUmVjb3JkVXNhZ2VSZXF1ZXN0EhIKCmFjY291bnRfaWQYASABKAkSFAoMd29ya3NwYWNlX2lkGAIgASgJEg4KBmpvYl9pZBgDIAEoCRINCgVtb2RlbBgEIAEoCRIUCgxpbnB1dF90b2tlbnMYBSABKAMSFQoNb3V0cHV0X3Rva2VucxgGIAEoAyJOChNSZWNvcmRVc2FnZVJlc3BvbnNlEhAKCGV2ZW50X2lkGAEgASgJEgwKBGNvc3QYAiABKAkSFwoPYnVkZ2V0X2V4Y2VlZGVkGAMgASgIIj8KE1VwZGF0ZUJ1ZGdldFJlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRIUCgxidWRnZXRfbGltaXQYAiABKAkiLAoUVXBkYXRlQnVkZ2V0UmVzcG9uc2USFAoMYnVkZ2V0X2xpbWl0GAEgASgJIjgKE0xpc3RJbnZvaWNlc1JlcXVlc3QSEgoKYWNjb3VudF9pZBgBIAEoCRINCgVsaW1pdBgCIAEoBSJ5ChRMaXN0SW52b2ljZXNSZXNwb25zZRIrCghpbnZvaWNlcxgBIAMoCzIZLnN5bnRoaWZ5LnRyZWUudjEuSW52b2ljZRIXCg91cGNvbWluZ19hbW91bnQYAiABKAkSGwoTdXBjb21pbmdfcGVyaW9kX2VuZBgDIAEoCSLTAQoHSW52b2ljZRISCgppbnZvaWNlX2lkGAEgASgJEg4KBmFtb3VudBgCIAEoCRIQCghjdXJyZW5jeRgDIAEoCRIOCgZzdGF0dXMYBCABKAkSGgoSaG9zdGVkX2ludm9pY2VfdXJsGAUgASgJEhcKD2ludm9pY2VfcGRmX3VybBgGIAEoCRIUCgxwZXJpb2Rfc3RhcnQYByABKAkSEgoKcGVyaW9kX2VuZBgIIAEoCRIPCgdwYWlkX2F0GAkgASgJEhIKCmNyZWF0ZWRfYXQYCiABKAkiLwoZTGlzdFBheW1lbnRNZXRob2RzUmVxdWVzdBISCgphY2NvdW50X2lkGAEgASgJIlYKGkxpc3RQYXltZW50TWV0aG9kc1Jlc3BvbnNlEjgKD3BheW1lbnRfbWV0aG9kcxgBIAMoCzIfLnN5bnRoaWZ5LnRyZWUudjEuUGF5bWVudE1ldGhvZCKBAQoNUGF5bWVudE1ldGhvZBIZChFwYXltZW50X21ldGhvZF9pZBgBIAEoCRINCgVicmFuZBgCIAEoCRINCgVsYXN0NBgDIAEoCRIRCglleHBfbW9udGgYBCABKAUSEAoIZXhwX3llYXIYBSABKAUSEgoKaXNfZGVmYXVsdBgGIAEoCDLKBgoOQmlsbGluZ1NlcnZpY2USbAoRR2V0QmlsbGluZ0FjY291bnQSKi5zeW50aGlmeS50cmVlLnYxLkdldEJpbGxpbmdBY2NvdW50UmVxdWVzdBorLnN5bnRoaWZ5LnRyZWUudjEuR2V0QmlsbGluZ0FjY291bnRSZXNwb25zZRJ4ChVDcmVhdGVDaGVja291dFNlc3Npb24SLi5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZUNoZWNrb3V0U2Vzc2lvblJlcXVlc3QaLy5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZUNoZWNrb3V0U2Vzc2lvblJlc3BvbnNlEnIKE0NyZWF0ZVBvcnRhbFNlc3Npb24SLC5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZVBvcnRhbFNlc3Npb25SZXF1ZXN0Gi0uc3ludGhpZnkudHJlZS52MS5DcmVhdGVQb3J0YWxTZXNzaW9uUmVzcG9uc2USUQoIR2V0VXNhZ2USIS5zeW50aGlmeS50cmVlLnYxLkdldFVzYWdlUmVxdWVzdBoiLnN5bnRoaWZ5LnRyZWUudjEuR2V0VXNhZ2VSZXNwb25zZRJaCgtSZWNvcmRVc2FnZRIkLnN5bnRoaWZ5LnRyZWUudjEuUmVjb3JkVXNhZ2VSZXF1ZXN0GiUuc3ludGhpZnkudHJlZS52MS5SZWNvcmRVc2FnZVJlc3BvbnNlEl0KDFVwZGF0ZUJ1ZGdldBIlLnN5bnRoaWZ5LnRyZWUudjEuVXBkYXRlQnVkZ2V0UmVxdWVzdBomLnN5bnRoaWZ5LnRyZWUudjEuVXBkYXRlQnVkZ2V0UmVzcG9uc2USXQoMTGlzdEludm9pY2VzEiUuc3ludGhpZnkudHJlZS52MS5MaXN0SW52b2ljZXNSZXF1ZXN0GiYuc3ludGhpZnkudHJlZS52MS5MaXN0SW52b2ljZXNSZXNwb25zZRJvChJMaXN0UGF5bWVudE1ldGhvZHMSKy5zeW50aGlmeS50cmVlLnYxLkxpc3RQYXltZW50TWV0aG9kc1JlcXVlc3QaLC5zeW50aGlmeS50cmVlLnYxLkxpc3RQYXltZW50TWV0aG9kc1Jlc3BvbnNlQklaR2dpdGh1Yi5jb20vc3ludGhpZnkvYmFja2VuZC9wYWNrYWdlcy9zaGFyZWQvZ2VuL3N5bnRoaWZ5L3RyZWUvdjE7dHJlZXYxYgZwcm90bzM");
+
+/**
+ * Describes the message synthify.tree.v1.GetBillingAccountRequest.
+ * Use `create(GetBillingAccountRequestSchema)` to create a new message.
+ */
+export const GetBillingAccountRequestSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 0);
+
+/**
+ * Describes the message synthify.tree.v1.GetBillingAccountResponse.
+ * Use `create(GetBillingAccountResponseSchema)` to create a new message.
+ */
+export const GetBillingAccountResponseSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 1);
 
 /**
  * Describes the message synthify.tree.v1.CreateCheckoutSessionRequest.
  * Use `create(CreateCheckoutSessionRequestSchema)` to create a new message.
  */
 export const CreateCheckoutSessionRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_billing, 0);
+  messageDesc(file_synthify_tree_v1_billing, 2);
 
 /**
  * Describes the message synthify.tree.v1.CreateCheckoutSessionResponse.
  * Use `create(CreateCheckoutSessionResponseSchema)` to create a new message.
  */
 export const CreateCheckoutSessionResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_billing, 1);
+  messageDesc(file_synthify_tree_v1_billing, 3);
 
 /**
  * Describes the message synthify.tree.v1.CreatePortalSessionRequest.
  * Use `create(CreatePortalSessionRequestSchema)` to create a new message.
  */
 export const CreatePortalSessionRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_billing, 2);
+  messageDesc(file_synthify_tree_v1_billing, 4);
 
 /**
  * Describes the message synthify.tree.v1.CreatePortalSessionResponse.
  * Use `create(CreatePortalSessionResponseSchema)` to create a new message.
  */
 export const CreatePortalSessionResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_billing, 3);
+  messageDesc(file_synthify_tree_v1_billing, 5);
+
+/**
+ * Describes the message synthify.tree.v1.GetUsageRequest.
+ * Use `create(GetUsageRequestSchema)` to create a new message.
+ */
+export const GetUsageRequestSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 6);
+
+/**
+ * Describes the message synthify.tree.v1.GetUsageResponse.
+ * Use `create(GetUsageResponseSchema)` to create a new message.
+ */
+export const GetUsageResponseSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 7);
+
+/**
+ * Describes the message synthify.tree.v1.ModelUsage.
+ * Use `create(ModelUsageSchema)` to create a new message.
+ */
+export const ModelUsageSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 8);
+
+/**
+ * Describes the message synthify.tree.v1.DailyUsage.
+ * Use `create(DailyUsageSchema)` to create a new message.
+ */
+export const DailyUsageSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 9);
+
+/**
+ * Describes the message synthify.tree.v1.RecordUsageRequest.
+ * Use `create(RecordUsageRequestSchema)` to create a new message.
+ */
+export const RecordUsageRequestSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 10);
+
+/**
+ * Describes the message synthify.tree.v1.RecordUsageResponse.
+ * Use `create(RecordUsageResponseSchema)` to create a new message.
+ */
+export const RecordUsageResponseSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 11);
+
+/**
+ * Describes the message synthify.tree.v1.UpdateBudgetRequest.
+ * Use `create(UpdateBudgetRequestSchema)` to create a new message.
+ */
+export const UpdateBudgetRequestSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 12);
+
+/**
+ * Describes the message synthify.tree.v1.UpdateBudgetResponse.
+ * Use `create(UpdateBudgetResponseSchema)` to create a new message.
+ */
+export const UpdateBudgetResponseSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 13);
+
+/**
+ * Describes the message synthify.tree.v1.ListInvoicesRequest.
+ * Use `create(ListInvoicesRequestSchema)` to create a new message.
+ */
+export const ListInvoicesRequestSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 14);
+
+/**
+ * Describes the message synthify.tree.v1.ListInvoicesResponse.
+ * Use `create(ListInvoicesResponseSchema)` to create a new message.
+ */
+export const ListInvoicesResponseSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 15);
+
+/**
+ * Describes the message synthify.tree.v1.Invoice.
+ * Use `create(InvoiceSchema)` to create a new message.
+ */
+export const InvoiceSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 16);
+
+/**
+ * Describes the message synthify.tree.v1.ListPaymentMethodsRequest.
+ * Use `create(ListPaymentMethodsRequestSchema)` to create a new message.
+ */
+export const ListPaymentMethodsRequestSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 17);
+
+/**
+ * Describes the message synthify.tree.v1.ListPaymentMethodsResponse.
+ * Use `create(ListPaymentMethodsResponseSchema)` to create a new message.
+ */
+export const ListPaymentMethodsResponseSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 18);
+
+/**
+ * Describes the message synthify.tree.v1.PaymentMethod.
+ * Use `create(PaymentMethodSchema)` to create a new message.
+ */
+export const PaymentMethodSchema = /*@__PURE__*/
+  messageDesc(file_synthify_tree_v1_billing, 19);
 
 /**
  * @generated from service synthify.tree.v1.BillingService

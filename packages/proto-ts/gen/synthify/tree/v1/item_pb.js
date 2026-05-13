@@ -10,7 +10,7 @@ import { file_synthify_tree_v1_tree_types } from "./tree_types_pb";
  * Describes the file synthify/tree/v1/item.proto.
  */
 export const file_synthify_tree_v1_item = /*@__PURE__*/
-  fileDesc("ChtzeW50aGlmeS90cmVlL3YxL2l0ZW0ucHJvdG8SEHN5bnRoaWZ5LnRyZWUudjEieAoJRW50aXR5UmVmEhQKDHdvcmtzcGFjZV9pZBgBIAEoCRI0CgVzY29wZRgCIAEoDjIlLnN5bnRoaWZ5LnRyZWUudjEuVHJlZVByb2plY3Rpb25TY29wZRIKCgJpZBgDIAEoCRITCgtkb2N1bWVudF9pZBgEIAEoCSJpChJUcmVlRW50aXR5RXZpZGVuY2USNgoNc291cmNlX2NodW5rcxgBIAMoCzIfLnN5bnRoaWZ5LnRyZWUudjEuRG9jdW1lbnRDaHVuaxIbChNzb3VyY2VfZG9jdW1lbnRfaWRzGAIgAygJItABChBUcmVlRW50aXR5RGV0YWlsEigKA3JlZhgBIAEoCzIbLnN5bnRoaWZ5LnRyZWUudjEuRW50aXR5UmVmEiQKBGl0ZW0YAiABKAsyFi5zeW50aGlmeS50cmVlLnYxLkl0ZW0SNgoIZXZpZGVuY2UYAyABKAsyJC5zeW50aGlmeS50cmVlLnYxLlRyZWVFbnRpdHlFdmlkZW5jZRI0ChRyZXByZXNlbnRhdGl2ZV9pdGVtcxgEIAMoCzIWLnN5bnRoaWZ5LnRyZWUudjEuSXRlbSJmChpHZXRUcmVlRW50aXR5RGV0YWlsUmVxdWVzdBIvCgp0YXJnZXRfcmVmGAEgASgLMhsuc3ludGhpZnkudHJlZS52MS5FbnRpdHlSZWYSFwoPcmVzb2x2ZV9hbGlhc2VzGAIgASgIIlEKG0dldFRyZWVFbnRpdHlEZXRhaWxSZXNwb25zZRIyCgZkZXRhaWwYASABKAsyIi5zeW50aGlmeS50cmVlLnYxLlRyZWVFbnRpdHlEZXRhaWwiUwoVUmVjb3JkSXRlbVZpZXdSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIPCgdpdGVtX2lkGAIgASgJEhMKC2RvY3VtZW50X2lkGAMgASgJIhgKFlJlY29yZEl0ZW1WaWV3UmVzcG9uc2UihAEKEUNyZWF0ZUl0ZW1SZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRITCgtkb2N1bWVudF9pZBgCIAEoCRINCgVsYWJlbBgDIAEoCRINCgVsZXZlbBgEIAEoBRITCgtkZXNjcmlwdGlvbhgFIAEoCRIRCglwYXJlbnRfaWQYBiABKAkiOgoSQ3JlYXRlSXRlbVJlc3BvbnNlEiQKBGl0ZW0YASABKAsyFi5zeW50aGlmeS50cmVlLnYxLkl0ZW0icgoPVmlld2VkSXRlbUVudHJ5Eg8KB2l0ZW1faWQYASABKAkSEwoLZG9jdW1lbnRfaWQYAiABKAkSDQoFbGFiZWwYAyABKAkSFgoObGFzdF92aWV3ZWRfYXQYBCABKAkSEgoKdmlld19jb3VudBgFIAEoAyJbChBDcmVhdGVkSXRlbUVudHJ5Eg8KB2l0ZW1faWQYASABKAkSEwoLZG9jdW1lbnRfaWQYAiABKAkSDQoFbGFiZWwYAyABKAkSEgoKY3JlYXRlZF9hdBgEIAEoCSKtAQoQVXNlckl0ZW1BY3Rpdml0eRIPCgd1c2VyX2lkGAEgASgJEhQKDGRpc3BsYXlfbmFtZRgCIAEoCRI3Cgx2aWV3ZWRfaXRlbXMYAyADKAsyIS5zeW50aGlmeS50cmVlLnYxLlZpZXdlZEl0ZW1FbnRyeRI5Cg1jcmVhdGVkX2l0ZW1zGAQgAygLMiIuc3ludGhpZnkudHJlZS52MS5DcmVhdGVkSXRlbUVudHJ5ImcKGkdldFVzZXJJdGVtQWN0aXZpdHlSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIPCgd1c2VyX2lkGAIgASgJEhMKC2RvY3VtZW50X2lkGAMgASgJEg0KBWxpbWl0GAQgASgFIlMKG0dldFVzZXJJdGVtQWN0aXZpdHlSZXNwb25zZRI0CghhY3Rpdml0eRgBIAEoCzIiLnN5bnRoaWZ5LnRyZWUudjEuVXNlckl0ZW1BY3Rpdml0eSJdChNBcHByb3ZlQWxpYXNSZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRIZChFjYW5vbmljYWxfaXRlbV9pZBgCIAEoCRIVCg1hbGlhc19pdGVtX2lkGAMgASgJIl4KFEFwcHJvdmVBbGlhc1Jlc3BvbnNlEhkKEWNhbm9uaWNhbF9pdGVtX2lkGAEgASgJEhUKDWFsaWFzX2l0ZW1faWQYAiABKAkSFAoMbWVyZ2Vfc3RhdHVzGAMgASgJIlwKElJlamVjdEFsaWFzUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSGQoRY2Fub25pY2FsX2l0ZW1faWQYAiABKAkSFQoNYWxpYXNfaXRlbV9pZBgDIAEoCSJdChNSZWplY3RBbGlhc1Jlc3BvbnNlEhkKEWNhbm9uaWNhbF9pdGVtX2lkGAEgASgJEhUKDWFsaWFzX2l0ZW1faWQYAiABKAkSFAoMbWVyZ2Vfc3RhdHVzGAMgASgJMu4ECgtJdGVtU2VydmljZRJyChNHZXRUcmVlRW50aXR5RGV0YWlsEiwuc3ludGhpZnkudHJlZS52MS5HZXRUcmVlRW50aXR5RGV0YWlsUmVxdWVzdBotLnN5bnRoaWZ5LnRyZWUudjEuR2V0VHJlZUVudGl0eURldGFpbFJlc3BvbnNlEmMKDlJlY29yZEl0ZW1WaWV3Eicuc3ludGhpZnkudHJlZS52MS5SZWNvcmRJdGVtVmlld1JlcXVlc3QaKC5zeW50aGlmeS50cmVlLnYxLlJlY29yZEl0ZW1WaWV3UmVzcG9uc2USVwoKQ3JlYXRlSXRlbRIjLnN5bnRoaWZ5LnRyZWUudjEuQ3JlYXRlSXRlbVJlcXVlc3QaJC5zeW50aGlmeS50cmVlLnYxLkNyZWF0ZUl0ZW1SZXNwb25zZRJyChNHZXRVc2VySXRlbUFjdGl2aXR5Eiwuc3ludGhpZnkudHJlZS52MS5HZXRVc2VySXRlbUFjdGl2aXR5UmVxdWVzdBotLnN5bnRoaWZ5LnRyZWUudjEuR2V0VXNlckl0ZW1BY3Rpdml0eVJlc3BvbnNlEl0KDEFwcHJvdmVBbGlhcxIlLnN5bnRoaWZ5LnRyZWUudjEuQXBwcm92ZUFsaWFzUmVxdWVzdBomLnN5bnRoaWZ5LnRyZWUudjEuQXBwcm92ZUFsaWFzUmVzcG9uc2USWgoLUmVqZWN0QWxpYXMSJC5zeW50aGlmeS50cmVlLnYxLlJlamVjdEFsaWFzUmVxdWVzdBolLnN5bnRoaWZ5LnRyZWUudjEuUmVqZWN0QWxpYXNSZXNwb25zZUJJWkdnaXRodWIuY29tL3N5bnRoaWZ5L2JhY2tlbmQvcGFja2FnZXMvc2hhcmVkL2dlbi9zeW50aGlmeS90cmVlL3YxO3RyZWV2MWIGcHJvdG8z", [file_synthify_tree_v1_common, file_synthify_tree_v1_tree_types]);
+  fileDesc("ChtzeW50aGlmeS90cmVlL3YxL2l0ZW0ucHJvdG8SEHN5bnRoaWZ5LnRyZWUudjEieAoJRW50aXR5UmVmEhQKDHdvcmtzcGFjZV9pZBgBIAEoCRI0CgVzY29wZRgCIAEoDjIlLnN5bnRoaWZ5LnRyZWUudjEuVHJlZVByb2plY3Rpb25TY29wZRIKCgJpZBgDIAEoCRITCgtkb2N1bWVudF9pZBgEIAEoCSJpChJUcmVlRW50aXR5RXZpZGVuY2USNgoNc291cmNlX2NodW5rcxgBIAMoCzIfLnN5bnRoaWZ5LnRyZWUudjEuRG9jdW1lbnRDaHVuaxIbChNzb3VyY2VfZG9jdW1lbnRfaWRzGAIgAygJItABChBUcmVlRW50aXR5RGV0YWlsEigKA3JlZhgBIAEoCzIbLnN5bnRoaWZ5LnRyZWUudjEuRW50aXR5UmVmEiQKBGl0ZW0YAiABKAsyFi5zeW50aGlmeS50cmVlLnYxLkl0ZW0SNgoIZXZpZGVuY2UYAyABKAsyJC5zeW50aGlmeS50cmVlLnYxLlRyZWVFbnRpdHlFdmlkZW5jZRI0ChRyZXByZXNlbnRhdGl2ZV9pdGVtcxgEIAMoCzIWLnN5bnRoaWZ5LnRyZWUudjEuSXRlbSJmChpHZXRUcmVlRW50aXR5RGV0YWlsUmVxdWVzdBIvCgp0YXJnZXRfcmVmGAEgASgLMhsuc3ludGhpZnkudHJlZS52MS5FbnRpdHlSZWYSFwoPcmVzb2x2ZV9hbGlhc2VzGAIgASgIIlEKG0dldFRyZWVFbnRpdHlEZXRhaWxSZXNwb25zZRIyCgZkZXRhaWwYASABKAsyIi5zeW50aGlmeS50cmVlLnYxLlRyZWVFbnRpdHlEZXRhaWwihAEKEUNyZWF0ZUl0ZW1SZXF1ZXN0EhQKDHdvcmtzcGFjZV9pZBgBIAEoCRITCgtkb2N1bWVudF9pZBgCIAEoCRINCgVsYWJlbBgDIAEoCRINCgVsZXZlbBgEIAEoBRITCgtkZXNjcmlwdGlvbhgFIAEoCRIRCglwYXJlbnRfaWQYBiABKAkiOgoSQ3JlYXRlSXRlbVJlc3BvbnNlEiQKBGl0ZW0YASABKAsyFi5zeW50aGlmeS50cmVlLnYxLkl0ZW0iXQoTQXBwcm92ZUFsaWFzUmVxdWVzdBIUCgx3b3Jrc3BhY2VfaWQYASABKAkSGQoRY2Fub25pY2FsX2l0ZW1faWQYAiABKAkSFQoNYWxpYXNfaXRlbV9pZBgDIAEoCSJeChRBcHByb3ZlQWxpYXNSZXNwb25zZRIZChFjYW5vbmljYWxfaXRlbV9pZBgBIAEoCRIVCg1hbGlhc19pdGVtX2lkGAIgASgJEhQKDG1lcmdlX3N0YXR1cxgDIAEoCSJcChJSZWplY3RBbGlhc1JlcXVlc3QSFAoMd29ya3NwYWNlX2lkGAEgASgJEhkKEWNhbm9uaWNhbF9pdGVtX2lkGAIgASgJEhUKDWFsaWFzX2l0ZW1faWQYAyABKAkiXQoTUmVqZWN0QWxpYXNSZXNwb25zZRIZChFjYW5vbmljYWxfaXRlbV9pZBgBIAEoCRIVCg1hbGlhc19pdGVtX2lkGAIgASgJEhQKDG1lcmdlX3N0YXR1cxgDIAEoCTKVAwoLSXRlbVNlcnZpY2UScgoTR2V0VHJlZUVudGl0eURldGFpbBIsLnN5bnRoaWZ5LnRyZWUudjEuR2V0VHJlZUVudGl0eURldGFpbFJlcXVlc3QaLS5zeW50aGlmeS50cmVlLnYxLkdldFRyZWVFbnRpdHlEZXRhaWxSZXNwb25zZRJXCgpDcmVhdGVJdGVtEiMuc3ludGhpZnkudHJlZS52MS5DcmVhdGVJdGVtUmVxdWVzdBokLnN5bnRoaWZ5LnRyZWUudjEuQ3JlYXRlSXRlbVJlc3BvbnNlEl0KDEFwcHJvdmVBbGlhcxIlLnN5bnRoaWZ5LnRyZWUudjEuQXBwcm92ZUFsaWFzUmVxdWVzdBomLnN5bnRoaWZ5LnRyZWUudjEuQXBwcm92ZUFsaWFzUmVzcG9uc2USWgoLUmVqZWN0QWxpYXMSJC5zeW50aGlmeS50cmVlLnYxLlJlamVjdEFsaWFzUmVxdWVzdBolLnN5bnRoaWZ5LnRyZWUudjEuUmVqZWN0QWxpYXNSZXNwb25zZUJJWkdnaXRodWIuY29tL3N5bnRoaWZ5L2JhY2tlbmQvcGFja2FnZXMvc2hhcmVkL2dlbi9zeW50aGlmeS90cmVlL3YxO3RyZWV2MWIGcHJvdG8z", [file_synthify_tree_v1_common, file_synthify_tree_v1_tree_types]);
 
 /**
  * Describes the message synthify.tree.v1.EntityRef.
@@ -48,95 +48,46 @@ export const GetTreeEntityDetailResponseSchema = /*@__PURE__*/
   messageDesc(file_synthify_tree_v1_item, 4);
 
 /**
- * Describes the message synthify.tree.v1.RecordItemViewRequest.
- * Use `create(RecordItemViewRequestSchema)` to create a new message.
- */
-export const RecordItemViewRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 5);
-
-/**
- * Describes the message synthify.tree.v1.RecordItemViewResponse.
- * Use `create(RecordItemViewResponseSchema)` to create a new message.
- */
-export const RecordItemViewResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 6);
-
-/**
  * Describes the message synthify.tree.v1.CreateItemRequest.
  * Use `create(CreateItemRequestSchema)` to create a new message.
  */
 export const CreateItemRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 7);
+  messageDesc(file_synthify_tree_v1_item, 5);
 
 /**
  * Describes the message synthify.tree.v1.CreateItemResponse.
  * Use `create(CreateItemResponseSchema)` to create a new message.
  */
 export const CreateItemResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 8);
-
-/**
- * Describes the message synthify.tree.v1.ViewedItemEntry.
- * Use `create(ViewedItemEntrySchema)` to create a new message.
- */
-export const ViewedItemEntrySchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 9);
-
-/**
- * Describes the message synthify.tree.v1.CreatedItemEntry.
- * Use `create(CreatedItemEntrySchema)` to create a new message.
- */
-export const CreatedItemEntrySchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 10);
-
-/**
- * Describes the message synthify.tree.v1.UserItemActivity.
- * Use `create(UserItemActivitySchema)` to create a new message.
- */
-export const UserItemActivitySchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 11);
-
-/**
- * Describes the message synthify.tree.v1.GetUserItemActivityRequest.
- * Use `create(GetUserItemActivityRequestSchema)` to create a new message.
- */
-export const GetUserItemActivityRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 12);
-
-/**
- * Describes the message synthify.tree.v1.GetUserItemActivityResponse.
- * Use `create(GetUserItemActivityResponseSchema)` to create a new message.
- */
-export const GetUserItemActivityResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 13);
+  messageDesc(file_synthify_tree_v1_item, 6);
 
 /**
  * Describes the message synthify.tree.v1.ApproveAliasRequest.
  * Use `create(ApproveAliasRequestSchema)` to create a new message.
  */
 export const ApproveAliasRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 14);
+  messageDesc(file_synthify_tree_v1_item, 7);
 
 /**
  * Describes the message synthify.tree.v1.ApproveAliasResponse.
  * Use `create(ApproveAliasResponseSchema)` to create a new message.
  */
 export const ApproveAliasResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 15);
+  messageDesc(file_synthify_tree_v1_item, 8);
 
 /**
  * Describes the message synthify.tree.v1.RejectAliasRequest.
  * Use `create(RejectAliasRequestSchema)` to create a new message.
  */
 export const RejectAliasRequestSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 16);
+  messageDesc(file_synthify_tree_v1_item, 9);
 
 /**
  * Describes the message synthify.tree.v1.RejectAliasResponse.
  * Use `create(RejectAliasResponseSchema)` to create a new message.
  */
 export const RejectAliasResponseSchema = /*@__PURE__*/
-  messageDesc(file_synthify_tree_v1_item, 17);
+  messageDesc(file_synthify_tree_v1_item, 10);
 
 /**
  * @generated from service synthify.tree.v1.ItemService
