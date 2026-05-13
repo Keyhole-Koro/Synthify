@@ -178,7 +178,6 @@ services:
     environment:
       NODE_ENV: development
       # log-viewer は Postgres を read-only ロールで直接参照する。
-      # 詳細: docs/improvements/log-viewer-direct-db.md
       LOG_VIEWER_DATABASE_URL: ${LOG_VIEWER_DATABASE_URL:-postgres://log_viewer@127.0.0.1:${POSTGRES_PORT:-5432}/synthify?sslmode=disable}
     volumes:
       - .:/workspace

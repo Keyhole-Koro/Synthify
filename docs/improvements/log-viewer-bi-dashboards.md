@@ -6,7 +6,7 @@ log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 日常的な運用判断と異常検知をブラウザで完結させる。
 
 前提として log-viewer は Postgres を read-only ロールで直接参照する
-構造に移行済み ([log-viewer-direct-db.md](log-viewer-direct-db.md))。
+構造に移行済み。
 追加クエリは API を経由せず BFF (Next.js Route Handlers) から発行する。
 
 ## Motivation
@@ -84,6 +84,5 @@ log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
   エラー率)、というスライスで分離するのが現実的。
 
 ## References
-- [log-viewer-direct-db.md](log-viewer-direct-db.md) — 前提となる Postgres 直接参照化
 - [usage-based-billing.md](usage-based-billing.md) — Cost ダッシュボードのデータソース
 - [logging.md](logging.md) — Job Health ダッシュボードのデータソースとなる構造化ログ

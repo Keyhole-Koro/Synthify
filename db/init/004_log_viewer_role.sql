@@ -2,7 +2,6 @@
 --
 -- log-viewer は API 経由ではなく Postgres を直接参照する。
 -- アプリケーション層の認可を介さないため、DB レイヤで read のみに縛る。
--- 詳細: docs/improvements/log-viewer-direct-db.md
 
 -- ロール作成 (パスワードは環境変数で配るので空でも CREATE は通す)
 -- 本番では SQL 適用後に `ALTER ROLE log_viewer WITH PASSWORD '...'` で更新する想定

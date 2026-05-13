@@ -34,7 +34,6 @@
 - [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
-- [log-viewer-direct-db.md](log-viewer-direct-db.md) — log-viewer を API 経由ではなく Postgres を read-only で直接参照する形に切り替え、API 側の `AnonymousReadAllowed` 機構を削除する設計
 - [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) — log-viewer を BI 化する設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
 
 ## Future Improvements（別ファイル）
@@ -48,6 +47,5 @@
 
 ## テスト・品質
 
-- [handler-auth-test-coverage.md](handler-auth-test-coverage.md) — handler-level 認証・認可テストの残カバレッジと `ListAllJobs` admin 認可 TODO
 - [tool-calling-tests.md](tool-calling-tests.md) — LLM エージェントが各ツールを正しく呼び出せているかを確認するテストの追加
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加
