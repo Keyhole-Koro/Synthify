@@ -16,7 +16,6 @@ import (
 type contextKey string
 
 const authUserContextKey contextKey = "auth_user"
-const anonymousReadAllowedContextKey contextKey = "anonymous_read_allowed"
 const serviceCallContextKey contextKey = "service_call"
 const adminUserContextKey contextKey = "admin_user"
 
@@ -28,11 +27,6 @@ type AuthUser struct {
 func CurrentUser(ctx context.Context) (AuthUser, bool) {
 	user, ok := ctx.Value(authUserContextKey).(AuthUser)
 	return user, ok
-}
-
-func AnonymousReadAllowed(ctx context.Context) bool {
-	allowed, _ := ctx.Value(anonymousReadAllowedContextKey).(bool)
-	return allowed
 }
 
 // IsServiceCall は worker -> API のような内部サービス間呼び出しを示す。
@@ -60,7 +54,7 @@ func ContextWithAdmin(ctx context.Context, user AuthUser) context.Context {
 	return context.WithValue(ctx, adminUserContextKey, true)
 }
 
-func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next http.Handler) http.Handler {
+func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Handler {
 	if logger == nil {
 		logger = applog.NoopLogger{}
 	}
@@ -91,14 +85,6 @@ func WithAuth(projectID string, enableAnonymous bool, logger applog.Logger, next
 				http.Error(w, "invalid service token", http.StatusUnauthorized)
 				return
 			}
-		}
-
-		// allowAnonymous is primarily used by tools like log-viewer to access job/log data without per-workspace membership.
-		// TODO: Re-evaluate security implications and consider a more robust service-to-service auth for these tools.
-		if enableAnonymous && isAnonymousPathAllowed(r.URL.Path) {
-			ctx := context.WithValue(r.Context(), anonymousReadAllowedContextKey, true)
-			next.ServeHTTP(w, r.WithContext(ctx))
-			return
 		}
 
 		authHeader := r.Header.Get("Authorization")
@@ -138,19 +124,6 @@ func parseAdminEmails(csv string) map[string]bool {
 		}
 	}
 	return result
-}
-
-func isAnonymousPathAllowed(path string) bool {
-	switch path {
-	case "/health",
-		"/synthify.tree.v1.JobService/ListAllJobs",
-		"/synthify.tree.v1.JobService/ListJobLogs",
-		"/synthify.tree.v1.JobService/SearchJobLogs",
-		"/synthify.tree.v1.JobService/ListRelatedJobLogs":
-		return true
-	default:
-		return false
-	}
 }
 
 func isStripeWebhookPath(path string) bool {

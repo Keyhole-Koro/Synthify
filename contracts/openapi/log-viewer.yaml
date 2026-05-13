@@ -1,0 +1,322 @@
+openapi: 3.1.0
+info:
+  title: Synthify Log Viewer API
+  version: 0.1.0
+  description: Internal API contract for the log-viewer Next.js route handlers.
+servers:
+  - url: /
+paths:
+  /api/jobs:
+    get:
+      operationId: listJobs
+      responses:
+        "200":
+          description: Recent processing jobs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJobsResponse"
+        "500":
+          description: Failed to list jobs. The route returns an empty job list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJobsResponse"
+  /api/jobs/{jobId}/logs:
+    get:
+      operationId: listJobLogs
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page_token
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        "200":
+          description: Logs for one job.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJobLogsResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to list logs. The route returns an empty log list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJobLogsResponse"
+  /api/jobs/search:
+    post:
+      operationId: searchJobLogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchJobLogsRequest"
+      responses:
+        "200":
+          description: Matching logs.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJobLogsResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to search logs. The route returns an empty log list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListJobLogsResponse"
+  /api/jobs/related:
+    post:
+      operationId: listRelatedJobLogs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ListRelatedJobLogsRequest"
+      responses:
+        "200":
+          description: Related job log groups.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRelatedJobLogsResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Failed to list related logs. The route returns an empty group list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListRelatedJobLogsResponse"
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+    JobSummary:
+      type: object
+      required:
+        - jobId
+        - documentId
+        - workspaceId
+        - jobType
+        - status
+        - currentStage
+        - errorMessage
+        - retryCount
+        - createdAt
+        - updatedAt
+      properties:
+        jobId:
+          type: string
+        documentId:
+          type: string
+        workspaceId:
+          type: string
+        jobType:
+          type: string
+        status:
+          type: integer
+        currentStage:
+          type: string
+        errorMessage:
+          type: string
+        retryCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ListJobsResponse:
+      type: object
+      required:
+        - jobs
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobSummary"
+    JobLog:
+      type: object
+      required:
+        - timestamp
+        - level
+        - event
+        - message
+        - detailJson
+        - source
+        - sourceId
+        - jobId
+        - documentId
+        - workspaceId
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+        event:
+          type: string
+        message:
+          type: string
+        detailJson:
+          type: string
+        source:
+          type: string
+        sourceId:
+          type: string
+        jobId:
+          type: string
+        documentId:
+          type: string
+        workspaceId:
+          type: string
+    ListJobLogsResponse:
+      type: object
+      required:
+        - logs
+        - nextPageToken
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobLog"
+        nextPageToken:
+          type: string
+    SearchJobLogsRequest:
+      type: object
+      properties:
+        query:
+          type: string
+        workspaceId:
+          type: string
+        documentId:
+          type: string
+        jobId:
+          type: string
+        levels:
+          type: array
+          items:
+            type: string
+        events:
+          type: array
+          items:
+            type: string
+        fromTimestamp:
+          type: string
+        toTimestamp:
+          type: string
+        pageToken:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+    RelatedScope:
+      type: string
+      enum:
+        - job
+        - document
+        - workspace
+    ListRelatedJobLogsRequest:
+      type: object
+      required:
+        - scope
+      properties:
+        scope:
+          $ref: "#/components/schemas/RelatedScope"
+        jobId:
+          type: string
+        documentId:
+          type: string
+        workspaceId:
+          type: string
+        pageToken:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 500
+    RelatedJob:
+      type: object
+      required:
+        - jobId
+        - status
+        - createdAt
+        - logs
+      properties:
+        jobId:
+          type: string
+        status:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobLog"
+    RelatedJobGroup:
+      type: object
+      required:
+        - workspaceId
+        - documentId
+        - jobs
+      properties:
+        workspaceId:
+          type: string
+        documentId:
+          type: string
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelatedJob"
+    ListRelatedJobLogsResponse:
+      type: object
+      required:
+        - groups
+        - nextPageToken
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/RelatedJobGroup"
+        nextPageToken:
+          type: string
