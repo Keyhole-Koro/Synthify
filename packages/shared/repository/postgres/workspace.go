@@ -516,7 +516,7 @@ func billingLimits(plan domain.BillingPlan) (struct {
 	switch plan {
 	case domain.BillingPlanFree:
 		return defaultFreePlan, nil
-	case domain.BillingPlanPro:
+	case domain.BillingPlanUsageBased:
 		return proPlan, nil
 	default:
 		return struct {

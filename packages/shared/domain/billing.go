@@ -24,8 +24,8 @@ type BillingInterval string
 type BillingStatus string
 
 const (
-	BillingPlanFree BillingPlan = "free"
-	BillingPlanPro  BillingPlan = "pro"
+	BillingPlanFree       BillingPlan = "free"
+	BillingPlanUsageBased BillingPlan = "usage_based"
 )
 
 const (
@@ -50,7 +50,7 @@ const (
 
 func (p BillingPlan) Validate() error {
 	switch p {
-	case BillingPlanFree, BillingPlanPro:
+	case BillingPlanFree, BillingPlanUsageBased:
 		return nil
 	case "":
 		return fmt.Errorf("%w: empty", ErrBillingPlanInvalid)

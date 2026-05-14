@@ -213,7 +213,7 @@ func applyMockBillingPlan(account *domain.Account, stripeCustomerID, stripeSubsc
 	}
 	account.StripeSubscriptionID = stripeSubscriptionID
 	switch plan {
-	case domain.BillingPlanPro:
+	case domain.BillingPlanUsageBased:
 		account.StorageQuotaBytes = 50 * 1 << 30
 		account.MaxFileSizeBytes = 500 << 20
 		account.MaxUploadsPerFiveH = 200
