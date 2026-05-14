@@ -61,9 +61,24 @@ FROM accounts
 WHERE account_id = $1
 `
 
-func (q *Queries) GetAccount(ctx context.Context, accountID string) (Account, error) {
+type GetAccountRow struct {
+	AccountID            string
+	Name                 string
+	Plan                 string
+	StorageQuotaBytes    int64
+	StorageUsedBytes     int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+func (q *Queries) GetAccount(ctx context.Context, accountID string) (GetAccountRow, error) {
 	row := q.db.QueryRowContext(ctx, getAccount, accountID)
-	var i Account
+	var i GetAccountRow
 	err := row.Scan(
 		&i.AccountID,
 		&i.Name,
@@ -89,9 +104,24 @@ WHERE au.user_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetAccountByUser(ctx context.Context, userID string) (Account, error) {
+type GetAccountByUserRow struct {
+	AccountID            string
+	Name                 string
+	Plan                 string
+	StorageQuotaBytes    int64
+	StorageUsedBytes     int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+func (q *Queries) GetAccountByUser(ctx context.Context, userID string) (GetAccountByUserRow, error) {
 	row := q.db.QueryRowContext(ctx, getAccountByUser, userID)
-	var i Account
+	var i GetAccountByUserRow
 	err := row.Scan(
 		&i.AccountID,
 		&i.Name,
@@ -140,7 +170,22 @@ type GetOrCreateAccountParams struct {
 	CreatedAt          time.Time
 }
 
-func (q *Queries) GetOrCreateAccount(ctx context.Context, arg GetOrCreateAccountParams) (Account, error) {
+type GetOrCreateAccountRow struct {
+	AccountID            string
+	Name                 string
+	Plan                 string
+	StorageQuotaBytes    int64
+	StorageUsedBytes     int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+func (q *Queries) GetOrCreateAccount(ctx context.Context, arg GetOrCreateAccountParams) (GetOrCreateAccountRow, error) {
 	row := q.db.QueryRowContext(ctx, getOrCreateAccount,
 		arg.AccountID,
 		arg.Name,
@@ -151,7 +196,7 @@ func (q *Queries) GetOrCreateAccount(ctx context.Context, arg GetOrCreateAccount
 		arg.MaxUploadsPer1week,
 		arg.CreatedAt,
 	)
-	var i Account
+	var i GetOrCreateAccountRow
 	err := row.Scan(
 		&i.AccountID,
 		&i.Name,

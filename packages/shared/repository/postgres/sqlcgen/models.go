@@ -13,18 +13,43 @@ import (
 )
 
 type Account struct {
-	AccountID            string
-	Name                 string
-	Plan                 string
-	StorageQuotaBytes    int64
-	StorageUsedBytes     int64
-	MaxFileSizeBytes     int64
-	MaxUploadsPer5h      int32
-	MaxUploadsPer1week   int32
-	StripeCustomerID     string
-	StripeSubscriptionID string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	AccountID               string
+	Name                    string
+	Plan                    string
+	StorageQuotaBytes       int64
+	StorageUsedBytes        int64
+	MaxFileSizeBytes        int64
+	MaxUploadsPer5h         int32
+	MaxUploadsPer1week      int32
+	StripeCustomerID        string
+	StripeSubscriptionID    string
+	BillingStatus           string
+	StripePriceID           string
+	BillingCurrency         string
+	BillingAmountMinor      int64
+	BillingInterval         string
+	CurrentPeriodEnd        sql.NullTime
+	CancelAtPeriodEnd       bool
+	BillingUpdatedAt        sql.NullTime
+	BudgetLimitMinor        int64
+	CurrentPeriodUsageMinor int64
+	CurrentPeriodStartedAt  sql.NullTime
+	BudgetExceeded          bool
+	BudgetAlert80SentAt     sql.NullTime
+	BudgetAlert100SentAt    sql.NullTime
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+}
+
+type AccountUsageDaily struct {
+	AccountID    string
+	UsageDate    time.Time
+	Model        string
+	InputTokens  int64
+	OutputTokens int64
+	CostMinor    int64
+	EventCount   int32
+	UpdatedAt    time.Time
 }
 
 type AccountUser struct {
@@ -32,6 +57,19 @@ type AccountUser struct {
 	UserID    string
 	Role      string
 	JoinedAt  time.Time
+}
+
+type BillingEvent struct {
+	Provider             string
+	EventID              string
+	EventType            string
+	ReceivedAt           time.Time
+	ProcessedAt          sql.NullTime
+	ProcessingStatus     string
+	ErrorMessage         string
+	AccountID            string
+	StripeCustomerID     string
+	StripeSubscriptionID string
 }
 
 type Document struct {
@@ -79,6 +117,23 @@ type DocumentProcessingJob struct {
 	EvaluationStatus string
 	RetryCount       int32
 	BudgetJson       string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type Invoice struct {
+	InvoiceID        string
+	AccountID        string
+	StripeInvoiceID  string
+	AmountMinor      int64
+	Currency         string
+	Status           string
+	HostedInvoiceUrl string
+	InvoicePdfUrl    string
+	PeriodStart      sql.NullTime
+	PeriodEnd        sql.NullTime
+	FinalizedAt      sql.NullTime
+	PaidAt           sql.NullTime
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -175,6 +230,28 @@ type JobStageCheckpoint struct {
 	UpdatedAt time.Time
 }
 
+type ModelPricing struct {
+	Model                    string
+	InputCostPerMtokenMinor  int64
+	OutputCostPerMtokenMinor int64
+	Currency                 string
+	EffectiveFrom            time.Time
+	Notes                    string
+}
+
+type PaymentMethod struct {
+	PaymentMethodID       string
+	AccountID             string
+	StripePaymentMethodID string
+	Brand                 string
+	Last4                 string
+	ExpMonth              int32
+	ExpYear               int32
+	IsDefault             bool
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
 type TreeItem struct {
 	ID                string
 	WorkspaceID       string
@@ -189,6 +266,32 @@ type TreeItem struct {
 	LastMutationJobID string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+type UploadReservation struct {
+	ReservationID     string
+	AccountID         string
+	WorkspaceID       string
+	DocumentID        string
+	ExpectedSizeBytes int64
+	ActualSizeBytes   int64
+	Status            string
+	ExpiresAt         time.Time
+	CreatedAt         time.Time
+	ConfirmedAt       sql.NullTime
+}
+
+type UsageEvent struct {
+	EventID      string
+	AccountID    string
+	WorkspaceID  string
+	JobID        string
+	Model        string
+	InputTokens  int64
+	OutputTokens int64
+	CostMinor    int64
+	Currency     string
+	CreatedAt    time.Time
 }
 
 type Workspace struct {
