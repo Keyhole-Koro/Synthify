@@ -30,6 +30,9 @@ type Store struct {
 	checkpoints   map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
 	reservations  map[string]*uploadReservation
 	billingEvents map[string]string
+	pricing       map[string]domain.ModelPricing
+	usageEvents   []*domain.UsageEvent
+	dailyCosts    map[string]int64 // "accountID|date|model" -> cost_minor
 }
 
 type uploadReservation struct {
@@ -59,6 +62,8 @@ func NewStore() *Store {
 		checkpoints:   make(map[string]map[string]domain.JobStageCheckpoint),
 		reservations:  make(map[string]*uploadReservation),
 		billingEvents: make(map[string]string),
+		pricing:       make(map[string]domain.ModelPricing),
+		dailyCosts:    make(map[string]int64),
 	}
 }
 
@@ -1097,8 +1102,181 @@ func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {
 	return nil
 }
 
+// UsageRepository
+
+func (s *Store) GetModelPricing(_ context.Context, model string) (*domain.ModelPricing, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	p, ok := s.pricing[model]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return &p, nil
+}
+
+func (s *Store) RecordUsageAccounting(_ context.Context, ev *domain.UsageEvent, date string) (string, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// idempotent: skip duplicate event_id
+	for _, e := range s.usageEvents {
+		if e.EventID == ev.EventID {
+			return ev.EventID, false, nil
+		}
+	}
+	cp := *ev
+	s.usageEvents = append(s.usageEvents, &cp)
+	key := ev.AccountID + "|" + date + "|" + ev.Model
+	s.dailyCosts[key] += ev.CostMinor
+
+	exceeded := false
+	if acc, ok := s.accounts[ev.AccountID]; ok {
+		if acc.BudgetLimitMinor > 0 {
+			var total int64
+			for _, e := range s.usageEvents {
+				if e.AccountID == ev.AccountID {
+					total += e.CostMinor
+				}
+			}
+			if total > acc.BudgetLimitMinor {
+				exceeded = true
+			}
+		}
+	}
+	return ev.EventID, exceeded, nil
+}
+
+func (s *Store) ListUsageByModel(_ context.Context, accountID, _, _ string) ([]domain.ModelUsage, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byModel := map[string]*domain.ModelUsage{}
+	currency := "usd"
+	for _, ev := range s.usageEvents {
+		if ev.AccountID != accountID {
+			continue
+		}
+		m, ok := byModel[ev.Model]
+		if !ok {
+			byModel[ev.Model] = &domain.ModelUsage{Model: ev.Model}
+			m = byModel[ev.Model]
+		}
+		m.InputTokens += ev.InputTokens
+		m.OutputTokens += ev.OutputTokens
+		m.EventCount++
+		if ev.Currency != "" {
+			currency = ev.Currency
+		}
+	}
+	result := make([]domain.ModelUsage, 0, len(byModel))
+	for _, m := range byModel {
+		var total int64
+		for _, ev := range s.usageEvents {
+			if ev.AccountID == accountID && ev.Model == m.Model {
+				total += ev.CostMinor
+			}
+		}
+		m.TotalCost = formatMockMinor(total, currency)
+		result = append(result, *m)
+	}
+	return result, currency, nil
+}
+
+func (s *Store) ListDailyUsage(_ context.Context, accountID, _, _, currency string) ([]domain.DailyUsage, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byDate := map[string]int64{}
+	for key, cost := range s.dailyCosts {
+		parts := strings.SplitN(key, "|", 3)
+		if len(parts) == 3 && parts[0] == accountID {
+			byDate[parts[1]] += cost
+		}
+	}
+	result := make([]domain.DailyUsage, 0, len(byDate))
+	for date, cost := range byDate {
+		result = append(result, domain.DailyUsage{
+			Date:      date,
+			TotalCost: formatMockMinor(cost, currency),
+		})
+	}
+	return result, nil
+}
+
+func (s *Store) UpdateAccountBudgetLimit(_ context.Context, accountID string, limitMinor int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if acc, ok := s.accounts[accountID]; ok {
+		acc.BudgetLimitMinor = limitMinor
+	}
+	return nil
+}
+
+func (s *Store) ListInvoices(_ context.Context, _ string, _ int) (*domain.InvoiceList, error) {
+	return &domain.InvoiceList{Invoices: nil, UpcomingAmount: "0.00", UpcomingPeriodEnd: ""}, nil
+}
+
+func (s *Store) ListPaymentMethods(_ context.Context, _ string) ([]*domain.PaymentMethod, error) {
+	return nil, nil
+}
+
+// Test helpers
+
+func (s *Store) SeedPricing(p domain.ModelPricing) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pricing[p.Model] = p
+}
+
+func (s *Store) InsertUsageEvent(_ context.Context, ev *domain.UsageEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := *ev
+	s.usageEvents = append(s.usageEvents, &cp)
+	return nil
+}
+
+func (s *Store) UpsertDailyUsage(_ context.Context, accountID, date, model string, _, _ int64, costMinor int64, _ int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := accountID + "|" + date + "|" + model
+	s.dailyCosts[key] += costMinor
+	return nil
+}
+
+func (s *Store) UsageEvents() []*domain.UsageEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cp := make([]*domain.UsageEvent, len(s.usageEvents))
+	copy(cp, s.usageEvents)
+	return cp
+}
+
+func (s *Store) DailyUsage() map[string]int64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	cp := make(map[string]int64, len(s.dailyCosts))
+	for k, v := range s.dailyCosts {
+		cp[k] = v
+	}
+	return cp
+}
+
+func formatMockMinor(minor int64, currency string) string {
+	if currency == "jpy" {
+		if minor < 0 {
+			return "-" + fmt.Sprintf("%d", -minor)
+		}
+		return fmt.Sprintf("%d", minor)
+	}
+	neg := ""
+	if minor < 0 {
+		neg = "-"
+		minor = -minor
+	}
+	return fmt.Sprintf("%s%d.%02d", neg, minor/100, minor%100)
+}
+
 var _ repository.AccountRepository = (*Store)(nil)
 var _ repository.WorkspaceRepository = (*Store)(nil)
 var _ repository.DocumentRepository = (*Store)(nil)
 var _ repository.TreeRepository = (*Store)(nil)
 var _ repository.ItemRepository = (*Store)(nil)
+var _ repository.UsageRepository = (*Store)(nil)

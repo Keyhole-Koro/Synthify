@@ -18,17 +18,31 @@ type API struct {
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
 	GCSFuseMountPath         string
-	NewRelicAppName          string
-	NewRelicLicenseKey       string
-	StripeSecretKey          string
-	StripeWebhookSecret      string
-	StripeProPriceID         string
-	StripeProPriceIDJPY      string
-	StripeProPriceIDUSD      string
-	StripeDefaultCurrency    string
-	BillingSuccessURL        string
-	BillingCancelURL         string
-	BillingPortalReturnURL   string
+	Stripe                   Stripe
+	Billing                  Billing
+	NewRelic                 NewRelic
+}
+
+type Stripe struct {
+	SecretKey       string
+	WebhookSecret   string
+	ProPriceID      string
+	ProPriceIDJPY   string
+	ProPriceIDUSD   string
+	DefaultCurrency string
+	MeterInputEvent  string
+	MeterOutputEvent string
+}
+
+type Billing struct {
+	SuccessURL      string
+	CancelURL       string
+	PortalReturnURL string
+}
+
+type NewRelic struct {
+	AppName    string
+	LicenseKey string
 }
 
 type Worker struct {
@@ -37,6 +51,8 @@ type Worker struct {
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
 	GCSFuseMountPath         string
+	APIBaseURL               string
+	InternalServiceToken     string
 }
 
 type Store struct {
@@ -64,17 +80,25 @@ func LoadAPI() API {
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
 		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
-		NewRelicAppName:          get("NEW_RELIC_APP_NAME", "synthify-api"),
-		NewRelicLicenseKey:       os.Getenv("NEW_RELIC_LICENSE_KEY"),
-		StripeSecretKey:          os.Getenv("STRIPE_SECRET_KEY"),
-		StripeWebhookSecret:      os.Getenv("STRIPE_WEBHOOK_SECRET"),
-		StripeProPriceID:         os.Getenv("STRIPE_PRO_PRICE_ID"),
-		StripeProPriceIDJPY:      os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
-		StripeProPriceIDUSD:      os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
-		StripeDefaultCurrency:    get("STRIPE_DEFAULT_CURRENCY", "jpy"),
-		BillingSuccessURL:        get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
-		BillingCancelURL:         get("BILLING_CANCEL_URL", "http://localhost:3000/workspaces?billing=cancel"),
-		BillingPortalReturnURL:   get("BILLING_PORTAL_RETURN_URL", "http://localhost:3000/workspaces"),
+		Stripe: Stripe{
+			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
+			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
+			ProPriceID:       os.Getenv("STRIPE_PRO_PRICE_ID"),
+			ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
+			ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
+			DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
+			MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
+			MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
+		},
+		Billing: Billing{
+			SuccessURL:      get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
+			CancelURL:       get("BILLING_CANCEL_URL", "http://localhost:3000/workspaces?billing=cancel"),
+			PortalReturnURL: get("BILLING_PORTAL_RETURN_URL", "http://localhost:3000/workspaces"),
+		},
+		NewRelic: NewRelic{
+			AppName:    get("NEW_RELIC_APP_NAME", "synthify-api"),
+			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
+		},
 	}
 }
 
@@ -85,6 +109,8 @@ func LoadWorker() Worker {
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
+		APIBaseURL:               get("NEXT_PUBLIC_API_BASE_URL", get("API_BASE_URL", "http://127.0.0.1:8080")),
+		InternalServiceToken:     os.Getenv("INTERNAL_WORKER_TOKEN"),
 	}
 }
 

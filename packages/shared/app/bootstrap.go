@@ -97,6 +97,15 @@ type Store interface {
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
+
+	// UsageRepository
+	GetModelPricing(ctx context.Context, model string) (*domain.ModelPricing, error)
+	RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent, date string) (string, bool, error)
+	ListUsageByModel(ctx context.Context, accountID, periodStart, periodEnd string) ([]domain.ModelUsage, string, error)
+	ListDailyUsage(ctx context.Context, accountID, periodStart, periodEnd, currency string) ([]domain.DailyUsage, error)
+	UpdateAccountBudgetLimit(ctx context.Context, accountID string, limitMinor int64) error
+	ListInvoices(ctx context.Context, accountID string, limit int) (*domain.InvoiceList, error)
+	ListPaymentMethods(ctx context.Context, accountID string) ([]*domain.PaymentMethod, error)
 }
 
 func NewDocumentUploadURLBuilder(base string) repository.DocumentUploadURLBuilder {

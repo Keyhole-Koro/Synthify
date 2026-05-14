@@ -83,6 +83,16 @@ type ItemRepository interface {
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 }
 
+type UsageRepository interface {
+	GetModelPricing(ctx context.Context, model string) (*domain.ModelPricing, error)
+	RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent, date string) (string, bool, error)
+	ListUsageByModel(ctx context.Context, accountID, periodStart, periodEnd string) ([]domain.ModelUsage, string, error)
+	ListDailyUsage(ctx context.Context, accountID, periodStart, periodEnd, currency string) ([]domain.DailyUsage, error)
+	UpdateAccountBudgetLimit(ctx context.Context, accountID string, limitMinor int64) error
+	ListInvoices(ctx context.Context, accountID string, limit int) (*domain.InvoiceList, error)
+	ListPaymentMethods(ctx context.Context, accountID string) ([]*domain.PaymentMethod, error)
+}
+
 type CheckpointRepository interface {
 	UpsertStageRunning(ctx context.Context, jobID, stage string) error
 	MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error

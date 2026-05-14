@@ -353,32 +353,37 @@ export declare const DailyUsageSchema: GenMessage<DailyUsage>;
  */
 export declare type RecordUsageRequest = Message<"synthify.tree.v1.RecordUsageRequest"> & {
   /**
-   * @generated from field: string account_id = 1;
+   * @generated from field: string event_id = 1;
+   */
+  eventId: string;
+
+  /**
+   * @generated from field: string account_id = 2;
    */
   accountId: string;
 
   /**
-   * @generated from field: string workspace_id = 2;
+   * @generated from field: string workspace_id = 3;
    */
   workspaceId: string;
 
   /**
-   * @generated from field: string job_id = 3;
+   * @generated from field: string job_id = 4;
    */
   jobId: string;
 
   /**
-   * @generated from field: string model = 4;
+   * @generated from field: string model = 5;
    */
   model: string;
 
   /**
-   * @generated from field: int64 input_tokens = 5;
+   * @generated from field: int64 input_tokens = 6;
    */
   inputTokens: bigint;
 
   /**
-   * @generated from field: int64 output_tokens = 6;
+   * @generated from field: int64 output_tokens = 7;
    */
   outputTokens: bigint;
 };

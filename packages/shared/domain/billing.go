@@ -177,6 +177,13 @@ type InvoiceList struct {
 	UpcomingPeriodEnd  string     `json:"upcoming_period_end"`
 }
 
+type ModelPricing struct {
+	Model                    string `json:"model"`
+	InputCostPerMTokenMinor  int64  `json:"input_cost_per_mtoken_minor"`
+	OutputCostPerMTokenMinor int64  `json:"output_cost_per_mtoken_minor"`
+	Currency                 string `json:"currency"`
+}
+
 type PaymentMethod struct {
 	PaymentMethodID string `json:"payment_method_id"`
 	Brand           string `json:"brand"`
