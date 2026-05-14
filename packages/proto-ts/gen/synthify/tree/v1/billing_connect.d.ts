@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse, CreatePortalSessionRequest, CreatePortalSessionResponse } from "./billing_pb.js";
+import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse, CreatePortalSessionRequest, CreatePortalSessionResponse, GetBillingAccountRequest, GetBillingAccountResponse, GetUsageRequest, GetUsageResponse, ListInvoicesRequest, ListInvoicesResponse, ListPaymentMethodsRequest, ListPaymentMethodsResponse, RecordUsageRequest, RecordUsageResponse, UpdateBudgetRequest, UpdateBudgetResponse } from "./billing_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -12,6 +12,15 @@ import { MethodKind } from "@bufbuild/protobuf";
 export declare const BillingService: {
   readonly typeName: "synthify.tree.v1.BillingService",
   readonly methods: {
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.GetBillingAccount
+     */
+    readonly getBillingAccount: {
+      readonly name: "GetBillingAccount",
+      readonly I: typeof GetBillingAccountRequest,
+      readonly O: typeof GetBillingAccountResponse,
+      readonly kind: MethodKind.Unary,
+    },
     /**
      * @generated from rpc synthify.tree.v1.BillingService.CreateCheckoutSession
      */
@@ -28,6 +37,57 @@ export declare const BillingService: {
       readonly name: "CreatePortalSession",
       readonly I: typeof CreatePortalSessionRequest,
       readonly O: typeof CreatePortalSessionResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * Phase 1: usage metering
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.GetUsage
+     */
+    readonly getUsage: {
+      readonly name: "GetUsage",
+      readonly I: typeof GetUsageRequest,
+      readonly O: typeof GetUsageResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.RecordUsage
+     */
+    readonly recordUsage: {
+      readonly name: "RecordUsage",
+      readonly I: typeof RecordUsageRequest,
+      readonly O: typeof RecordUsageResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * Phase 2: budget
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.UpdateBudget
+     */
+    readonly updateBudget: {
+      readonly name: "UpdateBudget",
+      readonly I: typeof UpdateBudgetRequest,
+      readonly O: typeof UpdateBudgetResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * Phase 3: invoices & payment methods
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.ListInvoices
+     */
+    readonly listInvoices: {
+      readonly name: "ListInvoices",
+      readonly I: typeof ListInvoicesRequest,
+      readonly O: typeof ListInvoicesResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.ListPaymentMethods
+     */
+    readonly listPaymentMethods: {
+      readonly name: "ListPaymentMethods",
+      readonly I: typeof ListPaymentMethodsRequest,
+      readonly O: typeof ListPaymentMethodsResponse,
       readonly kind: MethodKind.Unary,
     },
   }

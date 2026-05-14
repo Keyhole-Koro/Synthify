@@ -10,6 +10,3 @@
 [submodule "apps/log-viewer"]
 	path = apps/log-viewer
 	url = https://github.com/Keyhole-Koro/SynthifyLogViewer.git
-[submodule "packages/shared"]
-	path = packages/shared
-	url = https://github.com/Keyhole-Koro/SynthifyShared.git

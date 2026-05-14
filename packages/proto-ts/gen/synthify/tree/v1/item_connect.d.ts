@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ApproveAliasRequest, ApproveAliasResponse, CreateItemRequest, CreateItemResponse, GetTreeEntityDetailRequest, GetTreeEntityDetailResponse, GetUserItemActivityRequest, GetUserItemActivityResponse, RecordItemViewRequest, RecordItemViewResponse, RejectAliasRequest, RejectAliasResponse } from "./item_pb.js";
+import { ApproveAliasRequest, ApproveAliasResponse, CreateItemRequest, CreateItemResponse, GetTreeEntityDetailRequest, GetTreeEntityDetailResponse, RejectAliasRequest, RejectAliasResponse } from "./item_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -22,17 +22,6 @@ export declare const ItemService: {
       readonly kind: MethodKind.Unary,
     },
     /**
-     * ユーザーがアイテムを開いた記録を保存する（viewer 以上）
-     *
-     * @generated from rpc synthify.tree.v1.ItemService.RecordItemView
-     */
-    readonly recordItemView: {
-      readonly name: "RecordItemView",
-      readonly I: typeof RecordItemViewRequest,
-      readonly O: typeof RecordItemViewResponse,
-      readonly kind: MethodKind.Unary,
-    },
-    /**
      * ユーザーが手動でアイテムを追加する（editor / owner のみ）
      *
      * @generated from rpc synthify.tree.v1.ItemService.CreateItem
@@ -41,17 +30,6 @@ export declare const ItemService: {
       readonly name: "CreateItem",
       readonly I: typeof CreateItemRequest,
       readonly O: typeof CreateItemResponse,
-      readonly kind: MethodKind.Unary,
-    },
-    /**
-     * ユーザーごとの閲覧・追加アイテム一覧を取得する（workspace メンバー全員が参照可能）
-     *
-     * @generated from rpc synthify.tree.v1.ItemService.GetUserItemActivity
-     */
-    readonly getUserItemActivity: {
-      readonly name: "GetUserItemActivity",
-      readonly I: typeof GetUserItemActivityRequest,
-      readonly O: typeof GetUserItemActivityResponse,
       readonly kind: MethodKind.Unary,
     },
     /**
