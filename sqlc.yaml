@@ -9,6 +9,7 @@ sql:
       - "db/init/005_usage_billing.sql"
       - "db/init/006_jobs.sql"
       - "db/init/007_tree.sql"
+      - "db/init/008_credits.sql"
     queries:
       - "db/queries"
     gen:

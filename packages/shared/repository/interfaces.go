@@ -5,6 +5,7 @@ import (
 
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	joblog "github.com/synthify/backend/packages/shared/job/log"
 )
 
 type DocumentUploadURLBuilder func(workspaceID, objectName string) string
@@ -91,6 +92,15 @@ type UsageRepository interface {
 	UpdateAccountBudgetLimit(ctx context.Context, accountID string, limitMinor int64) error
 	ListInvoices(ctx context.Context, accountID string, limit int) (*domain.InvoiceList, error)
 	ListPaymentMethods(ctx context.Context, accountID string) ([]*domain.PaymentMethod, error)
+
+	// Credits
+	GrantCredit(ctx context.Context, grant *domain.CreditGrant) error
+	GetCreditBalance(ctx context.Context, accountID string) (int64, error)
+	ListCreditGrants(ctx context.Context, accountID string, limit int) ([]*domain.CreditGrant, error)
+}
+
+type JobLogWriter interface {
+	LogJobEvent(ctx context.Context, e joblog.Event) error
 }
 
 type CheckpointRepository interface {

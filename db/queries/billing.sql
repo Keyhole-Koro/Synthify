@@ -1,12 +1,30 @@
 -- name: GetModelPricing :one
-SELECT model, input_cost_per_mtoken_minor, output_cost_per_mtoken_minor, currency
+SELECT model, input_cost_per_mtoken_minor, output_cost_per_mtoken_minor, currency, display_multiplier
 FROM model_pricing
 WHERE model = $1;
 
+-- name: GrantCredit :exec
+INSERT INTO account_credits
+  (credit_id, account_id, credit_type, amount_minor, currency, note, granted_by, granted_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+
+-- name: GetCreditBalance :one
+SELECT COALESCE(SUM(amount_minor), 0)::bigint AS credit_balance_minor
+FROM account_credits
+WHERE account_id = $1;
+
+-- name: ListCreditGrants :many
+SELECT credit_id, credit_type, amount_minor, currency, note, granted_by, granted_at
+FROM account_credits
+WHERE account_id = $1
+ORDER BY granted_at DESC
+LIMIT $2;
+
 -- name: InsertUsageEvent :exec
 INSERT INTO usage_events
-  (event_id, account_id, workspace_id, job_id, model, input_tokens, output_tokens, cost_minor, currency, created_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+  (event_id, account_id, workspace_id, job_id, model, input_tokens, output_tokens, cost_minor, currency, created_at,
+   paid_via, credit_amount_minor, stripe_amount_minor)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (event_id) DO NOTHING;
 
 -- name: UpsertAccountUsageDaily :exec
@@ -33,6 +51,12 @@ WHERE account_id = $1;
 
 -- name: MarkAccountBudgetExceeded :exec
 UPDATE accounts SET budget_exceeded = TRUE WHERE account_id = $1;
+
+-- name: DeductCredit :exec
+-- クレジット残高から消費分を差し引く（負の amount_minor を挿入することで残高を減らす）
+INSERT INTO account_credits
+  (credit_id, account_id, credit_type, amount_minor, currency, note, granted_by, granted_at)
+VALUES ($1, $2, 'consumed', $3, $4, $5, 'system', $6);
 
 -- name: ListUsageByModel :many
 SELECT model,

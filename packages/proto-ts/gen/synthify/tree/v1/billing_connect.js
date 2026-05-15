@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse, CreatePortalSessionRequest, CreatePortalSessionResponse, GetBillingAccountRequest, GetBillingAccountResponse, GetUsageRequest, GetUsageResponse, ListInvoicesRequest, ListInvoicesResponse, ListPaymentMethodsRequest, ListPaymentMethodsResponse, RecordUsageRequest, RecordUsageResponse, UpdateBudgetRequest, UpdateBudgetResponse } from "./billing_pb.js";
+import { CreateCheckoutSessionRequest, CreateCheckoutSessionResponse, CreatePortalSessionRequest, CreatePortalSessionResponse, GetBillingAccountRequest, GetBillingAccountResponse, GetCreditBalanceRequest, GetCreditBalanceResponse, GetUsageRequest, GetUsageResponse, GrantCreditRequest, GrantCreditResponse, ListInvoicesRequest, ListInvoicesResponse, ListPaymentMethodsRequest, ListPaymentMethodsResponse, RecordUsageRequest, RecordUsageResponse, UpdateBudgetRequest, UpdateBudgetResponse } from "./billing_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -88,6 +88,26 @@ export const BillingService = {
       name: "ListPaymentMethods",
       I: ListPaymentMethodsRequest,
       O: ListPaymentMethodsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Credits
+     *
+     * @generated from rpc synthify.tree.v1.BillingService.GrantCredit
+     */
+    grantCredit: {
+      name: "GrantCredit",
+      I: GrantCreditRequest,
+      O: GrantCreditResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.tree.v1.BillingService.GetCreditBalance
+     */
+    getCreditBalance: {
+      name: "GetCreditBalance",
+      I: GetCreditBalanceRequest,
+      O: GetCreditBalanceResponse,
       kind: MethodKind.Unary,
     },
   }

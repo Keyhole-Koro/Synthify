@@ -56,6 +56,12 @@ const (
 	// BillingServiceListPaymentMethodsProcedure is the fully-qualified name of the BillingService's
 	// ListPaymentMethods RPC.
 	BillingServiceListPaymentMethodsProcedure = "/synthify.tree.v1.BillingService/ListPaymentMethods"
+	// BillingServiceGrantCreditProcedure is the fully-qualified name of the BillingService's
+	// GrantCredit RPC.
+	BillingServiceGrantCreditProcedure = "/synthify.tree.v1.BillingService/GrantCredit"
+	// BillingServiceGetCreditBalanceProcedure is the fully-qualified name of the BillingService's
+	// GetCreditBalance RPC.
+	BillingServiceGetCreditBalanceProcedure = "/synthify.tree.v1.BillingService/GetCreditBalance"
 )
 
 // BillingServiceClient is a client for the synthify.tree.v1.BillingService service.
@@ -71,6 +77,9 @@ type BillingServiceClient interface {
 	// Phase 3: invoices & payment methods
 	ListInvoices(context.Context, *connect.Request[v1.ListInvoicesRequest]) (*connect.Response[v1.ListInvoicesResponse], error)
 	ListPaymentMethods(context.Context, *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error)
+	// Credits
+	GrantCredit(context.Context, *connect.Request[v1.GrantCreditRequest]) (*connect.Response[v1.GrantCreditResponse], error)
+	GetCreditBalance(context.Context, *connect.Request[v1.GetCreditBalanceRequest]) (*connect.Response[v1.GetCreditBalanceResponse], error)
 }
 
 // NewBillingServiceClient constructs a client for the synthify.tree.v1.BillingService service. By
@@ -132,6 +141,18 @@ func NewBillingServiceClient(httpClient connect.HTTPClient, baseURL string, opts
 			connect.WithSchema(billingServiceMethods.ByName("ListPaymentMethods")),
 			connect.WithClientOptions(opts...),
 		),
+		grantCredit: connect.NewClient[v1.GrantCreditRequest, v1.GrantCreditResponse](
+			httpClient,
+			baseURL+BillingServiceGrantCreditProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("GrantCredit")),
+			connect.WithClientOptions(opts...),
+		),
+		getCreditBalance: connect.NewClient[v1.GetCreditBalanceRequest, v1.GetCreditBalanceResponse](
+			httpClient,
+			baseURL+BillingServiceGetCreditBalanceProcedure,
+			connect.WithSchema(billingServiceMethods.ByName("GetCreditBalance")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -145,6 +166,8 @@ type billingServiceClient struct {
 	updateBudget          *connect.Client[v1.UpdateBudgetRequest, v1.UpdateBudgetResponse]
 	listInvoices          *connect.Client[v1.ListInvoicesRequest, v1.ListInvoicesResponse]
 	listPaymentMethods    *connect.Client[v1.ListPaymentMethodsRequest, v1.ListPaymentMethodsResponse]
+	grantCredit           *connect.Client[v1.GrantCreditRequest, v1.GrantCreditResponse]
+	getCreditBalance      *connect.Client[v1.GetCreditBalanceRequest, v1.GetCreditBalanceResponse]
 }
 
 // GetBillingAccount calls synthify.tree.v1.BillingService.GetBillingAccount.
@@ -187,6 +210,16 @@ func (c *billingServiceClient) ListPaymentMethods(ctx context.Context, req *conn
 	return c.listPaymentMethods.CallUnary(ctx, req)
 }
 
+// GrantCredit calls synthify.tree.v1.BillingService.GrantCredit.
+func (c *billingServiceClient) GrantCredit(ctx context.Context, req *connect.Request[v1.GrantCreditRequest]) (*connect.Response[v1.GrantCreditResponse], error) {
+	return c.grantCredit.CallUnary(ctx, req)
+}
+
+// GetCreditBalance calls synthify.tree.v1.BillingService.GetCreditBalance.
+func (c *billingServiceClient) GetCreditBalance(ctx context.Context, req *connect.Request[v1.GetCreditBalanceRequest]) (*connect.Response[v1.GetCreditBalanceResponse], error) {
+	return c.getCreditBalance.CallUnary(ctx, req)
+}
+
 // BillingServiceHandler is an implementation of the synthify.tree.v1.BillingService service.
 type BillingServiceHandler interface {
 	GetBillingAccount(context.Context, *connect.Request[v1.GetBillingAccountRequest]) (*connect.Response[v1.GetBillingAccountResponse], error)
@@ -200,6 +233,9 @@ type BillingServiceHandler interface {
 	// Phase 3: invoices & payment methods
 	ListInvoices(context.Context, *connect.Request[v1.ListInvoicesRequest]) (*connect.Response[v1.ListInvoicesResponse], error)
 	ListPaymentMethods(context.Context, *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error)
+	// Credits
+	GrantCredit(context.Context, *connect.Request[v1.GrantCreditRequest]) (*connect.Response[v1.GrantCreditResponse], error)
+	GetCreditBalance(context.Context, *connect.Request[v1.GetCreditBalanceRequest]) (*connect.Response[v1.GetCreditBalanceResponse], error)
 }
 
 // NewBillingServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -257,6 +293,18 @@ func NewBillingServiceHandler(svc BillingServiceHandler, opts ...connect.Handler
 		connect.WithSchema(billingServiceMethods.ByName("ListPaymentMethods")),
 		connect.WithHandlerOptions(opts...),
 	)
+	billingServiceGrantCreditHandler := connect.NewUnaryHandler(
+		BillingServiceGrantCreditProcedure,
+		svc.GrantCredit,
+		connect.WithSchema(billingServiceMethods.ByName("GrantCredit")),
+		connect.WithHandlerOptions(opts...),
+	)
+	billingServiceGetCreditBalanceHandler := connect.NewUnaryHandler(
+		BillingServiceGetCreditBalanceProcedure,
+		svc.GetCreditBalance,
+		connect.WithSchema(billingServiceMethods.ByName("GetCreditBalance")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.tree.v1.BillingService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case BillingServiceGetBillingAccountProcedure:
@@ -275,6 +323,10 @@ func NewBillingServiceHandler(svc BillingServiceHandler, opts ...connect.Handler
 			billingServiceListInvoicesHandler.ServeHTTP(w, r)
 		case BillingServiceListPaymentMethodsProcedure:
 			billingServiceListPaymentMethodsHandler.ServeHTTP(w, r)
+		case BillingServiceGrantCreditProcedure:
+			billingServiceGrantCreditHandler.ServeHTTP(w, r)
+		case BillingServiceGetCreditBalanceProcedure:
+			billingServiceGetCreditBalanceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -314,4 +366,12 @@ func (UnimplementedBillingServiceHandler) ListInvoices(context.Context, *connect
 
 func (UnimplementedBillingServiceHandler) ListPaymentMethods(context.Context, *connect.Request[v1.ListPaymentMethodsRequest]) (*connect.Response[v1.ListPaymentMethodsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.ListPaymentMethods is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) GrantCredit(context.Context, *connect.Request[v1.GrantCreditRequest]) (*connect.Response[v1.GrantCreditResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.GrantCredit is not implemented"))
+}
+
+func (UnimplementedBillingServiceHandler) GetCreditBalance(context.Context, *connect.Request[v1.GetCreditBalanceRequest]) (*connect.Response[v1.GetCreditBalanceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.BillingService.GetCreditBalance is not implemented"))
 }

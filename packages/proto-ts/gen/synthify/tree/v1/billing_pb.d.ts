@@ -116,6 +116,22 @@ export declare type GetBillingAccountResponse = Message<"synthify.tree.v1.GetBil
    * @generated from field: bool budget_exceeded = 16;
    */
   budgetExceeded: boolean;
+
+  /**
+   * Credits
+   *
+   * 残クレジット残高 (decimal string)
+   *
+   * @generated from field: string credit_balance = 17;
+   */
+  creditBalance: string;
+
+  /**
+   * 残高0で停止中
+   *
+   * @generated from field: bool credit_stopped = 18;
+   */
+  creditStopped: boolean;
 };
 
 /**
@@ -655,6 +671,108 @@ export declare type PaymentMethod = Message<"synthify.tree.v1.PaymentMethod"> & 
 export declare const PaymentMethodSchema: GenMessage<PaymentMethod>;
 
 /**
+ * GrantCredit は admin が任意アカウントにクレジットを付与する (内部/admin 専用)
+ *
+ * @generated from message synthify.tree.v1.GrantCreditRequest
+ */
+export declare type GrantCreditRequest = Message<"synthify.tree.v1.GrantCreditRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+
+  /**
+   * USD cents
+   *
+   * @generated from field: int64 amount_minor = 2;
+   */
+  amountMinor: bigint;
+
+  /**
+   * @generated from field: string note = 3;
+   */
+  note: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GrantCreditRequest.
+ * Use `create(GrantCreditRequestSchema)` to create a new message.
+ */
+export declare const GrantCreditRequestSchema: GenMessage<GrantCreditRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.GrantCreditResponse
+ */
+export declare type GrantCreditResponse = Message<"synthify.tree.v1.GrantCreditResponse"> & {
+  /**
+   * @generated from field: string credit_id = 1;
+   */
+  creditId: string;
+
+  /**
+   * @generated from field: string account_id = 2;
+   */
+  accountId: string;
+
+  /**
+   * @generated from field: int64 amount_minor = 3;
+   */
+  amountMinor: bigint;
+
+  /**
+   * 付与後の残高 (decimal string)
+   *
+   * @generated from field: string credit_balance = 4;
+   */
+  creditBalance: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GrantCreditResponse.
+ * Use `create(GrantCreditResponseSchema)` to create a new message.
+ */
+export declare const GrantCreditResponseSchema: GenMessage<GrantCreditResponse>;
+
+/**
+ * @generated from message synthify.tree.v1.GetCreditBalanceRequest
+ */
+export declare type GetCreditBalanceRequest = Message<"synthify.tree.v1.GetCreditBalanceRequest"> & {
+  /**
+   * @generated from field: string account_id = 1;
+   */
+  accountId: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetCreditBalanceRequest.
+ * Use `create(GetCreditBalanceRequestSchema)` to create a new message.
+ */
+export declare const GetCreditBalanceRequestSchema: GenMessage<GetCreditBalanceRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.GetCreditBalanceResponse
+ */
+export declare type GetCreditBalanceResponse = Message<"synthify.tree.v1.GetCreditBalanceResponse"> & {
+  /**
+   * decimal string (例: "1.00")
+   *
+   * @generated from field: string credit_balance = 1;
+   */
+  creditBalance: string;
+
+  /**
+   * @generated from field: bool credit_stopped = 2;
+   */
+  creditStopped: boolean;
+};
+
+/**
+ * Describes the message synthify.tree.v1.GetCreditBalanceResponse.
+ * Use `create(GetCreditBalanceResponseSchema)` to create a new message.
+ */
+export declare const GetCreditBalanceResponseSchema: GenMessage<GetCreditBalanceResponse>;
+
+/**
  * @generated from service synthify.tree.v1.BillingService
  */
 export declare const BillingService: GenService<{
@@ -727,6 +845,24 @@ export declare const BillingService: GenService<{
     methodKind: "unary";
     input: typeof ListPaymentMethodsRequestSchema;
     output: typeof ListPaymentMethodsResponseSchema;
+  },
+  /**
+   * Credits
+   *
+   * @generated from rpc synthify.tree.v1.BillingService.GrantCredit
+   */
+  grantCredit: {
+    methodKind: "unary";
+    input: typeof GrantCreditRequestSchema;
+    output: typeof GrantCreditResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.tree.v1.BillingService.GetCreditBalance
+   */
+  getCreditBalance: {
+    methodKind: "unary";
+    input: typeof GetCreditBalanceRequestSchema;
+    output: typeof GetCreditBalanceResponseSchema;
   },
 }>;
 

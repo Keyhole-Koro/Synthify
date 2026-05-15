@@ -9,16 +9,19 @@
 --   payment_methods      : Stripe 支払い方法キャッシュ
 
 CREATE TABLE IF NOT EXISTS usage_events (
-  event_id        TEXT PRIMARY KEY,
-  account_id      TEXT NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
-  workspace_id    TEXT NOT NULL DEFAULT '',
-  job_id          TEXT NOT NULL DEFAULT '',
-  model           TEXT NOT NULL,
-  input_tokens    BIGINT NOT NULL DEFAULT 0,
-  output_tokens   BIGINT NOT NULL DEFAULT 0,
-  cost_minor      BIGINT NOT NULL DEFAULT 0,
-  currency        TEXT NOT NULL DEFAULT 'usd',
-  created_at      TIMESTAMPTZ NOT NULL
+  event_id            TEXT PRIMARY KEY,
+  account_id          TEXT NOT NULL REFERENCES accounts(account_id) ON DELETE CASCADE,
+  workspace_id        TEXT NOT NULL DEFAULT '',
+  job_id              TEXT NOT NULL DEFAULT '',
+  model               TEXT NOT NULL,
+  input_tokens        BIGINT NOT NULL DEFAULT 0,
+  output_tokens       BIGINT NOT NULL DEFAULT 0,
+  cost_minor          BIGINT NOT NULL DEFAULT 0,
+  currency            TEXT NOT NULL DEFAULT 'usd',
+  created_at          TIMESTAMPTZ NOT NULL,
+  paid_via            TEXT NOT NULL DEFAULT 'stripe',
+  credit_amount_minor BIGINT NOT NULL DEFAULT 0,
+  stripe_amount_minor BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_events_account_created

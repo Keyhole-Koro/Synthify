@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strconv"
 	"time"
 
 	"github.com/synthify/backend/packages/shared/domain"
@@ -19,11 +20,16 @@ func (s *Store) GetModelPricing(ctx context.Context, model string) (*domain.Mode
 		}
 		return nil, err
 	}
+	mult, _ := strconv.ParseFloat(row.DisplayMultiplier, 64)
+	if mult == 0 {
+		mult = 1.0
+	}
 	return &domain.ModelPricing{
 		Model:                    row.Model,
 		InputCostPerMTokenMinor:  row.InputCostPerMtokenMinor,
 		OutputCostPerMTokenMinor: row.OutputCostPerMtokenMinor,
 		Currency:                 row.Currency,
+		DisplayMultiplier:        mult,
 	}, nil
 }
 
@@ -53,17 +59,24 @@ func (s *Store) RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent
 	qtx := s.q().WithTx(tx)
 
 	// 1. Insert raw event (idempotent via ON CONFLICT DO NOTHING).
+	paidVia := string(ev.PaidVia)
+	if paidVia == "" {
+		paidVia = string(domain.PaidViaStripe)
+	}
 	if err := qtx.InsertUsageEvent(ctx, sqlcgen.InsertUsageEventParams{
-		EventID:      ev.EventID,
-		AccountID:    ev.AccountID,
-		WorkspaceID:  ev.WorkspaceID,
-		JobID:        ev.JobID,
-		Model:        ev.Model,
-		InputTokens:  ev.InputTokens,
-		OutputTokens: ev.OutputTokens,
-		CostMinor:    ev.CostMinor,
-		Currency:     ev.Currency,
-		CreatedAt:    createdAt,
+		EventID:           ev.EventID,
+		AccountID:         ev.AccountID,
+		WorkspaceID:       ev.WorkspaceID,
+		JobID:             ev.JobID,
+		Model:             ev.Model,
+		InputTokens:       ev.InputTokens,
+		OutputTokens:      ev.OutputTokens,
+		CostMinor:         ev.CostMinor,
+		Currency:          ev.Currency,
+		CreatedAt:         createdAt,
+		PaidVia:           paidVia,
+		CreditAmountMinor: ev.CreditAmountMinor,
+		StripeAmountMinor: ev.StripeAmountMinor,
 	}); err != nil {
 		return "", false, err
 	}
@@ -269,4 +282,55 @@ func pad2(n int64) string {
 		return "0" + string([]byte{byte('0' + n)})
 	}
 	return string([]byte{byte('0' + n/10), byte('0' + n%10)})
+}
+
+// GrantCredit inserts a credit row. Consumed credits are inserted with a negative amount.
+func (s *Store) GrantCredit(ctx context.Context, grant *domain.CreditGrant) error {
+	grantedAt, err := time.Parse(time.RFC3339, grant.GrantedAt)
+	if err != nil {
+		grantedAt = nowTime()
+	}
+	return s.q().GrantCredit(ctx, sqlcgen.GrantCreditParams{
+		CreditID:   grant.CreditID,
+		AccountID:  grant.AccountID,
+		CreditType: string(grant.CreditType),
+		AmountMinor: grant.AmountMinor,
+		Currency:   grant.Currency,
+		Note:       grant.Note,
+		GrantedBy:  grant.GrantedBy,
+		GrantedAt:  grantedAt,
+	})
+}
+
+// GetCreditBalance returns the net credit balance (granted - consumed) in minor units.
+func (s *Store) GetCreditBalance(ctx context.Context, accountID string) (int64, error) {
+	return s.q().GetCreditBalance(ctx, accountID)
+}
+
+// ListCreditGrants returns recent credit transactions for an account.
+func (s *Store) ListCreditGrants(ctx context.Context, accountID string, limit int) ([]*domain.CreditGrant, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.q().ListCreditGrants(ctx, sqlcgen.ListCreditGrantsParams{
+		AccountID: accountID,
+		Limit:     int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*domain.CreditGrant, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &domain.CreditGrant{
+			CreditID:    row.CreditID,
+			AccountID:   accountID,
+			CreditType:  domain.CreditType(row.CreditType),
+			AmountMinor: row.AmountMinor,
+			Currency:    row.Currency,
+			Note:        row.Note,
+			GrantedBy:   row.GrantedBy,
+			GrantedAt:   row.GrantedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return result, nil
 }

@@ -19,6 +19,10 @@ service BillingService {
   // Phase 3: invoices & payment methods
   rpc ListInvoices(ListInvoicesRequest) returns (ListInvoicesResponse);
   rpc ListPaymentMethods(ListPaymentMethodsRequest) returns (ListPaymentMethodsResponse);
+
+  // Credits
+  rpc GrantCredit(GrantCreditRequest) returns (GrantCreditResponse);
+  rpc GetCreditBalance(GetCreditBalanceRequest) returns (GetCreditBalanceResponse);
 }
 
 message GetBillingAccountRequest {
@@ -45,6 +49,10 @@ message GetBillingAccountResponse {
   string current_period_usage = 14;     // 当月累計
   string current_period_started_at = 15;
   bool budget_exceeded = 16;
+
+  // Credits
+  string credit_balance = 17;           // 残クレジット残高 (decimal string)
+  bool credit_stopped = 18;             // 残高0で停止中
 }
 
 message CreateCheckoutSessionRequest {
@@ -171,4 +179,31 @@ message PaymentMethod {
   int32 exp_month = 4;
   int32 exp_year = 5;
   bool is_default = 6;
+}
+
+// =========================================================
+// Credits
+// =========================================================
+
+// GrantCredit は admin が任意アカウントにクレジットを付与する (内部/admin 専用)
+message GrantCreditRequest {
+  string account_id = 1;
+  int64 amount_minor = 2;   // USD cents
+  string note = 3;
+}
+
+message GrantCreditResponse {
+  string credit_id = 1;
+  string account_id = 2;
+  int64 amount_minor = 3;
+  string credit_balance = 4;  // 付与後の残高 (decimal string)
+}
+
+message GetCreditBalanceRequest {
+  string account_id = 1;
+}
+
+message GetCreditBalanceResponse {
+  string credit_balance = 1;  // decimal string (例: "1.00")
+  bool credit_stopped = 2;
 }

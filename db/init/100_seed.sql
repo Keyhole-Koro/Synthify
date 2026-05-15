@@ -1,4 +1,7 @@
 -- Seed data for development
+-- model_pricing: Gemini 2.5 Flash 公式料金 (2025-05) + display_multiplier
+-- input: $0.30/1M tokens = 30 cents/1M = 30 minor/1M
+-- output: $2.50/1M tokens = 250 cents/1M = 250 minor/1M
 -- ドキュメントの実体は fake-gcs-server に置く。
 -- scripts/seed_gcs.sh でアップロード後、scripts/worker_demo.sh でジョブを実行する。
 
@@ -25,3 +28,18 @@ VALUES
   ('doc_llm_2', 'ws_seed_2', 'user_seed_1', 'clinical_trial_protocol.md', 'text/markdown', 3800, NOW()),
   ('doc_llm_3', 'ws_seed_1', 'user_seed_1', 'legacy_migration_notes.md',  'text/markdown', 2900, NOW())
 ON CONFLICT (document_id) DO NOTHING;
+
+INSERT INTO model_pricing
+  (model, input_cost_per_mtoken_minor, output_cost_per_mtoken_minor, currency, display_multiplier, effective_from, notes)
+VALUES
+  ('gemini-2.5-flash-preview-05-20', 30,  250, 'usd', 1.0, NOW(), 'Gemini 2.5 Flash — baseline x1'),
+  ('gemini-2.5-flash',               30,  250, 'usd', 1.0, NOW(), 'Gemini 2.5 Flash stable'),
+  ('gemini-2.5-pro-preview-05-06',   250, 1500,'usd', 5.0, NOW(), 'Gemini 2.5 Pro — x5'),
+  ('gemini-2.5-pro',                 250, 1500,'usd', 5.0, NOW(), 'Gemini 2.5 Pro stable — x5'),
+  ('gemini-2.0-flash',               10,  40,  'usd', 1.0, NOW(), 'Gemini 2.0 Flash — x1'),
+  ('gemini-3-flash-preview',         30,  250, 'usd', 1.0, NOW(), 'Gemini 3 Flash preview — x1')
+ON CONFLICT (model) DO UPDATE SET
+  input_cost_per_mtoken_minor  = EXCLUDED.input_cost_per_mtoken_minor,
+  output_cost_per_mtoken_minor = EXCLUDED.output_cost_per_mtoken_minor,
+  display_multiplier           = EXCLUDED.display_multiplier,
+  notes                        = EXCLUDED.notes;

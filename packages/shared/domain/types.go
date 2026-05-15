@@ -123,6 +123,9 @@ type Account struct {
 	CurrentPeriodStartedAt    string `json:"current_period_started_at,omitempty"`
 	BudgetExceeded            bool   `json:"budget_exceeded,omitempty"`
 
+	// Credits
+	CreditBalanceMinor int64 `json:"credit_balance_minor,omitempty"`
+
 	CreatedAt            string `json:"created_at"`
 }
 

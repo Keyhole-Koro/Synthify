@@ -114,23 +114,42 @@ type ProviderWebhookEvent struct {
 // Usage-Based Billing (Phase 1-3)
 // =========================================================
 
+// PaidVia は usage event の決済区分。
+//   - credit: 全額クレジット残高から消費（Stripe には流れない）
+//   - stripe: 全額 Stripe usage-based meter で課金
+//   - mixed:  クレジット残高分 + Stripe meter 分の両方が発生した境界 event
+type PaidVia string
+
+const (
+	PaidViaCredit PaidVia = "credit"
+	PaidViaStripe PaidVia = "stripe"
+	PaidViaMixed  PaidVia = "mixed"
+)
+
 type UsageEvent struct {
-	EventID      string `json:"event_id"`
-	AccountID    string `json:"account_id"`
-	WorkspaceID  string `json:"workspace_id,omitempty"`
-	JobID        string `json:"job_id,omitempty"`
-	Model        string `json:"model"`
-	InputTokens  int64  `json:"input_tokens"`
-	OutputTokens int64  `json:"output_tokens"`
-	CostMinor    int64  `json:"cost_minor"`
-	Currency     string `json:"currency"`
-	CreatedAt    string `json:"created_at"`
+	EventID           string  `json:"event_id"`
+	AccountID         string  `json:"account_id"`
+	WorkspaceID       string  `json:"workspace_id,omitempty"`
+	JobID             string  `json:"job_id,omitempty"`
+	Model             string  `json:"model"`
+	InputTokens       int64   `json:"input_tokens"`
+	OutputTokens      int64   `json:"output_tokens"`
+	CostMinor         int64   `json:"cost_minor"`
+	Currency          string  `json:"currency"`
+	CreatedAt         string  `json:"created_at"`
+	PaidVia           PaidVia `json:"paid_via,omitempty"`
+	CreditAmountMinor int64   `json:"credit_amount_minor,omitempty"`
+	StripeAmountMinor int64   `json:"stripe_amount_minor,omitempty"`
 }
 
 type UsageRecordResult struct {
-	EventID         string `json:"event_id"`
-	Cost            string `json:"cost"`
-	BudgetExceeded  bool   `json:"budget_exceeded"`
+	EventID           string  `json:"event_id"`
+	Cost              string  `json:"cost"`
+	BudgetExceeded    bool    `json:"budget_exceeded"`
+	CreditStopped     bool    `json:"credit_stopped"` // 無料クレジット残高0で停止
+	PaidVia           PaidVia `json:"paid_via,omitempty"`
+	CreditAmountMinor int64   `json:"credit_amount_minor,omitempty"`
+	StripeAmountMinor int64   `json:"stripe_amount_minor,omitempty"`
 }
 
 type ModelUsage struct {
@@ -178,11 +197,38 @@ type InvoiceList struct {
 }
 
 type ModelPricing struct {
-	Model                    string `json:"model"`
-	InputCostPerMTokenMinor  int64  `json:"input_cost_per_mtoken_minor"`
-	OutputCostPerMTokenMinor int64  `json:"output_cost_per_mtoken_minor"`
-	Currency                 string `json:"currency"`
+	Model                    string  `json:"model"`
+	InputCostPerMTokenMinor  int64   `json:"input_cost_per_mtoken_minor"`
+	OutputCostPerMTokenMinor int64   `json:"output_cost_per_mtoken_minor"`
+	Currency                 string  `json:"currency"`
+	DisplayMultiplier        float64 `json:"display_multiplier"`
 }
+
+// CreditType は account_credits.credit_type の値。
+type CreditType string
+
+const (
+	CreditTypeFree      CreditType = "free"
+	CreditTypePurchased CreditType = "purchased"
+	CreditTypeConsumed  CreditType = "consumed"
+)
+
+type CreditGrant struct {
+	CreditID    string     `json:"credit_id"`
+	AccountID   string     `json:"account_id"`
+	CreditType  CreditType `json:"credit_type"`
+	AmountMinor int64      `json:"amount_minor"`
+	Currency    string     `json:"currency"`
+	Note        string     `json:"note"`
+	GrantedBy   string     `json:"granted_by"`
+	GrantedAt   string     `json:"granted_at"`
+}
+
+const (
+	// FreeSignupCreditMinor はサインアップ時に付与する無料クレジット額 (USD cents)。
+	// $1.00 = 100 cents。
+	FreeSignupCreditMinor int64 = 100
+)
 
 type PaymentMethod struct {
 	PaymentMethodID string `json:"payment_method_id"`

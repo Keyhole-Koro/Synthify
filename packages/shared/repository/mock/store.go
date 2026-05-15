@@ -14,25 +14,27 @@ import (
 )
 
 type Store struct {
-	mu            sync.RWMutex
-	accounts      map[string]*domain.Account
-	workspaces    map[string]*domain.Workspace
-	wsOwners      map[string]string // wsID -> ownerAccountID
-	documents     map[string]*domain.Document
-	docFiles      map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
-	jobs          map[string]*domain.DocumentProcessingJob
-	capabilities  map[string]*domain.JobCapability
-	plans         map[string]*domain.JobExecutionPlan
-	approvals     map[string][]*domain.JobApprovalRequest
-	items         map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
-	sources       map[string][]*domain.ItemSource
-	chunks        map[string][]*domain.DocumentChunk
-	checkpoints   map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
-	reservations  map[string]*uploadReservation
-	billingEvents map[string]string
-	pricing       map[string]domain.ModelPricing
-	usageEvents   []*domain.UsageEvent
-	dailyCosts    map[string]int64 // "accountID|date|model" -> cost_minor
+	mu               sync.RWMutex
+	accounts         map[string]*domain.Account
+	workspaces       map[string]*domain.Workspace
+	wsOwners         map[string]string // wsID -> ownerAccountID
+	documents         map[string]*domain.Document
+	docFiles         map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
+	jobs             map[string]*domain.DocumentProcessingJob
+	capabilities     map[string]*domain.JobCapability
+	plans            map[string]*domain.JobExecutionPlan
+	approvals        map[string][]*domain.JobApprovalRequest
+	items            map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
+	sources          map[string][]*domain.ItemSource
+	chunks           map[string][]*domain.DocumentChunk
+	checkpoints      map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
+	reservations     map[string]*uploadReservation
+	billingEvents    map[string]string
+	pricing          map[string]domain.ModelPricing
+	usageEvents      []*domain.UsageEvent
+	dailyCosts       map[string]int64 // "accountID|date|model" -> cost_minor
+	credits          []*domain.CreditGrant
+	uploadURLBuilder repository.DocumentUploadURLBuilder
 }
 
 type uploadReservation struct {
@@ -64,7 +66,16 @@ func NewStore() *Store {
 		billingEvents: make(map[string]string),
 		pricing:       make(map[string]domain.ModelPricing),
 		dailyCosts:    make(map[string]int64),
+		uploadURLBuilder: func(wsID, docID string) string {
+			return "http://mock-upload-url/" + docID
+		},
 	}
+}
+
+func (s *Store) SetUploadURLBuilder(b repository.DocumentUploadURLBuilder) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.uploadURLBuilder = b
 }
 
 // AccountRepository
@@ -382,7 +393,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		Status:       "reserved",
 		ExpiresAt:    time.Now().Add(15 * time.Minute),
 	}
-	return d, "http://mock-upload-url/" + d.DocumentID, nil
+	return d, s.uploadURLBuilder(wsID, d.DocumentID), nil
 }
 
 func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error {
@@ -1215,6 +1226,39 @@ func (s *Store) ListInvoices(_ context.Context, _ string, _ int) (*domain.Invoic
 
 func (s *Store) ListPaymentMethods(_ context.Context, _ string) ([]*domain.PaymentMethod, error) {
 	return nil, nil
+}
+
+func (s *Store) GrantCredit(_ context.Context, grant *domain.CreditGrant) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := *grant
+	s.credits = append(s.credits, &cp)
+	return nil
+}
+
+func (s *Store) GetCreditBalance(_ context.Context, accountID string) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var balance int64
+	for _, c := range s.credits {
+		if c.AccountID == accountID {
+			balance += c.AmountMinor
+		}
+	}
+	return balance, nil
+}
+
+func (s *Store) ListCreditGrants(_ context.Context, accountID string, limit int) ([]*domain.CreditGrant, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*domain.CreditGrant
+	for i := len(s.credits) - 1; i >= 0 && len(result) < limit; i-- {
+		if s.credits[i].AccountID == accountID {
+			cp := *s.credits[i]
+			result = append(result, &cp)
+		}
+	}
+	return result, nil
 }
 
 // Test helpers
