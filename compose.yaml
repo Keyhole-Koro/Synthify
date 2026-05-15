@@ -12,10 +12,12 @@ services:
           echo "apps/web/package.json not found. Waiting for web implementation...";
           sleep infinity;
         fi;
-        if [ ! -x /workspace/node_modules/.bin/next ]; then
+        if [ ! -x /workspace/apps/web/node_modules/.bin/next ]; then
           cd /workspace;
           bun install --frozen-lockfile;
         fi;
+        mkdir -p /workspace/node_modules;
+        ln -sfn /workspace/apps/web/node_modules/next /workspace/node_modules/next;
         cd /workspace/apps/web;
         rm -rf .next;
         bun run dev

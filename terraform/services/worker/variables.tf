@@ -22,12 +22,9 @@ variable "uploads_bucket_name" {
   type = string
 }
 
-variable "database_url_secret" {
-  type = string
-}
-
-variable "gemini_api_key_secret" {
-  type = string
+variable "secret_ids" {
+  description = "platform module output: map of secret key -> secret_id"
+  type        = map(string)
 }
 
 variable "firebase_project_id" {
@@ -36,4 +33,9 @@ variable "firebase_project_id" {
 
 variable "gemini_model" {
   type = string
+}
+
+variable "api_base_url" {
+  description = "Base URL the worker uses to call back into the API (usage metering, etc.)"
+  type        = string
 }

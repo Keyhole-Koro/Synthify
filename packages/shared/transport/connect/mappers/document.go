@@ -1,11 +1,12 @@
 package mappers
 
 import (
+	"github.com/synthify/backend/packages/shared/document"
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 )
 
-func ToProtoDocument(doc *domain.Document) *treev1.Document {
+func ToProtoDocument(doc *domain.Document, latestJob *domain.DocumentProcessingJob) *treev1.Document {
 	if doc == nil {
 		return nil
 	}
@@ -16,7 +17,7 @@ func ToProtoDocument(doc *domain.Document) *treev1.Document {
 		Filename:    doc.Filename,
 		MimeType:    doc.MimeType,
 		FileSize:    doc.FileSize,
-		Status:      treev1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_UPLOADED,
+		Status:      document.DeriveLifecycleState(latestJob),
 		CreatedAt:   doc.CreatedAt,
 		UpdatedAt:   doc.CreatedAt,
 	}

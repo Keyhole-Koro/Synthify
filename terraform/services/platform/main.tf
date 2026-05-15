@@ -45,44 +45,54 @@ module "artifact_registry" {
   repository_id = "synthify-${var.environment}"
 }
 
-resource "google_secret_manager_secret" "database_url" {
-  secret_id = "synthify-database-url-${var.environment}"
+# --------------------------------------------------------------------
+# Secret Manager
+#
+# Postgres は外部 (Neon) 管理。DATABASE_URL は Neon の接続文字列を
+# 手動で `gcloud secrets versions add` する運用。
+# --------------------------------------------------------------------
+
+locals {
+  api_secrets = toset([
+    "database-url",
+    "gemini-api-key",
+    "stripe-secret-key",
+    "stripe-webhook-secret",
+    "new-relic-license-key",
+    "internal-worker-token",
+  ])
+
+  worker_secrets = toset([
+    "database-url",
+    "gemini-api-key",
+    "internal-worker-token",
+  ])
+
+  all_secrets = toset(concat(tolist(local.api_secrets), tolist(local.worker_secrets)))
+}
+
+resource "google_secret_manager_secret" "secrets" {
+  for_each  = local.all_secrets
   project   = var.project_id
+  secret_id = "synthify-${each.value}-${var.environment}"
 
   replication {
     auto {}
   }
+
+  depends_on = [google_project_service.required]
 }
 
-resource "google_secret_manager_secret" "gemini_api_key" {
-  secret_id = "synthify-gemini-api-key-${var.environment}"
-  project   = var.project_id
-
-  replication {
-    auto {}
-  }
-}
-
-resource "google_secret_manager_secret_iam_member" "api_db_secret_accessor" {
-  secret_id = google_secret_manager_secret.database_url.id
+resource "google_secret_manager_secret_iam_member" "api_accessor" {
+  for_each  = local.api_secrets
+  secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${module.api_service_account.email}"
 }
 
-resource "google_secret_manager_secret_iam_member" "api_gemini_secret_accessor" {
-  secret_id = google_secret_manager_secret.gemini_api_key.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.api_service_account.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "worker_db_secret_accessor" {
-  secret_id = google_secret_manager_secret.database_url.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.worker_service_account.email}"
-}
-
-resource "google_secret_manager_secret_iam_member" "worker_gemini_secret_accessor" {
-  secret_id = google_secret_manager_secret.gemini_api_key.id
+resource "google_secret_manager_secret_iam_member" "worker_accessor" {
+  for_each  = local.worker_secrets
+  secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${module.worker_service_account.email}"
 }

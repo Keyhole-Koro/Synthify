@@ -2,6 +2,29 @@ name: Deploy Backend
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        required: true
+        default: stage
+        options:
+          - stage
+          - prod
+  push:
+    branches:
+      - main
+    paths:
+      - apps/api/**
+      - apps/worker/**
+      - packages/shared/**
+      - go.mod
+      - go.sum
+      - .github/workflows/deploy-backend.yml
+
+concurrency:
+  group: deploy-backend-${{ github.event.inputs.environment || 'stage' }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -10,8 +33,13 @@ jobs:
       contents: read
       id-token: write
 
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'stage' }}
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - id: auth
         uses: google-github-actions/auth@v2
@@ -22,31 +50,47 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Resolve image registry
+        id: registry
+        run: |
+          REGISTRY="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-${ENVIRONMENT}"
+          echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
       - name: Configure Docker
-        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Build and Push API
+      - name: Build and push API image
         run: |
-          docker build -t ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-prod/api:${{ github.sha }} -f apps/api/Dockerfile .
-          docker push ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-prod/api:${{ github.sha }}
+          docker build \
+            -t ${{ steps.registry.outputs.registry }}/api:${{ steps.registry.outputs.sha_tag }} \
+            -t ${{ steps.registry.outputs.registry }}/api:latest \
+            -f apps/api/Dockerfile .
+          docker push ${{ steps.registry.outputs.registry }}/api:${{ steps.registry.outputs.sha_tag }}
+          docker push ${{ steps.registry.outputs.registry }}/api:latest
 
-      - name: Build and Push Worker
+      - name: Build and push Worker image
         run: |
-          docker build -t ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-prod/worker:${{ github.sha }} -f apps/worker/Dockerfile .
-          docker push ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-prod/worker:${{ github.sha }}
+          docker build \
+            -t ${{ steps.registry.outputs.registry }}/worker:${{ steps.registry.outputs.sha_tag }} \
+            -t ${{ steps.registry.outputs.registry }}/worker:latest \
+            -f apps/worker/Dockerfile .
+          docker push ${{ steps.registry.outputs.registry }}/worker:${{ steps.registry.outputs.sha_tag }}
+          docker push ${{ steps.registry.outputs.registry }}/worker:latest
 
-      - name: Deploy API to Cloud Run
+      # Cloud Run env vars and secrets are managed by Terraform.
+      # Here we only roll the image — `--image` updates the running revision
+      # without touching env. To change env vars, run terraform apply.
+      - name: Deploy API
         run: |
-          gcloud run deploy synthify-api-prod \
-            --image ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-prod/api:${{ github.sha }} \
+          gcloud run deploy synthify-api-${ENVIRONMENT} \
+            --image ${{ steps.registry.outputs.registry }}/api:${{ steps.registry.outputs.sha_tag }} \
             --region ${{ vars.GCP_REGION }} \
-            --platform managed \
             --quiet
 
-      - name: Deploy Worker to Cloud Run
+      - name: Deploy Worker
         run: |
-          gcloud run deploy synthify-worker-prod \
-            --image ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-prod/worker:${{ github.sha }} \
+          gcloud run deploy synthify-worker-${ENVIRONMENT} \
+            --image ${{ steps.registry.outputs.registry }}/worker:${{ steps.registry.outputs.sha_tag }} \
             --region ${{ vars.GCP_REGION }} \
-            --platform managed \
             --quiet

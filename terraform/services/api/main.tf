@@ -11,6 +11,7 @@ module "service" {
   env_vars = {
     SERVICE_MODE                 = "api"
     PORT                         = "8080"
+    ENV                          = var.env
     WORKER_BASE_URL              = var.worker_base_url
     GCS_BUCKET                   = var.uploads_bucket_name
     GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com/${var.uploads_bucket_name}"
@@ -18,16 +19,47 @@ module "service" {
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     CORS_ALLOWED_ORIGINS         = var.cors_allowed_origins
     GEMINI_MODEL                 = var.gemini_model
+
+    # Stripe (non-secret IDs)
+    STRIPE_PRO_PRICE_ID       = var.stripe_pro_price_id
+    STRIPE_PRO_PRICE_ID_JPY   = var.stripe_pro_price_id_jpy
+    STRIPE_PRO_PRICE_ID_USD   = var.stripe_pro_price_id_usd
+    STRIPE_DEFAULT_CURRENCY   = var.stripe_default_currency
+    STRIPE_METER_INPUT_EVENT  = var.stripe_meter_input_event
+    STRIPE_METER_OUTPUT_EVENT = var.stripe_meter_output_event
+
+    # Billing redirect URLs
+    BILLING_SUCCESS_URL       = var.billing_success_url
+    BILLING_CANCEL_URL        = var.billing_cancel_url
+    BILLING_PORTAL_RETURN_URL = var.billing_portal_return_url
+
+    NEW_RELIC_APP_NAME = var.new_relic_app_name
   }
 
   secret_env_vars = [
     {
       name   = "DATABASE_URL"
-      secret = var.database_url_secret
+      secret = var.secret_ids["database-url"]
     },
     {
       name   = "GEMINI_API_KEY"
-      secret = var.gemini_api_key_secret
-    }
+      secret = var.secret_ids["gemini-api-key"]
+    },
+    {
+      name   = "STRIPE_SECRET_KEY"
+      secret = var.secret_ids["stripe-secret-key"]
+    },
+    {
+      name   = "STRIPE_WEBHOOK_SECRET"
+      secret = var.secret_ids["stripe-webhook-secret"]
+    },
+    {
+      name   = "NEW_RELIC_LICENSE_KEY"
+      secret = var.secret_ids["new-relic-license-key"]
+    },
+    {
+      name   = "INTERNAL_WORKER_TOKEN"
+      secret = var.secret_ids["internal-worker-token"]
+    },
   ]
 }

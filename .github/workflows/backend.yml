@@ -1,0 +1,66 @@
+name: Backend
+
+on:
+  pull_request:
+    paths:
+      - apps/api/**
+      - apps/worker/**
+      - packages/shared/**
+      - go.mod
+      - go.sum
+      - sqlc.yaml
+      - .github/workflows/backend.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps/api/**
+      - apps/worker/**
+      - packages/shared/**
+      - go.mod
+      - go.sum
+      - .github/workflows/backend.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test ./...
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
+      - name: terraform fmt check
+        run: terraform fmt -check -recursive terraform
+
+      - name: terraform validate (stage)
+        run: |
+          cd terraform/stage
+          terraform init -backend=false
+          terraform validate
+
+      - name: terraform validate (prod)
+        run: |
+          cd terraform/prod
+          terraform init -backend=false
+          terraform validate

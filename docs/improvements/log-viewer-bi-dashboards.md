@@ -53,12 +53,12 @@ log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 
 ## Implementation Strategy
 
-### Phase 1: 固定ダッシュボード (内製)
-- log-viewer に `/dashboards` ページ群を追加
-- BFF `app/api/dashboards/*` で集計クエリを発行
-- 描画は recharts などの軽量ライブラリ
-- 期間プリセット (今日 / 過去7日 / 今月) + workspace フィルタ
-- 利点: 既存の log-viewer 認証/ホスティングに乗る、追加サービス無し
+### Phase 1: 固定ダッシュボード (内製) ✅ 完了
+- [x] log-viewer に `/dashboards` ページを追加 (`src/app/dashboards/page.tsx`)
+- [x] BFF `app/api/dashboards/{job-health,cost,workspace,errors}` で集計クエリを発行
+- [x] 描画は recharts (BarChart / LineChart)
+- [x] 期間プリセット (今日 / 過去7日 / 今月)
+- [x] BI 用 DB view を `004_log_viewer_role.sql` に追加 (v_usage_events, v_account_usage_daily, v_workspaces, v_documents, v_tree_items)
 
 ### Phase 2: Ad-hoc 分析ツール接続 (検討)
 - Metabase / Redash / Grafana のいずれかを Postgres の log_viewer ロールで接続
