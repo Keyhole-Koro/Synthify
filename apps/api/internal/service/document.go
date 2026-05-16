@@ -70,7 +70,7 @@ func (s *DocumentService) GetDocument(ctx context.Context, documentID string) (*
 	return doc, nil
 }
 
-func (s *DocumentService) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string, error) {
+func (s *DocumentService) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
 	return s.repo.CreateDocument(ctx, wsID, uploadedBy, filename, mimeType, fileSize)
 }
 

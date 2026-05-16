@@ -2,13 +2,24 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	joblog "github.com/synthify/backend/packages/shared/job/log"
 )
 
-type DocumentUploadURLBuilder func(workspaceID, objectName string) string
+type DocumentUploadTarget struct {
+	URL         string
+	Method      string
+	ContentType string
+	ExpiresAt   time.Time
+}
+
+type DocumentUploadURLIssuer interface {
+	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (DocumentUploadTarget, error)
+}
+
 type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 
 type AccountRepository interface {
@@ -35,7 +46,7 @@ type DocumentRepository interface {
 	GetDocument(ctx context.Context, id string) (*domain.Document, error)
 	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
 	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
-	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string, error)
+	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, DocumentUploadTarget, error)
 	ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error
 	CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error)
 	ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error)

@@ -10,6 +10,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/service"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
 	"github.com/synthify/backend/packages/shared/middleware"
+	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/repository/mock"
 )
 
@@ -224,11 +225,19 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 	sourceURL := func(workspaceID, documentID string) string {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
-	uploadURL := func(workspaceID, objectName string) string {
-		return "https://upload.example/" + workspaceID + "/" + objectName
-	}
+	uploadURLIssuer := testUploadURLIssuer{}
 	svc := service.NewDocumentService(store, store, sourceURL, nil, nil, nil, nil)
-	return NewDocumentHandler(svc, store, store, uploadURL)
+	return NewDocumentHandler(svc, store, store, uploadURLIssuer)
+}
+
+type testUploadURLIssuer struct{}
+
+func (testUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, workspaceID, objectName, contentType string) (repository.DocumentUploadTarget, error) {
+	return repository.DocumentUploadTarget{
+		URL:         "https://upload.example/" + workspaceID + "/" + objectName,
+		Method:      "PUT",
+		ContentType: contentType,
+	}, nil
 }
 
 func newTestItemHandler(store *mock.Store) *ItemHandler {

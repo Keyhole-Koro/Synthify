@@ -12,6 +12,7 @@ import (
 
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/repository/postgres/sqlcgen"
 )
 
@@ -94,7 +95,7 @@ func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspace
 	return signals, nil
 }
 
-func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string, error) {
+func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
 	createdAt := nowTime()
 	docID := newID()
 	reservationID := newID()
@@ -103,27 +104,27 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		s.logger.Error(ctx, "repository.create_document_tx_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	defer tx.Rollback()
 
 	account, err := lockWorkspaceAccount(ctx, tx, wsID)
 	if err != nil {
 		s.logger.Error(ctx, "repository.create_document_account_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if err := validateUploadSize(account, fileSize); err != nil {
 		s.logger.Warn(ctx, "repository.create_document_quota_rejected", err, map[string]any{"workspace_id": wsID, "filename": filename, "file_size": fileSize})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	reserved, err := activeReservedBytes(ctx, tx, account.AccountID, createdAt)
 	if err != nil {
 		s.logger.Error(ctx, "repository.create_document_reservation_sum_failed", err, map[string]any{"account_id": account.AccountID})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if account.StorageUsedBytes+reserved+fileSize > account.StorageQuotaBytes {
 		s.logger.Warn(ctx, "repository.create_document_quota_rejected", domain.ErrStorageQuotaExceeded, map[string]any{"account_id": account.AccountID, "file_size": fileSize})
-		return nil, "", domain.ErrStorageQuotaExceeded
+		return nil, repository.DocumentUploadTarget{}, domain.ErrStorageQuotaExceeded
 	}
 
 	qtx := s.q().WithTx(tx)
@@ -137,7 +138,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		CreatedAt:   createdAt,
 	}); err != nil {
 		s.logger.Error(ctx, "repository.create_document_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO upload_reservations (
@@ -147,11 +148,16 @@ INSERT INTO upload_reservations (
 VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 	`, reservationID, account.AccountID, wsID, docID, fileSize, expiresAt, createdAt); err != nil {
 		s.logger.Error(ctx, "repository.create_upload_reservation_failed", err, map[string]any{"workspace_id": wsID, "document_id": docID})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
+	}
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType)
+	if err != nil {
+		s.logger.Error(ctx, "repository.issue_document_upload_url_failed", err, map[string]any{"workspace_id": wsID, "document_id": docID})
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		s.logger.Error(ctx, "repository.create_document_commit_failed", err, map[string]any{"workspace_id": wsID, "document_id": docID})
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 
 	return &domain.Document{
@@ -162,7 +168,7 @@ VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 		MimeType:    mimeType,
 		FileSize:    fileSize,
 		CreatedAt:   createdAt.Format(time.RFC3339),
-	}, s.uploadURLBuilder(wsID, docID), nil
+	}, target, nil
 }
 
 func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error {

@@ -59,10 +59,11 @@ export async function uploadFile(
   uploadUrl: string,
   file: File,
   method = 'PUT',
+  contentType = file.type || 'application/octet-stream',
 ): Promise<void> {
   const res = await fetch(uploadUrl, {
     method,
-    headers: { 'Content-Type': file.type },
+    headers: { 'Content-Type': contentType },
     body: file,
   });
   if (!res.ok) {

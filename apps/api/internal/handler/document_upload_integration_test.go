@@ -41,12 +41,11 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	store := mock.NewStore()
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
 
-	// Real URL builder
-	uploadURLBuilder := app.NewDocumentUploadURLBuilder(gcsBaseURL)
-	store.SetUploadURLBuilder(uploadURLBuilder)
+	uploadURLIssuer := app.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL)
+	store.SetUploadURLIssuer(uploadURLIssuer)
 
 	svc := service.NewDocumentService(store, store, nil, nil, nil, nil, nil)
-	handler := NewDocumentHandler(svc, store, store, uploadURLBuilder)
+	handler := NewDocumentHandler(svc, store, store, uploadURLIssuer)
 
 	authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 

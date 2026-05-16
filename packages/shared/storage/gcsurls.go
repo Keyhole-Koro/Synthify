@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const defaultBucket = "synthify-uploads"
+const DefaultBucket = "synthify-uploads"
 
 func ValidateBaseURL(raw string) error {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
@@ -28,15 +28,15 @@ func ValidateBaseURL(raw string) error {
 
 func BuildDocumentUploadURL(baseURL, workspaceID, objectName string) string {
 	root := strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/upload/storage/v1/b/%s/o?uploadType=media&name=%s/%s", root, defaultBucket, workspaceID, objectName)
+	return fmt.Sprintf("%s/upload/storage/v1/b/%s/o?uploadType=media&name=%s/%s", root, DefaultBucket, workspaceID, objectName)
 }
 
 func BuildDocumentSourceURL(baseURL, workspaceID, documentID string) string {
 	root := strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s?alt=media", root, defaultBucket, workspaceID, documentID)
+	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s?alt=media", root, DefaultBucket, workspaceID, documentID)
 }
 
 func BuildDocumentObjectMetadataURL(baseURL, workspaceID, documentID string) string {
 	root := strings.TrimRight(baseURL, "/")
-	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s", root, defaultBucket, workspaceID, documentID)
+	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s", root, DefaultBucket, workspaceID, documentID)
 }

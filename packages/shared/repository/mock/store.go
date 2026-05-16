@@ -14,28 +14,28 @@ import (
 )
 
 type Store struct {
-	mu               sync.RWMutex
-	accounts         map[string]*domain.Account
-	workspaces       map[string]*domain.Workspace
-	wsOwners         map[string]string // wsID -> ownerAccountID
-	documents        map[string]*domain.Document
-	docFiles         map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
-	jobs             map[string]*domain.DocumentProcessingJob
-	jobSeq           int
-	capabilities     map[string]*domain.JobCapability
-	plans            map[string]*domain.JobExecutionPlan
-	approvals        map[string][]*domain.JobApprovalRequest
-	items            map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
-	sources          map[string][]*domain.ItemSource
-	chunks           map[string][]*domain.DocumentChunk
-	checkpoints      map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
-	reservations     map[string]*uploadReservation
-	billingEvents    map[string]string
-	pricing          map[string]domain.ModelPricing
-	usageEvents      []*domain.UsageEvent
-	dailyCosts       map[string]int64 // "accountID|date|model" -> cost_minor
-	credits          []*domain.CreditGrant
-	uploadURLBuilder repository.DocumentUploadURLBuilder
+	mu              sync.RWMutex
+	accounts        map[string]*domain.Account
+	workspaces      map[string]*domain.Workspace
+	wsOwners        map[string]string // wsID -> ownerAccountID
+	documents       map[string]*domain.Document
+	docFiles        map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
+	jobs            map[string]*domain.DocumentProcessingJob
+	jobSeq          int
+	capabilities    map[string]*domain.JobCapability
+	plans           map[string]*domain.JobExecutionPlan
+	approvals       map[string][]*domain.JobApprovalRequest
+	items           map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
+	sources         map[string][]*domain.ItemSource
+	chunks          map[string][]*domain.DocumentChunk
+	checkpoints     map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
+	reservations    map[string]*uploadReservation
+	billingEvents   map[string]string
+	pricing         map[string]domain.ModelPricing
+	usageEvents     []*domain.UsageEvent
+	dailyCosts      map[string]int64 // "accountID|date|model" -> cost_minor
+	credits         []*domain.CreditGrant
+	uploadURLIssuer repository.DocumentUploadURLIssuer
 }
 
 type uploadReservation struct {
@@ -50,33 +50,31 @@ type uploadReservation struct {
 
 func NewStore() *Store {
 	return &Store{
-		accounts:      make(map[string]*domain.Account),
-		workspaces:    make(map[string]*domain.Workspace),
-		wsOwners:      make(map[string]string),
-		documents:     make(map[string]*domain.Document),
-		docFiles:      make(map[string]map[string]*domain.DocumentFile),
-		jobs:          make(map[string]*domain.DocumentProcessingJob),
-		capabilities:  make(map[string]*domain.JobCapability),
-		plans:         make(map[string]*domain.JobExecutionPlan),
-		approvals:     make(map[string][]*domain.JobApprovalRequest),
-		items:         make(map[string]map[string]*domain.Item),
-		sources:       make(map[string][]*domain.ItemSource),
-		chunks:        make(map[string][]*domain.DocumentChunk),
-		checkpoints:   make(map[string]map[string]domain.JobStageCheckpoint),
-		reservations:  make(map[string]*uploadReservation),
-		billingEvents: make(map[string]string),
-		pricing:       make(map[string]domain.ModelPricing),
-		dailyCosts:    make(map[string]int64),
-		uploadURLBuilder: func(wsID, docID string) string {
-			return "http://mock-upload-url/" + docID
-		},
+		accounts:        make(map[string]*domain.Account),
+		workspaces:      make(map[string]*domain.Workspace),
+		wsOwners:        make(map[string]string),
+		documents:       make(map[string]*domain.Document),
+		docFiles:        make(map[string]map[string]*domain.DocumentFile),
+		jobs:            make(map[string]*domain.DocumentProcessingJob),
+		capabilities:    make(map[string]*domain.JobCapability),
+		plans:           make(map[string]*domain.JobExecutionPlan),
+		approvals:       make(map[string][]*domain.JobApprovalRequest),
+		items:           make(map[string]map[string]*domain.Item),
+		sources:         make(map[string][]*domain.ItemSource),
+		chunks:          make(map[string][]*domain.DocumentChunk),
+		checkpoints:     make(map[string]map[string]domain.JobStageCheckpoint),
+		reservations:    make(map[string]*uploadReservation),
+		billingEvents:   make(map[string]string),
+		pricing:         make(map[string]domain.ModelPricing),
+		dailyCosts:      make(map[string]int64),
+		uploadURLIssuer: mockUploadURLIssuer{},
 	}
 }
 
-func (s *Store) SetUploadURLBuilder(b repository.DocumentUploadURLBuilder) {
+func (s *Store) SetUploadURLIssuer(issuer repository.DocumentUploadURLIssuer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.uploadURLBuilder = b
+	s.uploadURLIssuer = issuer
 }
 
 // AccountRepository
@@ -362,19 +360,19 @@ func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspace
 	return &domain.JobPlanningSignals{DocumentID: documentID, WorkspaceID: workspaceID}, nil
 }
 
-func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, string, error) {
+func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	ws, ok := s.workspaces[wsID]
 	if !ok {
-		return nil, "", domain.ErrNotFound
+		return nil, repository.DocumentUploadTarget{}, domain.ErrNotFound
 	}
 	account, ok := s.accounts[ws.AccountID]
 	if !ok {
-		return nil, "", domain.ErrNotFound
+		return nil, repository.DocumentUploadTarget{}, domain.ErrNotFound
 	}
 	if err := validateMockUpload(account, fileSize); err != nil {
-		return nil, "", err
+		return nil, repository.DocumentUploadTarget{}, err
 	}
 	d := &domain.Document{
 		DocumentID:  "doc-" + filename,
@@ -394,7 +392,21 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		Status:       "reserved",
 		ExpiresAt:    time.Now().Add(15 * time.Minute),
 	}
-	return d, s.uploadURLBuilder(wsID, d.DocumentID), nil
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType)
+	if err != nil {
+		return nil, repository.DocumentUploadTarget{}, err
+	}
+	return d, target, nil
+}
+
+type mockUploadURLIssuer struct{}
+
+func (mockUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, wsID, docID, contentType string) (repository.DocumentUploadTarget, error) {
+	return repository.DocumentUploadTarget{
+		URL:         "http://mock-upload-url/" + wsID + "/" + docID,
+		Method:      "POST",
+		ContentType: contentType,
+	}, nil
 }
 
 func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error {

@@ -13,13 +13,13 @@ import (
 )
 
 type Store struct {
-	db               *sql.DB
-	queries          *sqlcgen.Queries
-	uploadURLBuilder repository.DocumentUploadURLBuilder
-	logger           applog.Logger
+	db              *sql.DB
+	queries         *sqlcgen.Queries
+	uploadURLIssuer repository.DocumentUploadURLIssuer
+	logger          applog.Logger
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLBuilder repository.DocumentUploadURLBuilder, logger applog.Logger) (*Store, error) {
+func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger applog.Logger) (*Store, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -32,10 +32,10 @@ func NewStore(ctx context.Context, dsn string, uploadURLBuilder repository.Docum
 		logger = applog.NoopLogger{}
 	}
 	return &Store{
-		db:               db,
-		queries:          sqlcgen.New(db),
-		uploadURLBuilder: uploadURLBuilder,
-		logger:           logger,
+		db:              db,
+		queries:         sqlcgen.New(db),
+		uploadURLIssuer: uploadURLIssuer,
+		logger:          logger,
 	}, nil
 }
 

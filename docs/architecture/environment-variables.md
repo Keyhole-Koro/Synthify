@@ -25,6 +25,7 @@
 | `STRIPE_WEBHOOK_SECRET` | Stripe Webhook の署名検証用 | |
 | `INTERNAL_WORKER_TOKEN` | API と Worker 間の認証トークン | 任意の共有文字列 |
 | `NEW_RELIC_LICENSE_KEY` | New Relic のライセンスキー | (利用する場合) |
+| `GCS_SIGNING_PRIVATE_KEY` | GCS Signed URL 署名用サービスアカウント秘密鍵 | IAM Credentials `signBlob` を使う場合は不要 |
 
 ### B. 一般設定 (Terraform / tfvars)
 機密ではないが、環境ごとに異なる可能性のある設定です。
@@ -36,6 +37,10 @@
 | `STRIPE_PRO_PRICE_ID` | Stripe の商品/価格 ID | `price_...` |
 | `BILLING_SUCCESS_URL` | 決済成功後のリダイレクト先 | `/billing/success` |
 | `NEW_RELIC_APP_NAME` | New Relic 上のアプリケーション名 | `synthify-api` |
+| `GCS_UPLOAD_ISSUER` | Upload URL 発行方式。`fake` または `signed` | ローカルは未設定/`fake`、本番 GCS は `signed` |
+| `GCS_BUCKET` | アップロード先 GCS バケット | `synthify-uploads` |
+| `GCS_SIGNING_SERVICE_ACCOUNT_EMAIL` | Signed URL の署名主体 | `signBlob` 利用時はこの SA に `iam.serviceAccounts.signBlob` 権限が必要 |
+| `GCS_SIGNED_URL_TTL_MINUTES` | Signed URL の有効期限 | `15` |
 
 ---
 
