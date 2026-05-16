@@ -94,7 +94,7 @@ jobs:
         run: |
           for s in database-dsn gemini-api-key stripe-secret-key \
                    stripe-webhook-secret new-relic-license-key internal-worker-token; do
-            name="synthify-${s}-${ENVIRONMENT}"
+            name="synthify-${s}"
             if ! gcloud secrets versions list "$name" \
                   --project "${{ vars.GCP_PROJECT_ID }}" --limit=1 2>/dev/null \
                   | grep -q ENABLED; then

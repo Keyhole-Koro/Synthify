@@ -57,15 +57,15 @@
 Terraform でリソースを作成した後、以下のコマンドで値を設定します。
 ```bash
 # 例: Gemini API Key を設定する場合
-echo -n "YOUR_API_KEY" | gcloud secrets versions add synthify-gemini-api-key-prod --data-file=-
+echo -n "YOUR_API_KEY" | gcloud secrets versions add synthify-gemini-api-key --data-file=-
 
 # CockroachDB Serverless の DSN を設定する場合
 echo -n "postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full" \
-  | gcloud secrets versions add synthify-database-dsn-prod --data-file=-
+  | gcloud secrets versions add synthify-database-dsn --data-file=-
 
 # New Relic のライセンスキーを設定する場合
 echo -n "YOUR_NEW_RELIC_LICENSE_KEY" \
-  | gcloud secrets versions add synthify-new-relic-license-key-prod --data-file=-
+  | gcloud secrets versions add synthify-new-relic-license-key --data-file=-
 ```
 
 #### ② Terraform への設定

@@ -17,7 +17,7 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
 ## 構成方針
 
 - **DB は CockroachDB Serverless (外部マネージド)**。Cloud SQL は作らない。CockroachDB の接続文字列を
-  Secret Manager の `synthify-database-dsn-<env>` に手動で投入する。
+  Secret Manager の `synthify-database-dsn` に手動で投入する。
 - **Cloud Run × 2**: `synthify-api-<env>` と `synthify-worker-<env>`。
   worker は INTERNAL ingress、api は public。
 - **環境変数は Terraform が全管理**。env 名は環境中立 (prefix/suffix なし)、
@@ -81,7 +81,7 @@ init→apply→placeholder secret→2回目 apply を自動化する。
 
 ## Secret Manager に投入する値
 
-`synthify-<key>-<env>` という命名。`<env>` は `stage` または `prod`。
+`synthify-<key>` という命名。stage と prod は別 GCP project の Secret Manager に同じ名前で作成する。
 
 | Key | 内容 | 必須 |
 |---|---|---|
@@ -96,7 +96,7 @@ init→apply→placeholder secret→2回目 apply を自動化する。
 未使用なら placeholder 文字列を入れておく:
 
 ```bash
-printf 'unused' | gcloud secrets versions add synthify-stripe-secret-key-stage --data-file=-
+printf 'unused' | gcloud secrets versions add synthify-stripe-secret-key --data-file=-
 ```
 
 ## 主要コマンド

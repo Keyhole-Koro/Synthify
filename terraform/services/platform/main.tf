@@ -74,7 +74,7 @@ locals {
 resource "google_secret_manager_secret" "secrets" {
   for_each  = local.all_secrets
   project   = var.project_id
-  secret_id = "synthify-${each.value}-${var.environment}"
+  secret_id = "synthify-${each.value}"
 
   replication {
     auto {}

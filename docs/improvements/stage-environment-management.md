@@ -36,7 +36,7 @@
 ### 4. `reset-db` コマンド
 1. 実行前に確認プロンプト（`y/N`）を表示します。
 2. TerraformのOutputから `project_id` を取得します。
-3. `gcloud secrets versions access latest --secret="synthify-database-dsn-stage" --project="<PROJECT_ID>"` を実行し、CockroachDBデータベースの接続文字列を取得します。
+3. `gcloud secrets versions access latest --secret="synthify-database-dsn" --project="<PROJECT_ID>"` を実行し、CockroachDBデータベースの接続文字列を取得します。
 4. 取得した接続文字列を使用して `psql` でデータベースに接続し、以下のコマンドで既存スキーマとデータを全て削除・再作成します。
    ```sql
    DROP SCHEMA public CASCADE;

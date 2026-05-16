@@ -22,7 +22,7 @@ output "artifact_registry_url" {
   value = module.artifact_registry.repository_url
 }
 
-# Secret Manager secret IDs (synthify-<key>-<env>).
+# Secret Manager secret IDs (synthify-<key>).
 # Cloud Run secret refs need the exact secret_id.
 output "secret_ids" {
   value = {

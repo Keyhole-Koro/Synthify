@@ -63,7 +63,7 @@ case $COMMAND in
         )
 
         for s in "${SECRETS[@]}"; do
-            SECRET_NAME="synthify-$s-$ENVIRONMENT_OUT"
+            SECRET_NAME="synthify-$s"
             if ! gcloud secrets versions list "$SECRET_NAME" --project "$PROJECT_ID" --limit=1 2>/dev/null | grep -q "ENABLED"; then
                 warn "Secret $SECRET_NAME has no versions. Adding placeholder..."
                 printf "placeholder-change-me" | gcloud secrets versions add "$SECRET_NAME" --project "$PROJECT_ID" --data-file=-
@@ -121,7 +121,7 @@ case $COMMAND in
         ENVIRONMENT_OUT=$(terraform -chdir=$TF_DIR output -raw environment)
 
         log "Fetching database connection string from Secret Manager..."
-        DB_SECRET="synthify-database-dsn-$ENVIRONMENT_OUT"
+        DB_SECRET="synthify-database-dsn"
         DATABASE_DSN=$(gcloud secrets versions access latest \
             --secret="$DB_SECRET" \
             --project="$PROJECT_ID")
