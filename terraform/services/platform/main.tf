@@ -48,7 +48,7 @@ module "artifact_registry" {
 # --------------------------------------------------------------------
 # Secret Manager
 #
-# Postgres は外部 (Neon) 管理。DATABASE_URL は Neon の接続文字列を
+# DB は外部 (CockroachDB Serverless) 管理。DATABASE_URL は CockroachDB の接続文字列を
 # 手動で `gcloud secrets versions add` する運用。
 # --------------------------------------------------------------------
 

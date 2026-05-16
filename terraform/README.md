@@ -14,7 +14,7 @@ terraform/
 
 ## 構成方針
 
-- **DB は Neon (外部マネージド)**。Cloud SQL は作らない。Neon の接続文字列を
+- **DB は CockroachDB Serverless (外部マネージド)**。Cloud SQL は作らない。CockroachDB の接続文字列を
   Secret Manager の `synthify-database-url-<env>` に手動で投入する。
 - **Cloud Run × 2**: `synthify-api-<env>` と `synthify-worker-<env>`。
   worker は INTERNAL ingress、api は public。
@@ -39,7 +39,7 @@ terraform/
 
 | Key | 内容 | 必須 |
 |---|---|---|
-| `database-url` | Neon の Postgres 接続文字列 (`postgresql://...`) | ✅ |
+| `database-url` | CockroachDB Serverless の接続文字列 (`postgresql://...`) | ✅ |
 | `gemini-api-key` | Gemini API key | ✅ |
 | `internal-worker-token` | worker → api 内部通信トークン (適当なランダム文字列) | ✅ |
 | `stripe-secret-key` | Stripe Secret Key (`sk_live_...`) | Stripe 使う時 |
