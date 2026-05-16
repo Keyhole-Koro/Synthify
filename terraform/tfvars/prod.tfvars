@@ -1,4 +1,4 @@
-project_id   = "your-prod-project"
+project_id   = "synthify-491705"
 region       = "asia-northeast1"
 environment  = "prod"
-web_base_url = "https://app.example.com"
+web_base_url = "https://synthify.keyhole.work"
