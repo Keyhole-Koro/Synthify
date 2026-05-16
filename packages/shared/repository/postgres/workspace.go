@@ -114,6 +114,38 @@ WHERE account_id = $1
 	return nil
 }
 
+func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.db.QueryContext(ctx, `
+SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
+       max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
+       billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+FROM accounts
+WHERE stripe_customer_id <> ''
+ORDER BY updated_at ASC
+LIMIT $1
+`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	accounts := make([]*domain.Account, 0, limit)
+	for rows.Next() {
+		account, err := scanAccountRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return accounts, nil
+}
+
 func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
 	limits, err := billingLimits(plan)
 	if err != nil {
@@ -224,12 +256,18 @@ WHERE provider = $1 AND event_id = $2
 }
 
 func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error {
-	if event == nil || event.Plan == "" {
+	if event == nil {
 		return nil
 	}
-	limits, err := billingLimits(event.Plan)
+	limits, err := billingLimits(domain.BillingPlanFree)
 	if err != nil {
 		return err
+	}
+	if event.Plan != "" {
+		limits, err = billingLimits(event.Plan)
+		if err != nil {
+			return err
+		}
 	}
 	status := string(event.Status)
 	if status == "" {
@@ -246,13 +284,13 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 	now := nowTime()
 	query := `
 UPDATE accounts
-SET plan = $3,
-    storage_quota_bytes = $4,
-    max_file_size_bytes = $5,
-    max_uploads_per_5h = $6,
-    max_uploads_per_1week = $7,
+SET plan = CASE WHEN $3 = '' THEN plan ELSE $3 END,
+    storage_quota_bytes = CASE WHEN $3 = '' THEN storage_quota_bytes ELSE $4 END,
+    max_file_size_bytes = CASE WHEN $3 = '' THEN max_file_size_bytes ELSE $5 END,
+    max_uploads_per_5h = CASE WHEN $3 = '' THEN max_uploads_per_5h ELSE $6 END,
+    max_uploads_per_1week = CASE WHEN $3 = '' THEN max_uploads_per_1week ELSE $7 END,
     stripe_customer_id = CASE WHEN $8 = '' THEN stripe_customer_id ELSE $8 END,
-    stripe_subscription_id = $9,
+    stripe_subscription_id = CASE WHEN $9 = '' AND $3 <> 'free' THEN stripe_subscription_id ELSE $9 END,
     billing_status = $10,
     stripe_price_id = $11,
     billing_currency = $12,
@@ -427,13 +465,17 @@ type scanner interface {
 }
 
 func (s *Store) scanAccount(ctx context.Context, query string, args ...any) (*domain.Account, error) {
+	return scanAccountRow(s.db.QueryRowContext(ctx, query, args...))
+}
+
+func scanAccountRow(row scanner) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32
 	var maxUploadsPerWeek int32
 	var currentPeriodEnd sql.NullTime
 	var billingUpdatedAt sql.NullTime
 	var createdAt time.Time
-	if err := s.db.QueryRowContext(ctx, query, args...).Scan(
+	if err := row.Scan(
 		&account.AccountID,
 		&account.Name,
 		&account.Plan,

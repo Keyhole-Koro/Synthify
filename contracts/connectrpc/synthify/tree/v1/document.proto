@@ -11,6 +11,7 @@ service DocumentService {
   rpc GetDocument(GetDocumentRequest) returns (GetDocumentResponse);
   rpc ListDocuments(ListDocumentsRequest) returns (ListDocumentsResponse);
   rpc GetUploadURL(GetUploadURLRequest) returns (GetUploadURLResponse);
+  rpc ConfirmUpload(ConfirmUploadRequest) returns (ConfirmUploadResponse);
   rpc StartProcessing(StartProcessingRequest) returns (StartProcessingResponse);
   rpc ResumeProcessing(ResumeProcessingRequest) returns (ResumeProcessingResponse);
 }
@@ -86,6 +87,14 @@ message GetUploadURLResponse {
   string upload_url = 1;      // GCS 署名付き PUT URL（有効期限15分）
   string upload_token = 2;    // CreateDocument に渡すトークン
   string expires_at = 3;
+}
+
+message ConfirmUploadRequest {
+  string document_id = 1;
+}
+
+message ConfirmUploadResponse {
+  Document document = 1;
 }
 
 message StartProcessingRequest {

@@ -196,6 +196,249 @@ func TestHandleWebhook_Success_LogsInfo(t *testing.T) {
 	assert.Equal(t, "billing.webhook.parsed", logger.entries[0].event)
 }
 
+func TestHandleWebhook_CheckoutCompletedMarksPending(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	logger := &billingTestLogger{}
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{
+				Provider:               "stripe",
+				EventID:                "evt_checkout",
+				EventType:              "checkout.session.completed",
+				AccountID:              account.AccountID,
+				ExternalCustomerID:     "cus_1",
+				ExternalSubscriptionID: "sub_1",
+				Status:                 domain.BillingStatusCheckoutPending,
+			}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, logger)
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingStatusCheckoutPending), updated.BillingStatus)
+	assert.Equal(t, "cus_1", updated.StripeCustomerID)
+	assert.Equal(t, "sub_1", updated.StripeSubscriptionID)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan, "checkout completion alone must not provision paid entitlements")
+}
+
+func TestHandleWebhook_DuplicateEventNoop(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{
+				Provider:               "stripe",
+				EventID:                "evt_active",
+				EventType:              "invoice.paid",
+				AccountID:              account.AccountID,
+				ExternalCustomerID:     "cus_1",
+				ExternalSubscriptionID: "sub_1",
+				Plan:                   domain.BillingPlanUsageBased,
+				Status:                 domain.BillingStatusActive,
+			}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+	account.Plan = string(domain.BillingPlanFree)
+	account.BillingStatus = string(domain.BillingStatusFree)
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan, "duplicate delivery must not apply side effects again")
+	assert.Equal(t, string(domain.BillingStatusFree), updated.BillingStatus)
+}
+
+func TestHandleWebhook_OrderingInvoiceAndSubscriptionConverges(t *testing.T) {
+	run := func(t *testing.T, events []*domain.ProviderWebhookEvent) *domain.Account {
+		t.Helper()
+		ctx := context.Background()
+		store := mock.NewStore()
+		account, err := store.GetOrCreateAccount(ctx, "owner")
+		require.NoError(t, err)
+		i := 0
+		provider := &billingTestProvider{
+			parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+				ev := events[i]
+				ev.AccountID = account.AccountID
+				i++
+				return ev, nil
+			},
+		}
+		svc := NewBillingService(store, store, provider, &billingTestLogger{})
+		for range events {
+			require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+		}
+		updated, err := store.GetAccount(ctx, account.AccountID)
+		require.NoError(t, err)
+		return updated
+	}
+
+	invoice := &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_invoice", EventType: "invoice.paid", ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}
+	subscription := &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_sub", EventType: "customer.subscription.updated", ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}
+
+	a := run(t, []*domain.ProviderWebhookEvent{invoice, subscription})
+	b := run(t, []*domain.ProviderWebhookEvent{subscription, invoice})
+
+	assert.Equal(t, a.Plan, b.Plan)
+	assert.Equal(t, a.BillingStatus, b.BillingStatus)
+	assert.Equal(t, a.StripeSubscriptionID, b.StripeSubscriptionID)
+	assert.Equal(t, a.StripePriceID, b.StripePriceID)
+}
+
+func TestHandleWebhook_PaymentFailureKeepsEntitlementAndMarksPastDue(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.Plan = string(domain.BillingPlanUsageBased)
+	account.BillingStatus = string(domain.BillingStatusActive)
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_failed", EventType: "invoice.payment_failed", AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusPastDue}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanUsageBased), updated.Plan)
+	assert.Equal(t, string(domain.BillingStatusPastDue), updated.BillingStatus)
+}
+
+func TestHandleWebhook_SubscriptionDeletedReturnsFree(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.Plan = string(domain.BillingPlanUsageBased)
+	account.BillingStatus = string(domain.BillingStatusActive)
+	account.StripeCustomerID = "cus_1"
+	account.StripeSubscriptionID = "sub_1"
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_deleted", EventType: "customer.subscription.deleted", AccountID: account.AccountID, ExternalCustomerID: "cus_1", Plan: domain.BillingPlanFree, Status: domain.BillingStatusFree}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan)
+	assert.Equal(t, string(domain.BillingStatusFree), updated.BillingStatus)
+	assert.Empty(t, updated.StripeSubscriptionID)
+}
+
+func TestHandleWebhook_UnknownPriceIDIgnored(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.Plan = string(domain.BillingPlanFree)
+	account.BillingStatus = string(domain.BillingStatusFree)
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_unknown_price", EventType: "customer.subscription.updated", AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Status: domain.BillingStatusActive, ExternalPriceID: "price_unknown"}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan)
+	assert.Equal(t, string(domain.BillingStatusFree), updated.BillingStatus)
+	assert.Empty(t, updated.StripeSubscriptionID)
+}
+
+func TestReconcileAccount_DryRunDoesNotMutate(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		fetchBillingStateFn: func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{}).(*billingService)
+
+	diff, err := svc.ReconcileAccount(ctx, account.AccountID, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, diff)
+	assert.Equal(t, string(domain.BillingPlanFree), diff.LocalPlan)
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan)
+}
+
+func TestReconcileAccount_ApplyMutates(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		fetchBillingStateFn: func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{}).(*billingService)
+
+	_, err = svc.ReconcileAccount(ctx, account.AccountID, true)
+
+	require.NoError(t, err)
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanUsageBased), updated.Plan)
+	assert.Equal(t, string(domain.BillingStatusActive), updated.BillingStatus)
+	assert.Equal(t, "sub_1", updated.StripeSubscriptionID)
+}
+
+func TestReconcileLinkedAccountsListsStripeCustomers(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	linked, err := store.GetOrCreateAccount(ctx, "linked")
+	require.NoError(t, err)
+	require.NoError(t, store.SetAccountStripeCustomerID(ctx, linked.AccountID, "cus_linked"))
+	unlinked, err := store.GetOrCreateAccount(ctx, "unlinked")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		fetchBillingStateFn: func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{AccountID: account.AccountID, ExternalCustomerID: account.StripeCustomerID, ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}, nil
+		},
+	}
+	svc := NewBillingService(store, store, provider, &billingTestLogger{}).(BillingReconciler)
+
+	diffs, err := svc.ReconcileLinkedAccounts(ctx, true, 100)
+
+	require.NoError(t, err)
+	require.Len(t, diffs, 1)
+	assert.Equal(t, linked.AccountID, diffs[0].AccountID)
+	assert.Equal(t, 1, provider.fetchBillingStateCalls)
+	updatedLinked, err := store.GetAccount(ctx, linked.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanUsageBased), updatedLinked.Plan)
+	updatedUnlinked, err := store.GetAccount(ctx, unlinked.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updatedUnlinked.Plan)
+}
+
 // =========================================================
 // Usage-Based Billing (stub) tests
 // =========================================================
@@ -655,16 +898,18 @@ func TestListPaymentMethods_Success_ReturnsEmptyList(t *testing.T) {
 }
 
 type billingTestProvider struct {
-	createCheckoutCalls   int
-	createPortalCalls     int
-	parseWebhookCalls     int
-	reportTokenUsageCalls int
+	createCheckoutCalls    int
+	createPortalCalls      int
+	parseWebhookCalls      int
+	reportTokenUsageCalls  int
+	fetchBillingStateCalls int
 
-	ensureCustomerFn   func(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error)
-	createCheckoutFn   func(ctx context.Context, account *domain.Account, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error)
-	createPortalFn     func(ctx context.Context, account *domain.Account) (*domain.BillingPortalSession, error)
-	parseWebhookFn     func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error)
-	reportTokenUsageFn func(ctx context.Context, account *domain.Account, identifier string, inputTokens, outputTokens int64) error
+	ensureCustomerFn    func(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error)
+	createCheckoutFn    func(ctx context.Context, account *domain.Account, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error)
+	createPortalFn      func(ctx context.Context, account *domain.Account) (*domain.BillingPortalSession, error)
+	parseWebhookFn      func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error)
+	reportTokenUsageFn  func(ctx context.Context, account *domain.Account, identifier string, inputTokens, outputTokens int64) error
+	fetchBillingStateFn func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error)
 }
 
 func (p *billingTestProvider) EnsureCustomer(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error) {
@@ -704,6 +949,14 @@ func (p *billingTestProvider) ReportTokenUsage(ctx context.Context, account *dom
 		return nil
 	}
 	return p.reportTokenUsageFn(ctx, account, identifier, inputTokens, outputTokens)
+}
+
+func (p *billingTestProvider) FetchBillingState(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+	p.fetchBillingStateCalls++
+	if p.fetchBillingStateFn == nil {
+		return nil, errors.New("fetchBillingStateFn is not set")
+	}
+	return p.fetchBillingStateFn(ctx, account)
 }
 
 type billingTestLogger struct {

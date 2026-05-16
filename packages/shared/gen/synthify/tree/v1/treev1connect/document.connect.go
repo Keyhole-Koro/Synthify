@@ -45,6 +45,9 @@ const (
 	// DocumentServiceGetUploadURLProcedure is the fully-qualified name of the DocumentService's
 	// GetUploadURL RPC.
 	DocumentServiceGetUploadURLProcedure = "/synthify.tree.v1.DocumentService/GetUploadURL"
+	// DocumentServiceConfirmUploadProcedure is the fully-qualified name of the DocumentService's
+	// ConfirmUpload RPC.
+	DocumentServiceConfirmUploadProcedure = "/synthify.tree.v1.DocumentService/ConfirmUpload"
 	// DocumentServiceStartProcessingProcedure is the fully-qualified name of the DocumentService's
 	// StartProcessing RPC.
 	DocumentServiceStartProcessingProcedure = "/synthify.tree.v1.DocumentService/StartProcessing"
@@ -59,6 +62,7 @@ type DocumentServiceClient interface {
 	GetDocument(context.Context, *connect.Request[v1.GetDocumentRequest]) (*connect.Response[v1.GetDocumentResponse], error)
 	ListDocuments(context.Context, *connect.Request[v1.ListDocumentsRequest]) (*connect.Response[v1.ListDocumentsResponse], error)
 	GetUploadURL(context.Context, *connect.Request[v1.GetUploadURLRequest]) (*connect.Response[v1.GetUploadURLResponse], error)
+	ConfirmUpload(context.Context, *connect.Request[v1.ConfirmUploadRequest]) (*connect.Response[v1.ConfirmUploadResponse], error)
 	StartProcessing(context.Context, *connect.Request[v1.StartProcessingRequest]) (*connect.Response[v1.StartProcessingResponse], error)
 	ResumeProcessing(context.Context, *connect.Request[v1.ResumeProcessingRequest]) (*connect.Response[v1.ResumeProcessingResponse], error)
 }
@@ -98,6 +102,12 @@ func NewDocumentServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(documentServiceMethods.ByName("GetUploadURL")),
 			connect.WithClientOptions(opts...),
 		),
+		confirmUpload: connect.NewClient[v1.ConfirmUploadRequest, v1.ConfirmUploadResponse](
+			httpClient,
+			baseURL+DocumentServiceConfirmUploadProcedure,
+			connect.WithSchema(documentServiceMethods.ByName("ConfirmUpload")),
+			connect.WithClientOptions(opts...),
+		),
 		startProcessing: connect.NewClient[v1.StartProcessingRequest, v1.StartProcessingResponse](
 			httpClient,
 			baseURL+DocumentServiceStartProcessingProcedure,
@@ -119,6 +129,7 @@ type documentServiceClient struct {
 	getDocument      *connect.Client[v1.GetDocumentRequest, v1.GetDocumentResponse]
 	listDocuments    *connect.Client[v1.ListDocumentsRequest, v1.ListDocumentsResponse]
 	getUploadURL     *connect.Client[v1.GetUploadURLRequest, v1.GetUploadURLResponse]
+	confirmUpload    *connect.Client[v1.ConfirmUploadRequest, v1.ConfirmUploadResponse]
 	startProcessing  *connect.Client[v1.StartProcessingRequest, v1.StartProcessingResponse]
 	resumeProcessing *connect.Client[v1.ResumeProcessingRequest, v1.ResumeProcessingResponse]
 }
@@ -143,6 +154,11 @@ func (c *documentServiceClient) GetUploadURL(ctx context.Context, req *connect.R
 	return c.getUploadURL.CallUnary(ctx, req)
 }
 
+// ConfirmUpload calls synthify.tree.v1.DocumentService.ConfirmUpload.
+func (c *documentServiceClient) ConfirmUpload(ctx context.Context, req *connect.Request[v1.ConfirmUploadRequest]) (*connect.Response[v1.ConfirmUploadResponse], error) {
+	return c.confirmUpload.CallUnary(ctx, req)
+}
+
 // StartProcessing calls synthify.tree.v1.DocumentService.StartProcessing.
 func (c *documentServiceClient) StartProcessing(ctx context.Context, req *connect.Request[v1.StartProcessingRequest]) (*connect.Response[v1.StartProcessingResponse], error) {
 	return c.startProcessing.CallUnary(ctx, req)
@@ -159,6 +175,7 @@ type DocumentServiceHandler interface {
 	GetDocument(context.Context, *connect.Request[v1.GetDocumentRequest]) (*connect.Response[v1.GetDocumentResponse], error)
 	ListDocuments(context.Context, *connect.Request[v1.ListDocumentsRequest]) (*connect.Response[v1.ListDocumentsResponse], error)
 	GetUploadURL(context.Context, *connect.Request[v1.GetUploadURLRequest]) (*connect.Response[v1.GetUploadURLResponse], error)
+	ConfirmUpload(context.Context, *connect.Request[v1.ConfirmUploadRequest]) (*connect.Response[v1.ConfirmUploadResponse], error)
 	StartProcessing(context.Context, *connect.Request[v1.StartProcessingRequest]) (*connect.Response[v1.StartProcessingResponse], error)
 	ResumeProcessing(context.Context, *connect.Request[v1.ResumeProcessingRequest]) (*connect.Response[v1.ResumeProcessingResponse], error)
 }
@@ -194,6 +211,12 @@ func NewDocumentServiceHandler(svc DocumentServiceHandler, opts ...connect.Handl
 		connect.WithSchema(documentServiceMethods.ByName("GetUploadURL")),
 		connect.WithHandlerOptions(opts...),
 	)
+	documentServiceConfirmUploadHandler := connect.NewUnaryHandler(
+		DocumentServiceConfirmUploadProcedure,
+		svc.ConfirmUpload,
+		connect.WithSchema(documentServiceMethods.ByName("ConfirmUpload")),
+		connect.WithHandlerOptions(opts...),
+	)
 	documentServiceStartProcessingHandler := connect.NewUnaryHandler(
 		DocumentServiceStartProcessingProcedure,
 		svc.StartProcessing,
@@ -216,6 +239,8 @@ func NewDocumentServiceHandler(svc DocumentServiceHandler, opts ...connect.Handl
 			documentServiceListDocumentsHandler.ServeHTTP(w, r)
 		case DocumentServiceGetUploadURLProcedure:
 			documentServiceGetUploadURLHandler.ServeHTTP(w, r)
+		case DocumentServiceConfirmUploadProcedure:
+			documentServiceConfirmUploadHandler.ServeHTTP(w, r)
 		case DocumentServiceStartProcessingProcedure:
 			documentServiceStartProcessingHandler.ServeHTTP(w, r)
 		case DocumentServiceResumeProcessingProcedure:
@@ -243,6 +268,10 @@ func (UnimplementedDocumentServiceHandler) ListDocuments(context.Context, *conne
 
 func (UnimplementedDocumentServiceHandler) GetUploadURL(context.Context, *connect.Request[v1.GetUploadURLRequest]) (*connect.Response[v1.GetUploadURLResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.DocumentService.GetUploadURL is not implemented"))
+}
+
+func (UnimplementedDocumentServiceHandler) ConfirmUpload(context.Context, *connect.Request[v1.ConfirmUploadRequest]) (*connect.Response[v1.ConfirmUploadResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.tree.v1.DocumentService.ConfirmUpload is not implemented"))
 }
 
 func (UnimplementedDocumentServiceHandler) StartProcessing(context.Context, *connect.Request[v1.StartProcessingRequest]) (*connect.Response[v1.StartProcessingResponse], error) {

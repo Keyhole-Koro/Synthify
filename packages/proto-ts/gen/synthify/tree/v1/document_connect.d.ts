@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateDocumentRequest, CreateDocumentResponse, GetDocumentRequest, GetDocumentResponse, GetUploadURLRequest, GetUploadURLResponse, ListDocumentsRequest, ListDocumentsResponse, ResumeProcessingRequest, ResumeProcessingResponse, StartProcessingRequest, StartProcessingResponse } from "./document_pb.js";
+import { ConfirmUploadRequest, ConfirmUploadResponse, CreateDocumentRequest, CreateDocumentResponse, GetDocumentRequest, GetDocumentResponse, GetUploadURLRequest, GetUploadURLResponse, ListDocumentsRequest, ListDocumentsResponse, ResumeProcessingRequest, ResumeProcessingResponse, StartProcessingRequest, StartProcessingResponse } from "./document_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -46,6 +46,15 @@ export declare const DocumentService: {
       readonly name: "GetUploadURL",
       readonly I: typeof GetUploadURLRequest,
       readonly O: typeof GetUploadURLResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.tree.v1.DocumentService.ConfirmUpload
+     */
+    readonly confirmUpload: {
+      readonly name: "ConfirmUpload",
+      readonly I: typeof ConfirmUploadRequest,
+      readonly O: typeof ConfirmUploadResponse,
       readonly kind: MethodKind.Unary,
     },
     /**

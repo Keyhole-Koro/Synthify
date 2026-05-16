@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +26,65 @@ func TestCreateDocumentRejectsOversizedFile(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrFileTooLarge)
 	assert.Nil(t, doc)
 	assert.Empty(t, uploadURL)
+}
+
+func TestCreateDocumentReservesQuotaUntilConfirmation(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.StorageQuotaBytes = 200
+	account.MaxFileSizeBytes = 200
+	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	svc := NewDocumentService(store, store, documentSourceURL, nil, nil, nil, nil)
+
+	first, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "first.pdf", "application/pdf", 150)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	second, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "second.pdf", "application/pdf", 100)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrStorageQuotaExceeded)
+	assert.Nil(t, second)
+}
+
+func TestCreateDocumentAllowsExactQuotaLimit(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.StorageQuotaBytes = 128
+	account.MaxFileSizeBytes = 128
+	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	svc := NewDocumentService(store, store, documentSourceURL, nil, nil, nil, nil)
+
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "exact.pdf", "application/pdf", 128)
+
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+}
+
+func TestExpireUploadReservationsReleasesReservedQuota(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.StorageQuotaBytes = 200
+	account.MaxFileSizeBytes = 200
+	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	svc := NewDocumentService(store, store, documentSourceURL, nil, nil, nil, nil)
+
+	expired, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "expired.pdf", "application/pdf", 150)
+	require.NoError(t, err)
+	expiredCount, err := svc.ExpireUploadReservations(ctx, time.Now().Add(16*time.Minute))
+	require.NoError(t, err)
+	replacement, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "replacement.pdf", "application/pdf", 100)
+
+	assert.Equal(t, int64(1), expiredCount)
+	require.NoError(t, err)
+	require.NotNil(t, replacement)
+	err = store.ConfirmDocumentUpload(ctx, expired.DocumentID, 150)
+	assert.ErrorIs(t, err, domain.ErrUploadNotConfirmed)
 }
 
 func TestStartProcessingConfirmsUploadedObjectSize(t *testing.T) {
@@ -64,6 +124,47 @@ func TestStartProcessingRejectsSizeMismatch(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrUploadSizeMismatch)
 	assert.Nil(t, job)
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Zero(t, updated.StorageUsedBytes)
+}
+
+func TestConfirmUploadConfirmsUploadedObjectSize(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	metadata := &fakeObjectMetadata{size: 128}
+	svc := NewDocumentService(store, store, documentSourceURL, metadata, nil, nil, nil)
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
+	require.NoError(t, err)
+
+	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID)
+
+	require.NoError(t, err)
+	require.NotNil(t, confirmed)
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(128), updated.StorageUsedBytes)
+}
+
+func TestConfirmUploadRejectsSizeMismatch(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	metadata := &fakeObjectMetadata{size: 256}
+	svc := NewDocumentService(store, store, documentSourceURL, metadata, nil, nil, nil)
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
+	require.NoError(t, err)
+
+	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrUploadSizeMismatch)
+	assert.Nil(t, confirmed)
 	updated, err := store.GetAccount(ctx, account.AccountID)
 	require.NoError(t, err)
 	assert.Zero(t, updated.StorageUsedBytes)

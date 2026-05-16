@@ -134,6 +134,25 @@ func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, strip
 	return nil
 }
 
+func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 {
+		limit = 100
+	}
+	accounts := make([]*domain.Account, 0, limit)
+	for _, account := range s.accounts {
+		if account.StripeCustomerID == "" {
+			continue
+		}
+		accounts = append(accounts, account)
+		if len(accounts) == limit {
+			break
+		}
+	}
+	return accounts, nil
+}
+
 func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -163,7 +182,11 @@ func (s *Store) RecordBillingWebhookEvent(ctx context.Context, event *domain.Pro
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := event.Provider + ":" + event.EventID
+	provider := event.Provider
+	if provider == "" {
+		provider = "stripe"
+	}
+	key := provider + ":" + event.EventID
 	if _, ok := s.billingEvents[key]; ok {
 		return false, nil
 	}
@@ -175,6 +198,9 @@ func (s *Store) MarkBillingWebhookEventProcessed(ctx context.Context, provider, 
 	if eventID == "" {
 		return nil
 	}
+	if provider == "" {
+		provider = "stripe"
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.billingEvents[provider+":"+eventID] = status
@@ -182,7 +208,7 @@ func (s *Store) MarkBillingWebhookEventProcessed(ctx context.Context, provider, 
 }
 
 func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error {
-	if event == nil || event.Plan == "" {
+	if event == nil {
 		return nil
 	}
 	s.mu.Lock()
@@ -202,7 +228,15 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 	if account == nil {
 		return domain.ErrNotFound
 	}
-	applyMockBillingPlan(account, event.ExternalCustomerID, event.ExternalSubscriptionID, event.Plan)
+	if event.Plan != "" {
+		applyMockBillingPlan(account, event.ExternalCustomerID, event.ExternalSubscriptionID, event.Plan)
+	}
+	if event.ExternalCustomerID != "" {
+		account.StripeCustomerID = event.ExternalCustomerID
+	}
+	if event.ExternalSubscriptionID != "" || event.Plan == domain.BillingPlanFree {
+		account.StripeSubscriptionID = event.ExternalSubscriptionID
+	}
 	account.BillingStatus = string(event.Status)
 	if account.BillingStatus == "" {
 		if event.Plan == domain.BillingPlanFree {
@@ -374,6 +408,9 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	if err := validateMockUpload(account, fileSize); err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
+	if account.StorageUsedBytes+s.activeReservedBytesLocked(account.AccountID)+fileSize > account.StorageQuotaBytes {
+		return nil, repository.DocumentUploadTarget{}, domain.ErrStorageQuotaExceeded
+	}
 	d := &domain.Document{
 		DocumentID:  "doc-" + filename,
 		WorkspaceID: wsID,
@@ -413,11 +450,14 @@ func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, ac
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	reservation, ok := s.reservations[documentID]
-	if !ok || reservation.Status == "failed" || time.Now().After(reservation.ExpiresAt) {
+	if !ok {
 		return domain.ErrUploadNotConfirmed
 	}
 	if reservation.Status == "confirmed" {
 		return nil
+	}
+	if reservation.Status != "reserved" || time.Now().After(reservation.ExpiresAt) {
+		return domain.ErrUploadNotConfirmed
 	}
 	if reservation.ExpectedSize != actualSize {
 		reservation.Status = "failed"
@@ -436,6 +476,19 @@ func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, ac
 	return nil
 }
 
+func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var expired int64
+	for _, reservation := range s.reservations {
+		if reservation.Status == "reserved" && now.After(reservation.ExpiresAt) {
+			reservation.Status = "expired"
+			expired++
+		}
+	}
+	return expired, nil
+}
+
 func validateMockUpload(account *domain.Account, fileSize int64) error {
 	if fileSize <= 0 {
 		return domain.ErrUploadSizeMismatch
@@ -447,6 +500,17 @@ func validateMockUpload(account *domain.Account, fileSize int64) error {
 		return domain.ErrStorageQuotaExceeded
 	}
 	return nil
+}
+
+func (s *Store) activeReservedBytesLocked(accountID string) int64 {
+	var total int64
+	now := time.Now()
+	for _, reservation := range s.reservations {
+		if reservation.AccountID == accountID && reservation.Status == "reserved" && now.Before(reservation.ExpiresAt) {
+			total += reservation.ExpectedSize
+		}
+	}
+	return total
 }
 
 func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {

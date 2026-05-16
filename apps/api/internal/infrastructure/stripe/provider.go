@@ -21,18 +21,18 @@ import (
 const defaultAPIBase = "https://api.stripe.com"
 
 type Config struct {
-	SecretKey         string
-	WebhookSecret     string
-	ProPriceID        string
-	ProPriceIDJPY     string
-	ProPriceIDUSD     string
-	DefaultCurrency   string
-	SuccessURL        string
-	CancelURL         string
-	PortalReturnURL   string
-	APIBase           string
-	MeterInputEvent   string
-	MeterOutputEvent  string
+	SecretKey        string
+	WebhookSecret    string
+	ProPriceID       string
+	ProPriceIDJPY    string
+	ProPriceIDUSD    string
+	DefaultCurrency  string
+	SuccessURL       string
+	CancelURL        string
+	PortalReturnURL  string
+	APIBase          string
+	MeterInputEvent  string
+	MeterOutputEvent string
 }
 
 type Price struct {
@@ -257,6 +257,38 @@ func (p *Provider) ReportTokenUsage(ctx context.Context, account *domain.Account
 	return p.reportMeterEvent(ctx, account.StripeCustomerID, p.cfg.MeterOutputEvent, outputTokens, identifier+":out")
 }
 
+func (p *Provider) FetchBillingState(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+	if account == nil || account.StripeCustomerID == "" {
+		return nil, domain.ErrNotFound
+	}
+	params := url.Values{}
+	params.Set("customer", account.StripeCustomerID)
+	params.Set("status", "all")
+	params.Set("limit", "1")
+	var res struct {
+		Data []stripeObject `json:"data"`
+	}
+	if err := p.getForm(ctx, "/v1/subscriptions", params, &res); err != nil {
+		return nil, err
+	}
+	if len(res.Data) == 0 {
+		return &domain.ProviderWebhookEvent{
+			Provider:           "stripe",
+			AccountID:          account.AccountID,
+			ExternalCustomerID: account.StripeCustomerID,
+			Plan:               domain.BillingPlanFree,
+			Status:             domain.BillingStatusFree,
+		}, nil
+	}
+	obj := res.Data[0]
+	event := stripeEvent{ID: "reconcile:" + account.AccountID, Type: "customer.subscription.updated"}
+	remote := p.providerEventFromPrice(event, obj, p.priceFromObject(obj), subscriptionStatus(obj.Status))
+	if remote.AccountID == "" {
+		remote.AccountID = account.AccountID
+	}
+	return remote, nil
+}
+
 func (p *Provider) reportMeterEvent(ctx context.Context, customerID, eventName string, value int64, identifier string) error {
 	if strings.TrimSpace(eventName) == "" || value <= 0 {
 		return nil
@@ -325,13 +357,17 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, signature s
 }
 
 func (p *Provider) providerEventFromPrice(event stripeEvent, obj stripeObject, price Price, status domain.BillingStatus) *domain.ProviderWebhookEvent {
+	subscriptionID := firstNonEmpty(obj.Subscription, obj.Parent.SubscriptionDetails.Subscription)
+	if strings.HasPrefix(event.Type, "customer.subscription.") {
+		subscriptionID = obj.ID
+	}
 	return &domain.ProviderWebhookEvent{
 		Provider:               "stripe",
 		EventID:                event.ID,
 		EventType:              event.Type,
 		AccountID:              firstNonEmpty(metadataValue(obj.Metadata, "account_id"), metadataValue(obj.SubscriptionDetails.Metadata, "account_id")),
 		ExternalCustomerID:     obj.Customer,
-		ExternalSubscriptionID: firstNonEmpty(obj.ID, obj.Subscription, obj.Parent.SubscriptionDetails.Subscription),
+		ExternalSubscriptionID: subscriptionID,
 		Plan:                   price.Plan,
 		Status:                 status,
 		ExternalPriceID:        price.StripeID,
@@ -383,6 +419,32 @@ func (p *Provider) postForm(ctx context.Context, path string, form url.Values, i
 		return err
 	}
 	return nil
+}
+
+func (p *Provider) getForm(ctx context.Context, path string, params url.Values, out any) error {
+	u := strings.TrimRight(p.cfg.APIBase, "/") + path
+	if len(params) > 0 {
+		u += "?" + params.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return err
+	}
+	req.SetBasicAuth(p.cfg.SecretKey, "")
+	req.Header.Set("Stripe-Version", "2025-06-30.basil")
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return stripeError(resp.StatusCode, body)
+	}
+	return json.Unmarshal(body, out)
 }
 
 func (p *Provider) verifySignature(payload []byte, header string) error {

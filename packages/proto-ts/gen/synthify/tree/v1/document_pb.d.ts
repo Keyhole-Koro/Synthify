@@ -297,6 +297,38 @@ export declare type GetUploadURLResponse = Message<"synthify.tree.v1.GetUploadUR
 export declare const GetUploadURLResponseSchema: GenMessage<GetUploadURLResponse>;
 
 /**
+ * @generated from message synthify.tree.v1.ConfirmUploadRequest
+ */
+export declare type ConfirmUploadRequest = Message<"synthify.tree.v1.ConfirmUploadRequest"> & {
+  /**
+   * @generated from field: string document_id = 1;
+   */
+  documentId: string;
+};
+
+/**
+ * Describes the message synthify.tree.v1.ConfirmUploadRequest.
+ * Use `create(ConfirmUploadRequestSchema)` to create a new message.
+ */
+export declare const ConfirmUploadRequestSchema: GenMessage<ConfirmUploadRequest>;
+
+/**
+ * @generated from message synthify.tree.v1.ConfirmUploadResponse
+ */
+export declare type ConfirmUploadResponse = Message<"synthify.tree.v1.ConfirmUploadResponse"> & {
+  /**
+   * @generated from field: synthify.tree.v1.Document document = 1;
+   */
+  document?: Document;
+};
+
+/**
+ * Describes the message synthify.tree.v1.ConfirmUploadResponse.
+ * Use `create(ConfirmUploadResponseSchema)` to create a new message.
+ */
+export declare const ConfirmUploadResponseSchema: GenMessage<ConfirmUploadResponse>;
+
+/**
  * @generated from message synthify.tree.v1.StartProcessingRequest
  */
 export declare type StartProcessingRequest = Message<"synthify.tree.v1.StartProcessingRequest"> & {
@@ -456,6 +488,14 @@ export declare const DocumentService: GenService<{
     methodKind: "unary";
     input: typeof GetUploadURLRequestSchema;
     output: typeof GetUploadURLResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.tree.v1.DocumentService.ConfirmUpload
+   */
+  confirmUpload: {
+    methodKind: "unary";
+    input: typeof ConfirmUploadRequestSchema;
+    output: typeof ConfirmUploadResponseSchema;
   },
   /**
    * @generated from rpc synthify.tree.v1.DocumentService.StartProcessing

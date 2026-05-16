@@ -38,6 +38,12 @@ type BillingProvider interface {
 	CreatePortalSession(ctx context.Context, account *domain.Account) (*domain.BillingPortalSession, error)
 	ParseWebhook(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error)
 	ReportTokenUsage(ctx context.Context, account *domain.Account, identifier string, inputTokens, outputTokens int64) error
+	FetchBillingState(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error)
+}
+
+type BillingReconciler interface {
+	ReconcileAccount(ctx context.Context, accountID string, apply bool) (*BillingReconciliationDiff, error)
+	ReconcileLinkedAccounts(ctx context.Context, apply bool, limit int) ([]*BillingReconciliationDiff, error)
 }
 
 type billingService struct {
@@ -282,15 +288,17 @@ func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *
 		})
 		return false, nil
 	}
-	if event.Plan == "" {
+	if event.Plan == "" && event.Status != domain.BillingStatusCheckoutPending {
 		if err := s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "ignored", ""); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
-	if err := event.Plan.Validate(); err != nil {
-		_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
-		return false, err
+	if event.Plan != "" {
+		if err := event.Plan.Validate(); err != nil {
+			_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
+			return false, err
+		}
 	}
 	if event.Currency != "" {
 		if err := event.Currency.Validate(); err != nil {
@@ -306,6 +314,88 @@ func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *
 		return true, err
 	}
 	return true, nil
+}
+
+type BillingReconciliationDiff struct {
+	AccountID          string
+	LocalPlan          string
+	RemotePlan         string
+	LocalStatus        string
+	RemoteStatus       string
+	LocalSubscription  string
+	RemoteSubscription string
+	LocalPriceID       string
+	RemotePriceID      string
+}
+
+func (s *billingService) ReconcileAccount(ctx context.Context, accountID string, apply bool) (*BillingReconciliationDiff, error) {
+	if s.provider == nil {
+		return nil, domain.ErrBillingProviderNotConfigured
+	}
+	account, err := s.accounts.GetAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return s.reconcileAccount(ctx, account, apply)
+}
+
+func (s *billingService) ReconcileLinkedAccounts(ctx context.Context, apply bool, limit int) ([]*BillingReconciliationDiff, error) {
+	if s.provider == nil {
+		return nil, domain.ErrBillingProviderNotConfigured
+	}
+	accounts, err := s.accounts.ListStripeLinkedAccounts(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	diffs := make([]*BillingReconciliationDiff, 0, len(accounts))
+	for _, account := range accounts {
+		diff, err := s.reconcileAccount(ctx, account, apply)
+		if err != nil {
+			s.logger.Error(ctx, "billing.reconciliation.account_failed", err, map[string]any{"account_id": account.AccountID})
+			return diffs, err
+		}
+		diffs = append(diffs, diff)
+	}
+	s.logger.Info(ctx, "billing.reconciliation.completed", map[string]any{"apply": apply, "count": len(diffs)})
+	return diffs, nil
+}
+
+func (s *billingService) reconcileAccount(ctx context.Context, account *domain.Account, apply bool) (*BillingReconciliationDiff, error) {
+	remote, err := s.provider.FetchBillingState(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	diff := &BillingReconciliationDiff{
+		AccountID:          account.AccountID,
+		LocalPlan:          account.Plan,
+		RemotePlan:         string(remote.Plan),
+		LocalStatus:        account.BillingStatus,
+		RemoteStatus:       string(remote.Status),
+		LocalSubscription:  account.StripeSubscriptionID,
+		RemoteSubscription: remote.ExternalSubscriptionID,
+		LocalPriceID:       account.StripePriceID,
+		RemotePriceID:      remote.ExternalPriceID,
+	}
+	if !apply || (diff.LocalPlan == diff.RemotePlan && diff.LocalStatus == diff.RemoteStatus && diff.LocalSubscription == diff.RemoteSubscription && diff.LocalPriceID == diff.RemotePriceID) {
+		s.logger.Info(ctx, "billing.reconciliation.diff", map[string]any{
+			"account_id":          diff.AccountID,
+			"apply":               apply,
+			"local_plan":          diff.LocalPlan,
+			"remote_plan":         diff.RemotePlan,
+			"local_status":        diff.LocalStatus,
+			"remote_status":       diff.RemoteStatus,
+			"local_subscription":  diff.LocalSubscription,
+			"remote_subscription": diff.RemoteSubscription,
+			"local_price_id":      diff.LocalPriceID,
+			"remote_price_id":     diff.RemotePriceID,
+		})
+		return diff, nil
+	}
+	if err := s.accounts.ApplyBillingEvent(ctx, remote); err != nil {
+		return diff, err
+	}
+	s.logger.Info(ctx, "billing.reconciliation.applied", map[string]any{"account_id": diff.AccountID})
+	return diff, nil
 }
 
 func (s *billingService) authorizeAccount(ctx context.Context, accountID, userID string) (*domain.Account, error) {

@@ -244,6 +244,18 @@ WHERE document_id = $1
 	return tx.Commit()
 }
 
+func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
+	res, err := s.db.ExecContext(ctx, `
+UPDATE upload_reservations
+SET status = 'expired'
+WHERE status = 'reserved' AND expires_at <= $1
+`, now)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func lockWorkspaceAccount(ctx context.Context, tx *sql.Tx, workspaceID string) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32

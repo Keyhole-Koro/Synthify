@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/domain"
@@ -72,6 +73,29 @@ func (s *DocumentService) GetDocument(ctx context.Context, documentID string) (*
 
 func (s *DocumentService) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
 	return s.repo.CreateDocument(ctx, wsID, uploadedBy, filename, mimeType, fileSize)
+}
+
+func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID string) (*domain.Document, error) {
+	doc, err := s.repo.GetDocument(ctx, documentID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.confirmUploadedObject(ctx, doc); err != nil {
+		return nil, err
+	}
+	return s.repo.GetDocument(ctx, documentID)
+}
+
+func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
+	expired, err := s.repo.ExpireUploadReservations(ctx, now)
+	if err != nil {
+		s.logger.Error(ctx, "document.upload_reservations.expire_failed", err, map[string]any{})
+		return 0, err
+	}
+	if expired > 0 {
+		s.logger.Info(ctx, "document.upload_reservations.expired", map[string]any{"count": expired})
+	}
+	return expired, nil
 }
 
 func (s *DocumentService) StartProcessing(ctx context.Context, wsID, documentID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {

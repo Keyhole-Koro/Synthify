@@ -114,6 +114,21 @@ func (h *DocumentHandler) GetUploadURL(ctx context.Context, req *connect.Request
 	}), nil
 }
 
+func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Request[treev1.ConfirmUploadRequest]) (*connect.Response[treev1.ConfirmUploadResponse], error) {
+	if req.Msg.GetDocumentId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
+	}
+	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+		return nil, err
+	}
+	doc, err := h.service.ConfirmUpload(ctx, req.Msg.GetDocumentId())
+	if err != nil {
+		return nil, connectutil.ToError(err)
+	}
+	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
+	return connect.NewResponse(&treev1.ConfirmUploadResponse{Document: mappers.ToProtoDocument(doc, latest)}), nil
+}
+
 func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Request[treev1.StartProcessingRequest]) (*connect.Response[treev1.StartProcessingResponse], error) {
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
