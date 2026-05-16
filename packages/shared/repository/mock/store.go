@@ -18,9 +18,10 @@ type Store struct {
 	accounts         map[string]*domain.Account
 	workspaces       map[string]*domain.Workspace
 	wsOwners         map[string]string // wsID -> ownerAccountID
-	documents         map[string]*domain.Document
+	documents        map[string]*domain.Document
 	docFiles         map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
 	jobs             map[string]*domain.DocumentProcessingJob
+	jobSeq           int
 	capabilities     map[string]*domain.JobCapability
 	plans            map[string]*domain.JobExecutionPlan
 	approvals        map[string][]*domain.JobApprovalRequest
@@ -478,12 +479,18 @@ func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	var latest *domain.DocumentProcessingJob
 	for _, j := range s.jobs {
 		if j.DocumentID == docID {
-			return j, nil
+			if latest == nil || j.CreatedAt > latest.CreatedAt {
+				latest = j
+			}
 		}
 	}
-	return nil, domain.ErrNotFound
+	if latest == nil {
+		return nil, domain.ErrNotFound
+	}
+	return latest, nil
 }
 
 func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error) {
@@ -567,13 +574,20 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.jobSeq++
+	jobID := "job-" + docID
+	if s.jobSeq > 1 {
+		jobID = fmt.Sprintf("job-%s-%d", docID, s.jobSeq)
+	}
+	createdAt := time.Now().UTC().Add(time.Duration(s.jobSeq) * time.Nanosecond).Format(time.RFC3339Nano)
 	j := &domain.DocumentProcessingJob{
-		JobID:       "job-" + docID,
+		JobID:       jobID,
 		DocumentID:  docID,
 		WorkspaceID: workspaceID,
 		JobType:     jobType,
 		Status:      treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
-		CreatedAt:   time.Now().Format(time.RFC3339),
+		CreatedAt:   createdAt,
+		UpdatedAt:   createdAt,
 	}
 	s.jobs[j.JobID] = j
 	return j

@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS document_processing_jobs (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS idx_document_processing_jobs_document_id_created_at
+  ON document_processing_jobs(document_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_document_processing_jobs_workspace_id_created_at
+  ON document_processing_jobs(workspace_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS job_capabilities (
   capability_id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL REFERENCES document_processing_jobs(job_id) ON DELETE CASCADE,

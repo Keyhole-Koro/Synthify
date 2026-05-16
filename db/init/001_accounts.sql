@@ -39,3 +39,5 @@ CREATE TABLE IF NOT EXISTS account_users (
   joined_at TIMESTAMPTZ NOT NULL,
   PRIMARY KEY (account_id, user_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_account_users_user_id ON account_users(user_id);
