@@ -315,8 +315,15 @@ type JobCapability struct {
 	MaxLLMCalls        int                   `json:"max_llm_calls,omitempty"`
 	MaxToolRuns        int                   `json:"max_tool_runs,omitempty"`
 	MaxItemCreations   int                   `json:"max_item_creations,omitempty"`
-	ExpiresAt          string                `json:"expires_at,omitempty"`
-	CreatedAt          string                `json:"created_at,omitempty"`
+	// MaxTransformCreations caps create_transform invocations per job; the
+	// same counter is consumed by syntax_error fix-regeneration so there is
+	// no infinite retry loop. MaxTransformRuns caps dynamic-tool executions
+	// (ephemeral + promoted) separately from MaxToolRuns. See
+	// docs/improvements/dynamic-tool-synthesis.md "コストと再帰の暴走防止".
+	MaxTransformCreations int    `json:"max_transform_creations,omitempty"`
+	MaxTransformRuns      int    `json:"max_transform_runs,omitempty"`
+	ExpiresAt             string `json:"expires_at,omitempty"`
+	CreatedAt             string `json:"created_at,omitempty"`
 }
 
 func (c *JobCapability) Allows(op treev1.JobOperation) bool {
