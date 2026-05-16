@@ -13,7 +13,8 @@ on:
           - prod
   push:
     branches:
-      - main
+      - stage
+      - prod
     paths:
       - apps/api/**
       - apps/worker/**
