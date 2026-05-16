@@ -26,11 +26,11 @@ type AppContext struct {
 	Notifier jobstatus.Notifier
 }
 
-func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string, logger applog.Logger, nrApp *newrelic.Application) *AppContext {
+func Bootstrap(ctx context.Context, gcsBucket, gcsURLBase, firebaseProjectID string, logger applog.Logger, nrApp *newrelic.Application) *AppContext {
 	if logger == nil {
 		logger = applog.NoopLogger{}
 	}
-	store := InitStore(ctx, NewDocumentUploadURLIssuer(gcsURLBase), logger, nrApp)
+	store := InitStore(ctx, NewDocumentUploadURLIssuer(gcsBucket, gcsURLBase), logger, nrApp)
 	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID, logger)
 	return &AppContext{
 		Store:    store,
@@ -54,16 +54,17 @@ type Store interface {
 }
 
 type fakeGCSDocumentUploadURLIssuer struct {
-	base string
+	base   string
+	bucket string
 }
 
-func NewFakeGCSDocumentUploadURLIssuer(base string) repository.DocumentUploadURLIssuer {
-	return fakeGCSDocumentUploadURLIssuer{base: base}
+func NewFakeGCSDocumentUploadURLIssuer(base, bucket string) repository.DocumentUploadURLIssuer {
+	return fakeGCSDocumentUploadURLIssuer{base: base, bucket: bucket}
 }
 
 func (i fakeGCSDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (repository.DocumentUploadTarget, error) {
 	return repository.DocumentUploadTarget{
-		URL:         storage.BuildDocumentUploadURL(i.base, workspaceID, objectName),
+		URL:         storage.BuildDocumentUploadURL(i.base, i.bucket, workspaceID, objectName),
 		Method:      "POST",
 		ContentType: contentType,
 	}, nil
@@ -140,17 +141,17 @@ func (i gcsSignedDocumentUploadURLIssuer) signBytesWithIAM(ctx context.Context) 
 	}
 }
 
-func NewDocumentUploadURLIssuer(base string) repository.DocumentUploadURLIssuer {
+func NewDocumentUploadURLIssuer(bucket, base string) repository.DocumentUploadURLIssuer {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("GCS_UPLOAD_ISSUER")))
 	if mode == "signed" {
 		return NewGCSSignedDocumentUploadURLIssuer(
-			getenvDefault("GCS_BUCKET", storage.DefaultBucket),
+			bucket,
 			os.Getenv("GCS_SIGNING_SERVICE_ACCOUNT_EMAIL"),
 			os.Getenv("GCS_SIGNING_PRIVATE_KEY"),
 			uploadSignedURLTTL(),
 		)
 	}
-	return NewFakeGCSDocumentUploadURLIssuer(base)
+	return NewFakeGCSDocumentUploadURLIssuer(base, bucket)
 }
 
 func uploadSignedURLTTL() time.Duration {
@@ -168,9 +169,9 @@ func getenvDefault(key, fallback string) string {
 	return fallback
 }
 
-func NewDocumentSourceURLBuilder(base string) repository.DocumentSourceURLBuilder {
+func NewDocumentSourceURLBuilder(bucket, base string) repository.DocumentSourceURLBuilder {
 	return func(workspaceID, documentID string) string {
-		return storage.BuildDocumentSourceURL(base, workspaceID, documentID)
+		return storage.BuildDocumentSourceURL(base, bucket, workspaceID, documentID)
 	}
 }
 

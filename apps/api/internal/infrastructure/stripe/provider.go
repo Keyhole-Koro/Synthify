@@ -18,8 +18,6 @@ import (
 	"github.com/synthify/backend/packages/shared/domain"
 )
 
-const defaultAPIBase = "https://api.stripe.com"
-
 type Config struct {
 	SecretKey        string
 	WebhookSecret    string
@@ -31,6 +29,7 @@ type Config struct {
 	CancelURL        string
 	PortalReturnURL  string
 	APIBase          string
+	APIVersion       string
 	MeterInputEvent  string
 	MeterOutputEvent string
 }
@@ -70,7 +69,10 @@ func NewProvider(cfg Config) (*Provider, error) {
 		return nil, fmt.Errorf("%w: BILLING_PORTAL_RETURN_URL is required", domain.ErrBillingProviderMisconfigured)
 	}
 	if cfg.APIBase == "" {
-		cfg.APIBase = defaultAPIBase
+		cfg.APIBase = "https://api.stripe.com"
+	}
+	if cfg.APIVersion == "" {
+		cfg.APIVersion = "2025-06-30.basil"
 	}
 	return &Provider{
 		cfg:             cfg,
@@ -398,7 +400,7 @@ func (p *Provider) postForm(ctx context.Context, path string, form url.Values, i
 	}
 	req.SetBasicAuth(p.cfg.SecretKey, "")
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Stripe-Version", "2025-06-30.basil")
+	req.Header.Set("Stripe-Version", p.cfg.APIVersion)
 	if idempotencyKey != "" {
 		req.Header.Set("Idempotency-Key", idempotencyKey)
 	}
@@ -431,7 +433,7 @@ func (p *Provider) getForm(ctx context.Context, path string, params url.Values, 
 		return err
 	}
 	req.SetBasicAuth(p.cfg.SecretKey, "")
-	req.Header.Set("Stripe-Version", "2025-06-30.basil")
+	req.Header.Set("Stripe-Version", p.cfg.APIVersion)
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return err

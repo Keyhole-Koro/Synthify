@@ -34,7 +34,7 @@ func main() {
 		appLogger.Error(ctx, "api.newrelic_init_failed", err, nil)
 	}
 
-	appCtx := app.Bootstrap(ctx, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
+	appCtx := app.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
 	store := appCtx.Store
 	notifier := appCtx.Notifier
 
@@ -42,10 +42,9 @@ func main() {
 	// over Connect; object metadata + source URLs are derived from the
 	// internal GCS upload base.
 	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL)
-	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase)
-	sourceURLBuilder := app.NewDocumentSourceURLBuilder(cfg.InternalGCSUploadBase)
-	uploadURLIssuer := app.NewDocumentUploadURLIssuer(cfg.GCSUploadURLBase)
-
+	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
+	sourceURLBuilder := app.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
+	uploadURLIssuer := app.NewDocumentUploadURLIssuer(cfg.GCSBucket, cfg.GCSUploadURLBase)
 	documentSvc := service.NewDocumentService(
 		store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
 	)

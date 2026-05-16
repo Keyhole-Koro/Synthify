@@ -12,6 +12,7 @@ type API struct {
 	Port                     string
 	Env                      string
 	CORSAllowedOrigins       string
+	GCSBucket                string
 	GCSUploadURLBase         string
 	InternalGCSUploadBase    string
 	FirebaseProjectID        string
@@ -32,6 +33,8 @@ type Stripe struct {
 	DefaultCurrency  string
 	MeterInputEvent  string
 	MeterOutputEvent string
+	APIBase          string
+	APIVersion       string
 }
 
 type Billing struct {
@@ -47,6 +50,7 @@ type NewRelic struct {
 
 type Worker struct {
 	Port                     string
+	GCSBucket                string
 	GCSUploadURLBase         string
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
@@ -75,6 +79,7 @@ func LoadAPI() API {
 		Port:                     get("PORT", "8080"),
 		Env:                      get("ENV", "production"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000"),
+		GCSBucket:                get("GCS_BUCKET", "synthify-uploads"),
 		GCSUploadURLBase:         uploadBase,
 		InternalGCSUploadBase:    mustBaseURL("INTERNAL_GCS_UPLOAD_URL_BASE", get("INTERNAL_GCS_UPLOAD_URL_BASE", uploadBase)),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
@@ -90,6 +95,8 @@ func LoadAPI() API {
 			DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
 			MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
 			MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
+			APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
+			APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
 		},
 		Billing: Billing{
 			SuccessURL:      get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
@@ -106,6 +113,7 @@ func LoadAPI() API {
 func LoadWorker() Worker {
 	return Worker{
 		Port:                     get("PORT", "8080"),
+		GCSBucket:                get("GCS_BUCKET", "synthify-uploads"),
 		GCSUploadURLBase:         mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443")),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),

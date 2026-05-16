@@ -15,18 +15,20 @@ import (
 
 type ObjectMetadataFetcher struct {
 	baseURL string
+	bucket  string
 	client  *http.Client
 }
 
-func NewObjectMetadataFetcher(baseURL string) *ObjectMetadataFetcher {
+func NewObjectMetadataFetcher(baseURL, bucket string) *ObjectMetadataFetcher {
 	return &ObjectMetadataFetcher{
 		baseURL: baseURL,
+		bucket:  bucket,
 		client:  http.DefaultClient,
 	}
 }
 
 func (f *ObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sharedstorage.BuildDocumentObjectMetadataURL(f.baseURL, workspaceID, documentID), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sharedstorage.BuildDocumentObjectMetadataURL(f.baseURL, f.bucket, workspaceID, documentID), nil)
 	if err != nil {
 		return nil, err
 	}
