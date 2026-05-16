@@ -129,24 +129,44 @@ jobs:
       # --- Pass 2: full apply. Images now exist, so Cloud Run services
       # are created/updated with the exact SHA-tagged images. api_base_url
       # stays empty here; it is reconciled in Pass 3.
+      #
+      # allowed_user_emails: only override when the GitHub Environment var
+      # is set. If unset we omit the -var so the tfvars fallback wins
+      # (an empty -var would blank out the stage lockdown).
       - name: Terraform apply (full)
         working-directory: ${{ env.TF_DIR }}
+        env:
+          ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
         run: |
-          terraform apply -auto-approve \
-            -var-file=../tfvars/${ENVIRONMENT}.tfvars \
-            -var="api_image=${{ steps.registry.outputs.api_image }}" \
+          args=(
+            -auto-approve
+            -var-file=../tfvars/${ENVIRONMENT}.tfvars
+            -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
+          )
+          if [ -n "${ALLOWED_USER_EMAILS}" ]; then
+            args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
+          fi
+          terraform apply "${args[@]}"
 
       # --- Pass 3: feed the API URL back so the worker can call it.
       - name: Terraform apply (wire api_base_url)
         working-directory: ${{ env.TF_DIR }}
+        env:
+          ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
         run: |
           API_URI="$(terraform output -raw api_uri)"
-          terraform apply -auto-approve \
-            -var-file=../tfvars/${ENVIRONMENT}.tfvars \
-            -var="api_image=${{ steps.registry.outputs.api_image }}" \
-            -var="worker_image=${{ steps.registry.outputs.worker_image }}" \
+          args=(
+            -auto-approve
+            -var-file=../tfvars/${ENVIRONMENT}.tfvars
+            -var="api_image=${{ steps.registry.outputs.api_image }}"
+            -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="api_base_url=${API_URI}"
+          )
+          if [ -n "${ALLOWED_USER_EMAILS}" ]; then
+            args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
+          fi
+          terraform apply "${args[@]}"
 
       - name: Outputs
         working-directory: ${{ env.TF_DIR }}

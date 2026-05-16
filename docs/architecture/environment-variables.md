@@ -41,6 +41,8 @@
 | `GCS_BUCKET` | アップロード先 GCS バケット | `synthify-uploads` |
 | `GCS_SIGNING_SERVICE_ACCOUNT_EMAIL` | Signed URL の署名主体 | `signBlob` 利用時はこの SA に `iam.serviceAccounts.signBlob` 権限が必要 |
 | `GCS_SIGNED_URL_TTL_MINUTES` | Signed URL の有効期限 | `15` |
+| `SYNTHIFY_ADMIN_USER_EMAILS` | 管理者の email (カンマ区切り) | 追加権限。空で admin なし |
+| `SYNTHIFY_ALLOWED_USER_EMAILS` | アクセス許可 email (カンマ区切り) | **非空なら API は許可 email のみ**。空で無制限。stage を 1 アカウントに絞る用途。CD は GitHub Environment 変数 `ALLOWED_USER_EMAILS` から `-var` で注入し、未設定なら tfvars のフォールバックを使う |
 
 ---
 

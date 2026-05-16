@@ -143,6 +143,15 @@ variable "admin_user_emails" {
   default     = ""
 }
 
+# Access allowlist. Non-empty => only these emails may use the API.
+# Typically supplied per-env by CD from a GitHub Environment variable
+# (empty for prod => unrestricted; set for stage to lock it down).
+variable "allowed_user_emails" {
+  description = "Comma-separated allowlist (SYNTHIFY_ALLOWED_USER_EMAILS). Empty => no restriction."
+  type        = string
+  default     = ""
+}
+
 variable "log_llm_payload" {
   description = "Set to \"true\" to log raw LLM payloads (debug only)."
   type        = string

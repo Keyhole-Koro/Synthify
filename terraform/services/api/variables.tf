@@ -116,6 +116,12 @@ variable "admin_user_emails" {
   default = ""
 }
 
+variable "allowed_user_emails" {
+  description = "Comma-separated allowlist. Non-empty restricts API access to these emails."
+  type        = string
+  default     = ""
+}
+
 variable "log_llm_payload" {
   type    = string
   default = "false"

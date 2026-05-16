@@ -57,6 +57,7 @@ module "api" {
   gcs_signing_service_account_email = var.gcs_signing_service_account_email == "" ? module.platform.api_service_account_email : var.gcs_signing_service_account_email
   gcs_signed_url_ttl_minutes        = var.gcs_signed_url_ttl_minutes
   admin_user_emails                 = var.admin_user_emails
+  allowed_user_emails               = var.allowed_user_emails
   log_llm_payload                   = var.log_llm_payload
 }
 

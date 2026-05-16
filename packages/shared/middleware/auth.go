@@ -64,7 +64,12 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 	}
 
 	expectedServiceToken := strings.TrimSpace(os.Getenv("SYNTHIFY_INTERNAL_SERVICE_TOKEN"))
-	adminEmails := parseAdminEmails(os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"))
+	adminEmails := parseEmailSet(os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"))
+	// Access allowlist. When non-empty, only these emails may reach the API
+	// (used to lock stage to a single account). Empty => no restriction, so
+	// prod behaviour is unchanged. Service calls and the Stripe webhook are
+	// exempt because they return earlier, before this check.
+	allowedEmails := parseEmailSet(os.Getenv("SYNTHIFY_ALLOWED_USER_EMAILS"))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isStripeWebhookPath(r.URL.Path) {
@@ -103,6 +108,17 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 		}
 
 		email, _ := idToken.Claims["email"].(string)
+
+		// Enforce the access allowlist when configured.
+		if len(allowedEmails) > 0 && !allowedEmails[lowerTrim(email)] {
+			logger.Warn(r.Context(), "auth.email_not_allowed", nil, map[string]any{
+				"path":  r.URL.Path,
+				"email": email,
+			})
+			http.Error(w, "access restricted to allowed users", http.StatusForbidden)
+			return
+		}
+
 		user := AuthUser{
 			ID:    idToken.UID,
 			Email: email,
@@ -115,11 +131,14 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 	})
 }
 
-func parseAdminEmails(csv string) map[string]bool {
+func lowerTrim(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
+func parseEmailSet(csv string) map[string]bool {
 	result := map[string]bool{}
 	for _, raw := range strings.Split(csv, ",") {
-		e := strings.ToLower(strings.TrimSpace(raw))
-		if e != "" {
+		if e := lowerTrim(raw); e != "" {
 			result[e] = true
 		}
 	}

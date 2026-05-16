@@ -41,7 +41,10 @@ module "service" {
     GCS_SIGNED_URL_TTL_MINUTES        = var.gcs_signed_url_ttl_minutes
 
     SYNTHIFY_ADMIN_USER_EMAILS = var.admin_user_emails
-    LOG_LLM_PAYLOAD            = var.log_llm_payload
+    # Non-empty => only these emails may reach the API (stage lockdown).
+    # Empty => no restriction (prod default).
+    SYNTHIFY_ALLOWED_USER_EMAILS = var.allowed_user_emails
+    LOG_LLM_PAYLOAD              = var.log_llm_payload
   }
 
   secret_env_vars = [
