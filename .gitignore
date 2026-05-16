@@ -11,6 +11,10 @@ firestore-debug.log
 *.tfstate
 *.tfstate.*
 crash.log
+crash.*.log
+*.tfplan
+.terraformrc
+terraform.rc
 override.tf
 override.tf.json
 *_override.tf

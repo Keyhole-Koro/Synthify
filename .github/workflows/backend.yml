@@ -58,5 +58,5 @@ jobs:
       - name: terraform validate
         run: |
           cd terraform/environments
-          terraform init -backend=false
+          terraform init -backend=false -lockfile=readonly
           terraform validate

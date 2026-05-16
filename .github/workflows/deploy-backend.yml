@@ -78,7 +78,7 @@ jobs:
 
       - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
-        run: terraform init -reconfigure -backend-config=../backend/${ENVIRONMENT}.hcl
+        run: terraform init -reconfigure -lockfile=readonly -backend-config=../backend/${ENVIRONMENT}.hcl
 
       # --- Pass 1: create just the platform layer (Artifact Registry,
       # APIs, service accounts, secrets) so we have a repo to push to.
