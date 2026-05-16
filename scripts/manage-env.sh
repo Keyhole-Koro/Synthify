@@ -54,7 +54,7 @@ case $COMMAND in
 
         log "Ensuring secrets have at least one version..."
         SECRETS=(
-            "database-url"
+            "database-dsn"
             "gemini-api-key"
             "stripe-secret-key"
             "stripe-webhook-secret"
@@ -121,18 +121,18 @@ case $COMMAND in
         ENVIRONMENT_OUT=$(terraform -chdir=$TF_DIR output -raw environment)
 
         log "Fetching database connection string from Secret Manager..."
-        DB_SECRET="synthify-database-url-$ENVIRONMENT_OUT"
-        DATABASE_URL=$(gcloud secrets versions access latest \
+        DB_SECRET="synthify-database-dsn-$ENVIRONMENT_OUT"
+        DATABASE_DSN=$(gcloud secrets versions access latest \
             --secret="$DB_SECRET" \
             --project="$PROJECT_ID")
 
-        if [ -z "$DATABASE_URL" ] || [ "$DATABASE_URL" = "placeholder-change-me" ]; then
+        if [ -z "$DATABASE_DSN" ] || [ "$DATABASE_DSN" = "placeholder-change-me" ]; then
             warn "Secret $DB_SECRET has no valid connection string (got placeholder or empty). Aborting."
             exit 1
         fi
 
         log "Dropping and recreating public schema (and cluster-level roles)..."
-        psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+        psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 <<'SQL'
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
 DROP ROLE IF EXISTS log_viewer;
@@ -141,7 +141,7 @@ SQL
         log "Applying init scripts from db/init/ in alphabetical order..."
         for f in $(ls db/init/*.sql | sort); do
             log "  -> $f"
-            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$f"
+            psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 -f "$f"
         done
 
         success "$ENVIRONMENT database reset and rebuilt from db/init/."

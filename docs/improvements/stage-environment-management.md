@@ -20,7 +20,7 @@
 ### 1. `up` コマンド
 1. `terraform init` を実行します。
 2. 1回目の `terraform apply` を `-auto-approve` で実行します（Pass 1）。
-3. Secret Managerの必須シークレット（`database-url`, `gemini-api-key` など）のバージョンを確認し、存在しない（有効なバージョンがない）場合はプレースホルダー値（例: `placeholder-change-me`）を投入します。
+3. Secret Managerの必須シークレット（`database-dsn`, `gemini-api-key` など）のバージョンを確認し、存在しない（有効なバージョンがない）場合はプレースホルダー値（例: `placeholder-change-me`）を投入します。
 4. TerraformのOutputから `api_uri` を取得します。
 5. `-var="api_base_url=$API_URI"` を付与して2回目の `terraform apply` を実行し、Workerに変更を適用します（Pass 2）。
 
@@ -36,7 +36,7 @@
 ### 4. `reset-db` コマンド
 1. 実行前に確認プロンプト（`y/N`）を表示します。
 2. TerraformのOutputから `project_id` を取得します。
-3. `gcloud secrets versions access latest --secret="synthify-database-url-stage" --project="<PROJECT_ID>"` を実行し、CockroachDBデータベースの接続文字列を取得します。
+3. `gcloud secrets versions access latest --secret="synthify-database-dsn-stage" --project="<PROJECT_ID>"` を実行し、CockroachDBデータベースの接続文字列を取得します。
 4. 取得した接続文字列を使用して `psql` でデータベースに接続し、以下のコマンドで既存スキーマとデータを全て削除・再作成します。
    ```sql
    DROP SCHEMA public CASCADE;

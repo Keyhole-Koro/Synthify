@@ -22,8 +22,8 @@ module "service" {
 
   secret_env_vars = [
     {
-      name   = "DATABASE_URL"
-      secret = var.secret_ids["database-url"]
+      name   = "DATABASE_DSN"
+      secret = var.secret_ids["database-dsn"]
     },
     {
       name   = "GEMINI_API_KEY"

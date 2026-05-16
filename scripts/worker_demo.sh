@@ -13,7 +13,7 @@ set -uo pipefail
 
 DOC_ID="${1:-doc_llm_1}"
 WORKER_URL="${WORKER_URL:-http://localhost:8081}"
-PG_URL="${DATABASE_URL:-postgres://synthify:synthify@localhost:5432/synthify?sslmode=disable}"
+PG_URL="${DATABASE_DSN:-postgres://synthify:synthify@localhost:5432/synthify?sslmode=disable}"
 # ホスト側（疎通確認用）とコンテナ内部（workerが実際に使う）でホスト名が異なる
 GCS_UPLOAD_URL_BASE="${GCS_UPLOAD_URL_BASE:-http://localhost:4443}"
 GCS_INTERNAL_URL_BASE="${GCS_INTERNAL_URL_BASE:-http://gcs:4443}"

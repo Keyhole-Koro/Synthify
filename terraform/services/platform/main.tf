@@ -48,13 +48,13 @@ module "artifact_registry" {
 # --------------------------------------------------------------------
 # Secret Manager
 #
-# DB は外部 (CockroachDB Serverless) 管理。DATABASE_URL は CockroachDB の接続文字列を
+# DB は外部 (CockroachDB Serverless) 管理。DATABASE_DSN は CockroachDB の接続文字列を
 # 手動で `gcloud secrets versions add` する運用。
 # --------------------------------------------------------------------
 
 locals {
   api_secrets = toset([
-    "database-url",
+    "database-dsn",
     "gemini-api-key",
     "stripe-secret-key",
     "stripe-webhook-secret",
@@ -63,7 +63,7 @@ locals {
   ])
 
   worker_secrets = toset([
-    "database-url",
+    "database-dsn",
     "gemini-api-key",
     "internal-worker-token",
   ])

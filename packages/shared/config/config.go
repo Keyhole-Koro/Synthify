@@ -24,12 +24,12 @@ type API struct {
 }
 
 type Stripe struct {
-	SecretKey       string
-	WebhookSecret   string
-	ProPriceID      string
-	ProPriceIDJPY   string
-	ProPriceIDUSD   string
-	DefaultCurrency string
+	SecretKey        string
+	WebhookSecret    string
+	ProPriceID       string
+	ProPriceIDJPY    string
+	ProPriceIDUSD    string
+	DefaultCurrency  string
 	MeterInputEvent  string
 	MeterOutputEvent string
 }
@@ -56,7 +56,7 @@ type Worker struct {
 }
 
 type Store struct {
-	DatabaseURL string
+	DatabaseDSN string
 }
 
 type LLM struct {
@@ -116,7 +116,7 @@ func LoadWorker() Worker {
 }
 
 func LoadStore() Store {
-	return Store{DatabaseURL: os.Getenv("DATABASE_URL")}
+	return Store{DatabaseDSN: os.Getenv("DATABASE_DSN")}
 }
 
 func LoadLLM() LLM {

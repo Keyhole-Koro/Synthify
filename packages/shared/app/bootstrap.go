@@ -178,7 +178,7 @@ func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURL
 	if logger == nil {
 		logger = applog.NoopLogger{}
 	}
-	if dsn := config.LoadStore().DatabaseURL; dsn != "" {
+	if dsn := config.LoadStore().DatabaseDSN; dsn != "" {
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
 			store, err := postgres.NewStore(ctx, dsn, uploadURLIssuer, logger, nrApp)

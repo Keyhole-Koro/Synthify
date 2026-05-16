@@ -17,7 +17,7 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
 ## 構成方針
 
 - **DB は CockroachDB Serverless (外部マネージド)**。Cloud SQL は作らない。CockroachDB の接続文字列を
-  Secret Manager の `synthify-database-url-<env>` に手動で投入する。
+  Secret Manager の `synthify-database-dsn-<env>` に手動で投入する。
 - **Cloud Run × 2**: `synthify-api-<env>` と `synthify-worker-<env>`。
   worker は INTERNAL ingress、api は public。
 - **環境変数は Terraform が全管理**。env 名は環境中立 (prefix/suffix なし)、
@@ -85,7 +85,7 @@ init→apply→placeholder secret→2回目 apply を自動化する。
 
 | Key | 内容 | 必須 |
 |---|---|---|
-| `database-url` | CockroachDB Serverless の接続文字列 (`postgresql://...`) | ✅ |
+| `database-dsn` | CockroachDB Serverless の接続文字列 (`postgresql://...`) | ✅ |
 | `gemini-api-key` | Gemini API key | ✅ |
 | `internal-worker-token` | worker → api 内部通信トークン (適当なランダム文字列) | ✅ |
 | `stripe-secret-key` | Stripe Secret Key (`sk_live_...`) | Stripe 使う時 |

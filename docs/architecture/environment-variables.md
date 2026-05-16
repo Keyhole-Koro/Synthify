@@ -19,7 +19,7 @@
 
 | 変数名 | 説明 | 備考 |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | CockroachDB/Postgres の接続文字列 | CockroachDB Serverless の DSN。例: `postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full` |
+| `DATABASE_DSN` | CockroachDB/Postgres の接続文字列 | CockroachDB Serverless の DSN。例: `postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full` |
 | `GEMINI_API_KEY` | Google AI (Gemini) の API キー | |
 | `STRIPE_SECRET_KEY` | Stripe のシークレットキー | `sk_test_...` 等 |
 | `STRIPE_WEBHOOK_SECRET` | Stripe Webhook の署名検証用 | |
@@ -61,7 +61,7 @@ echo -n "YOUR_API_KEY" | gcloud secrets versions add synthify-gemini-api-key-pro
 
 # CockroachDB Serverless の DSN を設定する場合
 echo -n "postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full" \
-  | gcloud secrets versions add synthify-database-url-prod --data-file=-
+  | gcloud secrets versions add synthify-database-dsn-prod --data-file=-
 
 # New Relic のライセンスキーを設定する場合
 echo -n "YOUR_NEW_RELIC_LICENSE_KEY" \

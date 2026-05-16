@@ -92,7 +92,7 @@ jobs:
 
       - name: Ensure secrets have at least one version
         run: |
-          for s in database-url gemini-api-key stripe-secret-key \
+          for s in database-dsn gemini-api-key stripe-secret-key \
                    stripe-webhook-secret new-relic-license-key internal-worker-token; do
             name="synthify-${s}-${ENVIRONMENT}"
             if ! gcloud secrets versions list "$name" \
