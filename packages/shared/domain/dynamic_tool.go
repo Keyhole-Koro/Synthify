@@ -6,7 +6,7 @@ import (
 	"github.com/synthify/backend/packages/shared/util"
 )
 
-// ToolScope controls who may resolve a synthesized tool. Tools are born
+// ToolScope controls who may resolve a dynamic tool. Tools are born
 // workspace-scoped; promotion to global is a separate explicit step.
 // See docs/improvements/dynamic-tool-synthesis.md.
 type ToolScope string
@@ -16,30 +16,30 @@ const (
 	ToolScopeGlobal    ToolScope = "global"
 )
 
-// ToolStatus is the lifecycle state of a synthesized tool. The registry only
+// ToolStatus is the lifecycle state of a dynamic tool. The registry only
 // loads `active` tools into the agent's tool set; any other state removes the
 // tool from every job (so `disabled` is a one-field kill switch).
 type ToolStatus string
 
 const (
 	ToolStatusCandidate ToolStatus = "candidate" // recorded, not yet promoted
-	ToolStatusActive    ToolStatus = "active"     // promoted, resolvable
-	ToolStatusHeld      ToolStatus = "held"       // awaiting human review (tier 3)
-	ToolStatusRejected  ToolStatus = "rejected"   // review declined
-	ToolStatusDisabled  ToolStatus = "disabled"   // emergency kill switch
+	ToolStatusActive    ToolStatus = "active"    // promoted, resolvable
+	ToolStatusHeld      ToolStatus = "held"      // awaiting human review (tier 3)
+	ToolStatusRejected  ToolStatus = "rejected"  // review declined
+	ToolStatusDisabled  ToolStatus = "disabled"  // emergency kill switch
 )
 
-// SynthesizedTool is transform code the LLM generated at runtime and that was
+// DynamicTool is transform code the LLM generated at runtime and that was
 // recorded as a promotion candidate. The registry key is
 // (Scope, OriginWorkspaceID, Name, Version); the LLM only ever refers to Name
 // and the registry resolves it against the current job's workspace.
-type SynthesizedTool struct {
-	ToolID            string `json:"tool_id"`
-	Name              string `json:"name"`
-	Version           int    `json:"version"`
+type DynamicTool struct {
+	ToolID            string    `json:"tool_id"`
+	Name              string    `json:"name"`
+	Version           int       `json:"version"`
 	Scope             ToolScope `json:"scope"`
-	OriginWorkspaceID string `json:"origin_workspace_id"`
-	OriginJobID       string `json:"origin_job_id"`
+	OriginWorkspaceID string    `json:"origin_workspace_id"`
+	OriginJobID       string    `json:"origin_job_id"`
 
 	Description string `json:"description"`
 	Language    string `json:"language"` // python | sh | starlark
@@ -72,7 +72,7 @@ type SynthesizedTool struct {
 
 // EffectiveRiskTier returns max(FloorTier, DeclaredTier). The floor wins when
 // the LLM under-reports; callers should log an audit event in that case.
-func (t *SynthesizedTool) EffectiveRiskTier() string {
+func (t *DynamicTool) EffectiveRiskTier() string {
 	floor := util.NormalizeRiskTier(t.FloorTier)
 	declared := util.NormalizeRiskTier(t.DeclaredTier)
 	if riskTierRank(floor) >= riskTierRank(declared) {
@@ -83,7 +83,7 @@ func (t *SynthesizedTool) EffectiveRiskTier() string {
 
 // UnderReported is true when the LLM declared a lower tier than the analyzer
 // floor. The tool is still tiered at the floor, but this signals an audit log.
-func (t *SynthesizedTool) UnderReported() bool {
+func (t *DynamicTool) UnderReported() bool {
 	return riskTierRank(util.NormalizeRiskTier(t.DeclaredTier)) <
 		riskTierRank(util.NormalizeRiskTier(t.FloorTier))
 }
@@ -91,14 +91,14 @@ func (t *SynthesizedTool) UnderReported() bool {
 // AutoPromotable reports whether this tool may be promoted without human
 // review. tier_1/tier_2 auto-promote (tier_2 with notification); tier_3
 // requires a human and stays held. Mirrors JobExecutionPlan.RequiresApproval.
-func (t *SynthesizedTool) AutoPromotable() bool {
+func (t *DynamicTool) AutoPromotable() bool {
 	return riskTierRank(t.EffectiveRiskTier()) < riskTierRank("tier_3")
 }
 
 // Resolvable reports whether the registry may load this tool for a job running
 // in the given workspace. Tenant isolation is default-deny: only the owning
 // workspace, or globally-promoted tools, resolve.
-func (t *SynthesizedTool) Resolvable(workspaceID string) bool {
+func (t *DynamicTool) Resolvable(workspaceID string) bool {
 	if t == nil || t.Status != ToolStatusActive {
 		return false
 	}

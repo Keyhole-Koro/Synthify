@@ -4,7 +4,7 @@ package synthify.tree.v1;
 
 option go_package = "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1;treev1";
 
-// ExecutorService runs LLM-synthesized transform code in an isolated Cloud Run
+// ExecutorService runs LLM-generated transform code in an isolated Cloud Run
 // service. It has no DB / GCS / Secret access. Data is exchanged via worker-signed,
 // time-limited GCS URLs (input GET-only, output PUT-only) so the executor never
 // holds storage credentials. See docs/improvements/dynamic-tool-synthesis.md.
@@ -51,7 +51,7 @@ message ExecuteQuota {
 
 message ExecuteRequest {
   TransformLanguage language = 1;
-  // Tool body. Ephemeral: freshly generated. Promoted: synthesized_tools.code.
+  // Tool body. Ephemeral: freshly generated. Promoted: dynamic_tools.code.
   string code = 2;
   // Worker-signed GCS GET URL (read-only, time-limited). Executor reads input here.
   string input_url = 3;

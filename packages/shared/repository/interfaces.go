@@ -123,19 +123,19 @@ type CheckpointRepository interface {
 	ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error)
 }
 
-// SynthesizedToolRepository is the persistence contract for LLM-generated
+// DynamicToolRepository is the persistence contract for LLM-generated
 // transform tools. Recording happens inside the job; tier judgement and
 // promotion run out-of-band (see docs/improvements/dynamic-tool-synthesis.md).
-type SynthesizedToolRepository interface {
+type DynamicToolRepository interface {
 	// RecordCandidate persists a freshly generated tool with status=candidate.
 	// Version is assigned by the store as max(existing)+1 under the unique
 	// constraint (scope, origin_workspace_id, name, version); the returned tool
 	// carries the assigned ToolID and Version.
-	RecordCandidate(ctx context.Context, tool *domain.SynthesizedTool) (*domain.SynthesizedTool, error)
+	RecordCandidate(ctx context.Context, tool *domain.DynamicTool) (*domain.DynamicTool, error)
 
 	// ListCandidates returns candidates awaiting tier judgement / promotion,
 	// oldest first, capped by limit. Used by the out-of-band promotion path.
-	ListCandidates(ctx context.Context, limit int) ([]*domain.SynthesizedTool, error)
+	ListCandidates(ctx context.Context, limit int) ([]*domain.DynamicTool, error)
 
 	// PromoteCandidate transitions candidate -> active (or -> held for tier_3).
 	// Implementations must lock the row (FOR UPDATE) to prevent double promotion.
@@ -152,7 +152,7 @@ type SynthesizedToolRepository interface {
 	// ResolveActiveTools returns tools the registry may load for a job in the
 	// given workspace: that workspace's active tools plus global active tools.
 	// Default-deny — never returns other tenants' workspace-scoped tools.
-	ResolveActiveTools(ctx context.Context, workspaceID string) ([]*domain.SynthesizedTool, error)
+	ResolveActiveTools(ctx context.Context, workspaceID string) ([]*domain.DynamicTool, error)
 
 	// IncrementUseCount bumps usage (ephemeral + promoted) for lifecycle/GC.
 	IncrementUseCount(ctx context.Context, toolID string) error

@@ -16,7 +16,7 @@ LLM ワーカーは固定されたツール集合 ([orchestrator.go の `[]tool.
 
 - **エフェメラルツール (ephemeral tool)**: LLM が 1 ジョブ内で生成し、そのジョブ限りで使う変換コード
 - **昇格 (promotion)**: エフェメラルツールを永続レジストリに登録し、以降のジョブで再利用可能にすること
-- **生成ツール (synthesized tool)**: 昇格されて永続化されたツール
+- **生成ツール (dynamic tool)**: 昇格されて永続化されたツール
 
 ## 全体フロー
 
@@ -134,7 +134,7 @@ repo には既に前例がある: [`gcsSignedDocumentUploadURLIssuer`](../../pac
 ```
 ExecuteRequest {
   language        // "python" | "sh" | "starlark"
-  code            // ツール本文 (エフェメラル: 生成直後 / 昇格後: synthesized_tools.code)
+  code            // ツール本文 (エフェメラル: 生成直後 / 昇格後: dynamic_tools.code)
   input_url       // 署名付き GCS GET URL (read-only・時限・worker が署名)
   output_url      // 署名付き GCS PUT URL (write-only・時限・worker が署名)
   quota {         // worker が毎回明示的に渡す (executor 側でも上限を二重化)
@@ -167,7 +167,7 @@ ExecuteResponse {
 
 ```
 LLM が生成ツール foo を呼ぶ
-  → registry が (workspace 解決して) synthesized_tools から code/language を引く
+  → registry が (workspace 解決して) dynamic_tools から code/language を引く
   → worker:
       ① LLM が渡した引数を io_schema(input) で検証
       ② 入力を一時 GCS オブジェクトに書く (in)・読み取り専用署名 URL を発行
@@ -184,7 +184,7 @@ LLM が生成ツール foo を呼ぶ
 
 #### io_schema による境界検証
 
-`synthesized_tools.io_schema` (JSON Schema) を**両端で**使う。
+`dynamic_tools.io_schema` (JSON Schema) を**両端で**使う。
 
 - 送信前 (worker): LLM が渡した引数を input schema で検証。壊れた入力を executor に送らない
 - 受信後 (worker): `stdout` を output schema で検証。**executor の出力を無検証で LLM に流さない** (生成コードの出力は信頼しない)
@@ -229,7 +229,7 @@ repo には既に risk tier の仕組みがある:
 ## データモデル (ドラフト)
 
 ```
-synthesized_tools
+dynamic_tools
   tool_id              (ULID)
   name                 (LLM が呼ぶ論理名)
   version              (同一 scope+workspace+name 内で単調増加)
@@ -441,13 +441,13 @@ executor 実行も計算資源を食う。無制限だと LLM が変換を乱造
 - **python**: バージョンを固定 (イメージにピン留め)。標準ライブラリ + **明示許可した最小限のみ** (例: なし、もしくは `regex` 程度)。`numpy` 等の重い数値計算ライブラリは初期スコープでは**入れない** (必要が実証されてから許可リストに足す)
 - **sh**: busybox 限定。フル GNU 環境を入れない (利用可能コマンドを絞る = 静的解析の対象が縮む)
 - ネットワーク系ライブラリは「静的解析で弾く」だけでなく**そもそもイメージに入れない** (誘惑と攻撃面を物理的に減らす)
-- ランタイム定義 = executor の Dockerfile。**変更はリリース成果物**として扱う ([llm-eval-runner.md](llm-eval-runner.md) の Cloud Run / イミュータブル方針と同じ)。ランタイムが変わると生成ツールの再現性が変わるので、`synthesized_tools` に `runtime_version` を持たせ、昇格時のランタイムを記録する
+- ランタイム定義 = executor の Dockerfile。**変更はリリース成果物**として扱う ([llm-eval-runner.md](llm-eval-runner.md) の Cloud Run / イミュータブル方針と同じ)。ランタイムが変わると生成ツールの再現性が変わるので、`dynamic_tools` に `runtime_version` を持たせ、昇格時のランタイムを記録する
 
 ### 監査・再現性
 
 昇格ツールが後で問題化したとき追跡できること:
 
-- `synthesized_tools` に既出の `origin_job_id` / `origin_workspace_id` / `reviewed_by` に加え、**`input_sample` (生成時の動作確認入力) を保全必須**。これが無いと「なぜ昇格されたか」を再現できず eval も回帰もできない
+- `dynamic_tools` に既出の `origin_job_id` / `origin_workspace_id` / `reviewed_by` に加え、**`input_sample` (生成時の動作確認入力) を保全必須**。これが無いと「なぜ昇格されたか」を再現できず eval も回帰もできない
 - `declared_tier` / `floor_tier` / `risk_tier` を**すべて保存** (実効値だけでなく申告と機械判定の差を後から監査できる。過小申告の傾向分析にも使う)
 - 緊急無効化 (kill switch): `status` に直接 `disabled` を立てる運用操作を 1 つ用意。レジストリは `active` 以外を `Build()` に含めないので、1 フィールドで即座に全ジョブから外れる
 - 監査ログは [logging.md](logging.md) の severity 体系に乗せる (tier 3 昇格・過小申告検知・kill switch 発動は最低 WARN 以上)

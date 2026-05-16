@@ -36,6 +36,8 @@ type Store struct {
 	dailyCosts      map[string]int64 // "accountID|date|model" -> cost_minor
 	credits         []*domain.CreditGrant
 	uploadURLIssuer repository.DocumentUploadURLIssuer
+	dynamicTools    []*domain.DynamicTool // insertion-ordered; ToolID is the identity
+	dynamicToolSeq  int
 }
 
 type uploadReservation struct {
@@ -1414,3 +1416,4 @@ var _ repository.DocumentRepository = (*Store)(nil)
 var _ repository.TreeRepository = (*Store)(nil)
 var _ repository.ItemRepository = (*Store)(nil)
 var _ repository.UsageRepository = (*Store)(nil)
+var _ repository.DynamicToolRepository = (*Store)(nil)
