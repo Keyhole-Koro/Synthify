@@ -2,12 +2,39 @@ name: Deploy Frontend
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        type: choice
+        required: true
+        default: stage
+        options:
+          - stage
+          - prod
+  push:
+    branches:
+      - stage
+      - prod
+    paths:
+      - apps/web/**
+      - packages/shared/**
+      - .github/workflows/deploy-frontend.yml
+
+concurrency:
+  group: deploy-frontend-${{ github.event.inputs.environment || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Resolve env from manual input, else from the pushed branch name
+    # (stage/prod). The GitHub Environment scopes secrets and vars so the
+    # same names resolve to per-env values.
+    environment: ${{ github.event.inputs.environment || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -32,6 +59,6 @@ jobs:
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PROD }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
           projectId: ${{ vars.GCP_PROJECT_ID }}

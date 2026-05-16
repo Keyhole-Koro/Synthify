@@ -90,7 +90,7 @@ GitHub の `Settings > Secrets and variables > Actions` から、デプロイに
    - `terraform/services/platform/main.tf` の `local.api_secrets` または `local.worker_secrets` に名前を追加。
    - `terraform/services/api/main.tf` などの `secret_env_vars` に定義を追加。
 2. **一般設定の場合:**
-   - `terraform/prod/variables.tf` に変数を定義。
-   - `terraform/services/api/main.tf` などの `env_vars` に渡し、`.tfvars` に値を記述。
+   - `terraform/environments/variables.tf` に変数を定義 (stage/prod 共通の単一 root)。
+   - `terraform/services/api/main.tf` などの `env_vars` に渡し、`tfvars/<env>.tfvars` に値を記述。
 3. **ドキュメントの更新:**
    - 本ファイル (docs/architecture/environment-variables.md) を更新。

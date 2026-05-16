@@ -34,6 +34,14 @@ module "service" {
     BILLING_PORTAL_RETURN_URL = var.billing_portal_return_url
 
     NEW_RELIC_APP_NAME = var.new_relic_app_name
+
+    # Signed upload URLs (private key omitted => IAM SignBlob path)
+    GCS_UPLOAD_ISSUER                 = var.gcs_upload_issuer
+    GCS_SIGNING_SERVICE_ACCOUNT_EMAIL = var.gcs_signing_service_account_email
+    GCS_SIGNED_URL_TTL_MINUTES        = var.gcs_signed_url_ttl_minutes
+
+    SYNTHIFY_ADMIN_USER_EMAILS = var.admin_user_emails
+    LOG_LLM_PAYLOAD            = var.log_llm_payload
   }
 
   secret_env_vars = [
@@ -59,6 +67,13 @@ module "service" {
     },
     {
       name   = "INTERNAL_WORKER_TOKEN"
+      secret = var.secret_ids["internal-worker-token"]
+    },
+    # The auth middleware reads SYNTHIFY_INTERNAL_SERVICE_TOKEN, while the
+    # worker sends the value it loads from INTERNAL_WORKER_TOKEN. Bind both
+    # names to the same secret so worker->API service calls authenticate.
+    {
+      name   = "SYNTHIFY_INTERNAL_SERVICE_TOKEN"
       secret = var.secret_ids["internal-worker-token"]
     },
   ]

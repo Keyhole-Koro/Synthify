@@ -4,13 +4,15 @@ Terraform の構成用ディレクトリ。
 
 ```
 terraform/
-  backend/    # state backend 設定 (GCS bucket)
-  modules/    # 再利用 module
-  services/   # service 単位の構成 (platform/api/worker)
-  stage/      # stage 環境
-  prod/       # prod 環境
-  tfvars/     # 環境別 tfvars サンプル
+  backend/        # state backend 設定 (GCS, env 別 partial config)
+  modules/        # 再利用 module
+  services/       # service 単位の構成 (platform/api/worker)
+  environments/   # 単一 root。stage/prod は tfvars + backend で切替
+  tfvars/         # 環境別 tfvars
 ```
+
+stage/prod でディレクトリは分けない。単一 root (`environments/`) を
+`-backend-config` と `-var-file` で切り替えて再利用する。
 
 ## 構成方針
 
@@ -18,20 +20,64 @@ terraform/
   Secret Manager の `synthify-database-url-<env>` に手動で投入する。
 - **Cloud Run × 2**: `synthify-api-<env>` と `synthify-worker-<env>`。
   worker は INTERNAL ingress、api は public。
-- **環境変数は Terraform が全管理**。CI/CD は image だけ差し替える(`gcloud run deploy --image`)。
-  env を変えたい時は terraform apply。
+- **環境変数は Terraform が全管理**。env 名は環境中立 (prefix/suffix なし)、
+  値の出し分けは tfvars / Secret Manager / `locals.tf` の導出で行う。
+- **tfvars は最小限**。導出可能なものは `environments/locals.tf` で組み立てる:
+  - `uploads_bucket_name` = `<project_id>-synthify-uploads-<environment>`
+  - `firebase_project_id` = `project_id`
+  - `cors_allowed_origins` / `billing_*_url` = `web_base_url` から組立
+  - `new_relic_app_name` = prod は `synthify-api`、他は `synthify-api-<env>`
+  - `env` = prod は `production`、他は `environment` 値
+  - 各々 tfvars で明示すれば override 可能 (空 => 導出)。
+  tfvars の必須は実質 `project_id` / `region` / `environment` / `web_base_url` のみ。
+- **image は CD が `-var` で注入**。tfvars に書かない。CD は build & push の後に
+  実 SHA タグ URL を `terraform apply -var="api_image=..."` で渡す。
+- **state バケットは CD が upsert**。`deploy-backend.yml` が init 前に
+  `scripts/bootstrap-tfstate.sh` を実行 (無ければ作成、あれば設定再適用)。
 - **Secret は platform module が一括作成**。version (値) は手動で投入。
+- **署名付きアップロード URL**: `gcs_upload_issuer = "signed"` で実 GCS 署名 URL。
+  private key は不要 (IAM SignBlob 経由)。API service account が自分自身に
+  対し `roles/iam.serviceAccountTokenCreator` を持つよう Terraform が付与する。
+- **内部サービストークン**: worker は `INTERNAL_WORKER_TOKEN` を読んで送信、
+  API の auth middleware は `SYNTHIFY_INTERNAL_SERVICE_TOKEN` を期待する。
+  両者を同じ `internal-worker-token` secret にバインドして整合させている。
 
 ## 初回セットアップ
 
-1. GCS state bucket を作って `backend/<env>.hcl` を用意
-2. `tfvars/<env>.tfvars` を埋める (api_base_url は空のまま)
-3. `terraform -chdir=terraform/<env> init -backend-config=../backend/<env>.hcl`
-4. `terraform -chdir=terraform/<env> apply -var-file=../tfvars/<env>.tfvars`
-5. 作成された Secret Manager に値を投入 (下記)
-6. CI でイメージを build & push、Cloud Run が起動
-7. `terraform output -raw api_uri` を tfvars の `api_base_url` に書いて再 apply
+1. state bucket を作成 (backend/<env>.hcl も自動生成される):
+
+   ```bash
+   make tfstate-stage PROJECT_ID=your-stage-project
+   # または: bash scripts/bootstrap-tfstate.sh stage your-stage-project
+   ```
+
+2. `tfvars/<env>.tfvars` を用意。埋めるのは実質 4 項目だけ
+   (`project_id` / `region` / `environment` / `web_base_url`)。
+   残りは locals.tf が導出する。機密値は tfvars に書かず、Secret Manager に投入する。
+
+3. init / apply (Pass 1: platform のみ。image はまだ無い):
+
+   ```bash
+   cd terraform/environments
+   terraform init -reconfigure -backend-config=../backend/stage.hcl
+   terraform apply -var-file=../tfvars/stage.tfvars -target=module.platform
+   ```
+
+4. 作成された Secret Manager に値を投入 (下記)
+5. image を build & push (CD が自動。手動なら docker push)
+6. 全体 apply。image を `-var` で渡す:
+
+   ```bash
+   terraform apply -var-file=../tfvars/stage.tfvars \
+     -var="api_image=<registry>/api:<tag>" \
+     -var="worker_image=<registry>/worker:<tag>"
+   ```
+
+7. `terraform output -raw api_uri` を `-var="api_base_url=..."` で再 apply
    (worker → api コールバックを有効化)
+
+`make infra-stage-up` / `make infra-prod-up` が 1〜6 のうち
+init→apply→placeholder secret→2回目 apply を自動化する。
 
 ## Secret Manager に投入する値
 
@@ -56,14 +102,18 @@ printf 'unused' | gcloud secrets versions add synthify-stripe-secret-key-stage -
 ## 主要コマンド
 
 ```bash
-# init
-terraform -chdir=terraform/stage init \
-  -backend-config=../backend/stage.hcl
+cd terraform/environments
 
-# plan / apply
-terraform -chdir=terraform/stage plan -var-file=../tfvars/stage.tfvars
-terraform -chdir=terraform/stage apply -var-file=../tfvars/stage.tfvars
+# stage
+terraform init -reconfigure -backend-config=../backend/stage.hcl
+terraform plan  -var-file=../tfvars/stage.tfvars
+terraform apply -var-file=../tfvars/stage.tfvars
+terraform output
 
-# outputs
-terraform -chdir=terraform/stage output
+# prod (backend を切り替えてから)
+terraform init -reconfigure -backend-config=../backend/prod.hcl
+terraform apply -var-file=../tfvars/prod.tfvars
 ```
+
+> ⚠️ env を切り替えるたび `terraform init -reconfigure -backend-config=...`
+> を必ず実行する (state を取り違えないため)。

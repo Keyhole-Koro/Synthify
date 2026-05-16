@@ -53,14 +53,10 @@ jobs:
       - name: terraform fmt check
         run: terraform fmt -check -recursive terraform
 
-      - name: terraform validate (stage)
+      # Single root reused across envs; validate is env-agnostic so one
+      # backend-less init/validate covers stage and prod.
+      - name: terraform validate
         run: |
-          cd terraform/stage
-          terraform init -backend=false
-          terraform validate
-
-      - name: terraform validate (prod)
-        run: |
-          cd terraform/prod
+          cd terraform/environments
           terraform init -backend=false
           terraform validate

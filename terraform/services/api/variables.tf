@@ -95,3 +95,28 @@ variable "new_relic_app_name" {
   type    = string
   default = "synthify-api"
 }
+
+variable "gcs_upload_issuer" {
+  type    = string
+  default = "signed"
+}
+
+variable "gcs_signing_service_account_email" {
+  type    = string
+  default = ""
+}
+
+variable "gcs_signed_url_ttl_minutes" {
+  type    = string
+  default = "15"
+}
+
+variable "admin_user_emails" {
+  type    = string
+  default = ""
+}
+
+variable "log_llm_payload" {
+  type    = string
+  default = "false"
+}

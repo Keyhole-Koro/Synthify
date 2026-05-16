@@ -21,21 +21,27 @@ on:
       - packages/shared/**
       - go.mod
       - go.sum
+      - terraform/**
       - .github/workflows/deploy-backend.yml
 
 concurrency:
-  group: deploy-backend-${{ github.event.inputs.environment || 'stage' }}
+  group: deploy-backend-${{ github.event.inputs.environment || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Resolve env from manual input, else from the pushed branch name.
+    # The GitHub Environment scopes secrets/vars so the same names resolve
+    # to per-env values (GCP_WIF_*, GCP_PROJECT_ID, GCP_REGION, ...).
+    environment: ${{ github.event.inputs.environment || github.ref_name }}
     permissions:
       contents: read
       id-token: write
 
     env:
-      ENVIRONMENT: ${{ github.event.inputs.environment || 'stage' }}
+      ENVIRONMENT: ${{ github.event.inputs.environment || github.ref_name }}
+      TF_DIR: terraform/environments
 
     steps:
       - uses: actions/checkout@v4
@@ -51,12 +57,53 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.6
+
       - name: Resolve image registry
         id: registry
         run: |
           REGISTRY="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-${ENVIRONMENT}"
           echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
           echo "sha_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "api_image=${REGISTRY}/api:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "worker_image=${REGISTRY}/worker:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      # Upsert the Terraform state bucket. Idempotent: creates it if missing,
+      # otherwise just re-asserts versioning/lifecycle. Also (re)writes
+      # terraform/backend/<env>.hcl that the init step below consumes.
+      - name: Ensure Terraform state bucket
+        run: bash scripts/bootstrap-tfstate.sh "${ENVIRONMENT}" "${{ vars.GCP_PROJECT_ID }}" "${{ vars.GCP_REGION }}"
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -reconfigure -backend-config=../backend/${ENVIRONMENT}.hcl
+
+      # --- Pass 1: create just the platform layer (Artifact Registry,
+      # APIs, service accounts, secrets) so we have a repo to push to.
+      # Cloud Run services are NOT created here — they need the image.
+      - name: Terraform apply (platform only)
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform apply -auto-approve \
+            -var-file=../tfvars/${ENVIRONMENT}.tfvars \
+            -target=module.platform
+
+      - name: Ensure secrets have at least one version
+        run: |
+          for s in database-url gemini-api-key stripe-secret-key \
+                   stripe-webhook-secret new-relic-license-key internal-worker-token; do
+            name="synthify-${s}-${ENVIRONMENT}"
+            if ! gcloud secrets versions list "$name" \
+                  --project "${{ vars.GCP_PROJECT_ID }}" --limit=1 2>/dev/null \
+                  | grep -q ENABLED; then
+              echo "::warning::secret $name has no version; adding placeholder"
+              printf 'placeholder-change-me' \
+                | gcloud secrets versions add "$name" \
+                    --project "${{ vars.GCP_PROJECT_ID }}" --data-file=-
+            fi
+          done
 
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
@@ -64,34 +111,43 @@ jobs:
       - name: Build and push API image
         run: |
           docker build \
-            -t ${{ steps.registry.outputs.registry }}/api:${{ steps.registry.outputs.sha_tag }} \
+            -t ${{ steps.registry.outputs.api_image }} \
             -t ${{ steps.registry.outputs.registry }}/api:latest \
             -f apps/api/Dockerfile .
-          docker push ${{ steps.registry.outputs.registry }}/api:${{ steps.registry.outputs.sha_tag }}
+          docker push ${{ steps.registry.outputs.api_image }}
           docker push ${{ steps.registry.outputs.registry }}/api:latest
 
       - name: Build and push Worker image
         run: |
           docker build \
-            -t ${{ steps.registry.outputs.registry }}/worker:${{ steps.registry.outputs.sha_tag }} \
+            -t ${{ steps.registry.outputs.worker_image }} \
             -t ${{ steps.registry.outputs.registry }}/worker:latest \
             -f apps/worker/Dockerfile .
-          docker push ${{ steps.registry.outputs.registry }}/worker:${{ steps.registry.outputs.sha_tag }}
+          docker push ${{ steps.registry.outputs.worker_image }}
           docker push ${{ steps.registry.outputs.registry }}/worker:latest
 
-      # Cloud Run env vars and secrets are managed by Terraform.
-      # Here we only roll the image — `--image` updates the running revision
-      # without touching env. To change env vars, run terraform apply.
-      - name: Deploy API
+      # --- Pass 2: full apply. Images now exist, so Cloud Run services
+      # are created/updated with the exact SHA-tagged images. api_base_url
+      # stays empty here; it is reconciled in Pass 3.
+      - name: Terraform apply (full)
+        working-directory: ${{ env.TF_DIR }}
         run: |
-          gcloud run deploy synthify-api-${ENVIRONMENT} \
-            --image ${{ steps.registry.outputs.registry }}/api:${{ steps.registry.outputs.sha_tag }} \
-            --region ${{ vars.GCP_REGION }} \
-            --quiet
+          terraform apply -auto-approve \
+            -var-file=../tfvars/${ENVIRONMENT}.tfvars \
+            -var="api_image=${{ steps.registry.outputs.api_image }}" \
+            -var="worker_image=${{ steps.registry.outputs.worker_image }}"
 
-      - name: Deploy Worker
+      # --- Pass 3: feed the API URL back so the worker can call it.
+      - name: Terraform apply (wire api_base_url)
+        working-directory: ${{ env.TF_DIR }}
         run: |
-          gcloud run deploy synthify-worker-${ENVIRONMENT} \
-            --image ${{ steps.registry.outputs.registry }}/worker:${{ steps.registry.outputs.sha_tag }} \
-            --region ${{ vars.GCP_REGION }} \
-            --quiet
+          API_URI="$(terraform output -raw api_uri)"
+          terraform apply -auto-approve \
+            -var-file=../tfvars/${ENVIRONMENT}.tfvars \
+            -var="api_image=${{ steps.registry.outputs.api_image }}" \
+            -var="worker_image=${{ steps.registry.outputs.worker_image }}" \
+            -var="api_base_url=${API_URI}"
+
+      - name: Outputs
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform output
