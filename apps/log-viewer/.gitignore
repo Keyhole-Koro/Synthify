@@ -1,0 +1,12 @@
+ui/node_modules/
+ui/.next/
+ui/next-env.d.ts
+ui/out/
+ui/.cache/
+ui/*.tsbuildinfo
+ui/.env
+ui/.env.*
+!ui/.env.example
+
+*.log
+.DS_Store
