@@ -122,3 +122,38 @@ type CheckpointRepository interface {
 	MarkStageFailed(ctx context.Context, jobID, stage, errorMessage string) error
 	ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error)
 }
+
+// SynthesizedToolRepository is the persistence contract for LLM-generated
+// transform tools. Recording happens inside the job; tier judgement and
+// promotion run out-of-band (see docs/improvements/dynamic-tool-synthesis.md).
+type SynthesizedToolRepository interface {
+	// RecordCandidate persists a freshly generated tool with status=candidate.
+	// Version is assigned by the store as max(existing)+1 under the unique
+	// constraint (scope, origin_workspace_id, name, version); the returned tool
+	// carries the assigned ToolID and Version.
+	RecordCandidate(ctx context.Context, tool *domain.SynthesizedTool) (*domain.SynthesizedTool, error)
+
+	// ListCandidates returns candidates awaiting tier judgement / promotion,
+	// oldest first, capped by limit. Used by the out-of-band promotion path.
+	ListCandidates(ctx context.Context, limit int) ([]*domain.SynthesizedTool, error)
+
+	// PromoteCandidate transitions candidate -> active (or -> held for tier_3).
+	// Implementations must lock the row (FOR UPDATE) to prevent double promotion.
+	PromoteCandidate(ctx context.Context, toolID string, status domain.ToolStatus, promotedAt time.Time) error
+
+	// PromoteToGlobal flips an active workspace-scoped tool to global scope.
+	// This is an explicit additional promotion, independent of tier.
+	PromoteToGlobal(ctx context.Context, toolID, reviewedBy string) error
+
+	// SetStatus is the kill switch / review-decision write path
+	// (e.g. -> disabled, -> rejected, -> held).
+	SetStatus(ctx context.Context, toolID string, status domain.ToolStatus) error
+
+	// ResolveActiveTools returns tools the registry may load for a job in the
+	// given workspace: that workspace's active tools plus global active tools.
+	// Default-deny — never returns other tenants' workspace-scoped tools.
+	ResolveActiveTools(ctx context.Context, workspaceID string) ([]*domain.SynthesizedTool, error)
+
+	// IncrementUseCount bumps usage (ephemeral + promoted) for lifecycle/GC.
+	IncrementUseCount(ctx context.Context, toolID string) error
+}
