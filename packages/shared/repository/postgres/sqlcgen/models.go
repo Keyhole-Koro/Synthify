@@ -132,6 +132,29 @@ type DocumentProcessingJob struct {
 	UpdatedAt        time.Time
 }
 
+type DynamicTool struct {
+	ToolID            string
+	Name              string
+	Version           int32
+	Scope             string
+	OriginWorkspaceID string
+	OriginJobID       string
+	Description       string
+	Language          string
+	Code              string
+	IoSchema          string
+	DeclaredTier      string
+	FloorTier         string
+	RiskTier          string
+	Status            string
+	InputSample       string
+	RuntimeVersion    string
+	UseCount          int32
+	CreatedAt         time.Time
+	PromotedAt        sql.NullTime
+	ReviewedBy        string
+}
+
 type Invoice struct {
 	InvoiceID        string
 	AccountID        string

@@ -25,12 +25,23 @@ enum TransformLanguage {
 enum ExecuteStatus {
   EXECUTE_STATUS_UNSPECIFIED = 0;
   EXECUTE_STATUS_OK = 1;
-  EXECUTE_STATUS_TIMEOUT = 2;
-  EXECUTE_STATUS_OOM = 3;
-  EXECUTE_STATUS_NONZERO_EXIT = 4;
-  EXECUTE_STATUS_OUTPUT_TOO_LARGE = 5;
-  EXECUTE_STATUS_OUTPUT_MISSING = 6;
-  EXECUTE_STATUS_ANALYZER_REJECTED = 7;
+
+  // Pre-execution checks (code never runs).
+  // SYNTAX_ERROR: code failed to parse, detected as the byproduct of AST-based
+  // static analysis (a parseable AST == valid syntax). The worker re-runs the
+  // LLM once to fix it. ANALYZER_REJECTED: parses fine but contains a
+  // disallowed operation. (see "失敗の返し方と eval ゲート" in the design doc)
+  EXECUTE_STATUS_SYNTAX_ERROR = 2;
+  EXECUTE_STATUS_ANALYZER_REJECTED = 3;
+
+  // Execution outcomes.
+  EXECUTE_STATUS_TIMEOUT = 4;
+  EXECUTE_STATUS_OOM = 5;
+  EXECUTE_STATUS_NONZERO_EXIT = 6;
+
+  // Output handling.
+  EXECUTE_STATUS_OUTPUT_TOO_LARGE = 7;
+  EXECUTE_STATUS_OUTPUT_MISSING = 8;
 }
 
 // RiskTier mirrors the existing tier model (util.NormalizeRiskTier). The

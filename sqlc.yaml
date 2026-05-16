@@ -10,6 +10,7 @@ sql:
       - "db/init/006_jobs.sql"
       - "db/init/007_tree.sql"
       - "db/init/008_credits.sql"
+      - "db/init/010_dynamic_tools.sql"
     queries:
       - "db/queries"
     gen:

@@ -46,7 +46,7 @@ export declare type ExecuteRequest = Message<"synthify.tree.v1.ExecuteRequest"> 
   language: TransformLanguage;
 
   /**
-   * Tool body. Ephemeral: freshly generated. Promoted: synthesized_tools.code.
+   * Tool body. Ephemeral: freshly generated. Promoted: dynamic_tools.code.
    *
    * @generated from field: string code = 2;
    */
@@ -175,34 +175,49 @@ export enum ExecuteStatus {
   OK = 1,
 
   /**
-   * @generated from enum value: EXECUTE_STATUS_TIMEOUT = 2;
+   * Pre-execution checks (code never runs).
+   * SYNTAX_ERROR: code failed to parse, detected as the byproduct of AST-based
+   * static analysis (a parseable AST == valid syntax). The worker re-runs the
+   * LLM once to fix it. ANALYZER_REJECTED: parses fine but contains a
+   * disallowed operation. (see "失敗の返し方と eval ゲート" in the design doc)
+   *
+   * @generated from enum value: EXECUTE_STATUS_SYNTAX_ERROR = 2;
    */
-  TIMEOUT = 2,
+  SYNTAX_ERROR = 2,
 
   /**
-   * @generated from enum value: EXECUTE_STATUS_OOM = 3;
+   * @generated from enum value: EXECUTE_STATUS_ANALYZER_REJECTED = 3;
    */
-  OOM = 3,
+  ANALYZER_REJECTED = 3,
 
   /**
-   * @generated from enum value: EXECUTE_STATUS_NONZERO_EXIT = 4;
+   * Execution outcomes.
+   *
+   * @generated from enum value: EXECUTE_STATUS_TIMEOUT = 4;
    */
-  NONZERO_EXIT = 4,
+  TIMEOUT = 4,
 
   /**
-   * @generated from enum value: EXECUTE_STATUS_OUTPUT_TOO_LARGE = 5;
+   * @generated from enum value: EXECUTE_STATUS_OOM = 5;
    */
-  OUTPUT_TOO_LARGE = 5,
+  OOM = 5,
 
   /**
-   * @generated from enum value: EXECUTE_STATUS_OUTPUT_MISSING = 6;
+   * @generated from enum value: EXECUTE_STATUS_NONZERO_EXIT = 6;
    */
-  OUTPUT_MISSING = 6,
+  NONZERO_EXIT = 6,
 
   /**
-   * @generated from enum value: EXECUTE_STATUS_ANALYZER_REJECTED = 7;
+   * Output handling.
+   *
+   * @generated from enum value: EXECUTE_STATUS_OUTPUT_TOO_LARGE = 7;
    */
-  ANALYZER_REJECTED = 7,
+  OUTPUT_TOO_LARGE = 7,
+
+  /**
+   * @generated from enum value: EXECUTE_STATUS_OUTPUT_MISSING = 8;
+   */
+  OUTPUT_MISSING = 8,
 }
 
 /**
@@ -245,7 +260,7 @@ export enum RiskTier {
 export declare const RiskTierSchema: GenEnum<RiskTier>;
 
 /**
- * ExecutorService runs LLM-synthesized transform code in an isolated Cloud Run
+ * ExecutorService runs LLM-generated transform code in an isolated Cloud Run
  * service. It has no DB / GCS / Secret access. Data is exchanged via worker-signed,
  * time-limited GCS URLs (input GET-only, output PUT-only) so the executor never
  * holds storage credentials. See docs/improvements/dynamic-tool-synthesis.md.

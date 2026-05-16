@@ -7,7 +7,7 @@ import { ExecuteRequest, ExecuteResponse } from "./executor_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
- * ExecutorService runs LLM-synthesized transform code in an isolated Cloud Run
+ * ExecutorService runs LLM-generated transform code in an isolated Cloud Run
  * service. It has no DB / GCS / Secret access. Data is exchanged via worker-signed,
  * time-limited GCS URLs (input GET-only, output PUT-only) so the executor never
  * holds storage credentials. See docs/improvements/dynamic-tool-synthesis.md.

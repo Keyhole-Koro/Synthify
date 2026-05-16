@@ -50,6 +50,7 @@ type Store interface {
 	repository.UsageRepository
 	repository.CheckpointRepository
 	repository.JobLogWriter
+	repository.DynamicToolRepository
 }
 
 type fakeGCSDocumentUploadURLIssuer struct {
