@@ -141,14 +141,9 @@ export enum TransformLanguage {
   PYTHON = 1,
 
   /**
-   * @generated from enum value: TRANSFORM_LANGUAGE_SH = 2;
+   * @generated from enum value: TRANSFORM_LANGUAGE_STARLARK = 2;
    */
-  SH = 2,
-
-  /**
-   * @generated from enum value: TRANSFORM_LANGUAGE_STARLARK = 3;
-   */
-  STARLARK = 3,
+  STARLARK = 2,
 }
 
 /**

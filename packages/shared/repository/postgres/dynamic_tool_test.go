@@ -85,7 +85,7 @@ func TestListCandidates_ReturnsCandidatesOldestFirst(t *testing.T) {
 	rows := dynamicToolRows().
 		AddRow("t1", "a", int32(1), "workspace", "ws_a", "job_1", "d", "python", "c", "{}",
 			"tier_1", "tier_1", "tier_1", "candidate", "in", "", int32(0), now, nil, "").
-		AddRow("t2", "b", int32(1), "workspace", "ws_a", "job_2", "d", "sh", "c", "{}",
+		AddRow("t2", "b", int32(1), "workspace", "ws_a", "job_2", "d", "starlark", "c", "{}",
 			"tier_2", "tier_2", "tier_2", "candidate", "in", "", int32(3), now, nil, "")
 
 	mock.ExpectQuery(regexp.QuoteMeta("WHERE status = 'candidate'")).

@@ -15,8 +15,7 @@ service ExecutorService {
 enum TransformLanguage {
   TRANSFORM_LANGUAGE_UNSPECIFIED = 0;
   TRANSFORM_LANGUAGE_PYTHON = 1;
-  TRANSFORM_LANGUAGE_SH = 2;
-  TRANSFORM_LANGUAGE_STARLARK = 3;
+  TRANSFORM_LANGUAGE_STARLARK = 2;
 }
 
 // ExecuteStatus is the outcome of one transform execution. The worker maps each

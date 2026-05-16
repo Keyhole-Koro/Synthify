@@ -6,7 +6,7 @@ LLM ワーカーは固定されたツール集合 ([orchestrator.go の `[]tool.
 
 やりたいこと:
 
-- LLM が処理中に「こういう変換が要る」と判断したら、その場で変換ロジック (python / shell / 小さな関数) を**生成して実行**する
+- LLM が処理中に「こういう変換が要る」と判断したら、その場で変換ロジック (python / Starlark 関数) を**生成して実行**する
 - 有用だった変換は**永続化**して以降のジョブで再利用する (使い捨てで終わらせない)
 - 永続化されたものは [llm-eval-runner.md](llm-eval-runner.md) のツールレジストリに乗せ、評価対象にもできる
 
@@ -43,7 +43,7 @@ LLM ワーカーは固定されたツール集合 ([orchestrator.go の `[]tool.
 type CreateTransformArgs struct {
     Name        string `json:"name"`        // 例: "normalize_pipe_delimited"
     Description string `json:"description"` // 何をするか (昇格時のメタデータ)
-    Language    string `json:"language"`    // "python" | "shell" | "starlark" ...
+    Language    string `json:"language"`    // "python" | "starlark"
     Code        string `json:"code"`
     InputSample string `json:"input_sample"`  // 動作確認用
 }
@@ -57,25 +57,31 @@ type CreateTransformResult struct {
 
 LLM はこれを呼んで変換器を「定義」し、結果を見て採用するか判断する。採用したものは同ジョブ内で `tool_name` として通常ツールのように呼べる。
 
-## 実行環境 (決定: 別 Cloud Run サービスによる隔離実行器)
+## 実行環境 (決定: Starlark 組込 + Python executor)
 
 worker は Cloud Run で動く ([llm-eval-runner.md](llm-eval-runner.md) の議論参照)。コンテナはイミュータブルで、LLM 生成コードを本番プロセスで生実行するのは RCE・リソース枯渇・ジョブ間汚染のリスクがある。
 
 ### 検討した選択肢 (判断根拠として記録)
 
-| 選択肢 | 隔離度 | 実装コスト | レイテンシ | python/sh そのまま | 判定 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
+| 選択肢 | 隔離度 | 実装コスト | レイテンシ | Python そのまま | 判定 |
+| :--- | :--- | :--- | :--- | :--- |
 | worker 内で直接 exec | 低 | 最小 | 最小 | ◎ | ✗ 生成コードが worker の SA・DB DSN・GCS 権限を継承。本番不可 |
-| WASM 組込 (wazero 等) | 高 | 中 | 小 | △ | ✗ python/sh をそのまま動かせない (要望と不一致) |
+| WASM 組込 (wazero 等) | 高 | 中 | 小 | △ | ✗ Python をそのまま動かせない (要望と不一致) |
 | Starlark 組込 | 高 | 小〜中 | 小 | ✗ | △ 最軽量・安全だが Python 非互換。tier 1 純粋変換のみなら可 |
 | **別 Cloud Run サービス (隔離実行器)** | 高 | 中〜大 | 中 (RPC) | ◎ | **採用** |
 | gVisor / サンドボックス VM | 最高 | 大 | 中 | ◎ | △ 単独案ではなく採用案の隔離強化オプション |
 
 ### 決定
 
-**別 Cloud Run サービス「コード実行器 (executor)」を新設する。** 理由:
+対応言語は **Starlark と Python のみ** とする。shell は実装対象から外す。
 
-- python/sh をそのまま動かせる (ユーザー要望を満たす唯一の安全案)
+- **Starlark**: worker 内の組込ランタイムで実行する。純粋・軽量・決定論的な変換を担当する
+- **Python**: 別 Cloud Run サービス「コード実行器 (executor)」で隔離実行する。実用的なテキスト/JSON/CSV 変換を担当する
+- **shell**: 非対応。静的解析と再現性のコストが高く、Python で代替できるため扱わない
+
+Python executor を分離する理由:
+
+- Python をそのまま動かせる
 - worker の認証情報 (サービスアカウント・DB DSN・GCS 書込) と**完全分離**できる
 - 既存 [`cloud_run_service` Terraform モジュール](../../terraform/modules/cloud_run_service/main.tf) を再利用でき、増設パターンが確立済み
 - worker → executor の呼び出しは既存の [WorkerDispatcher](../../apps/api/cmd/server/main.go) と同型の RPC をもう一段重ねるだけ
@@ -92,7 +98,7 @@ executor (Cloud Run・新設)
   ├─ ingress: internal のみ (worker からのみ到達可)
   ├─ egress: VPC 経由で外向き全遮断 (ネットワークなし)
   ├─ timeout: 短く (例 30s)・CPU/メモリ limit を低く固定
-  ├─ イメージ: python3 + busybox 同梱 (worker とは別 Dockerfile)
+  ├─ イメージ: python3 同梱 (worker とは別 Dockerfile)
   └─ 1 リクエスト = 1 コード実行・状態を持たない
 ```
 
@@ -104,9 +110,12 @@ executor (Cloud Run・新設)
 - **ステートレス**: 実行間でファイル・プロセスを残さない (Cloud Run のインスタンス再利用でも汚染しないよう毎回クリーン)
 - **入出力は値渡しのみ**: 入力データと結果文字列を RPC で受け渡す。FS / ボリュームの共有はしない
 
-### エフェメラルと昇格後で同じ executor を使う
+### エフェメラルと昇格後で同じ runtime を使う
 
-[全体フロー](#全体フロー) のステップ 2 (エフェメラル実行) と昇格後のツール実行は**同一の executor サービス**を経由する。実行環境が変わると挙動が変わり eval の再現性が崩れるため。`create_transform` の `language` フィールドで python / sh を抽象化し、executor 側がディスパッチする。
+[全体フロー](#全体フロー) のステップ 2 (エフェメラル実行) と昇格後のツール実行は、**同じ language なら同じ runtime** を使う。実行環境が変わると挙動が変わり eval の再現性が崩れるため。
+
+- `language=starlark`: worker 内 Starlark runtime
+- `language=python`: executor service
 
 ### 結果の受け渡し (worker ⇄ executor)
 
@@ -133,7 +142,7 @@ repo には既に前例がある: [`gcsSignedDocumentUploadURLIssuer`](../../pac
 
 ```
 ExecuteRequest {
-  language        // "python" | "sh" | "starlark"
+  language        // "python" | "starlark"
   code            // ツール本文 (エフェメラル: 生成直後 / 昇格後: dynamic_tools.code)
   input_url       // 署名付き GCS GET URL (read-only・時限・worker が署名)
   output_url      // 署名付き GCS PUT URL (write-only・時限・worker が署名)
@@ -198,7 +207,7 @@ executor は本命だがインフラ追加を伴う。段階を踏む:
 
 1. **Starlark 組込で先行検証** — executor 構築前に、worker 内 Starlark で `create_transform` メタツール 〜 tier 1 自動昇格まで通す。インフラ判断を待たず価値検証 (Starlark は決定論的・無権限なので worker 内でも安全)
 2. **executor サービス新設** — Terraform で executor を追加。最小権限 SA・ネットワーク遮断を構築
-3. **executor へ切替** — `language` 抽象を介して実行先を Starlark から executor に差し替え。python/sh を解禁
+3. **executor へ切替** — `language` 抽象を介して実行先を Starlark から Python executor に拡張
 
 → Starlark は「executor が来るまでの安全な踏み台」。最終形は executor に一本化する (実行器の二重維持はしない)。
 
@@ -217,7 +226,7 @@ repo には既に risk tier の仕組みがある:
 ### tier ごとの昇格挙動
 
 | tier | 意味の例 | 昇格挙動 | 通知 |
-| :--- | :--- | :--- | :--- |
+| :--- | :--- | :--- |
 | **tier 1** | 純粋関数的な無害変換 (文字列整形・エンコード変換・数値計算) | **自動昇格**しレジストリ登録。人間判断なし | なし or 集計のみ |
 | **tier 2** | I/O を伴うが副作用が限定的 (パース・抽出・構造変換) | **自動昇格**するが**通知**する。事後監査前提 | 要 (方法は別途議論) |
 | **tier 3** | 外部影響・破壊的・判断が割れるもの | **人間レビュー必須**。保留状態で待機し承認まで非アクティブ | 要 (方法は別途議論) |
@@ -237,7 +246,7 @@ dynamic_tools
   origin_workspace_id  (生まれた workspace。scope=workspace の解決キー)
   origin_job_id        (どのジョブで生まれたか)
   description
-  language             (python | sh | starlark)
+  language             (python | starlark)
   code                 (本文)
   io_schema            (入出力 JSON Schema)
   declared_tier        (LLM 自己申告)
@@ -305,19 +314,30 @@ dynamic_tools
 
 ### (a) 静的解析のシグナル (言語別)
 
-executor が python / sh を扱う ([実行環境](#実行環境-決定-別-cloud-run-サービスによる隔離実行器))。完全な健全性は不要 — **「これがあれば最低 tier_X」という保守的な検出**でよい (誤って高く出る分には安全側)。
+完全な健全性は不要 — **「これがあれば最低 tier_X」という保守的な検出**でよい (誤って高く出る分には安全側)。
 
-| シグナル | python 検出例 | shell 検出例 | floor |
-| :--- | :--- | :--- | :--- |
-| ネットワーク | `import socket/urllib/http/requests`, `socket(` | `curl`, `wget`, `nc`, `/dev/tcp` | tier_3 |
-| サブプロセス | `subprocess`, `os.system`, `os.popen`, `__import__` | バッククォート, `$(`, `eval`, `exec` | tier_3 |
-| 動的コード実行 | `eval(`, `exec(`, `compile(`, `pickle` | `eval`, `source` | tier_3 |
-| FS 書込 | `open(...,'w'/'a')`, `os.remove`, `shutil` | `>`, `>>`, `rm`, `mv`, `dd` | tier_3 |
-| FS 読取 | `open(...,'r')`, `os.listdir` | `cat`, `ls`, `find` | tier_2 |
-| パース/構造変換のみ | `json`, `csv`, `re`, 文字列操作のみ | `sed`, `awk`, `tr`, `cut` | tier_2 |
-| 純粋計算のみ | 上記いずれも無し | 上記いずれも無し | tier_1 |
+Python executor の floor:
 
-実装は AST ベースを基本とする (python は標準 `ast`、文字列マッチは難読化に弱い)。**executor サービス内で実行前に解析**し、解析器自体も信頼境界の内側に置く (worker は解析結果の tier を信頼するだけ)。難読化耐性を完全には保証しないため、後述の実行時サンドボックス (egress 遮断・権限なし) が最終防御線。AST 解析が失敗/未対応構文のときは **tier_3 にフォールバック** (フェイルセキュア)。
+| シグナル | python 検出例 | floor |
+| :--- | :--- | :--- |
+| ネットワーク | `import socket/urllib/http/requests`, `socket(` | tier_3 |
+| サブプロセス | `subprocess`, `os.system`, `os.popen`, `__import__` | tier_3 |
+| 動的コード実行 | `eval(`, `exec(`, `compile(`, `pickle` | tier_3 |
+| FS 書込 | `open(...,'w'/'a')`, `os.remove`, `shutil` | tier_3 |
+| FS 読取 | `open(...,'r')`, `os.listdir` | tier_2 |
+| パース/構造変換のみ | `json`, `csv`, `re`, 文字列操作のみ | tier_2 |
+| 純粋計算のみ | 上記いずれも無し | tier_1 |
+
+Starlark runtime の floor:
+
+| シグナル | starlark 検出例 | floor |
+| :--- | :--- | :--- |
+| 外部 module 読込 | `load(...)` | analyzer_rejected |
+| 危険 builtin / 擬似 IO | `open`, `eval`, `exec`, `os.*`, `socket.*` | tier_3 |
+| JSON 構造変換 | `json.decode`, `json.encode` | tier_2 |
+| 純粋計算・文字列変換のみ | 上記いずれも無し | tier_1 |
+
+実装は AST ベースを基本とする。Python は標準 `ast` を executor サービス内で実行前に使う。Starlark は worker 内 runtime が parse と AST walk を行う。難読化耐性を完全には保証しないため、後述の実行時サンドボックス (egress 遮断・権限なし) が最終防御線。AST 解析が失敗/未対応構文のときは **tier_3 にフォールバック** (フェイルセキュア)。
 
 ### tier の妥当性は実行時隔離で担保される
 
@@ -329,8 +349,8 @@ executor が python / sh を扱う ([実行環境](#実行環境-決定-別-clou
 
 ### 未決定 (tier 判定の残論点)
 
-- python/sh 以外の言語を後で足すときの解析器の拡張方式 (言語ごとプラグイン化?)
-- 同一コードでも入力次第で危険度が変わるケース (例: shell の変数展開)。静的解析の限界をどこまで許容するか
+- Python / Starlark 以外の言語を後で足すかどうか
+- 同一コードでも入力次第で危険度が変わるケース。静的解析の限界をどこまで許容するか
 - floor を覆して「これは安全」と人間が tier を下げる例外フロー (tier_3 → tier_1 の手動降格) を認めるか
 
 ## 通知方法 (tier 2 / 3) — 未決定
@@ -346,7 +366,7 @@ repo は既に [`JobCapability`](../../packages/shared/domain/types.go) で「�
 ### 決定: 既定は workspace スコープ、昇格で global へ
 
 | スコープ | 意味 | 誰が使えるか |
-| :--- | :--- | :--- |
+| :--- | :--- |
 | **workspace** (既定) | 生まれた workspace 内でのみ active | その workspace のジョブのみ |
 | **global** | 全 workspace で再利用可 | 全ジョブ |
 
@@ -385,7 +405,7 @@ executor 実行も計算資源を食う。無制限だと LLM が変換を乱造
 `JobCapability` は既に `MaxLLMCalls` / `MaxToolRuns` / `MaxItemCreations` を持つ。同型で 2 つ足す:
 
 | フィールド | 意味 | 既定の考え方 |
-| :--- | :--- | :--- |
+| :--- | :--- |
 | `MaxTransformCreations` | 1 ジョブで `create_transform` を呼べる回数 | 小さく (例 5)。生成は例外的操作という位置づけ |
 | `MaxTransformRuns` | 1 ジョブで生成ツール (エフェメラル+昇格済み) を実行できる総回数 | `MaxToolRuns` とは別枠。executor 呼び出し総量の蓋 |
 
@@ -405,7 +425,7 @@ executor 実行も計算資源を食う。無制限だと LLM が変換を乱造
 無限リトライさせないことが目的。`ExecuteResponse.status` ([受け渡し](#リクエスト--レスポンス)) ごとに **LLM への返し方を固定**する:
 
 | status | LLM への返し | 意図 |
-| :--- | :--- | :--- |
+| :--- | :--- |
 | `syntax_error` | パーサのエラー (行番号・メッセージ) を添えて「構文エラー。**この指摘を直して 1 回だけ**再生成せよ」と即座に LLM を再走させる | 構文崩れは確実に直せるので自動修正ループを 1 回回す。実行ステージには進めない |
 | `timeout` / `oom` | 「変換が重すぎる。入力を小さく分割するか別手段を使え」 | 同じコードの単純再試行を促さない |
 | `nonzero_exit` / `output_missing` | `stderr` 要約を添えて「コードに不具合。**1 回だけ**修正再生成可、それ以上は既存ツールで進め」 | 修正は許すが回数を絞る |
@@ -477,7 +497,7 @@ create_transform(code) 実行
 「何が入っているか」を曖昧にしない。曖昧だと静的解析の前提が崩れ、tier 判定が無意味になる。
 
 - **python**: バージョンを固定 (イメージにピン留め)。標準ライブラリ + **明示許可した最小限のみ** (例: なし、もしくは `regex` 程度)。`numpy` 等の重い数値計算ライブラリは初期スコープでは**入れない** (必要が実証されてから許可リストに足す)
-- **sh**: busybox 限定。フル GNU 環境を入れない (利用可能コマンドを絞る = 静的解析の対象が縮む)
+- **starlark**: worker binary に組み込まれた `go.starlark.net` の runtime version を固定し、`load` は禁止する
 - ネットワーク系ライブラリは「静的解析で弾く」だけでなく**そもそもイメージに入れない** (誘惑と攻撃面を物理的に減らす)
 - ランタイム定義 = executor の Dockerfile。**変更はリリース成果物**として扱う ([llm-eval-runner.md](llm-eval-runner.md) の Cloud Run / イミュータブル方針と同じ)。ランタイムが変わると生成ツールの再現性が変わるので、`dynamic_tools` に `runtime_version` を持たせ、昇格時のランタイムを記録する
 
@@ -503,10 +523,10 @@ create_transform(code) 実行
 
 段階的な最小実装案:
 
-1. **Starlark 踏み台**: `create_transform` メタツール + Starlark によるエフェメラル実行のみ (昇格なし・使い捨て)。インフラ追加なしで価値検証
+1. **Starlark runtime**: `create_transform` メタツール + Starlark によるエフェメラル実行のみ (昇格なし・使い捨て)。インフラ追加なしで価値検証
 2. candidate ストアへの記録 (昇格はまだしない・観測だけ)
 3. tier 1 の自動昇格 + レジストリ連携
-4. **executor サービス新設** (Terraform) + `language` 抽象で実行先を Starlark → executor へ切替・python/sh 解禁
+4. **Python executor サービス新設** (Terraform) + `language` 抽象で Starlark / Python を dispatch
 5. tier 2/3 と通知・レビュー導線
 
 ## 関連

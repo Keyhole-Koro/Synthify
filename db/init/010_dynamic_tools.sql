@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS dynamic_tools (
   origin_job_id       TEXT NOT NULL,
 
   description         TEXT NOT NULL DEFAULT '',
-  language            TEXT NOT NULL,                 -- 'python' | 'sh' | 'starlark'
+  language            TEXT NOT NULL,                 -- 'python' | 'starlark'
   code                TEXT NOT NULL,
   io_schema           TEXT NOT NULL DEFAULT '{}',    -- JSON Schema (input + output)
 

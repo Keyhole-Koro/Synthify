@@ -14,6 +14,7 @@ require (
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/text v0.36.0
+	go.starlark.net v0.0.0-20260326113308-fadfc96def35
 	google.golang.org/adk v1.2.0
 	google.golang.org/api v0.272.0
 	google.golang.org/genai v1.54.0

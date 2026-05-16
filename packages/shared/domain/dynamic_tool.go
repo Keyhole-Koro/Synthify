@@ -42,7 +42,7 @@ type DynamicTool struct {
 	OriginJobID       string    `json:"origin_job_id"`
 
 	Description string `json:"description"`
-	Language    string `json:"language"` // python | sh | starlark
+	Language    string `json:"language"` // python | starlark
 	Code        string `json:"code"`
 	IOSchema    string `json:"io_schema"` // JSON Schema for input + output
 
