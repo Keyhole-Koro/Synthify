@@ -5,7 +5,9 @@
 
 -- ロール作成 (パスワードは環境変数で配るので空でも CREATE は通す)
 -- 本番では SQL 適用後に `ALTER ROLE log_viewer WITH PASSWORD '...'` で更新する想定
-CREATE ROLE log_viewer LOGIN;
+-- ロールはスキーマ外のクラスタレベルオブジェクトのため、DROP SCHEMA では
+-- 消えない。reset-db 等での再実行に耐えるよう IF NOT EXISTS で冪等化する。
+CREATE ROLE IF NOT EXISTS log_viewer LOGIN;
 
 -- log-viewer が参照するテーブル
 GRANT SELECT ON document_processing_jobs TO log_viewer;

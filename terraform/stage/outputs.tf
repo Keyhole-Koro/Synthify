@@ -13,3 +13,11 @@ output "uploads_bucket_name" {
 output "pipeline_queue_name" {
   value = module.platform.pipeline_queue_name
 }
+
+output "project_id" {
+  value = var.project_id
+}
+
+output "environment" {
+  value = var.environment
+}
