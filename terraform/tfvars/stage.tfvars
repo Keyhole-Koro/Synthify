@@ -1,4 +1,4 @@
-project_id   = "your-stage-project"
+project_id   = "synthify-stage-491705"
 region       = "asia-northeast1"
 environment  = "stage"
-web_base_url = "https://stage.example.com"
+web_base_url = "https://stage.synthify.keyhole.work"

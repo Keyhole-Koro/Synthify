@@ -23,7 +23,7 @@ variable "worker_image" {
   default     = ""
 }
 
-# Public web origin (no trailing slash), e.g. https://stage.example.com.
+# Public web origin (no trailing slash), e.g. https://stage.synthify.keyhole.work.
 # CORS + billing redirect URLs are derived from this in locals.tf.
 variable "web_base_url" {
   description = "Public web app origin. Drives cors_allowed_origins and billing_* URLs unless those are set explicitly."
