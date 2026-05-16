@@ -10,6 +10,7 @@ import (
 	"time"
 
 	gcs "cloud.google.com/go/storage"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/config"
 	jobstatus "github.com/synthify/backend/packages/shared/job/status"
@@ -25,11 +26,11 @@ type AppContext struct {
 	Notifier jobstatus.Notifier
 }
 
-func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string, logger applog.Logger) *AppContext {
+func Bootstrap(ctx context.Context, gcsURLBase, firebaseProjectID string, logger applog.Logger, nrApp *newrelic.Application) *AppContext {
 	if logger == nil {
 		logger = applog.NoopLogger{}
 	}
-	store := InitStore(ctx, NewDocumentUploadURLIssuer(gcsURLBase), logger)
+	store := InitStore(ctx, NewDocumentUploadURLIssuer(gcsURLBase), logger, nrApp)
 	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID, logger)
 	return &AppContext{
 		Store:    store,
@@ -172,14 +173,14 @@ func NewDocumentSourceURLBuilder(base string) repository.DocumentSourceURLBuilde
 	}
 }
 
-func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURLIssuer, logger applog.Logger) Store {
+func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURLIssuer, logger applog.Logger, nrApp *newrelic.Application) Store {
 	if logger == nil {
 		logger = applog.NoopLogger{}
 	}
 	if dsn := config.LoadStore().DatabaseURL; dsn != "" {
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
-			store, err := postgres.NewStore(ctx, dsn, uploadURLIssuer, logger)
+			store, err := postgres.NewStore(ctx, dsn, uploadURLIssuer, logger, nrApp)
 			if err == nil {
 				logger.Info(ctx, "app.store_initialized", map[string]any{"type": "postgres"})
 				return store

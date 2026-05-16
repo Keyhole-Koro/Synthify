@@ -1,7 +1,6 @@
 package util
 
 import (
-	"encoding/json"
 	"strings"
 )
 
@@ -20,14 +19,6 @@ func FirstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func MustJSON(v any) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "{}"
-	}
-	return string(b)
 }
 
 func HTMLEscape(text string) string {

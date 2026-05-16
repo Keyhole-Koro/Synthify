@@ -99,6 +99,8 @@ github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7Ulw
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
 github.com/jackc/pgx/v5 v5.7.6 h1:rWQc5FwZSPX58r1OQmkuaNicxdmExaEz5A2DO2hUuTk=
 github.com/jackc/pgx/v5 v5.7.6/go.mod h1:aruU7o91Tc2q2cFp5h4uP3f6ztExVpyVv88Xl/8Vl8M=
+github.com/jackc/pgx/v5 v5.9.2 h1:3ZhOzMWnR4yJ+RW1XImIPsD1aNSz4T4fyP7zlQb56hw=
+github.com/jackc/pgx/v5 v5.9.2/go.mod h1:mal1tBGAFfLHvZzaYh77YS/eC6IX9OWbRV1QIIM0Jn4=
 github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
@@ -117,6 +119,8 @@ github.com/newrelic/go-agent/v3 v3.43.3 h1:0A6DkUBYK2bidV6jJDJ1SD2XkRlg976nl+SiE
 github.com/newrelic/go-agent/v3 v3.43.3/go.mod h1:MFXnCId5xXMIJI6A/kbkg0DO48EVTsKcmNijMYphzTg=
 github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1 h1:me50iSIrHcbuSICQzsiTLF5QiG+XEIikH3OGaVBC3JM=
 github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1/go.mod h1:cu4B0h8qtDJROmZ2LCmgGvN7kyvsMeijsvJuji8iPQk=
+github.com/newrelic/go-agent/v3/integrations/nrpgx5 v1.3.4 h1:7sEMnE9h0al593pQtNBBI3RxTFyLOo6bFfRDzQ3nsew=
+github.com/newrelic/go-agent/v3/integrations/nrpgx5 v1.3.4/go.mod h1:DKI/Zim0CJVASzMCj3FnNPS850ERsDzi1nxYDJsXWbU=
 github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0 h1:lHviwcczur3vuPeSQ2MAnmjP30bCE+1vFq44dkfNh1g=
 github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0/go.mod h1:H+bMdwSGhwGUiaQ4DejN9c6FtkI3SCJ96RAv3ZHsFhM=
 github.com/oklog/ulid/v2 v2.1.1 h1:suPZ4ARWLOJLegGFiZZ1dFAkqzhMjL3J1TzI+5wHz8s=

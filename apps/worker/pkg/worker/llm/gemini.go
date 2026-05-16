@@ -21,9 +21,10 @@ import (
 )
 
 type GeminiClient struct {
-	client *genai.Client
-	model  string
-	fs     *storage.FileSystem
+	client     *genai.Client
+	model      string
+	fs         *storage.FileSystem
+	logPayload bool
 }
 
 func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem) (*GeminiClient, error) {
@@ -36,9 +37,10 @@ func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem
 	}
 
 	return &GeminiClient{
-		client: client,
-		model:  cfg.GeminiModel,
-		fs:     fs,
+		client:     client,
+		model:      cfg.GeminiModel,
+		fs:         fs,
+		logPayload: cfg.LogPayload,
 	}, nil
 }
 
@@ -98,16 +100,39 @@ func (c *GeminiClient) generate(ctx context.Context, systemPrompt, userPrompt st
 		return nil, fmt.Errorf("build contents: %w", err)
 	}
 	defer cleanup()
+
+	if c.logPayload {
+		payload, _ := json.Marshal(map[string]any{
+			"model":         c.model,
+			"system_prompt": systemPrompt,
+			"user_prompt":   userPrompt,
+		})
+		log.Printf("gemini: payload=%s", payload)
+	}
+
 	start := time.Now()
 	res, err := c.client.Models.GenerateContent(ctx, c.model, contents, config)
 	durationMs := time.Since(start).Milliseconds()
 	log.Printf("gemini: model=%s duration=%dms err=%v", c.model, durationMs, err)
 	if err == nil {
+		usage := geminiUsage(c.model, res)
+		detail := map[string]any{
+			"model":          c.model,
+			"duration_ms":    durationMs,
+			"input_tokens":   usage.InputTokens,
+			"output_tokens":  usage.OutputTokens,
+			"total_tokens":   usage.InputTokens + usage.OutputTokens,
+		}
+		if c.logPayload {
+			if len(res.Candidates) > 0 && len(res.Candidates[0].Content.Parts) > 0 {
+				detail["response"] = res.Candidates[0].Content.Parts[0].Text
+			}
+		}
 		joblog.FromContext(ctx).Log(ctx, joblog.Event{
 			Level:   joblog.INFO,
 			Event:   "llm.call.completed",
-			Message: fmt.Sprintf("gemini call completed: model=%s duration=%dms", c.model, durationMs),
-			Detail:  map[string]any{"model": c.model, "duration_ms": durationMs},
+			Message: fmt.Sprintf("gemini call completed: model=%s duration=%dms tokens=%d", c.model, durationMs, usage.InputTokens+usage.OutputTokens),
+			Detail:  detail,
 		})
 	}
 	return res, err

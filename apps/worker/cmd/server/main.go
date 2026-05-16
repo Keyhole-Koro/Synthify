@@ -29,7 +29,7 @@ func main() {
 	fs := storage.NewFileSystem(cfg.GCSFuseMountPath)
 	appLogger := applog.NewStdLogger()
 
-	appCtx := app.Bootstrap(ctx, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger)
+	appCtx := app.Bootstrap(ctx, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nil)
 	store := appCtx.Store
 	notifier := appCtx.Notifier
 

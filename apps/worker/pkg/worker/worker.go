@@ -21,7 +21,6 @@ import (
 	"github.com/synthify/backend/packages/shared/job/status"
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/storage"
-	"github.com/synthify/backend/packages/shared/util"
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/runner"
 	"google.golang.org/adk/session"
@@ -219,12 +218,16 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 		"tree_id":      req.TreeID,
 		"signals":      signals,
 	}
+	planJSONBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal execution plan: %w", err)
+	}
 	plan := &domain.JobExecutionPlan{
 		PlanID:    "plan_" + req.JobID,
 		JobID:     req.JobID,
 		Status:    "approved",
 		Summary:   "Extract text, chunk semantically, synthesize knowledge tree items, persist mutations, and evaluate the job.",
-		PlanJSON:  util.MustJSON(payload),
+		PlanJSON:  string(planJSONBytes),
 		CreatedBy: "llm_worker",
 	}
 	if err := p.repo.UpsertJobExecutionPlan(ctx, req.JobID, plan); err != nil {

@@ -62,6 +62,7 @@ type Store struct {
 type LLM struct {
 	GeminiAPIKey string
 	GeminiModel  string
+	LogPayload   bool
 }
 
 type Service struct {
@@ -122,6 +123,7 @@ func LoadLLM() LLM {
 	return LLM{
 		GeminiAPIKey: util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
+		LogPayload:   os.Getenv("LOG_LLM_PAYLOAD") == "true",
 	}
 }
 

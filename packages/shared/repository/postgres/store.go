@@ -5,7 +5,10 @@ import (
 	"database/sql"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/newrelic/go-agent/v3/integrations/nrpgx5"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/oklog/ulid/v2"
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/repository"
@@ -19,8 +22,13 @@ type Store struct {
 	logger          applog.Logger
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger applog.Logger) (*Store, error) {
-	db, err := sql.Open("pgx", dsn)
+func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger applog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
+	var app *newrelic.Application
+	if len(nrApp) > 0 {
+		app = nrApp[0]
+	}
+
+	db, err := openDB(dsn, app)
 	if err != nil {
 		return nil, err
 	}
@@ -37,6 +45,17 @@ func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.Docume
 		uploadURLIssuer: uploadURLIssuer,
 		logger:          logger,
 	}, nil
+}
+
+func openDB(dsn string, nrApp *newrelic.Application) (*sql.DB, error) {
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		return nil, err
+	}
+	if nrApp != nil {
+		cfg.Tracer = nrpgx5.NewTracer()
+	}
+	return stdlib.OpenDB(*cfg), nil
 }
 
 func (s *Store) Close() error {
