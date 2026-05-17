@@ -36,13 +36,8 @@ export function useAuthState() {
       await signInWithGoogleSession();
     } catch (err) {
       console.error(err);
-      alert('ログインに失敗しました。');
       setLoading(false);
     }
-  }
-
-  function handleEmailSubmit() {
-    alert('メールアドレス認証は現在準備中です。Googleログインをご利用ください。');
   }
 
   return {
@@ -52,6 +47,5 @@ export function useAuthState() {
     workspaceError,
     setWorkspaces,
     handleGoogleSubmit,
-    handleEmailSubmit,
   };
 }

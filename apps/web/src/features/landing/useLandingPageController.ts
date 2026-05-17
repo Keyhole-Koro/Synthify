@@ -9,7 +9,6 @@ import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
 import { usePersistentPaperOpenState } from '@/features/paperMap/hooks/usePersistentPaperOpenState';
-import type { AuthMode } from '@/features/auth/AuthPaper';
 import { useViewportSize } from '@/features/landing/useViewportSize';
 
 export function useLandingPageController() {
@@ -20,9 +19,7 @@ export function useLandingPageController() {
     workspaceError,
     setWorkspaces,
     handleGoogleSubmit,
-    handleEmailSubmit,
   } = useAuthState();
-  const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [canvasFullscreen, setCanvasFullscreen] = useState(false);
   const [workspacePaperGroups, setWorkspacePaperGroups] = useState<Map<string, Paper[]>>(new Map());
   const { hasMounted, winSize } = useViewportSize();
@@ -85,10 +82,7 @@ export function useLandingPageController() {
     loading,
     workspaces,
     workspaceError,
-    authMode,
     workspacePaperGroups,
-    setAuthMode,
-    handleEmailSubmit,
     handleGoogleSubmit,
     handleLogout,
     handleCreateWorkspace,

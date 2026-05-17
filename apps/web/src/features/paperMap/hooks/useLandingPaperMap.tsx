@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import type { AuthMode } from '@/features/auth/AuthPaper';
 import { AuthPaper } from '@/features/auth/AuthPaper';
 import { WorkspaceListContent } from '@/features/paperMap/WorkspaceListContent';
 import { BillingSummary } from '@/features/billing/BillingSummary';
@@ -18,10 +17,7 @@ interface UseLandingPaperMapProps {
   loading: boolean;
   workspaces: Workspace[];
   workspaceError: Error | null;
-  authMode: AuthMode;
   workspacePaperGroups: Map<string, Paper[]>;
-  setAuthMode: (mode: AuthMode) => void;
-  handleEmailSubmit: () => void;
   handleGoogleSubmit: () => void;
   handleLogout: () => void;
   handleCreateWorkspace: (name: string) => Promise<void>;
@@ -34,10 +30,7 @@ export function useLandingPaperMap({
   loading,
   workspaces,
   workspaceError,
-  authMode,
   workspacePaperGroups,
-  setAuthMode,
-  handleEmailSubmit,
   handleGoogleSubmit,
   handleLogout,
   handleCreateWorkspace,
@@ -96,10 +89,7 @@ export function useLandingPaperMap({
       content: (
         <AuthPaper
           user={user}
-          mode={authMode}
           loading={loading}
-          onModeChange={setAuthMode}
-          onEmailSubmit={handleEmailSubmit}
           onGoogleSubmit={handleGoogleSubmit}
           onLogout={handleLogout}
         />
@@ -222,10 +212,10 @@ export function useLandingPaperMap({
 
     return map;
   }, [
-    user, workspaces, workspaceError, authMode, loading,
-    handleEmailSubmit, handleGoogleSubmit, handleLogout, handleCreateWorkspace,
+    user, workspaces, workspaceError, loading,
+    handleGoogleSubmit, handleLogout, handleCreateWorkspace,
     handleOpenWorkspace, buildWsPaper,
-    workspacePaperGroups, setAuthMode,
+    workspacePaperGroups,
   ]);
 
   return { paperMap };
