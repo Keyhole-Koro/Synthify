@@ -90,7 +90,12 @@ jobs:
         run: |
           terraform apply -auto-approve \
             -var-file=../tfvars/${ENVIRONMENT}.tfvars \
-            -target=module.platform
+            -target=module.platform \
+            -target=google_service_account_iam_member.deployer_acts_as_worker \
+            -target=google_service_account_iam_member.deployer_acts_as_eval \
+            -target=google_service_account_iam_member.deployer_acts_as_eval_scheduler \
+            -target=google_service_account_iam_member.deployer_acts_as_api \
+            -target=google_service_account_iam_member.api_self_sign_blob
 
       - name: Ensure secrets have at least one version
         run: |
