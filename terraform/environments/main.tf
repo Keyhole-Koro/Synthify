@@ -90,41 +90,13 @@ resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {
   member   = "serviceAccount:${module.bootstrap.api_service_account_email}"
 }
 
-# The Pass-1 IAM grants (api_self_sign_blob, deployer actAs, deployer project
-# roles) moved into module.bootstrap so the CD pipeline targets one module
-# instead of enumerating every resource. moved{} blocks migrate existing
-# state in place — no destroy/recreate, no IAM blip on existing envs.
+# NOTE: the Pass-1 IAM grants (api_self_sign_blob, deployer actAs, deployer
+# project roles) and the platform module now live in module.bootstrap.
 #
-# Old resources were count-indexed ([0]); bootstrap keys them by SA name
-# (worker/eval/eval_scheduler/api) and by role, so each old address maps to a
-# specific new key. The platform module is now nested under bootstrap, so its
-# entire subtree migrates in state too (SAs/buckets/secrets/registry survive).
-moved {
-  from = module.platform
-  to   = module.bootstrap.module.platform
-}
-
-moved {
-  from = google_service_account_iam_member.api_self_sign_blob[0]
-  to   = module.bootstrap.google_service_account_iam_member.api_self_sign_blob[0]
-}
-
-moved {
-  from = google_service_account_iam_member.deployer_acts_as_worker[0]
-  to   = module.bootstrap.google_service_account_iam_member.deployer_acts_as["worker"]
-}
-
-moved {
-  from = google_service_account_iam_member.deployer_acts_as_eval[0]
-  to   = module.bootstrap.google_service_account_iam_member.deployer_acts_as["eval"]
-}
-
-moved {
-  from = google_service_account_iam_member.deployer_acts_as_eval_scheduler[0]
-  to   = module.bootstrap.google_service_account_iam_member.deployer_acts_as["eval_scheduler"]
-}
-
-moved {
-  from = google_service_account_iam_member.deployer_acts_as_api[0]
-  to   = module.bootstrap.google_service_account_iam_member.deployer_acts_as["api"]
-}
+# State for existing environments was migrated once via `terraform state mv`,
+# NOT moved{} blocks. moved{} is incompatible with the Pass-1
+# -target=module.bootstrap: the moved *from* addresses sit at root scope, fall
+# outside the target, and Terraform hard-fails with "Moved resource instances
+# excluded by targeting". A fresh environment just creates everything under
+# bootstrap directly. To migrate prod, run the same state mv steps against the
+# prod state once (see the bootstrap module / PR notes for the exact commands).
