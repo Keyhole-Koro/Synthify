@@ -33,3 +33,17 @@ func TestAllPassed(t *testing.T) {
 		t.Fatal("any false result should fail")
 	}
 }
+
+func TestResolveGCSOutputURI(t *testing.T) {
+	t.Setenv("EVAL_OUTPUT_GCS_URI", "gs://env-bucket/eval")
+	if got := resolveGCSOutputURI(" gs://flag-bucket/eval "); got != "gs://flag-bucket/eval" {
+		t.Fatalf("flag should win, got %q", got)
+	}
+	if got := resolveGCSOutputURI(""); got != "gs://env-bucket/eval" {
+		t.Fatalf("env fallback mismatch: %q", got)
+	}
+	t.Setenv("EVAL_OUTPUT_GCS_URI", "")
+	if got := resolveGCSOutputURI(""); got != "" {
+		t.Fatalf("empty gcs output should stay empty, got %q", got)
+	}
+}

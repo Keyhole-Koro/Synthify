@@ -39,6 +39,7 @@ module "eval" {
   scheduler_service_account_email = module.platform.eval_scheduler_service_account_email
   secret_ids                      = module.platform.secret_ids
   gemini_model                    = var.gemini_model
+  output_gcs_uri                  = "gs://${module.platform.uploads_bucket_name}/eval/${var.environment}/runs"
   schedule                        = var.eval_schedule
   time_zone                       = var.eval_time_zone
 }

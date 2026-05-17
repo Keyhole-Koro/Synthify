@@ -123,3 +123,9 @@ resource "google_secret_manager_secret_iam_member" "eval_accessor" {
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${module.eval_service_account.email}"
 }
+
+resource "google_storage_bucket_iam_member" "eval_artifact_writer" {
+  bucket = module.uploads_bucket.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${module.eval_service_account.email}"
+}

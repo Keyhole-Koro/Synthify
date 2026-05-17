@@ -12,7 +12,7 @@ Eval Runner は本番 worker のプロンプト・モデル変更による出力
 | Report Writer | `apps/eval/report` | `table` / `json` report を生成する。JSON は HTML を `\u003c` 等に escape しない |
 | Worker process tool | `apps/worker/pkg/worker/tools/process` | 本番と同じ `Synthesize` API を提供する。eval は ADK を通さずこの API を直接呼ぶ |
 | Eval image | `apps/eval/Dockerfile` | CLI binary、`apps/eval/cases`、`apps/eval/testdata` を含む Cloud Run Job 用 image を作る |
-| Cloud Run Job | `terraform/services/eval` | eval image を 1 task / retry なしで実行する。結果は Cloud Logging に stdout として残す |
+| Cloud Run Job | `terraform/services/eval` | eval image を 1 task / retry なしで実行する。結果は Cloud Logging に stdout として残す。GCS artifact 保存は別契約を参照 |
 | Cloud Scheduler | `terraform/services/eval` | cron で Cloud Run Job の `:run` endpoint を呼ぶ |
 | GitHub Actions CD | `.github/workflows/deploy-backend.yml` | eval image を build/push し、Terraform に `eval_image` を渡す |
 
@@ -138,7 +138,8 @@ Terraform environment variables:
 - prompt variant 比較
 - LLM-as-Judge
 - golden diff / golden update
-- GCS への report 永続保存
 - Slack / GitHub issue などへの通知
 
 これらを追加する場合も、CLI report schema と Cloud Run Job の exit code 契約を壊さないこと。
+
+GCS への report 永続保存は [llm-eval-gcs-artifact-contract.md](llm-eval-gcs-artifact-contract.md) を参照する。

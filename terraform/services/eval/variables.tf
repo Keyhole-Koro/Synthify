@@ -31,6 +31,11 @@ variable "gemini_model" {
   type = string
 }
 
+variable "output_gcs_uri" {
+  description = "gs:// prefix where eval JSON reports are saved."
+  type        = string
+}
+
 variable "schedule" {
   description = "Cloud Scheduler cron expression for eval job."
   type        = string

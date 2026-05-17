@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/synthify/backend/apps/eval/artifact"
 	"github.com/synthify/backend/apps/eval/report"
 	"github.com/synthify/backend/apps/eval/runner"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
@@ -22,6 +23,7 @@ func main() {
 	casesPath := flag.String("cases", "", "YAML eval case directory")
 	format := flag.String("format", "table", "output format: table or json")
 	outPath := flag.String("out", "", "optional path to write the report")
+	outGCS := flag.String("out-gcs", "", "optional gs:// prefix to write the report artifact")
 	timeout := flag.Duration("timeout", 60*time.Second, "eval timeout")
 	flag.Parse()
 
@@ -81,9 +83,24 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	if gcsURI := resolveGCSOutputURI(*outGCS); gcsURI != "" {
+		res, err := artifact.UploadGCS(ctx, artifact.GCSConfig{PrefixURI: gcsURI}, buf.Bytes())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "write --out-gcs: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "eval artifact uploaded: %s\n", res.URI)
+	}
 	if !allPassed(results) {
 		os.Exit(1)
 	}
+}
+
+func resolveGCSOutputURI(flagValue string) string {
+	if strings.TrimSpace(flagValue) != "" {
+		return strings.TrimSpace(flagValue)
+	}
+	return strings.TrimSpace(os.Getenv("EVAL_OUTPUT_GCS_URI"))
 }
 
 func allPassed(results []runner.Result) bool {
