@@ -39,18 +39,26 @@ type CaseExpect struct {
 }
 
 type Result struct {
-	CaseName     string   `json:"case_name"`
-	Tool         string   `json:"tool"`
-	Passed       bool     `json:"passed"`
-	SchemaValid  bool     `json:"schema_valid"`
-	ItemCount    int      `json:"item_count"`
-	MaxDepth     int      `json:"max_depth"`
-	MissingTitle []string `json:"missing_titles"`
-	DurationMS   int64    `json:"duration_ms"`
-	Model        string   `json:"model"`
-	InputTokens  int64    `json:"input_tokens"`
-	OutputTokens int64    `json:"output_tokens"`
-	Error        string   `json:"error,omitempty"`
+	CaseName     string         `json:"case_name"`
+	Tool         string         `json:"tool"`
+	Passed       bool           `json:"passed"`
+	SchemaValid  bool           `json:"schema_valid"`
+	ItemCount    int            `json:"item_count"`
+	MaxDepth     int            `json:"max_depth"`
+	MissingTitle []string       `json:"missing_titles"`
+	DurationMS   int64          `json:"duration_ms"`
+	Model        string         `json:"model"`
+	InputTokens  int64          `json:"input_tokens"`
+	OutputTokens int64          `json:"output_tokens"`
+	Error        string         `json:"error,omitempty"`
+	FailedInput  *InputSnapshot `json:"failed_input,omitempty"`
+}
+
+type InputSnapshot struct {
+	DocumentID  string         `json:"document_id"`
+	Instruction string         `json:"instruction,omitempty"`
+	ChunksPath  string         `json:"chunks_path"`
+	Chunks      []domain.Chunk `json:"chunks"`
 }
 
 type Runner struct {
@@ -79,9 +87,16 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 		return Result{}, fmt.Errorf("input.chunks is required")
 	}
 
-	chunks, err := LoadChunks(resolvePath(baseDir, c.Input.Chunks))
+	chunksPath := resolvePath(baseDir, c.Input.Chunks)
+	chunks, err := LoadChunks(chunksPath)
 	if err != nil {
 		return Result{}, err
+	}
+	input := InputSnapshot{
+		DocumentID:  c.Input.DocumentID,
+		Instruction: c.Input.Instruction,
+		ChunksPath:  chunksPath,
+		Chunks:      chunks,
 	}
 
 	res := Result{CaseName: c.Name, Tool: c.Tool}
@@ -97,6 +112,7 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 	res.OutputTokens = usage.OutputTokens
 	if err != nil {
 		res.Error = err.Error()
+		res.FailedInput = &input
 		return res, nil
 	}
 
@@ -105,6 +121,9 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 	res.MaxDepth = maxDepth(items)
 	res.MissingTitle = missingTitles(items, c.Expect.MustContainTitles)
 	res.Passed = passes(c.Expect, res)
+	if !res.Passed {
+		res.FailedInput = &input
+	}
 	return res, nil
 }
 

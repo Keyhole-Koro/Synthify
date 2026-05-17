@@ -12,14 +12,19 @@ import (
 )
 
 type fakeLLM struct {
-	items []domain.SynthesizedItem
-	usage llm.Usage
-	err   error
+	items    []domain.SynthesizedItem
+	rawItems bool
+	usage    llm.Usage
+	err      error
 }
 
 func (f fakeLLM) GenerateStructured(context.Context, llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {
 	if f.err != nil {
 		return nil, f.usage, f.err
+	}
+	if f.rawItems {
+		raw, err := json.Marshal(f.items)
+		return raw, f.usage, err
 	}
 	raw, err := json.Marshal(map[string]any{"items": f.items})
 	return raw, f.usage, err
@@ -96,6 +101,39 @@ func TestRunCase_RuleFailures(t *testing.T) {
 	}
 	if res.ItemCount != 1 || res.MaxDepth != 2 || len(res.MissingTitle) != 1 {
 		t.Fatalf("unexpected scoring result: %#v", res)
+	}
+	if res.FailedInput == nil || len(res.FailedInput.Chunks) != 1 || res.FailedInput.Chunks[0].Heading != "API" {
+		t.Fatalf("expected failed input snapshot, got %#v", res.FailedInput)
+	}
+}
+
+func TestRunCase_AcceptsTopLevelItemArray(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "認証", Text: "Tokens."}})
+	c := Case{
+		Name: "array",
+		Tool: ToolSynthesis,
+		Input: CaseInput{
+			DocumentID: "doc_1",
+			Chunks:     "chunks.json",
+		},
+		Expect: CaseExpect{SchemaValid: true, MinItems: 1},
+	}
+
+	res, err := Runner{LLM: fakeLLM{
+		rawItems: true,
+		items: []domain.SynthesizedItem{{
+			LocalID: "item_1",
+			Title:   "認証",
+			Level:   1,
+		}},
+	}}.RunCase(context.Background(), c, dir)
+
+	if err != nil {
+		t.Fatalf("RunCase returned error: %v", err)
+	}
+	if !res.Passed || !res.SchemaValid {
+		t.Fatalf("expected top-level array to pass, got %#v", res)
 	}
 }
 

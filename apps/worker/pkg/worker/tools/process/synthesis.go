@@ -94,7 +94,11 @@ Rules for Structure:
 
 	var out llmOutput
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, usage, err
+		var items []domain.SynthesizedItem
+		if arrayErr := json.Unmarshal(raw, &items); arrayErr != nil {
+			return nil, usage, err
+		}
+		out.Items = items
 	}
 	if len(out.Items) == 0 {
 		return nil, usage, fmt.Errorf("llm returned no items")
