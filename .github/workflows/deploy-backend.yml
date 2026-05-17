@@ -97,13 +97,16 @@ jobs:
           for s in database-dsn gemini-api-key stripe-secret-key \
                    stripe-webhook-secret new-relic-license-key internal-worker-token; do
             name="synthify-${s}"
-            if ! gcloud secrets versions list "$name" \
-                  --project "${{ vars.GCP_PROJECT_ID }}" --limit=1 2>/dev/null \
-                  | grep -q ENABLED; then
+            # Check if at least one version exists (ENABLED or DISABLED).
+            # We use --format="value(name)" which returns the version number if it exists.
+            existing=$(gcloud secrets versions list "$name" --project "${{ vars.GCP_PROJECT_ID }}" --format="value(name)" --limit=1 2>/dev/null || echo "")
+            if [ -z "$existing" ]; then
               echo "::warning::secret $name has no version; adding placeholder"
               printf 'placeholder-change-me' \
                 | gcloud secrets versions add "$name" \
                     --project "${{ vars.GCP_PROJECT_ID }}" --data-file=-
+            else
+              echo "secret $name already has versions; skipping"
             fi
           done
 

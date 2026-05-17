@@ -64,9 +64,14 @@ case $COMMAND in
 
         for s in "${SECRETS[@]}"; do
             SECRET_NAME="synthify-$s"
-            if ! gcloud secrets versions list "$SECRET_NAME" --project "$PROJECT_ID" --limit=1 2>/dev/null | grep -q "ENABLED"; then
+            # Check if at least one version exists (ENABLED or DISABLED).
+            # We use --format="value(name)" which returns the version number if it exists.
+            EXISTING_VERSION=$(gcloud secrets versions list "$SECRET_NAME" --project "$PROJECT_ID" --format="value(name)" --limit=1 2>/dev/null)
+            if [ -z "$EXISTING_VERSION" ]; then
                 warn "Secret $SECRET_NAME has no versions. Adding placeholder..."
                 printf "placeholder-change-me" | gcloud secrets versions add "$SECRET_NAME" --project "$PROJECT_ID" --data-file=-
+            else
+                log "Secret $SECRET_NAME already has versions (latest: $EXISTING_VERSION). Skipping placeholder."
             fi
         done
 
