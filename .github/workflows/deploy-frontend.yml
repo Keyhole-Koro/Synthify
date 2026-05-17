@@ -31,6 +31,9 @@ jobs:
     # (stage/prod). The GitHub Environment scopes secrets and vars so the
     # same names resolve to per-env values.
     environment: ${{ github.event.inputs.environment || github.ref_name }}
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,10 +58,23 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}
 
-      - name: Deploy to Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      # Keyless auth via Workload Identity Federation, same as deploy-backend.
+      # firebase-tools picks up the credentials through the
+      # GOOGLE_APPLICATION_CREDENTIALS file exported by the auth action.
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
         with:
+<<<<<<< HEAD
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SYNTHIFY_491705 }}
           channelId: live
           projectId: ${{ vars.GCP_PROJECT_ID }}
+=======
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
+
+      - name: Deploy to Firebase Hosting
+        run: >-
+          bunx firebase-tools@13 deploy --only hosting --non-interactive
+          --project ${{ vars.GCP_PROJECT_ID }}
+>>>>>>> fa3bb0c (fix: update Firebase deployment configuration and permissions in workflows)

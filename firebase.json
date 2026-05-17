@@ -19,7 +19,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "public": "frontend/out",
+    "public": "apps/web/out",
     "ignore": [
       "firebase.json",
       "**/.*",
