@@ -96,11 +96,12 @@ func main() {
 		fmt.Fprintln(w, `{"status":"ok"}`)
 	})
 
-	// Outermost first: recover → log → auth → CORS → routes. CORS sits
-	// closest to the mux so preflight requests are answered before auth.
+	// Outermost first: recover → log → CORS → auth → routes.
+	// CORS must be outside of Auth to handle preflight (OPTIONS) requests
+	// without authentication.
 	var h http.Handler = mux
-	h = middleware.CORS(cfg.CORSAllowedOrigins, h)
 	h = middleware.WithAuth(cfg.FirebaseProjectID, appLogger, h)
+	h = middleware.CORS(cfg.CORSAllowedOrigins, h)
 	h = middleware.Logger(appLogger, h)
 	h = middleware.Recover(appLogger, h)
 

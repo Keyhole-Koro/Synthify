@@ -64,7 +64,7 @@ services:
       PATH: /usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       ENV: local
       PORT: "8080"
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      CORS_ALLOWED_ORIGINS: "*"
       GCP_PROJECT_ID: synthify-local
       GCS_BUCKET: synthify-uploads
       GCS_EMULATOR_HOST: http://127.0.0.1:${GCS_PORT:-4443}

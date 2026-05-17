@@ -72,6 +72,12 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 	allowedEmails := parseEmailSet(os.Getenv("SYNTHIFY_ALLOWED_USER_EMAILS"))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// OPTIONS requests (CORS preflight) should never require authentication.
+		if r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		if isStripeWebhookPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
