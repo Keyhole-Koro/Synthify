@@ -97,23 +97,33 @@ jobs:
             -var-file=../tfvars/${ENVIRONMENT}.tfvars \
             -target=module.bootstrap
 
-      - name: Ensure secrets have at least one version
+      # Fail fast if any secret has no version. We deliberately do NOT inject
+      # a placeholder: every one of these is load-bearing (DB, LLM, Stripe,
+      # inter-service auth, APM) and a placeholder makes Cloud Run start
+      # "successfully" while silently broken — exactly the failure mode that
+      # took stage down (a missing billing value the app couldn't run without).
+      # First deploy of a new project: populate these once via
+      #   printf '<value>' | gcloud secrets versions add synthify-<name> \
+      #     --project <project> --data-file=-
+      # then re-run the pipeline.
+      - name: Verify all secrets have a version
         run: |
+          missing=()
           for s in database-dsn gemini-api-key stripe-secret-key \
                    stripe-webhook-secret new-relic-license-key internal-worker-token; do
             name="synthify-${s}"
-            # Check if at least one version exists (ENABLED or DISABLED).
-            # We use --format="value(name)" which returns the version number if it exists.
             existing=$(gcloud secrets versions list "$name" --project "${{ vars.GCP_PROJECT_ID }}" --format="value(name)" --limit=1 2>/dev/null || echo "")
             if [ -z "$existing" ]; then
-              echo "::warning::secret $name has no version; adding placeholder"
-              printf 'placeholder-change-me' \
-                | gcloud secrets versions add "$name" \
-                    --project "${{ vars.GCP_PROJECT_ID }}" --data-file=-
+              echo "::error::secret $name has no version — populate it before deploying"
+              missing+=("$name")
             else
-              echo "secret $name already has versions; skipping"
+              echo "secret $name OK"
             fi
           done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Refusing to deploy: ${#missing[@]} secret(s) unset: ${missing[*]}"
+            exit 1
+          fi
 
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
