@@ -9,9 +9,11 @@ module "service" {
   allow_unauthenticated = false
   ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
+  # PORT is a Cloud Run reserved env var: it is injected automatically from
+  # the container port (cloud_run_service container_port, default 8080) and
+  # must not be set explicitly. The app reads PORT with an 8080 fallback.
   env_vars = {
     SERVICE_MODE                 = "worker"
-    PORT                         = "8080"
     GCS_BUCKET                   = var.uploads_bucket_name
     GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com/${var.uploads_bucket_name}"
     INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com/${var.uploads_bucket_name}"

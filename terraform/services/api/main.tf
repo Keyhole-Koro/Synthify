@@ -8,9 +8,11 @@ module "service" {
   service_account_email = var.service_account_email
   allow_unauthenticated = true
 
+  # PORT is a Cloud Run reserved env var: it is injected automatically from
+  # the container port (cloud_run_service container_port, default 8080) and
+  # must not be set explicitly. The app reads PORT with an 8080 fallback.
   env_vars = {
     SERVICE_MODE                 = "api"
-    PORT                         = "8080"
     ENV                          = var.env
     WORKER_BASE_URL              = var.worker_base_url
     GCS_BUCKET                   = var.uploads_bucket_name
