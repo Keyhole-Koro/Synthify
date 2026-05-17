@@ -15,9 +15,11 @@ module "service" {
     SERVICE_MODE                 = "api"
     ENV                          = var.env
     WORKER_BASE_URL              = var.worker_base_url
+    # Base URL is scheme+host only (no bucket path). ValidateBaseURL rejects
+    # a path, and BuildDocumentUploadURL inserts the bucket from GCS_BUCKET.
     GCS_BUCKET                   = var.uploads_bucket_name
-    GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com/${var.uploads_bucket_name}"
-    INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com/${var.uploads_bucket_name}"
+    GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com"
+    INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com"
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     CORS_ALLOWED_ORIGINS         = var.cors_allowed_origins
     GEMINI_MODEL                 = var.gemini_model

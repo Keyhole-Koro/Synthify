@@ -14,9 +14,11 @@ module "service" {
   # must not be set explicitly. The app reads PORT with an 8080 fallback.
   env_vars = {
     SERVICE_MODE                 = "worker"
+    # Base URL is scheme+host only (no bucket path). ValidateBaseURL rejects
+    # a path, and BuildDocumentUploadURL inserts the bucket from GCS_BUCKET.
     GCS_BUCKET                   = var.uploads_bucket_name
-    GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com/${var.uploads_bucket_name}"
-    INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com/${var.uploads_bucket_name}"
+    GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com"
+    INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com"
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     GEMINI_MODEL                 = var.gemini_model
     API_BASE_URL                 = var.api_base_url
