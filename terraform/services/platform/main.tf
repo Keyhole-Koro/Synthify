@@ -5,12 +5,18 @@ resource "google_project_service" "required" {
   disable_on_destroy = false
 }
 
+# Every platform resource must wait for the project APIs to be enabled.
+# Without this, a fresh project races API activation and fails with 403/404
+# (the class of error that hit cloudscheduler.jobs.create). On an existing
+# project the APIs are already on, so these depends_on are a no-op.
 module "uploads_bucket" {
   source = "../../modules/gcs_bucket"
 
   project_id = var.project_id
   name       = var.uploads_bucket_name
   location   = var.region
+
+  depends_on = [google_project_service.required]
 }
 
 module "api_service_account" {
@@ -19,6 +25,8 @@ module "api_service_account" {
   project_id   = var.project_id
   account_id   = "synthify-api-${var.environment}"
   display_name = "Synthify API (${var.environment})"
+
+  depends_on = [google_project_service.required]
 }
 
 module "worker_service_account" {
@@ -27,6 +35,8 @@ module "worker_service_account" {
   project_id   = var.project_id
   account_id   = "synthify-worker-${var.environment}"
   display_name = "Synthify Worker (${var.environment})"
+
+  depends_on = [google_project_service.required]
 }
 
 module "eval_service_account" {
@@ -35,6 +45,8 @@ module "eval_service_account" {
   project_id   = var.project_id
   account_id   = "synthify-eval-${var.environment}"
   display_name = "Synthify Eval (${var.environment})"
+
+  depends_on = [google_project_service.required]
 }
 
 module "eval_scheduler_service_account" {
@@ -43,6 +55,8 @@ module "eval_scheduler_service_account" {
   project_id   = var.project_id
   account_id   = "synthify-eval-scheduler-${var.environment}"
   display_name = "Synthify Eval Scheduler (${var.environment})"
+
+  depends_on = [google_project_service.required]
 }
 
 module "pipeline_queue" {
@@ -51,6 +65,8 @@ module "pipeline_queue" {
   project_id = var.project_id
   location   = var.region
   name       = "synthify-pipeline-${var.environment}"
+
+  depends_on = [google_project_service.required]
 }
 
 module "artifact_registry" {
@@ -59,6 +75,8 @@ module "artifact_registry" {
   project_id    = var.project_id
   location      = var.region
   repository_id = "synthify-${var.environment}"
+
+  depends_on = [google_project_service.required]
 }
 
 # --------------------------------------------------------------------
