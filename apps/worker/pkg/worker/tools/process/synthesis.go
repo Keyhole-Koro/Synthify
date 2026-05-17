@@ -30,7 +30,7 @@ func NewSynthesisTool(b *base.Context) (tool.Tool, error) {
 		Name:        "goal_driven_synthesis",
 		Description: "Synthesizes a structured knowledge tree from document chunks based on a brief and optional instructions.",
 	}, func(ctx tool.Context, args SynthesisArgs) (SynthesisResult, error) {
-		items, err := synthesize(ctx, b.LLM, args)
+		items, _, err := Synthesize(ctx, b.LLM, args)
 		if err != nil {
 			items = deterministicSynthesis(args.DocumentID, args.Chunks)
 		}
@@ -39,8 +39,13 @@ func NewSynthesisTool(b *base.Context) (tool.Tool, error) {
 }
 
 func synthesize(ctx context.Context, llmClient base.LLMClient, args SynthesisArgs) ([]domain.SynthesizedItem, error) {
+	items, _, err := Synthesize(ctx, llmClient, args)
+	return items, err
+}
+
+func Synthesize(ctx context.Context, llmClient base.LLMClient, args SynthesisArgs) ([]domain.SynthesizedItem, llm.Usage, error) {
 	if llmClient == nil {
-		return nil, fmt.Errorf("llm not configured")
+		return nil, llm.Usage{}, fmt.Errorf("llm not configured")
 	}
 
 	var sb strings.Builder
@@ -57,7 +62,7 @@ func synthesize(ctx context.Context, llmClient base.LLMClient, args SynthesisArg
 		Items []domain.SynthesizedItem `json:"items"`
 	}
 
-	raw, _, err := llmClient.GenerateStructured(ctx, llm.StructuredRequest{
+	raw, usage, err := llmClient.GenerateStructured(ctx, llm.StructuredRequest{
 		SystemPrompt: `You are a Lead Knowledge Architect. Convert document chunks into a high-fidelity, hierarchical knowledge tree.
 
 Rules for "content" (STRICT):
@@ -84,17 +89,17 @@ Rules for Structure:
 		Schema:     llmOutput{},
 	})
 	if err != nil {
-		return nil, err
+		return nil, usage, err
 	}
 
 	var out llmOutput
 	if err := json.Unmarshal(raw, &out); err != nil {
-		return nil, err
+		return nil, usage, err
 	}
 	if len(out.Items) == 0 {
-		return nil, fmt.Errorf("llm returned no items")
+		return nil, usage, fmt.Errorf("llm returned no items")
 	}
-	return out.Items, nil
+	return out.Items, usage, nil
 }
 
 func deterministicSynthesis(documentID string, chunks []domain.Chunk) []domain.SynthesizedItem {

@@ -64,12 +64,6 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-<<<<<<< HEAD
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_SYNTHIFY_491705 }}
-          channelId: live
-          projectId: ${{ vars.GCP_PROJECT_ID }}
-=======
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
 
@@ -77,4 +71,3 @@ jobs:
         run: >-
           bunx firebase-tools@13 deploy --only hosting --non-interactive
           --project ${{ vars.GCP_PROJECT_ID }}
->>>>>>> fa3bb0c (fix: update Firebase deployment configuration and permissions in workflows)

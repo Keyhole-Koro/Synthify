@@ -1,0 +1,17 @@
+[
+  {
+    "chunk_index": 0,
+    "heading": "認証",
+    "text": "API は Bearer token による認証を要求する。クライアントは Authorization ヘッダーに access token を設定する。token が期限切れの場合は再認証が必要になる。"
+  },
+  {
+    "chunk_index": 1,
+    "heading": "エラーハンドリング",
+    "text": "すべてのエラー応答は JSON 形式で code, message, request_id を含む。認証エラーは 401、権限不足は 403、入力検証エラーは 400 を返す。"
+  },
+  {
+    "chunk_index": 2,
+    "heading": "レート制限",
+    "text": "クライアントごとに 1 分あたり 120 リクエストまで許可する。制限を超えた場合は 429 と retry_after_seconds を返す。"
+  }
+]
