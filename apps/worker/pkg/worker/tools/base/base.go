@@ -92,6 +92,20 @@ func (b *Context) IncrementItemCreations(ctx context.Context, count int) error {
 	return b.Usage.IncrementItemCreations(ctx, count)
 }
 
+func (b *Context) IncrementTransformCreations(ctx context.Context) error {
+	if b == nil || b.Usage == nil {
+		return nil
+	}
+	return b.Usage.IncrementTransformCreations(ctx)
+}
+
+func (b *Context) IncrementTransformRuns(ctx context.Context) error {
+	if b == nil || b.Usage == nil {
+		return nil
+	}
+	return b.Usage.IncrementTransformRuns(ctx)
+}
+
 // RenderWorkingMemory concatenates all PromptMemory blocks into a single
 // markdown section for injection into the agent's system instruction.
 func (b *Context) RenderWorkingMemory() string {

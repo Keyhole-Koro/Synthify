@@ -11,6 +11,7 @@ import (
 	toolsio "github.com/synthify/backend/apps/worker/pkg/worker/tools/io"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/memory"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/process"
+	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
 	"github.com/synthify/backend/packages/shared/domain"
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/storage"
@@ -125,6 +126,16 @@ func NewOrchestrator(m model.LLM, b *base.Context, repo any, fs *storage.FileSys
 	if err != nil {
 		return nil, err
 	}
+	// Stage 1: Starlark-only dynamic tool synthesis. Python is dispatched to a
+	// separate executor service in a later stage.
+	createTransform, err := process.NewCreateTransformTool(
+		b,
+		transform.NewStarlarkAnalyzer(),
+		transform.NewStarlarkEngine(10*time.Second),
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	a, err := llmagent.New(llmagent.Config{
 		Name:  "orchestrator",
@@ -141,6 +152,7 @@ Core Engineering Workflow:
    - When calling 'goal_driven_synthesis', refer to the brief and glossary already in Working Memory.
    - If the current section references past topics, use 'semantic_search' to refresh your memory.
    - If you encounter a table, use 'extract_table_data' to preserve its logic.
+   - If no existing tool can reshape some data, use 'create_transform' to define a small Starlark transform(input)->string and verify it with an input_sample. Use sparingly; prefer existing tools.
 5. Content Refinement: Use 'generate_html_summary' for each key item.
 6. Quality Control:
    - Use 'quality_critique' to audit your work against the original source.
@@ -155,7 +167,7 @@ Mark tasks complete with 'journal_update_task' as you finish them.`,
 			analysis,
 			glossaryRegister, glossaryLookup,
 			critique, search, merge, tables, repair, extraction, briefing, summary,
-			grep,
+			grep, createTransform,
 		},
 		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
 			func(ctx agent.CallbackContext, req *model.LLMRequest) (*model.LLMResponse, error) {

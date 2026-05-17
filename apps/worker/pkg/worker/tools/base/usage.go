@@ -17,10 +17,12 @@ type sessionIDContext interface {
 }
 
 type usageCounters struct {
-	capability    *domain.JobCapability
-	llmCalls      int
-	toolRuns      int
-	itemCreations int
+	capability         *domain.JobCapability
+	llmCalls           int
+	toolRuns           int
+	itemCreations      int
+	transformCreations int
+	transformRuns      int
 }
 
 // UsageLimiter tracks per-job worker resource usage and enforces JobCapability limits.
@@ -54,21 +56,34 @@ func (l *UsageLimiter) BeginJob(ctx context.Context, jobID string) {
 }
 
 func (l *UsageLimiter) IncrementLLMCalls(ctx context.Context) error {
-	return l.increment(ctx, 1, 0, 0)
+	return l.increment(ctx, 1, 0, 0, 0, 0)
 }
 
 func (l *UsageLimiter) IncrementToolRuns(ctx context.Context) error {
-	return l.increment(ctx, 0, 1, 0)
+	return l.increment(ctx, 0, 1, 0, 0, 0)
 }
 
 func (l *UsageLimiter) IncrementItemCreations(ctx context.Context, count int) error {
 	if count <= 0 {
 		return nil
 	}
-	return l.increment(ctx, 0, 0, count)
+	return l.increment(ctx, 0, 0, count, 0, 0)
 }
 
-func (l *UsageLimiter) increment(ctx context.Context, llmCalls, toolRuns, itemCreations int) error {
+// IncrementTransformCreations counts a create_transform invocation. The same
+// counter is consumed by syntax_error fix-regeneration so a malformed-code
+// loop cannot run unbounded (see design doc "コストと再帰の暴走防止").
+func (l *UsageLimiter) IncrementTransformCreations(ctx context.Context) error {
+	return l.increment(ctx, 0, 0, 0, 1, 0)
+}
+
+// IncrementTransformRuns counts a dynamic-tool execution (ephemeral or
+// promoted), capped separately from MaxToolRuns.
+func (l *UsageLimiter) IncrementTransformRuns(ctx context.Context) error {
+	return l.increment(ctx, 0, 0, 0, 0, 1)
+}
+
+func (l *UsageLimiter) increment(ctx context.Context, llmCalls, toolRuns, itemCreations, transformCreations, transformRuns int) error {
 	if l == nil {
 		return nil
 	}
@@ -97,44 +112,42 @@ func (l *UsageLimiter) increment(ctx context.Context, llmCalls, toolRuns, itemCr
 	counters.llmCalls += llmCalls
 	counters.toolRuns += toolRuns
 	counters.itemCreations += itemCreations
+	counters.transformCreations += transformCreations
+	counters.transformRuns += transformRuns
 	capability := counters.capability
 	if capability == nil {
 		return nil
 	}
-	if capability.MaxLLMCalls > 0 && counters.llmCalls > capability.MaxLLMCalls {
-		l.logger.Error(ctx, "usage.limit_exceeded", fmt.Errorf("LLM call limit exceeded"), map[string]any{"job_id": jobID, "count": counters.llmCalls, "limit": capability.MaxLLMCalls})
-		joblog.FromContext(ctx).Log(ctx, joblog.Event{
-			JobID:   jobID,
-			Level:   joblog.ERROR,
-			Event:   "llm.usage_exceeded",
-			Message: fmt.Sprintf("LLM call limit exceeded: %d/%d", counters.llmCalls, capability.MaxLLMCalls),
-			Detail:  map[string]any{"resource": "llm_calls", "count": counters.llmCalls, "limit": capability.MaxLLMCalls},
-		})
-		return fmt.Errorf("job %s exceeded LLM call limit: %d > %d", jobID, counters.llmCalls, capability.MaxLLMCalls)
-	}
-	if capability.MaxToolRuns > 0 && counters.toolRuns > capability.MaxToolRuns {
-		l.logger.Error(ctx, "usage.limit_exceeded", fmt.Errorf("tool run limit exceeded"), map[string]any{"job_id": jobID, "count": counters.toolRuns, "limit": capability.MaxToolRuns})
-		joblog.FromContext(ctx).Log(ctx, joblog.Event{
-			JobID:   jobID,
-			Level:   joblog.ERROR,
-			Event:   "llm.usage_exceeded",
-			Message: fmt.Sprintf("tool run limit exceeded: %d/%d", counters.toolRuns, capability.MaxToolRuns),
-			Detail:  map[string]any{"resource": "tool_runs", "count": counters.toolRuns, "limit": capability.MaxToolRuns},
-		})
-		return fmt.Errorf("job %s exceeded tool run limit: %d > %d", jobID, counters.toolRuns, capability.MaxToolRuns)
-	}
-	if capability.MaxItemCreations > 0 && counters.itemCreations > capability.MaxItemCreations {
-		l.logger.Error(ctx, "usage.limit_exceeded", fmt.Errorf("item creation limit exceeded"), map[string]any{"job_id": jobID, "count": counters.itemCreations, "limit": capability.MaxItemCreations})
-		joblog.FromContext(ctx).Log(ctx, joblog.Event{
-			JobID:   jobID,
-			Level:   joblog.ERROR,
-			Event:   "llm.usage_exceeded",
-			Message: fmt.Sprintf("item creation limit exceeded: %d/%d", counters.itemCreations, capability.MaxItemCreations),
-			Detail:  map[string]any{"resource": "item_creations", "count": counters.itemCreations, "limit": capability.MaxItemCreations},
-		})
-		return fmt.Errorf("job %s exceeded item creation limit: %d > %d", jobID, counters.itemCreations, capability.MaxItemCreations)
+
+	for _, lim := range []struct {
+		resource string
+		count    int
+		max      int
+	}{
+		{"llm_calls", counters.llmCalls, capability.MaxLLMCalls},
+		{"tool_runs", counters.toolRuns, capability.MaxToolRuns},
+		{"item_creations", counters.itemCreations, capability.MaxItemCreations},
+		{"transform_creations", counters.transformCreations, capability.MaxTransformCreations},
+		{"transform_runs", counters.transformRuns, capability.MaxTransformRuns},
+	} {
+		if lim.max > 0 && lim.count > lim.max {
+			return l.reportExceeded(ctx, jobID, lim.resource, lim.count, lim.max)
+		}
 	}
 	return nil
+}
+
+func (l *UsageLimiter) reportExceeded(ctx context.Context, jobID, resource string, count, max int) error {
+	err := fmt.Errorf("job %s exceeded %s limit: %d > %d", jobID, resource, count, max)
+	l.logger.Error(ctx, "usage.limit_exceeded", err, map[string]any{"job_id": jobID, "resource": resource, "count": count, "limit": max})
+	joblog.FromContext(ctx).Log(ctx, joblog.Event{
+		JobID:   jobID,
+		Level:   joblog.ERROR,
+		Event:   "llm.usage_exceeded",
+		Message: fmt.Sprintf("%s limit exceeded: %d/%d", resource, count, max),
+		Detail:  map[string]any{"resource": resource, "count": count, "limit": max},
+	})
+	return err
 }
 
 func (l *UsageLimiter) loadCapability(ctx context.Context, jobID string) (*domain.JobCapability, error) {

@@ -41,7 +41,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	store := mock.NewStore()
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
 
-	uploadURLIssuer := app.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL)
+	uploadURLIssuer := app.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL, bucket)
 	store.SetUploadURLIssuer(uploadURLIssuer)
 
 	svc := service.NewDocumentService(store, store, nil, nil, nil, nil, nil)
