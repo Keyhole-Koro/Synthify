@@ -24,6 +24,10 @@ locals {
     var.environment == "prod" ? "synthify-api" : "synthify-api-${var.environment}"
   )
 
+  # Cloud Run delete guard: prod is protected; non-prod is replaceable so a
+  # tainted/failed revision can be recreated without manual intervention.
+  deletion_protection = var.environment == "prod"
+
   # Web origin drives CORS + billing redirect URLs. Trim any trailing slash
   # so concatenation below is predictable.
   web_base_url = trimsuffix(var.web_base_url, "/")

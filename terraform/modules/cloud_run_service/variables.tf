@@ -71,3 +71,10 @@ variable "timeout" {
   type    = string
   default = "300s"
 }
+
+# Cloud Run v2 defaults deletion_protection to true. Set false in non-prod so
+# Terraform can replace a tainted/failed service without manual intervention.
+variable "deletion_protection" {
+  type    = bool
+  default = true
+}

@@ -126,3 +126,9 @@ variable "log_llm_payload" {
   type    = string
   default = "false"
 }
+
+variable "deletion_protection" {
+  description = "Cloud Run delete guard. false in non-prod so a tainted service can be replaced."
+  type        = bool
+  default     = true
+}

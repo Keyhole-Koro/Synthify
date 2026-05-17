@@ -8,6 +8,7 @@ module "service" {
   service_account_email = var.service_account_email
   allow_unauthenticated = false
   ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  deletion_protection   = var.deletion_protection
 
   # PORT is a Cloud Run reserved env var: it is injected automatically from
   # the container port (cloud_run_service container_port, default 8080) and

@@ -39,3 +39,9 @@ variable "api_base_url" {
   description = "Base URL the worker uses to call back into the API (usage metering, etc.)"
   type        = string
 }
+
+variable "deletion_protection" {
+  description = "Cloud Run delete guard. false in non-prod so a tainted service can be replaced."
+  type        = bool
+  default     = true
+}

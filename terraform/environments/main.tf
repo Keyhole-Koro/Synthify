@@ -25,6 +25,7 @@ module "worker" {
   firebase_project_id   = local.firebase_project_id
   gemini_model          = var.gemini_model
   api_base_url          = var.api_base_url
+  deletion_protection   = local.deletion_protection
 }
 
 module "api" {
@@ -59,6 +60,7 @@ module "api" {
   admin_user_emails                 = var.admin_user_emails
   allowed_user_emails               = var.allowed_user_emails
   log_llm_payload                   = var.log_llm_payload
+  deletion_protection               = local.deletion_protection
 }
 
 resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {

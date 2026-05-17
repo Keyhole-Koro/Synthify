@@ -7,6 +7,7 @@ module "service" {
   image                 = var.image
   service_account_email = var.service_account_email
   allow_unauthenticated = true
+  deletion_protection   = var.deletion_protection
 
   # PORT is a Cloud Run reserved env var: it is injected automatically from
   # the container port (cloud_run_service container_port, default 8080) and
