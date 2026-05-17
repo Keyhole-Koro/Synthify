@@ -15,11 +15,11 @@ output "eval_schedule_name" {
 }
 
 output "uploads_bucket_name" {
-  value = module.platform.uploads_bucket_name
+  value = module.bootstrap.uploads_bucket_name
 }
 
 output "pipeline_queue_name" {
-  value = module.platform.pipeline_queue_name
+  value = module.bootstrap.pipeline_queue_name
 }
 
 output "project_id" {

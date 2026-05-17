@@ -88,14 +88,14 @@ jobs:
       - name: Terraform apply (platform only)
         working-directory: ${{ env.TF_DIR }}
         run: |
+          # Pass 1: everything that must exist before images are pushed —
+          # platform (SAs, buckets, secrets, registry, queues) plus every
+          # deployer IAM grant. All of it lives in module.bootstrap, so this
+          # is a single -target. Adding an IAM binding to the module never
+          # requires editing this workflow again.
           terraform apply -auto-approve \
             -var-file=../tfvars/${ENVIRONMENT}.tfvars \
-            -target=module.platform \
-            -target=google_service_account_iam_member.deployer_acts_as_worker \
-            -target=google_service_account_iam_member.deployer_acts_as_eval \
-            -target=google_service_account_iam_member.deployer_acts_as_eval_scheduler \
-            -target=google_service_account_iam_member.deployer_acts_as_api \
-            -target=google_service_account_iam_member.api_self_sign_blob
+            -target=module.bootstrap
 
       - name: Ensure secrets have at least one version
         run: |

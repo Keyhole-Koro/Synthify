@@ -185,3 +185,27 @@ variable "deployer_principal" {
   type        = string
   default     = ""
 }
+
+# Project-level roles the deployer SA needs to create/manage every resource
+# in this config. Previously these were granted out-of-band (gcloud/console),
+# so they were non-reproducible: stage worked only because cloudscheduler.admin
+# was hand-added after a 403, and prod still lacks it. Managing them here makes
+# every environment identical and self-bootstrapping. resourcemanager.projectIamAdmin
+# (in this set) is what lets the deployer grant itself the rest.
+variable "deployer_project_roles" {
+  description = "Project-level roles bound to deployer_principal so the deployer can manage all resources in this config. Empty deployer_principal => no bindings."
+  type        = list(string)
+  default = [
+    "roles/artifactregistry.admin",
+    "roles/cloudscheduler.admin",
+    "roles/cloudtasks.admin",
+    "roles/firebasehosting.admin",
+    "roles/iam.serviceAccountAdmin",
+    "roles/iam.serviceAccountTokenCreator",
+    "roles/resourcemanager.projectIamAdmin",
+    "roles/run.admin",
+    "roles/secretmanager.admin",
+    "roles/serviceusage.serviceUsageAdmin",
+    "roles/storage.admin",
+  ]
+}
