@@ -157,3 +157,14 @@ variable "log_llm_payload" {
   type        = string
   default     = "false"
 }
+
+# Principal running `terraform apply` (the CI/WIF service account). GCP
+# requires this principal to have actAs (roles/iam.serviceAccountUser) on
+# the api/worker runtime SAs to attach them to Cloud Run services.
+# Format: "serviceAccount:<email>". Empty => skip the binding (e.g. when a
+# human with broad IAM applies locally and the binding is unneeded).
+variable "deployer_principal" {
+  description = "CI/WIF principal that runs terraform apply; granted actAs on the api/worker runtime SAs. Format: serviceAccount:<email>. Empty => no binding."
+  type        = string
+  default     = ""
+}

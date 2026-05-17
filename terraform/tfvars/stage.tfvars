@@ -7,3 +7,7 @@ web_base_url = "https://stage.synthify.keyhole.work"
 # Environment variable ALLOWED_USER_EMAILS when set; this value is the
 # fallback so a manual `make infra-stage-up` is locked down too.
 allowed_user_emails = "korokororin47@gmail.com"
+
+# CI/WIF SA that runs terraform apply (GCP_WIF_SA_EMAIL). Needs actAs on
+# the api/worker runtime SAs to attach them to Cloud Run.
+deployer_principal = "serviceAccount:github-deploy@synthify-stage-491705.iam.gserviceaccount.com"

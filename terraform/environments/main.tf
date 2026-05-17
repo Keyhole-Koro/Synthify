@@ -78,3 +78,20 @@ resource "google_service_account_iam_member" "api_self_sign_blob" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:${module.platform.api_service_account_email}"
 }
+
+# The principal running `terraform apply` (CI WIF SA) must be able to actAs
+# the runtime SAs; GCP enforces this when attaching a SA to a Cloud Run
+# service. Empty deployer_principal => skip (local apply by a broad-IAM human).
+resource "google_service_account_iam_member" "deployer_acts_as_worker" {
+  count              = var.deployer_principal == "" ? 0 : 1
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.platform.worker_service_account_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = var.deployer_principal
+}
+
+resource "google_service_account_iam_member" "deployer_acts_as_api" {
+  count              = var.deployer_principal == "" ? 0 : 1
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.platform.api_service_account_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = var.deployer_principal
+}
