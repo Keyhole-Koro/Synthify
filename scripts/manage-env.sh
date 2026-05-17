@@ -31,8 +31,23 @@ TFVARS="../tfvars/${ENVIRONMENT}.tfvars"
 BACKEND_CONFIG="../backend/${ENVIRONMENT}.hcl"
 
 # Single root reused across envs: -reconfigure swaps the backend cleanly.
+#
+# Guardrail: the root at terraform/environments is shared by stage and prod,
+# so a stale .terraform/ (or a raw `terraform apply` by hand without re-init)
+# can silently target the WRONG environment's state — the class of mistake
+# that contributed to stage being torn down. After init we read the
+# environment recorded in the live state and refuse to proceed on a mismatch.
 tf_init() {
     terraform -chdir=$TF_DIR init -reconfigure -backend-config=$BACKEND_CONFIG
+
+    local state_env
+    state_env=$(terraform -chdir=$TF_DIR output -raw environment 2>/dev/null || echo "")
+    # Empty => fresh/empty state (first apply); nothing to cross-check yet.
+    if [ -n "$state_env" ] && [ "$state_env" != "$ENVIRONMENT" ]; then
+        warn "STATE MISMATCH: backend resolved to environment '$state_env' but you asked for '$ENVIRONMENT'."
+        warn "Refusing to continue — this would apply $ENVIRONMENT vars onto $state_env state."
+        exit 1
+    fi
 }
 
 case $COMMAND in
