@@ -42,7 +42,7 @@ module "eval" {
   scheduler_service_account_email = module.bootstrap.eval_scheduler_service_account_email
   secret_ids                      = module.bootstrap.secret_ids
   gemini_model                    = var.gemini_model
-  output_gcs_uri                  = "gs://${module.platform.uploads_bucket_name}/eval/${var.environment}/runs"
+  output_gcs_uri                  = "gs://${module.bootstrap.uploads_bucket_name}/eval/${var.environment}/runs"
   schedule                        = var.eval_schedule
   time_zone                       = var.eval_time_zone
 }
@@ -97,9 +97,8 @@ resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {
 #
 # Old resources were count-indexed ([0]); bootstrap keys them by SA name
 # (worker/eval/eval_scheduler/api) and by role, so each old address maps to a
-# specific new key.
-# The platform module is now nested under bootstrap; migrate its entire
-# subtree in state so SAs/buckets/secrets/registry are not destroyed.
+# specific new key. The platform module is now nested under bootstrap, so its
+# entire subtree migrates in state too (SAs/buckets/secrets/registry survive).
 moved {
   from = module.platform
   to   = module.bootstrap.module.platform
