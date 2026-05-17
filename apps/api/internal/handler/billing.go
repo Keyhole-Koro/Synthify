@@ -259,6 +259,12 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[t
 	if req.Msg.GetAccountId() == "" || req.Msg.GetAmountMinor() <= 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id and amount_minor > 0 are required"))
 	}
+	if _, err := currentUser(ctx); err != nil {
+		return nil, err
+	}
+	if !middleware.IsAdmin(ctx) {
+		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
+	}
 	user, err := currentUser(ctx)
 	if err != nil {
 		return nil, err

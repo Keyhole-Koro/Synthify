@@ -9,9 +9,23 @@ resource "google_cloud_run_v2_service" "this" {
     service_account = var.service_account_email
     timeout         = var.timeout
 
+    # gcsfuse requires the second-generation execution environment.
+    execution_environment = var.gcs_volume != null ? "EXECUTION_ENVIRONMENT_GEN2" : null
+
     scaling {
       min_instance_count = var.min_instance_count
       max_instance_count = var.max_instance_count
+    }
+
+    dynamic "volumes" {
+      for_each = var.gcs_volume != null ? [var.gcs_volume] : []
+      content {
+        name = "gcs"
+        gcs {
+          bucket    = volumes.value.bucket
+          read_only = true
+        }
+      }
     }
 
     containers {
@@ -26,6 +40,14 @@ resource "google_cloud_run_v2_service" "this" {
 
       ports {
         container_port = var.container_port
+      }
+
+      dynamic "volume_mounts" {
+        for_each = var.gcs_volume != null ? [var.gcs_volume] : []
+        content {
+          name       = "gcs"
+          mount_path = volume_mounts.value.mount_path
+        }
       }
 
       dynamic "env" {

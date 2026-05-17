@@ -38,6 +38,7 @@ func IsServiceCall(ctx context.Context) bool {
 
 // IsAdmin は管理者権限を持つユーザーのリクエストか。
 // 現状は ADMIN_USER_EMAILS の allowlist で判定する暫定実装。
+// TODO: 環境変数によるメールアドレスの直書き判定はあまり美しくないため、将来的に DB の権限テーブルや IAM ロール等を用いた管理への移行を検討する。
 func IsAdmin(ctx context.Context) bool {
 	admin, _ := ctx.Value(adminUserContextKey).(bool)
 	return admin
@@ -78,7 +79,7 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 			return
 		}
 
-		if isStripeWebhookPath(r.URL.Path) {
+		if isStripeWebhookPath(r.URL.Path) || r.URL.Path == "/health" {
 			next.ServeHTTP(w, r)
 			return
 		}

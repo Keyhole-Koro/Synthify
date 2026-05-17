@@ -1,3 +1,10 @@
+# The uploads bucket is mounted here via gcsfuse. The worker reads source
+# files as local files under this path (see GCS_FUSE_MOUNT_PATH below); there
+# is no HTTP fallback, so the mount and the env var must stay in lockstep.
+locals {
+  gcs_fuse_mount_path = "/mnt/gcs/${var.uploads_bucket_name}"
+}
+
 module "service" {
   source = "../../modules/cloud_run_service"
 
@@ -10,6 +17,11 @@ module "service" {
   ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   deletion_protection   = var.deletion_protection
 
+  gcs_volume = {
+    bucket     = var.uploads_bucket_name
+    mount_path = local.gcs_fuse_mount_path
+  }
+
   # PORT is a Cloud Run reserved env var: it is injected automatically from
   # the container port (cloud_run_service container_port, default 8080) and
   # must not be set explicitly. The app reads PORT with an 8080 fallback.
@@ -20,6 +32,7 @@ module "service" {
     GCS_BUCKET                   = var.uploads_bucket_name
     GCS_UPLOAD_URL_BASE          = "https://storage.googleapis.com"
     INTERNAL_GCS_UPLOAD_URL_BASE = "https://storage.googleapis.com"
+    GCS_FUSE_MOUNT_PATH          = local.gcs_fuse_mount_path
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     GEMINI_MODEL                 = var.gemini_model
     API_BASE_URL                 = var.api_base_url

@@ -67,9 +67,12 @@ func authorizeItem(
 	if _, err := currentUser(ctx); err != nil {
 		return err
 	}
-	_, err := itemRepo.GetItem(ctx, itemID)
+	item, err := itemRepo.GetItem(ctx, itemID)
 	if err != nil {
 		return connectutil.ToError(err)
+	}
+	if item.WorkspaceID != workspaceID {
+		return connect.NewError(connect.CodePermissionDenied, errors.New("item does not belong to workspace"))
 	}
 	return authorizeWorkspace(ctx, workspaceRepo, workspaceID)
 }

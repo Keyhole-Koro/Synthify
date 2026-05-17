@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
@@ -26,6 +27,15 @@ import (
 func main() {
 	ctx := context.Background()
 	cfg := config.LoadWorker()
+	// The worker reads source files from the gcsfuse mount only; there is no
+	// HTTP fallback. A missing or unmounted path means every job would fail
+	// to read its input, so refuse to start rather than fail per-job later.
+	if cfg.GCSFuseMountPath == "" {
+		log.Fatal("GCS_FUSE_MOUNT_PATH is required: the worker reads source files from the gcsfuse mount")
+	}
+	if info, err := os.Stat(cfg.GCSFuseMountPath); err != nil || !info.IsDir() {
+		log.Fatalf("GCS_FUSE_MOUNT_PATH %q is not a mounted directory: %v", cfg.GCSFuseMountPath, err)
+	}
 	fs := storage.NewFileSystem(cfg.GCSFuseMountPath)
 	appLogger := applog.NewStdLogger()
 
