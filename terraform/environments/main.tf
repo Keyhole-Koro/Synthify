@@ -28,6 +28,21 @@ module "worker" {
   deletion_protection   = local.deletion_protection
 }
 
+module "eval" {
+  source = "../services/eval"
+
+  project_id                      = var.project_id
+  region                          = var.region
+  name                            = "synthify-eval-${var.environment}"
+  image                           = var.eval_image
+  service_account_email           = module.platform.eval_service_account_email
+  scheduler_service_account_email = module.platform.eval_scheduler_service_account_email
+  secret_ids                      = module.platform.secret_ids
+  gemini_model                    = var.gemini_model
+  schedule                        = var.eval_schedule
+  time_zone                       = var.eval_time_zone
+}
+
 module "api" {
   source = "../services/api"
 
@@ -87,6 +102,20 @@ resource "google_service_account_iam_member" "api_self_sign_blob" {
 resource "google_service_account_iam_member" "deployer_acts_as_worker" {
   count              = var.deployer_principal == "" ? 0 : 1
   service_account_id = "projects/${var.project_id}/serviceAccounts/${module.platform.worker_service_account_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = var.deployer_principal
+}
+
+resource "google_service_account_iam_member" "deployer_acts_as_eval" {
+  count              = var.deployer_principal == "" ? 0 : 1
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.platform.eval_service_account_email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = var.deployer_principal
+}
+
+resource "google_service_account_iam_member" "deployer_acts_as_eval_scheduler" {
+  count              = var.deployer_principal == "" ? 0 : 1
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.platform.eval_scheduler_service_account_email}"
   role               = "roles/iam.serviceAccountUser"
   member             = var.deployer_principal
 }

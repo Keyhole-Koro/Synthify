@@ -75,6 +75,50 @@ func TestRunCase_SynthesisPasses(t *testing.T) {
 	}
 }
 
+func TestRunCaseFiles_RunsMultipleCases(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}})
+	caseBody := []byte("name: ok\ntool: synthesis\ninput:\n  document_id: doc_1\n  chunks: chunks.json\nexpect:\n  schema_valid: true\n  min_items: 1\n")
+	caseA := filepath.Join(dir, "a.yaml")
+	caseB := filepath.Join(dir, "b.yaml")
+	if err := os.WriteFile(caseA, caseBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(caseB, caseBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := Runner{LLM: fakeLLM{items: []domain.SynthesizedItem{{
+		LocalID: "item_1",
+		Title:   "Authentication",
+		Level:   1,
+	}}}}.RunCaseFiles(context.Background(), []string{caseA, caseB})
+
+	if err != nil {
+		t.Fatalf("RunCaseFiles returned error: %v", err)
+	}
+	if len(results) != 2 || !results[0].Passed || !results[1].Passed {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+}
+
+func TestCaseFiles_Directory(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"a.yaml", "b.yml", "ignore.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("name: x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	files, err := CaseFiles(dir)
+	if err != nil {
+		t.Fatalf("CaseFiles returned error: %v", err)
+	}
+	if len(files) != 2 {
+		t.Fatalf("expected 2 yaml files, got %#v", files)
+	}
+}
+
 func TestRunCase_RuleFailures(t *testing.T) {
 	dir := t.TempDir()
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "API", Text: "Errors."}})

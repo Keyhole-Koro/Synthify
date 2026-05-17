@@ -19,6 +19,7 @@ variable "required_services" {
   default = [
     "run.googleapis.com",
     "cloudtasks.googleapis.com",
+    "cloudscheduler.googleapis.com",
     "secretmanager.googleapis.com",
     "storage.googleapis.com",
     "iam.googleapis.com"

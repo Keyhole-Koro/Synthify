@@ -24,4 +24,4 @@ override.tf.json
 
 explain_results.txt
 gcs-data
-apps/eval/
+apps/eval/results/

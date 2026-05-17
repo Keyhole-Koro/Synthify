@@ -66,12 +66,53 @@ type Runner struct {
 	LLM base.LLMClient
 }
 
+func CaseFiles(path string) ([]string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stat cases path %s: %w", path, err)
+	}
+	if !info.IsDir() {
+		return []string{path}, nil
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil, fmt.Errorf("read cases dir %s: %w", path, err)
+	}
+	var files []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext == ".yaml" || ext == ".yml" {
+			files = append(files, filepath.Join(path, entry.Name()))
+		}
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("no YAML case files found in %s", path)
+	}
+	return files, nil
+}
+
 func (r Runner) RunCaseFile(ctx context.Context, path string) (Result, error) {
 	c, err := LoadCase(path)
 	if err != nil {
 		return Result{}, err
 	}
 	return r.RunCase(ctx, c, filepath.Dir(path))
+}
+
+func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, error) {
+	results := make([]Result, 0, len(paths))
+	for _, path := range paths {
+		res, err := r.RunCaseFile(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, res)
+	}
+	return results, nil
 }
 
 func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, error) {

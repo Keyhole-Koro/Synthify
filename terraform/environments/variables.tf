@@ -23,6 +23,12 @@ variable "worker_image" {
   default     = ""
 }
 
+variable "eval_image" {
+  description = "Eval Cloud Run Job container image. Passed by CD via -var after build&push; not stored in tfvars."
+  type        = string
+  default     = ""
+}
+
 # Public web origin (no trailing slash), e.g. https://stage.synthify.keyhole.work.
 # CORS + billing redirect URLs are derived from this in locals.tf.
 variable "web_base_url" {
@@ -53,6 +59,17 @@ variable "cors_allowed_origins" {
 variable "gemini_model" {
   type    = string
   default = "gemini-3-flash-preview"
+}
+
+variable "eval_schedule" {
+  description = "Cloud Scheduler cron expression for LLM eval Cloud Run Job."
+  type        = string
+  default     = "0 4 * * *"
+}
+
+variable "eval_time_zone" {
+  type    = string
+  default = "Asia/Tokyo"
 }
 
 variable "stripe_pro_price_id" {
@@ -160,7 +177,7 @@ variable "log_llm_payload" {
 
 # Principal running `terraform apply` (the CI/WIF service account). GCP
 # requires this principal to have actAs (roles/iam.serviceAccountUser) on
-# the api/worker runtime SAs to attach them to Cloud Run services.
+# runtime SAs to attach them to Cloud Run services/jobs and Scheduler OAuth.
 # Format: "serviceAccount:<email>". Empty => skip the binding (e.g. when a
 # human with broad IAM applies locally and the binding is unneeded).
 variable "deployer_principal" {

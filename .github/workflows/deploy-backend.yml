@@ -18,6 +18,7 @@ on:
     paths:
       - apps/api/**
       - apps/worker/**
+      - apps/eval/**
       - packages/shared/**
       - go.mod
       - go.sum
@@ -69,6 +70,7 @@ jobs:
           echo "sha_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "api_image=${REGISTRY}/api:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "worker_image=${REGISTRY}/worker:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "eval_image=${REGISTRY}/eval:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
 
       # Upsert the Terraform state bucket. Idempotent: creates it if missing,
       # otherwise just re-asserts versioning/lifecycle. Also (re)writes
@@ -126,6 +128,15 @@ jobs:
           docker push ${{ steps.registry.outputs.worker_image }}
           docker push ${{ steps.registry.outputs.registry }}/worker:latest
 
+      - name: Build and push Eval image
+        run: |
+          docker build \
+            -t ${{ steps.registry.outputs.eval_image }} \
+            -t ${{ steps.registry.outputs.registry }}/eval:latest \
+            -f apps/eval/Dockerfile .
+          docker push ${{ steps.registry.outputs.eval_image }}
+          docker push ${{ steps.registry.outputs.registry }}/eval:latest
+
       # --- Pass 2: full apply. Images now exist, so Cloud Run services
       # are created/updated with the exact SHA-tagged images. api_base_url
       # stays empty here; it is reconciled in Pass 3.
@@ -143,6 +154,7 @@ jobs:
             -var-file=../tfvars/${ENVIRONMENT}.tfvars
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
+            -var="eval_image=${{ steps.registry.outputs.eval_image }}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
@@ -161,6 +173,7 @@ jobs:
             -var-file=../tfvars/${ENVIRONMENT}.tfvars
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
+            -var="eval_image=${{ steps.registry.outputs.eval_image }}"
             -var="api_base_url=${API_URI}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then

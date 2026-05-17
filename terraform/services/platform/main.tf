@@ -29,6 +29,22 @@ module "worker_service_account" {
   display_name = "Synthify Worker (${var.environment})"
 }
 
+module "eval_service_account" {
+  source = "../../modules/service_account"
+
+  project_id   = var.project_id
+  account_id   = "synthify-eval-${var.environment}"
+  display_name = "Synthify Eval (${var.environment})"
+}
+
+module "eval_scheduler_service_account" {
+  source = "../../modules/service_account"
+
+  project_id   = var.project_id
+  account_id   = "synthify-eval-scheduler-${var.environment}"
+  display_name = "Synthify Eval Scheduler (${var.environment})"
+}
+
 module "pipeline_queue" {
   source = "../../modules/cloud_tasks_queue"
 
@@ -68,7 +84,11 @@ locals {
     "internal-worker-token",
   ])
 
-  all_secrets = toset(concat(tolist(local.api_secrets), tolist(local.worker_secrets)))
+  eval_secrets = toset([
+    "gemini-api-key",
+  ])
+
+  all_secrets = toset(concat(tolist(local.api_secrets), tolist(local.worker_secrets), tolist(local.eval_secrets)))
 }
 
 resource "google_secret_manager_secret" "secrets" {
@@ -95,4 +115,11 @@ resource "google_secret_manager_secret_iam_member" "worker_accessor" {
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${module.worker_service_account.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "eval_accessor" {
+  for_each  = local.eval_secrets
+  secret_id = google_secret_manager_secret.secrets[each.value].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.eval_service_account.email}"
 }

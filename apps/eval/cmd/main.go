@@ -19,13 +19,14 @@ import (
 
 func main() {
 	casePath := flag.String("case", "", "YAML eval case path")
+	casesPath := flag.String("cases", "", "YAML eval case directory")
 	format := flag.String("format", "table", "output format: table or json")
 	outPath := flag.String("out", "", "optional path to write the report")
 	timeout := flag.Duration("timeout", 60*time.Second, "eval timeout")
 	flag.Parse()
 
-	if *casePath == "" {
-		fmt.Fprintln(os.Stderr, "--case is required")
+	if (*casePath == "") == (*casesPath == "") {
+		fmt.Fprintln(os.Stderr, "set exactly one of --case or --cases")
 		os.Exit(2)
 	}
 
@@ -49,14 +50,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	res, err := runner.Runner{LLM: client}.RunCaseFile(ctx, *casePath)
+	target := *casePath
+	if target == "" {
+		target = *casesPath
+	}
+	caseFiles, err := runner.CaseFiles(target)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "load cases: %v\n", err)
+		os.Exit(1)
+	}
+
+	results, err := runner.Runner{LLM: client}.RunCaseFiles(ctx, caseFiles)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run eval: %v\n", err)
 		os.Exit(1)
 	}
 
 	var buf bytes.Buffer
-	if err := report.Write(&buf, *format, []runner.Result{res}); err != nil {
+	if err := report.Write(&buf, *format, results); err != nil {
 		fmt.Fprintf(os.Stderr, "write report: %v\n", err)
 		os.Exit(1)
 	}
@@ -70,9 +81,18 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if !res.Passed {
+	if !allPassed(results) {
 		os.Exit(1)
 	}
+}
+
+func allPassed(results []runner.Result) bool {
+	for _, res := range results {
+		if !res.Passed {
+			return false
+		}
+	}
+	return true
 }
 
 func writeReportFile(path string, b []byte) error {

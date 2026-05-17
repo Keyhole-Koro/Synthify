@@ -13,9 +13,9 @@ module "service" {
   # the container port (cloud_run_service container_port, default 8080) and
   # must not be set explicitly. The app reads PORT with an 8080 fallback.
   env_vars = {
-    SERVICE_MODE                 = "api"
-    ENV                          = var.env
-    WORKER_BASE_URL              = var.worker_base_url
+    SERVICE_MODE    = "api"
+    ENV             = var.env
+    WORKER_BASE_URL = var.worker_base_url
     # Base URL is scheme+host only (no bucket path). ValidateBaseURL rejects
     # a path, and BuildDocumentUploadURL inserts the bucket from GCS_BUCKET.
     GCS_BUCKET                   = var.uploads_bucket_name

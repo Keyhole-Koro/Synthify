@@ -33,6 +33,9 @@
 | 変数名 | 説明 | デフォルト値の例 |
 | :--- | :--- | :--- |
 | `GEMINI_MODEL` | 使用する AI モデル | `gemini-1.5-flash` |
+| `eval_image` | LLM eval Cloud Run Job の container image | CD が `-var` で SHA tag image を渡す |
+| `eval_schedule` | LLM eval Cloud Run Job を起動する cron | `0 4 * * *` |
+| `eval_time_zone` | eval Scheduler の timezone | `Asia/Tokyo` |
 | `CORS_ALLOWED_ORIGINS` | フロントエンドの URL | `https://synthify.keyhole.work` |
 | `STRIPE_PRO_PRICE_ID` | Stripe の商品/価格 ID | `price_...` |
 | `BILLING_SUCCESS_URL` | 決済成功後のリダイレクト先 | `/billing/success` |

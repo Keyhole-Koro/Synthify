@@ -52,3 +52,5 @@
 - [tool-calling-tests.md](tool-calling-tests.md) — LLM エージェントが各ツールを正しく呼び出せているかを確認するテストの追加
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加
 - [llm-eval-runner.md](llm-eval-runner.md) — プロンプト・モデルを変えながら LLM ツール出力を定量評価・横並び比較する CLI 基盤 (プロンプト外出しが前提)
+  - 実装済みコンポーネント契約: [../contracts/llm-eval-runner-contract.md](../contracts/llm-eval-runner-contract.md)
+- [llm-eval-gcs-artifacts.md](llm-eval-gcs-artifacts.md) — Cloud Run Job で実行した eval report を GCS に immutable artifact として保存する実装計画

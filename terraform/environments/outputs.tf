@@ -6,6 +6,14 @@ output "worker_uri" {
   value = module.worker.uri
 }
 
+output "eval_job_name" {
+  value = module.eval.name
+}
+
+output "eval_schedule_name" {
+  value = module.eval.schedule_name
+}
+
 output "uploads_bucket_name" {
   value = module.platform.uploads_bucket_name
 }

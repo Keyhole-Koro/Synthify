@@ -14,6 +14,14 @@ output "worker_service_account_email" {
   value = module.worker_service_account.email
 }
 
+output "eval_service_account_email" {
+  value = module.eval_service_account.email
+}
+
+output "eval_scheduler_service_account_email" {
+  value = module.eval_scheduler_service_account.email
+}
+
 output "pipeline_queue_name" {
   value = module.pipeline_queue.name
 }

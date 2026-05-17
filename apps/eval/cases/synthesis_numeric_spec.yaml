@@ -1,0 +1,13 @@
+name: synthesis_numeric_spec
+tool: synthesis
+input:
+  document_id: doc_numeric_spec
+  instruction: "数値制約と運用ルールが比較しやすい技術仕様として整理して"
+  chunks: ../testdata/numeric_spec_chunks.json
+expect:
+  schema_valid: true
+  min_items: 3
+  max_depth: 4
+  must_contain_titles:
+    - "SLO"
+    - "容量"
