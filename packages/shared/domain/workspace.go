@@ -1,0 +1,54 @@
+package domain
+
+type Account struct {
+	AccountID            string `json:"account_id"`
+	Name                 string `json:"name"`
+	Plan                 string `json:"plan"` // "free" | "pro"
+	StorageQuotaBytes    int64  `json:"storage_quota_bytes"`
+	StorageUsedBytes     int64  `json:"storage_used_bytes"`
+	MaxFileSizeBytes     int64  `json:"max_file_size_bytes"`
+	MaxUploadsPerFiveH   int64  `json:"max_uploads_per_5h"`
+	MaxUploadsPerWeek    int64  `json:"max_uploads_per_1week"`
+	StripeCustomerID     string `json:"stripe_customer_id,omitempty"`
+	StripeSubscriptionID string `json:"stripe_subscription_id,omitempty"`
+	BillingStatus        string `json:"billing_status,omitempty"`
+	StripePriceID        string `json:"stripe_price_id,omitempty"`
+	BillingCurrency      string `json:"billing_currency,omitempty"`
+	BillingAmountMinor   int64  `json:"billing_amount_minor,omitempty"`
+	BillingInterval      string `json:"billing_interval,omitempty"`
+	CurrentPeriodEnd     string `json:"current_period_end,omitempty"`
+	CancelAtPeriodEnd    bool   `json:"cancel_at_period_end,omitempty"`
+	BillingUpdatedAt     string `json:"billing_updated_at,omitempty"`
+
+	// Usage-Based Billing (Phase 2)
+	BudgetLimitMinor          int64  `json:"budget_limit_minor,omitempty"`
+	CurrentPeriodUsageMinor   int64  `json:"current_period_usage_minor,omitempty"`
+	CurrentPeriodStartedAt    string `json:"current_period_started_at,omitempty"`
+	BudgetExceeded            bool   `json:"budget_exceeded,omitempty"`
+
+	// Credits
+	CreditBalanceMinor int64 `json:"credit_balance_minor,omitempty"`
+
+	CreatedAt            string `json:"created_at"`
+}
+
+type AccountUser struct {
+	AccountID string `json:"account_id"`
+	UserID    string `json:"user_id"`
+	Role      string `json:"role"`
+	JoinedAt  string `json:"joined_at"`
+}
+
+type Workspace struct {
+	WorkspaceID        string `json:"workspace_id"`
+	AccountID          string `json:"account_id"`
+	Name               string `json:"name"`
+	Plan               string `json:"plan,omitempty"`
+	StorageUsedBytes   int64  `json:"storage_used_bytes,omitempty"`
+	StorageQuotaBytes  int64  `json:"storage_quota_bytes,omitempty"`
+	MaxFileSizeBytes   int64  `json:"max_file_size_bytes,omitempty"`
+	MaxUploadsPerFiveH int64  `json:"max_uploads_per_5h,omitempty"`
+	MaxUploadsPerWeek  int64  `json:"max_uploads_per_1week,omitempty"`
+	RootItemID         string `json:"root_item_id,omitempty"`
+	CreatedAt          string `json:"created_at"`
+}
