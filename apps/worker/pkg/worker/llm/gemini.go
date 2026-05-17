@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/sourcefile"
+	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	"github.com/synthify/backend/packages/shared/config"
 	"github.com/synthify/backend/packages/shared/domain"
 	"github.com/synthify/backend/packages/shared/job/log"
@@ -161,7 +161,7 @@ func (c *GeminiClient) buildContents(ctx context.Context, userPrompt string, sou
 }
 
 func (c *GeminiClient) uploadSourceFile(ctx context.Context, source domain.SourceFile) (*genai.File, error) {
-	if err := sourcefile.Load(ctx, c.fs, &source); err != nil {
+	if err := sourceio.Load(ctx, c.fs, &source); err != nil {
 		return nil, fmt.Errorf("load source file %s: %w", source.Filename, err)
 	}
 

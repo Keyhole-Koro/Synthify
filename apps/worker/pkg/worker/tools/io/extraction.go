@@ -13,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/apps/worker/pkg/worker/sourcefile"
+	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
 	"github.com/synthify/backend/packages/shared/domain"
 	"google.golang.org/adk/tool"
@@ -52,7 +52,7 @@ func NewExtractionTool(b *base.Context) (tool.Tool, error) {
 			WorkspaceID: wsID,
 			DocumentID:  docID,
 		}
-		if err := sourcefile.Load(ctx, b.FS, &source); err != nil {
+		if err := sourceio.Load(ctx, b.FS, &source); err != nil {
 			return ExtractionResult{}, err
 		}
 
