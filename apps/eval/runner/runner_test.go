@@ -70,6 +70,9 @@ func TestRunCase_SynthesisPasses(t *testing.T) {
 	if res.Model != "fake" || res.InputTokens != 10 || res.OutputTokens != 20 {
 		t.Fatalf("usage not propagated: %#v", res)
 	}
+	if len(res.Items) != 1 || res.Items[0].Title != "Authentication" {
+		t.Fatalf("items not propagated: %#v", res.Items)
+	}
 }
 
 func TestRunCase_RuleFailures(t *testing.T) {

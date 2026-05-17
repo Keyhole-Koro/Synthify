@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/synthify/backend/apps/eval/runner"
+	"github.com/synthify/backend/packages/shared/domain"
 )
 
 func TestWriteJSON(t *testing.T) {
@@ -21,6 +22,11 @@ func TestWriteJSON(t *testing.T) {
 		Model:        "fake",
 		InputTokens:  10,
 		OutputTokens: 20,
+		Items: []domain.SynthesizedItem{{
+			LocalID: "item_1",
+			Title:   "Authentication",
+			Level:   1,
+		}},
 	}}
 
 	var buf bytes.Buffer
@@ -33,6 +39,9 @@ func TestWriteJSON(t *testing.T) {
 	}
 	if len(decoded) != 1 || decoded[0].CaseName != "case_1" {
 		t.Fatalf("unexpected json report: %#v", decoded)
+	}
+	if len(decoded[0].Items) != 1 || decoded[0].Items[0].Title != "Authentication" {
+		t.Fatalf("items missing from json report: %#v", decoded[0].Items)
 	}
 }
 
@@ -52,6 +61,29 @@ func TestWriteJSONIncludesFailedInput(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `"failed_input"`) || !strings.Contains(buf.String(), `"document_id": "doc_1"`) {
 		t.Fatalf("failed input missing from json report: %s", buf.String())
+	}
+}
+
+func TestWriteJSONDoesNotEscapeHTML(t *testing.T) {
+	results := []runner.Result{{
+		CaseName: "case_1",
+		Items: []domain.SynthesizedItem{{
+			LocalID: "item_1",
+			Title:   "HTML",
+			Content: `<p class="lede">A & B</p>`,
+		}},
+	}}
+
+	var buf bytes.Buffer
+	if err := Write(&buf, "json", results); err != nil {
+		t.Fatalf("Write returned error: %v", err)
+	}
+	out := buf.String()
+	if strings.Contains(out, `\u003c`) || strings.Contains(out, `\u003e`) || strings.Contains(out, `\u0026`) {
+		t.Fatalf("html was escaped in json report: %s", out)
+	}
+	if !strings.Contains(out, `<p class=\"lede\">A & B</p>`) {
+		t.Fatalf("html missing from json report: %s", out)
 	}
 }
 

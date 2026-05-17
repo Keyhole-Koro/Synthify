@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,6 +20,7 @@ import (
 func main() {
 	casePath := flag.String("case", "", "YAML eval case path")
 	format := flag.String("format", "table", "output format: table or json")
+	outPath := flag.String("out", "", "optional path to write the report")
 	timeout := flag.Duration("timeout", 60*time.Second, "eval timeout")
 	flag.Parse()
 
@@ -52,13 +55,34 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := report.Write(os.Stdout, *format, []runner.Result{res}); err != nil {
+	var buf bytes.Buffer
+	if err := report.Write(&buf, *format, []runner.Result{res}); err != nil {
 		fmt.Fprintf(os.Stderr, "write report: %v\n", err)
 		os.Exit(1)
+	}
+	if _, err := os.Stdout.Write(buf.Bytes()); err != nil {
+		fmt.Fprintf(os.Stderr, "write stdout: %v\n", err)
+		os.Exit(1)
+	}
+	if *outPath != "" {
+		if err := writeReportFile(*outPath, buf.Bytes()); err != nil {
+			fmt.Fprintf(os.Stderr, "write --out: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	if !res.Passed {
 		os.Exit(1)
 	}
+}
+
+func writeReportFile(path string, b []byte) error {
+	dir := filepath.Dir(path)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	return os.WriteFile(path, b, 0o644)
 }
 
 func loadDotEnv(path string) error {

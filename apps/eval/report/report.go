@@ -16,6 +16,7 @@ func Write(w io.Writer, format string, results []runner.Result) error {
 	case "json":
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
+		enc.SetEscapeHTML(false)
 		return enc.Encode(results)
 	case "table":
 		return writeTable(w, results)

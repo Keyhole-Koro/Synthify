@@ -39,19 +39,20 @@ type CaseExpect struct {
 }
 
 type Result struct {
-	CaseName     string         `json:"case_name"`
-	Tool         string         `json:"tool"`
-	Passed       bool           `json:"passed"`
-	SchemaValid  bool           `json:"schema_valid"`
-	ItemCount    int            `json:"item_count"`
-	MaxDepth     int            `json:"max_depth"`
-	MissingTitle []string       `json:"missing_titles"`
-	DurationMS   int64          `json:"duration_ms"`
-	Model        string         `json:"model"`
-	InputTokens  int64          `json:"input_tokens"`
-	OutputTokens int64          `json:"output_tokens"`
-	Error        string         `json:"error,omitempty"`
-	FailedInput  *InputSnapshot `json:"failed_input,omitempty"`
+	CaseName     string                   `json:"case_name"`
+	Tool         string                   `json:"tool"`
+	Passed       bool                     `json:"passed"`
+	SchemaValid  bool                     `json:"schema_valid"`
+	ItemCount    int                      `json:"item_count"`
+	MaxDepth     int                      `json:"max_depth"`
+	MissingTitle []string                 `json:"missing_titles"`
+	DurationMS   int64                    `json:"duration_ms"`
+	Model        string                   `json:"model"`
+	InputTokens  int64                    `json:"input_tokens"`
+	OutputTokens int64                    `json:"output_tokens"`
+	Items        []domain.SynthesizedItem `json:"items,omitempty"`
+	Error        string                   `json:"error,omitempty"`
+	FailedInput  *InputSnapshot           `json:"failed_input,omitempty"`
 }
 
 type InputSnapshot struct {
@@ -117,6 +118,7 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 	}
 
 	res.SchemaValid = true
+	res.Items = items
 	res.ItemCount = len(items)
 	res.MaxDepth = maxDepth(items)
 	res.MissingTitle = missingTitles(items, c.Expect.MustContainTitles)
