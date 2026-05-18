@@ -9,6 +9,7 @@ import (
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/packages/shared/applog"
+	"github.com/synthify/backend/packages/shared/config"
 	"github.com/synthify/backend/packages/shared/domain"
 	joblog "github.com/synthify/backend/packages/shared/job/log"
 )
@@ -36,6 +37,17 @@ func NewLLMClient(inner llm.Client, reporter llm.UsageReporter, logger applog.Lo
 		logger = applog.NoopLogger{}
 	}
 	return &LLMClient{inner: inner, reporter: reporter, logger: logger}
+}
+
+// NewWrappedClient returns a client wrapped with a Connect-based metering reporter.
+// It uses the APIBaseURL and InternalServiceToken from the worker config to
+// ship usage events. If inner is nil, it returns nil.
+func NewWrappedClient(inner llm.Client, cfg config.Worker, logger applog.Logger) llm.Client {
+	if inner == nil {
+		return nil
+	}
+	reporter := NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken)
+	return NewLLMClient(inner, reporter, logger)
 }
 
 func (c *LLMClient) GenerateStructured(ctx context.Context, req llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {

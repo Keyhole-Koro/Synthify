@@ -18,7 +18,6 @@ type API struct {
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
-	GCSFuseMountPath         string
 	Stripe                   Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
@@ -85,7 +84,6 @@ func LoadAPI() API {
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
-		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
 		Stripe: Stripe{
 			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
 			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
@@ -117,7 +115,7 @@ func LoadWorker() Worker {
 		GCSUploadURLBase:         mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443")),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
-		GCSFuseMountPath:         os.Getenv("GCS_FUSE_MOUNT_PATH"),
+		GCSFuseMountPath:         mustMountPath("GCS_FUSE_MOUNT_PATH", os.Getenv("GCS_FUSE_MOUNT_PATH")),
 		APIBaseURL:               get("NEXT_PUBLIC_API_BASE_URL", get("API_BASE_URL", "http://127.0.0.1:8080")),
 		InternalServiceToken:     os.Getenv("INTERNAL_WORKER_TOKEN"),
 	}
@@ -153,6 +151,16 @@ func get(key, fallback string) string {
 func mustBaseURL(name, value string) string {
 	if err := storage.ValidateBaseURL(value); err != nil {
 		panic(fmt.Sprintf("%s is invalid: %v", name, err))
+	}
+	return value
+}
+
+func mustMountPath(name, value string) string {
+	if value == "" {
+		panic(fmt.Sprintf("%s is required: the worker reads source files from the gcsfuse mount", name))
+	}
+	if info, err := os.Stat(value); err != nil || !info.IsDir() {
+		panic(fmt.Sprintf("%s %q is not a mounted directory: %v", name, value, err))
 	}
 	return value
 }

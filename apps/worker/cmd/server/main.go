@@ -5,12 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
 	"github.com/synthify/backend/packages/shared/app"
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/config"
@@ -19,23 +17,12 @@ import (
 	"github.com/synthify/backend/packages/shared/middleware"
 	"github.com/synthify/backend/packages/shared/repository/postgres"
 	"github.com/synthify/backend/packages/shared/storage"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/model/gemini"
-	"google.golang.org/genai"
 )
 
 func main() {
 	ctx := context.Background()
 	cfg := config.LoadWorker()
-	// The worker reads source files from the gcsfuse mount only; there is no
-	// HTTP fallback. A missing or unmounted path means every job would fail
-	// to read its input, so refuse to start rather than fail per-job later.
-	if cfg.GCSFuseMountPath == "" {
-		log.Fatal("GCS_FUSE_MOUNT_PATH is required: the worker reads source files from the gcsfuse mount")
-	}
-	if info, err := os.Stat(cfg.GCSFuseMountPath); err != nil || !info.IsDir() {
-		log.Fatalf("GCS_FUSE_MOUNT_PATH %q is not a mounted directory: %v", cfg.GCSFuseMountPath, err)
-	}
+
 	fs := storage.NewFileSystem(cfg.GCSFuseMountPath)
 	appLogger := applog.NewStdLogger()
 
@@ -44,34 +31,8 @@ func main() {
 	notifier := appCtx.Notifier
 	jobLogger := postgres.NewDBLogger(store)
 
-	var adkModel model.LLM
-	var embedder *llm.GeminiClient
-	llmCfg := config.LoadLLM()
-	if llmCfg.Enabled() {
-		var err error
-		adkModel, err = gemini.NewModel(ctx, llmCfg.GeminiModel, &genai.ClientConfig{
-			APIKey:  llmCfg.GeminiAPIKey,
-			Backend: genai.BackendGeminiAPI,
-		})
-		if err != nil {
-			appLogger.Error(ctx, "worker.adk_model_init_failed", err, map[string]any{"model": llmCfg.GeminiModel})
-		}
-		embedder, err = llm.NewGeminiClient(ctx, llmCfg, fs)
-		if err != nil {
-			appLogger.Error(ctx, "worker.gemini_client_init_failed", err, map[string]any{"model": llmCfg.GeminiModel})
-		}
-	} else {
-		appLogger.Info(ctx, "worker.gemini_disabled", map[string]any{"reason": "no api key"})
-	}
-
-	// Wrap the gemini client so token usage is reported back to the billing API
-	// after every LLM call. Reporter is a no-op when SYNTHIFY_INTERNAL_SERVICE_TOKEN
-	// is unset, which is fine for local dev where billing isn't wired.
-	var llmClient base.LLMClient = embedder
-	if embedder != nil {
-		reporter := metering.NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken)
-		llmClient = metering.NewLLMClient(embedder, reporter, appLogger)
-	}
+	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger)
+	llmClient := metering.NewWrappedClient(embedder, cfg, appLogger)
 
 	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, fs, appLogger)
 	if err != nil {
