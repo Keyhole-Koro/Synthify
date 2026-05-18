@@ -16,8 +16,9 @@ Eval GCS Artifact は、Cloud Run Job またはローカル CLI で実行され�
 
 この契約で扱わないもの:
 
-- `latest.json` のような上書き pointer
-- golden diff
+- `latest.json` のような上書き pointer（不要。§2 の object path は `{run_id}` がタイムスタンプ先頭のため、`runs/{prompt_source}/` 配下を lexical sort すれば最新が末尾に決まる。mutable pointer を足すと §6 の最小 IAM = `objectCreator` のみ・immutable artifact 原則を崩し、並行 run の上書き競合も生むため、意図的に持たない）
+- golden diff の**判定ロジック**（[prompt-variant-eval-contract.md](prompt-variant-eval-contract.md) の責任。GCS artifact は report payload の一部として `golden_diff` を**そのまま運ぶだけ**で、判定はしない）
+- report payload の**スキーマ定義**（同じく prompt-variant-eval-contract / llm-eval-runner-contract の責任。本契約は bytes を運ぶことだけに責任を持つ）
 - BigQuery / dashboard 取り込み
 - Slack / GitHub 通知
 - document upload / worker cache / checkpoint の保存
@@ -30,16 +31,23 @@ Cloud Run Job は次の env を受け取る。
 EVAL_OUTPUT_GCS_URI=gs://{bucket}/eval/{environment}/runs
 ```
 
-CLI はこの prefix 配下に run ごとの object を作成する。
+CLI はこの prefix 配下に run ごとの object を作成する。object path には
+`prompt_source` segment を含め、baseline と variant の run を URI だけで分離する。
 
 ```text
-gs://{bucket}/eval/{environment}/runs/{yyyy}/{mm}/{dd}/{run_id}.json
+gs://{bucket}/eval/{environment}/runs/{prompt_source}/{yyyy}/{mm}/{dd}/{run_id}.json
 ```
+
+`{prompt_source}` は report payload の `prompt_source`（[prompt-variant-eval-contract.md](prompt-variant-eval-contract.md) §6）と一致する 1 segment:
+
+- production prompt の run → `production`
+- variant の run → `variant-{name}`（payload では `variant:{name}`。`:` と `/` は `-` に正規化し、余分な path level を作らない）
 
 例:
 
 ```text
-gs://synthify-stage-491705-synthify-uploads-stage/eval/stage/runs/2026/05/17/20260517T042000Z-a1b2c3.json
+gs://synthify-stage-491705-synthify-uploads-stage/eval/stage/runs/production/2026/05/17/20260517T042000Z-a1b2c3.json
+gs://synthify-stage-491705-synthify-uploads-stage/eval/stage/runs/variant-concise-v1/2026/05/18/20260518T000000Z-deadbe.json
 ```
 
 Rules:
@@ -47,8 +55,11 @@ Rules:
 - `EVAL_OUTPUT_GCS_URI` は `gs://` scheme のみ許可する。
 - bucket は必須。
 - prefix は slash で正規化し、末尾 slash の有無で保存先が変わってはならない。
+- `prompt_source` segment は必須。空・未指定の run は `production` として保存する。
+- `prompt_source` の `:` `/` は単一 segment に正規化し、path 階層を増やさない。
 - object は run ごとに一意でなければならない。
 - 既存 object の上書きは行わない。
+- baseline / variant の比較は同じ `runs/` 配下の `production/` と `variant-{name}/` を突き合わせて行う。[prompt_variant_reviews](../improvements/llm-prompt-optimization-loop.md) の `run_artifact_uri` / `baseline_artifact_uri` はこの URI 規約で解決する。
 
 ## 3. CLI 契約
 
@@ -81,18 +92,27 @@ stdout は report JSON 専用とし、GCS URI の人間向け log は stderr / s
 
 GCS に保存する payload は、stdout / `--out` に出す JSON report と同一 bytes とする。
 
-現行 report schema:
+**payload schema の source of truth は本契約ではない。** schema は
+[prompt-variant-eval-contract.md](prompt-variant-eval-contract.md) §6（`prompt_source` /
+`golden_checked` / `golden_match` / `golden_diff`）と
+[llm-eval-runner-contract.md](llm-eval-runner-contract.md) §4 が定義する。本契約は
+それを bytes として運ぶことだけに責任を持ち、schema をここで二重定義しない。
+
+現行 report 例（schema の正本は上記契約。ここは形のイメージ）:
 
 ```json
 [
   {
-    "case_name": "synthesis_api_spec",
-    "tool": "synthesis",
+    "case_name": "knowledge_tree_api_spec",
+    "tool": "knowledge_tree",
     "passed": true,
     "schema_valid": true,
     "item_count": 4,
     "max_depth": 2,
     "missing_titles": null,
+    "prompt_source": "production",
+    "golden_checked": true,
+    "golden_match": true,
     "duration_ms": 11838,
     "model": "gemini-3-flash-preview",
     "input_tokens": 544,
@@ -106,6 +126,8 @@ Rules:
 
 - GCS artifact は JSON report そのものだけを保存する。
 - artifact URI を report wrapper として埋め込まない。
+- `prompt_source` は必ず含まれる（baseline / variant 判別の根幹であり、§2 の path segment と一致する）。
+- `golden_diff` を含む場合も payload の一部として運ぶだけで、本契約は中身を解釈しない（full `content` HTML を含まないことは判定側契約 §6 が保証）。
 - HTML content は `\u003c` などに escape しない。
 - fail した case では既存 report 契約通り `failed_input` を含めてよい。
 
@@ -200,7 +222,9 @@ Unit tests:
 - valid `gs://bucket/prefix` を parse できる
 - trailing slash を正規化する
 - bucket なし、`http://`、空 URI を拒否する
-- generated object name が `{yyyy}/{mm}/{dd}/{run_id}.json` になる
+- generated object name が `{prompt_source}/{yyyy}/{mm}/{dd}/{run_id}.json` になる
+- `prompt_source` 未指定で `production/` segment になる
+- `variant:concise-v1` が `variant-concise-v1/` の単一 segment に正規化される（path 階層を増やさない）
 - `--out-gcs` が `EVAL_OUTPUT_GCS_URI` より優先される
 - GCS 未設定なら upload を呼ばない
 - fake uploader の error が CLI exit failure に反映される

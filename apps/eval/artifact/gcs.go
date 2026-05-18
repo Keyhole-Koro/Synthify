@@ -18,8 +18,12 @@ const jsonContentType = "application/json"
 
 type GCSConfig struct {
 	PrefixURI string
-	Now       func() time.Time
-	Rand      io.Reader
+	// PromptSource segments the object path so baseline and variant runs
+	// are separable from the URI alone (e.g. "production",
+	// "variant:concise-v1"). Empty falls back to "production".
+	PromptSource string
+	Now          func() time.Time
+	Rand         io.Reader
 }
 
 type UploadResult struct {
@@ -107,12 +111,26 @@ func BuildObjectName(prefix string, cfg GCSConfig) (string, error) {
 		return "", err
 	}
 	filename := fmt.Sprintf("%s-%s.json", t.Format("20060102T150405Z"), suffix)
-	datePath := path.Join(t.Format("2006"), t.Format("01"), t.Format("02"), filename)
+	sourceSeg := promptSourceSegment(cfg.PromptSource)
+	datePath := path.Join(sourceSeg, t.Format("2006"), t.Format("01"), t.Format("02"), filename)
 	prefix = normalizePrefix(prefix)
 	if prefix == "" {
 		return datePath, nil
 	}
 	return path.Join(prefix, datePath), nil
+}
+
+// promptSourceSegment maps a report prompt_source ("production",
+// "variant:concise-v1") to a single safe path segment. ":" is replaced so the
+// variant name does not introduce an extra path level.
+func promptSourceSegment(promptSource string) string {
+	s := strings.TrimSpace(promptSource)
+	if s == "" {
+		return "production"
+	}
+	s = strings.ReplaceAll(s, ":", "-")
+	s = strings.ReplaceAll(s, "/", "-")
+	return s
 }
 
 func normalizePrefix(prefix string) string {

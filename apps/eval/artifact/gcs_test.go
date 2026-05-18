@@ -53,9 +53,25 @@ func TestBuildObjectName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildObjectName returned error: %v", err)
 	}
-	want := "eval/stage/runs/2026/05/16/20260516T192000Z-a1b2c3.json"
+	want := "eval/stage/runs/production/2026/05/16/20260516T192000Z-a1b2c3.json"
 	if object != want {
 		t.Fatalf("unexpected object name: got %q want %q", object, want)
+	}
+}
+
+func TestBuildObjectNameVariantSegment(t *testing.T) {
+	object, err := BuildObjectName("/eval/stage/runs", GCSConfig{
+		PromptSource: "variant:concise-v1",
+		Now:          func() time.Time { return time.Date(2026, 5, 18, 0, 0, 0, 0, time.UTC) },
+		Rand:         bytes.NewReader([]byte{0xde, 0xad, 0xbe}),
+	})
+	if err != nil {
+		t.Fatalf("BuildObjectName returned error: %v", err)
+	}
+	// ":" must not introduce an extra path level (contract §2).
+	want := "eval/stage/runs/variant-concise-v1/2026/05/18/20260518T000000Z-deadbe.json"
+	if object != want {
+		t.Fatalf("unexpected variant object name: got %q want %q", object, want)
 	}
 }
 
@@ -69,10 +85,10 @@ func TestUploadGCSWithWriter(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UploadGCSWithWriter returned error: %v", err)
 	}
-	if res.URI != "gs://bucket/eval/stage/runs/2026/05/17/20260517T042000Z-010203.json" {
+	if res.URI != "gs://bucket/eval/stage/runs/production/2026/05/17/20260517T042000Z-010203.json" {
 		t.Fatalf("unexpected uri: %q", res.URI)
 	}
-	if fw.bucket != "bucket" || fw.object != "eval/stage/runs/2026/05/17/20260517T042000Z-010203.json" {
+	if fw.bucket != "bucket" || fw.object != "eval/stage/runs/production/2026/05/17/20260517T042000Z-010203.json" {
 		t.Fatalf("unexpected write target: %#v", fw)
 	}
 	if fw.contentType != jsonContentType || string(fw.data) != `{"ok":true}` {

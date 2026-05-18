@@ -113,7 +113,7 @@ func main() {
 		}
 	}
 	if gcsURI := resolveGCSOutputURI(*outGCS); gcsURI != "" {
-		res, err := artifact.UploadGCS(ctx, artifact.GCSConfig{PrefixURI: gcsURI}, buf.Bytes())
+		res, err := artifact.UploadGCS(ctx, artifact.GCSConfig{PrefixURI: gcsURI, PromptSource: promptSource}, buf.Bytes())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "write --out-gcs: %v\n", err)
 			os.Exit(1)

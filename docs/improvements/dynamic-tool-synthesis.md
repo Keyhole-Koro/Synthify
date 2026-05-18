@@ -8,9 +8,26 @@ LLM ワーカーは固定されたツール集合 ([orchestrator.go の `[]tool.
 
 - LLM が処理中に「こういう変換が要る」と判断したら、その場で変換ロジック (python / Starlark 関数) を**生成して実行**する
 - 有用だった変換は**永続化**して以降のジョブで再利用する (使い捨てで終わらせない)
-- 永続化されたものは [llm-eval-runner.md](llm-eval-runner.md) のツールレジストリに乗せ、評価対象にもできる
+- 永続化されたものは [llm-eval-runner.md](llm-eval-runner.md) のツールレジストリに乗せ、評価対象にもできる（**依存注意**: これは eval runner のマルチツール対応を前提とするが、現状 eval runner は単一 tool 固定であり、[prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md) §8 が `knowledge_tree` 以外を明示的にスコープ外と確定している。後述の依存衝突を参照）
 
-これは [router-job-splitting.md](router-job-splitting.md) などと同様、**実装前に設計を固めるドラフト**。特にコード実行環境はセキュリティ判断が重く、この文書では選択肢の整理に留める。
+設計の主要判断は固まっており、一部は既に実装されている (下記「現在地」)。コード実行環境のセキュリティ判断が最も重く、特に Python 実行を担う executor サービスが未実装である点に注意。
+
+### 現在地 (2026-05-18 時点)
+
+「決定済み」と「実装済み」は別物である。読者は段階1から着手する前提で読まないこと。
+
+| 領域 | 状態 |
+| :--- | :--- |
+| Starlark analyzer / engine (段階1) | **実装済み**・テスト通過 ([transform package](../../apps/worker/pkg/worker/transform)) |
+| `create_transform` メタツール | **配線済み** ([orchestrator.go](../../apps/worker/pkg/worker/agents/orchestrator.go) で Starlark engine に接続) |
+| `domain.DynamicTool` (tier / scope / status / version) | **実装済み** ([dynamic_tool.go](../../packages/shared/domain/dynamic_tool.go)、postgres + mock + sqlc) |
+| candidate 記録 / 昇格リポジトリ API | **リポジトリ層のみ実装** (`RecordCandidate` / `ListCandidates` / `PromoteCandidate` / `PromoteToGlobal`)。**これを駆動する非同期昇格ワーカー/呼び出し元は未実装** — 昇格は動かない |
+| `JobCapability.MaxTransform*` / `UsageLimiter.IncrementTransform*` | **実装済み** |
+| executor proto (`executor.pb.go`) | **生成済み**。ただし **executor サービス本体は存在しない** (`apps/` に executor cmd 無し) |
+| Python 実行経路 | **未実装**。`create_transform` は Starlark 以外を明示的に拒否する |
+| eval runner への動的ツール統合 | **未実装**。eval runner は今も単一 tool 固定 ([runner.go](../../apps/eval/runner/runner.go) は `knowledge_tree` 以外をエラー) |
+
+要約: **動いているのは段階1 (worker 内 Starlark の使い捨て実行) のみ。** 実用変換を担う Python executor、昇格の自動化、eval ゲートはいずれも未稼働。「決定済み事項」節 (後述) は設計判断の確定であって稼働状態ではない。
 
 ## 用語
 
@@ -266,6 +283,8 @@ dynamic_tools
 
 ## 決定済み事項
 
+> ここに列挙するのは**設計判断の確定**であって稼働状態ではない。実装の進捗は冒頭「現在地」を参照。特に「実行環境」は判断は確定だが executor サービス本体は未実装である。
+
 - **実行環境**: 別 Cloud Run サービス「executor」を新設し隔離実行 ([実行環境セクション](#実行環境-決定-別-cloud-run-サービスによる隔離実行器) 参照)。worker の認証情報と完全分離・ネットワーク遮断・最小権限 SA。Starlark 組込を踏み台に段階導入し、最終的に executor へ一本化
 - **永続化と昇格**: 既存 risk tier モデルを流用。tier 1 自動昇格 / tier 2 自動昇格+通知 / tier 3 人間レビュー必須
 - **risk tier 判定**: `max(静的解析の floor, LLM 自己申告)`。解析器は executor に同梱、AST ベース、未対応構文は tier_3 フォールバック。判定はセキュリティの単一障害点ではなく実行時隔離が本丸 ([深掘り](#risk-tier-の判定-深掘り) 参照)
@@ -459,6 +478,8 @@ create_transform(code) 実行
 
 ### 昇格前 eval ゲート
 
+> **依存衝突 (未解消)**: 昇格前ゲートは「昇格ツールを eval runner で評価できる」ことを前提にするが、eval runner は現在 `knowledge_tree` 単一 tool 固定で、[prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md) §8 がマルチツール対応を明示的にスコープ外と確定している。つまり**動的ツールを評価する経路が存在しないまま** active 化される論理的循環がある。これは本ドラフトと prompt-variant-eval-contract が eval 基盤を共有しながら、「eval runner のマルチツール対応を誰が担うか」を**どちらも相手任せにしている**ことに起因する。解消には: (a) eval runner のマルチツール対応を独立タスクとして切り出し所有者を決める、(b) それまで動的ツールの「昇格前 eval ゲート」は eval runner ではなく `create_transform` 内の回帰実行 (input_sample 再実行) のみに限定する、のいずれかを先に確定する必要がある。下表の tier 1 ゲートが (b) と一致するのは偶然ではなく、現状で唯一実行可能な経路だからである。
+
 [llm-eval-runner.md](llm-eval-runner.md) と接続。**tier 別にゲートの強さを変える**:
 
 | tier | 昇格前ゲート |
@@ -523,13 +544,22 @@ create_transform(code) 実行
 
 主要設計は固まった (実行環境・tier 判定・名前空間・受け渡し・コスト/再帰防止・失敗扱い/eval ゲート・昇格発火点/競合・ランタイム/監査)。残る未決定は ①tier 判定の残論点 (言語拡張・静的解析の限界・手動降格)、②名前空間の残論点 (global 昇格判定者・version GC・workspace 削除時)、③通知方法、④ライフサイクル (自動失効・自動降格)。いずれも段階的最小実装の途中で確定すればよく、着手のブロッカーではない。
 
-段階的な最小実装案:
+段階的な最小実装案 (現在地を反映した進捗付き):
 
-1. **Starlark runtime**: `create_transform` メタツール + Starlark によるエフェメラル実行のみ (昇格なし・使い捨て)。インフラ追加なしで価値検証
-2. candidate ストアへの記録 (昇格はまだしない・観測だけ)
-3. tier 1 の自動昇格 + レジストリ連携
-4. **Python executor サービス新設** (Terraform) + `language` 抽象で Starlark / Python を dispatch
-5. tier 2/3 と通知・レビュー導線
+1. ✅ **Starlark runtime**: `create_transform` メタツール + Starlark エフェメラル実行 (昇格なし・使い捨て)。**実装済み**
+2. ◐ **candidate ストアへの記録**: `RecordCandidate` 等のリポジトリ API は実装済みだが、`create_transform` 成功時に candidate を記録する**呼び出し配線が未実装**。記録は動いていない
+3. ☐ **tier 1 の自動昇格 + レジストリ連携**: `PromoteCandidate` リポジトリ API はあるが、それを駆動する**非同期昇格ワーカーが未実装**。昇格は動かない
+4. ☐ **Python executor サービス新設** (Terraform) + `language` 抽象で Starlark / Python を dispatch。proto のみ生成済み、サービス本体なし
+5. ☐ tier 2/3 と通知・レビュー導線
+
+### 実装順序の不変条件 (安全論証との整合)
+
+本ドラフトの安全論証 ([tier の妥当性は実行時隔離で担保される](#tier-の妥当性は実行時隔離で担保される)) は **executor の実行時隔離が存在する前提**で「静的解析は単一障害点ではない」と結論している。現状動いている Starlark は worker 内実行だが、Starlark は無権限・決定論的なのでこれは安全 ([段階的導入](#段階的導入) の論拠)。
+
+ここから導かれる不変条件:
+
+- **Python 実行を有効化する前に executor (段階4) を完成させる。** Python を worker 内や隔離不十分な環境で実行してはならない。「Starlark で価値検証 → Python が欲しくなる → executor 未完成のまま Python を足す」という圧力が構造的にかかるが、これを設計として禁じる。段階4 は段階5 の前提であると同時に、**あらゆる Python 経路の前提**である。
+- したがって上記リストの番号順は「やってよい順序」であり、4 を飛ばして Python を部分有効化する近道は安全論証を無効化するため認めない。
 
 ## 関連
 
