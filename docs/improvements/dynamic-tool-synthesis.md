@@ -211,6 +211,8 @@ executor は本命だがインフラ追加を伴う。段階を踏む:
 
 → Starlark は「executor が来るまでの安全な踏み台」。最終形は executor に一本化する (実行器の二重維持はしない)。
 
+この `language` 抽象を worker のコード構造 (Registry / Runtime) としてどう実装するかは [transform-engine-registry.md](transform-engine-registry.md) で詳述する。
+
 ## 永続化と昇格 (方針確定済み)
 
 ### 既存 risk tier モデルを流用する

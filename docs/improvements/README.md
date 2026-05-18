@@ -38,6 +38,7 @@
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
 - [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) — 旧 log-viewer を BI として扱う設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
 - [dynamic-tool-synthesis.md](dynamic-tool-synthesis.md) — LLM が処理中に変換コードを生成・実行し、有用なら risk tier に応じて自動/レビュー昇格してレジストリに残す設計（実行環境は別 Cloud Run executor で確定・Starlark 踏み台から段階導入）
+  - 言語抽象の worker 内コード構造: [transform-engine-registry.md](transform-engine-registry.md) — language→Runtime を解決する Registry。新言語追加を 1 行登録に。starlarkrt 二重実装は削除済み
 
 ## Future Improvements（別ファイル）
 
