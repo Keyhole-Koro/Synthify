@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
 	"github.com/synthify/backend/packages/shared/domain"
 	"google.golang.org/adk/tool"
@@ -43,19 +44,33 @@ func synthesize(ctx context.Context, llmClient base.LLMClient, args SynthesisArg
 	return items, err
 }
 
+// Synthesize runs synthesis with the production (embedded) prompt.
 func Synthesize(ctx context.Context, llmClient base.LLMClient, args SynthesisArgs) ([]domain.SynthesizedItem, llm.Usage, error) {
+	provider, err := prompts.Default()
+	if err != nil {
+		return nil, llm.Usage{}, fmt.Errorf("load synthesis prompts: %w", err)
+	}
+	return SynthesizeWithProvider(ctx, llmClient, provider, args)
+}
+
+// SynthesizeWithProvider runs synthesis with an explicit prompt provider. The
+// eval runner uses this to inject a variant provider; production callers use
+// Synthesize, which supplies the embedded provider.
+func SynthesizeWithProvider(ctx context.Context, llmClient base.LLMClient, provider *prompts.Provider, args SynthesisArgs) ([]domain.SynthesizedItem, llm.Usage, error) {
 	if llmClient == nil {
 		return nil, llm.Usage{}, fmt.Errorf("llm not configured")
 	}
-
-	var sb strings.Builder
-	for _, chunk := range args.Chunks {
-		fmt.Fprintf(&sb, "[%d] %s\n%s\n\n", chunk.ChunkIndex, chunk.Heading, chunk.Text)
+	if provider == nil {
+		return nil, llm.Usage{}, fmt.Errorf("prompt provider not configured")
 	}
 
-	instruction := args.Instruction
-	if instruction == "" {
-		instruction = "none"
+	prompt, err := provider.Synthesis(prompts.SynthesisInput{
+		DocumentID:  args.DocumentID,
+		Instruction: args.Instruction,
+		Chunks:      args.Chunks,
+	})
+	if err != nil {
+		return nil, llm.Usage{}, err
 	}
 
 	type llmOutput struct {
@@ -63,30 +78,9 @@ func Synthesize(ctx context.Context, llmClient base.LLMClient, args SynthesisArg
 	}
 
 	raw, usage, err := llmClient.GenerateStructured(ctx, llm.StructuredRequest{
-		SystemPrompt: `You are a Lead Knowledge Architect. Convert document chunks into a high-fidelity, hierarchical knowledge tree.
-
-Rules for "content" (STRICT):
-- NO MARKDOWN: Never use #, ##, **, or [text](url). Use HTML tags only.
-- RICH HTML: Use a variety of structural tags and CSS classes to make the content "alive":
-  - <p class="lede">: for important introductory paragraphs.
-  - <p class="eyebrow">: for small, bold labels at the top of sections.
-  - <div class="hero-block">: for featured summaries with a visual punch.
-  - <div class="callout-grid">: for 2-column comparison or fact grids.
-  - <div class="stat-card">: inside a grid or alone, use <strong>Number</strong> <span>Label</span>.
-  - <div class="tip-box">: for helpful tips or additional context.
-  - <blockquote>: for direct quotes from the source.
-  - <table>: for technical data or side-by-side specs.
-  - <details><summary>: for technical deep-dives that should be hidden by default.
-  - <a data-paper-id="{local_id}">: to link to child items. Use the EXACT local_id.
-- COMPOSITION: Combine these elements to create a professional technical report feel.
-
-Rules for Structure:
-- Use parent_local_id to express relationships. Root-level items have empty parent_local_id.
-- Assign local_id as "item_1", "item_2", etc.
-- description: a very short, plain-text summary for list views.
-- source_chunk_ids: list of chunk IDs referenced (format: "{document_id}_chunk_{index}").`,
-		UserPrompt: fmt.Sprintf("document_id: %s\nInstruction: %s\n\nChunks:\n%s", args.DocumentID, instruction, sb.String()),
-		Schema:     llmOutput{},
+		SystemPrompt: prompt.System,
+		UserPrompt:   prompt.User,
+		Schema:       llmOutput{},
 	})
 	if err != nil {
 		return nil, usage, err

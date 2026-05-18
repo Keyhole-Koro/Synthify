@@ -36,7 +36,7 @@
 - [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
-- [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) — log-viewer を BI 化する設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
+- [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) — 旧 log-viewer を BI として扱う設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
 - [dynamic-tool-synthesis.md](dynamic-tool-synthesis.md) — LLM が処理中に変換コードを生成・実行し、有用なら risk tier に応じて自動/レビュー昇格してレジストリに残す設計（実行環境は別 Cloud Run executor で確定・Starlark 踏み台から段階導入）
 
 ## Future Improvements（別ファイル）
@@ -54,3 +54,5 @@
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加
 - [llm-eval-runner.md](llm-eval-runner.md) — プロンプト・モデルを変えながら LLM ツール出力を定量評価・横並び比較する CLI 基盤 (プロンプト外出しが前提)
   - 実装済みコンポーネント契約: [../contracts/llm-eval-runner-contract.md](../contracts/llm-eval-runner-contract.md)
+- [llm-prompt-optimization-loop.md](llm-prompt-optimization-loop.md) — eval report / golden diff を LLM が分析し、prompt variant を生成して BI 上で人間が approve / apply する改善 loop
+  - 最初の実装単位 3 つの契約: [../contracts/prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md)

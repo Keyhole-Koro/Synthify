@@ -15,6 +15,7 @@ import (
 	"github.com/synthify/backend/apps/eval/report"
 	"github.com/synthify/backend/apps/eval/runner"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/packages/shared/config"
 )
 
@@ -24,12 +25,34 @@ func main() {
 	format := flag.String("format", "table", "output format: table or json")
 	outPath := flag.String("out", "", "optional path to write the report")
 	outGCS := flag.String("out-gcs", "", "optional gs:// prefix to write the report artifact")
+	variant := flag.String("variant", "", "variant name under apps/eval/variants/{name}; empty = production prompt")
+	variantsDir := flag.String("variants-dir", "apps/eval/variants", "root directory holding variant prompt sets")
+	goldenDir := flag.String("golden", "", "golden directory; enables strict golden judgement")
+	updateGolden := flag.Bool("update-golden", false, "write golden files instead of judging against them (requires --golden)")
 	timeout := flag.Duration("timeout", 60*time.Second, "eval timeout")
 	flag.Parse()
 
 	if (*casePath == "") == (*casesPath == "") {
 		fmt.Fprintln(os.Stderr, "set exactly one of --case or --cases")
 		os.Exit(2)
+	}
+
+	if *updateGolden && *goldenDir == "" {
+		fmt.Fprintln(os.Stderr, "--update-golden requires --golden")
+		os.Exit(2)
+	}
+
+	var provider *prompts.Provider
+	promptSource := "production"
+	if *variant != "" {
+		dir := filepath.Join(*variantsDir, *variant)
+		p, err := prompts.FromDir(dir)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load variant %q: %v\n", *variant, err)
+			os.Exit(2)
+		}
+		provider = p
+		promptSource = "variant:" + *variant
 	}
 
 	if err := loadDotEnv(".env"); err != nil {
@@ -62,7 +85,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	results, err := runner.Runner{LLM: client}.RunCaseFiles(ctx, caseFiles)
+	results, err := runner.Runner{
+		LLM:          client,
+		Provider:     provider,
+		PromptSource: promptSource,
+		GoldenDir:    *goldenDir,
+		UpdateGolden: *updateGolden,
+	}.RunCaseFiles(ctx, caseFiles)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run eval: %v\n", err)
 		os.Exit(1)
@@ -90,6 +119,12 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "eval artifact uploaded: %s\n", res.URI)
+	}
+	// Contract §5: --update-golden exits 0 on successful write-out; golden
+	// judgement is not performed in that mode. Write errors already aborted
+	// above via RunCaseFiles.
+	if *updateGolden {
+		return
 	}
 	if !allPassed(results) {
 		os.Exit(1)

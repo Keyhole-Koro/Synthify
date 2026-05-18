@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/process"
 	"github.com/synthify/backend/packages/shared/domain"
@@ -53,6 +54,25 @@ type Result struct {
 	Items        []domain.SynthesizedItem `json:"items,omitempty"`
 	Error        string                   `json:"error,omitempty"`
 	FailedInput  *InputSnapshot           `json:"failed_input,omitempty"`
+
+	// Contract §6: prompt source and golden judgement. Additive; absent
+	// fields keep the legacy report shape when --golden is not used.
+	PromptSource  string      `json:"prompt_source"`
+	GoldenChecked bool        `json:"golden_checked"`
+	GoldenMatch   bool        `json:"golden_match"`
+	GoldenDiff    *GoldenDiff `json:"golden_diff,omitempty"`
+}
+
+// GoldenDiff summarizes mismatched strict fields. It never includes full
+// "content" HTML (contract §4.1, §6).
+type GoldenDiff struct {
+	Fields []GoldenFieldDiff `json:"fields"`
+}
+
+type GoldenFieldDiff struct {
+	Field    string `json:"field"`
+	Expected string `json:"expected"`
+	Actual   string `json:"actual"`
 }
 
 type InputSnapshot struct {
@@ -64,6 +84,21 @@ type InputSnapshot struct {
 
 type Runner struct {
 	LLM base.LLMClient
+
+	// Provider renders the synthesis prompt. Nil means the production
+	// (embedded) prompt. A non-nil provider is a variant (contract §3).
+	Provider *prompts.Provider
+
+	// PromptSource labels the report: "production" or "variant:{name}"
+	// (contract §6).
+	PromptSource string
+
+	// GoldenDir, when set, enables strict golden judgement (contract §4).
+	GoldenDir string
+
+	// UpdateGolden, when true, writes golden files instead of judging
+	// against them (contract §4.2).
+	UpdateGolden bool
 }
 
 func CaseFiles(path string) ([]string, error) {
@@ -141,9 +176,22 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 		Chunks:      chunks,
 	}
 
-	res := Result{CaseName: c.Name, Tool: c.Tool}
+	promptSource := r.PromptSource
+	if promptSource == "" {
+		promptSource = "production"
+	}
+
+	provider := r.Provider
+	if provider == nil {
+		provider, err = prompts.Default()
+		if err != nil {
+			return Result{}, fmt.Errorf("load production prompts: %w", err)
+		}
+	}
+
+	res := Result{CaseName: c.Name, Tool: c.Tool, PromptSource: promptSource}
 	start := time.Now()
-	items, usage, err := process.Synthesize(ctx, r.LLM, process.SynthesisArgs{
+	items, usage, err := process.SynthesizeWithProvider(ctx, r.LLM, provider, process.SynthesisArgs{
 		DocumentID:  c.Input.DocumentID,
 		Chunks:      chunks,
 		Instruction: c.Input.Instruction,
@@ -164,6 +212,24 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 	res.MaxDepth = maxDepth(items)
 	res.MissingTitle = missingTitles(items, c.Expect.MustContainTitles)
 	res.Passed = passes(c.Expect, res)
+
+	if r.UpdateGolden {
+		if err := writeGolden(r.GoldenDir, c.Name, items); err != nil {
+			return Result{}, fmt.Errorf("update golden %s: %w", c.Name, err)
+		}
+	} else if r.GoldenDir != "" {
+		res.GoldenChecked = true
+		diff, err := compareGolden(r.GoldenDir, c.Name, items)
+		if err != nil {
+			return Result{}, fmt.Errorf("compare golden %s: %w", c.Name, err)
+		}
+		res.GoldenMatch = diff == nil
+		if diff != nil {
+			res.GoldenDiff = diff
+			res.Passed = false
+		}
+	}
+
 	if !res.Passed {
 		res.FailedInput = &input
 	}
