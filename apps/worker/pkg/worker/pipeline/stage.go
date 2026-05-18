@@ -10,7 +10,7 @@ const (
 	StageTextExtraction        StageName = "text_extraction"
 	StageSemanticChunking      StageName = "semantic_chunking"
 	StageBriefGeneration       StageName = "brief_generation"
-	StageGoalDrivenSynthesis   StageName = "goal_driven_synthesis"
+	StageGenerateKnowledgeTree StageName = "generate_knowledge_tree"
 	StagePersistence           StageName = "persistence"
 	StageHTMLSummaryGeneration StageName = "html_summary_generation"
 )

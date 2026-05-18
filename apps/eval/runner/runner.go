@@ -17,7 +17,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const ToolSynthesis = "synthesis"
+const ToolKnowledgeTree = "knowledge_tree"
 
 type Case struct {
 	Name   string     `yaml:"name" json:"name"`
@@ -40,20 +40,20 @@ type CaseExpect struct {
 }
 
 type Result struct {
-	CaseName     string                   `json:"case_name"`
-	Tool         string                   `json:"tool"`
-	Passed       bool                     `json:"passed"`
-	SchemaValid  bool                     `json:"schema_valid"`
-	ItemCount    int                      `json:"item_count"`
-	MaxDepth     int                      `json:"max_depth"`
-	MissingTitle []string                 `json:"missing_titles"`
-	DurationMS   int64                    `json:"duration_ms"`
-	Model        string                   `json:"model"`
-	InputTokens  int64                    `json:"input_tokens"`
-	OutputTokens int64                    `json:"output_tokens"`
-	Items        []domain.SynthesizedItem `json:"items,omitempty"`
-	Error        string                   `json:"error,omitempty"`
-	FailedInput  *InputSnapshot           `json:"failed_input,omitempty"`
+	CaseName     string                     `json:"case_name"`
+	Tool         string                     `json:"tool"`
+	Passed       bool                       `json:"passed"`
+	SchemaValid  bool                       `json:"schema_valid"`
+	ItemCount    int                        `json:"item_count"`
+	MaxDepth     int                        `json:"max_depth"`
+	MissingTitle []string                   `json:"missing_titles"`
+	DurationMS   int64                      `json:"duration_ms"`
+	Model        string                     `json:"model"`
+	InputTokens  int64                      `json:"input_tokens"`
+	OutputTokens int64                      `json:"output_tokens"`
+	Items        []domain.GeneratedTreeItem `json:"items,omitempty"`
+	Error        string                     `json:"error,omitempty"`
+	FailedInput  *InputSnapshot             `json:"failed_input,omitempty"`
 
 	// Contract §6: prompt source and golden judgement. Additive; absent
 	// fields keep the legacy report shape when --golden is not used.
@@ -85,9 +85,9 @@ type InputSnapshot struct {
 type Runner struct {
 	LLM base.LLMClient
 
-	// Provider renders the synthesis prompt. Nil means the production
-	// (embedded) prompt. A non-nil provider is a variant (contract §3).
-	Provider *prompts.Provider
+	// Renderer renders the knowledge tree prompt. Nil means the production
+	// (embedded) prompt. A non-nil renderer is a variant (contract §3).
+	Renderer *prompts.Renderer
 
 	// PromptSource labels the report: "production" or "variant:{name}"
 	// (contract §6).
@@ -130,18 +130,49 @@ func CaseFiles(path string) ([]string, error) {
 	return files, nil
 }
 
+// resolveRenderer returns the prompt renderer for this run. A non-nil
+// r.Renderer is a variant; otherwise the cached embedded production renderer
+// is used. Resolving once per run (not per case) keeps case throughput flat
+// as the case set grows.
+func (r Runner) resolveRenderer() (*prompts.Renderer, string, error) {
+	promptSource := r.PromptSource
+	if promptSource == "" {
+		promptSource = "production"
+	}
+	if r.Renderer != nil {
+		return r.Renderer, promptSource, nil
+	}
+	p, err := prompts.Default()
+	if err != nil {
+		return nil, "", fmt.Errorf("load production prompts: %w", err)
+	}
+	return p, promptSource, nil
+}
+
 func (r Runner) RunCaseFile(ctx context.Context, path string) (Result, error) {
 	c, err := LoadCase(path)
 	if err != nil {
 		return Result{}, err
 	}
-	return r.RunCase(ctx, c, filepath.Dir(path))
+	renderer, promptSource, err := r.resolveRenderer()
+	if err != nil {
+		return Result{}, err
+	}
+	return r.runCase(ctx, c, filepath.Dir(path), renderer, promptSource)
 }
 
 func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, error) {
+	renderer, promptSource, err := r.resolveRenderer()
+	if err != nil {
+		return nil, err
+	}
 	results := make([]Result, 0, len(paths))
 	for _, path := range paths {
-		res, err := r.RunCaseFile(ctx, path)
+		c, err := LoadCase(path)
+		if err != nil {
+			return nil, err
+		}
+		res, err := r.runCase(ctx, c, filepath.Dir(path), renderer, promptSource)
 		if err != nil {
 			return nil, err
 		}
@@ -150,12 +181,22 @@ func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, err
 	return results, nil
 }
 
+// RunCase resolves the renderer and runs a single case. Prefer RunCaseFiles
+// for multi-case runs so the renderer is resolved once.
 func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, error) {
+	renderer, promptSource, err := r.resolveRenderer()
+	if err != nil {
+		return Result{}, err
+	}
+	return r.runCase(ctx, c, baseDir, renderer, promptSource)
+}
+
+func (r Runner) runCase(ctx context.Context, c Case, baseDir string, renderer *prompts.Renderer, promptSource string) (Result, error) {
 	if strings.TrimSpace(c.Name) == "" {
 		return Result{}, fmt.Errorf("case name is required")
 	}
-	if c.Tool != ToolSynthesis {
-		return Result{}, fmt.Errorf("unsupported tool %q: only %q is supported", c.Tool, ToolSynthesis)
+	if c.Tool != ToolKnowledgeTree {
+		return Result{}, fmt.Errorf("unsupported tool %q: only %q is supported", c.Tool, ToolKnowledgeTree)
 	}
 	if strings.TrimSpace(c.Input.DocumentID) == "" {
 		return Result{}, fmt.Errorf("input.document_id is required")
@@ -176,22 +217,9 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 		Chunks:      chunks,
 	}
 
-	promptSource := r.PromptSource
-	if promptSource == "" {
-		promptSource = "production"
-	}
-
-	provider := r.Provider
-	if provider == nil {
-		provider, err = prompts.Default()
-		if err != nil {
-			return Result{}, fmt.Errorf("load production prompts: %w", err)
-		}
-	}
-
 	res := Result{CaseName: c.Name, Tool: c.Tool, PromptSource: promptSource}
 	start := time.Now()
-	items, usage, err := process.SynthesizeWithProvider(ctx, r.LLM, provider, process.SynthesisArgs{
+	items, usage, err := process.GenerateKnowledgeTreeWithRenderer(ctx, r.LLM, renderer, process.GenerateKnowledgeTreeArgs{
 		DocumentID:  c.Input.DocumentID,
 		Chunks:      chunks,
 		Instruction: c.Input.Instruction,
@@ -267,9 +295,9 @@ func resolvePath(baseDir, path string) string {
 	return filepath.Join(baseDir, path)
 }
 
-func maxDepth(items []domain.SynthesizedItem) int {
+func maxDepth(items []domain.GeneratedTreeItem) int {
 	max := 0
-	byID := map[string]domain.SynthesizedItem{}
+	byID := map[string]domain.GeneratedTreeItem{}
 	for _, item := range items {
 		byID[item.LocalID] = item
 		if item.Level > max {
@@ -299,7 +327,7 @@ func maxDepth(items []domain.SynthesizedItem) int {
 	return max
 }
 
-func missingTitles(items []domain.SynthesizedItem, expected []string) []string {
+func missingTitles(items []domain.GeneratedTreeItem, expected []string) []string {
 	var missing []string
 	for _, want := range expected {
 		want = strings.TrimSpace(want)

@@ -21,7 +21,7 @@
 {
   "schema_version": 1,
   "kind": "synthify.worker_checkpoint",
-  "stage": "synthesis",
+  "stage": "knowledge_tree",
   "job_id": "job_123",
   "document_id": "doc_456",
   "workspace_id": "ws_789",
@@ -36,7 +36,7 @@
 
 ADK エージェントの特定のツール呼び出しを Checkpoint ステージとして定義する。
 - **`briefing`**: `generate_brief` ツールの結果。
-- **`synthesis`**: `goal_driven_synthesis` ツールの結果。
+- **`knowledge_tree`**: `generate_knowledge_tree` ツールの結果。
 - **`persistence`**: `persist_knowledge_tree` ツールの結果。
 
 ## 3. 実行制御ロジック (Orchestrator)

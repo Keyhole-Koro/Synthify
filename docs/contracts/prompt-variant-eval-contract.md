@@ -2,7 +2,7 @@
 
 このドキュメントは、prompt optimization loop の「最初の実装単位」3 つの契約を定義する。
 
-1. `synthesis` prompt 外出し（prompt provider + `go:embed`）
+1. `knowledge_tree` prompt 外出し（prompt renderer + `go:embed`）
 2. eval runner の `--variant`
 3. golden diff（`--golden` / `--update-golden`）
 
@@ -12,21 +12,35 @@ Analyst LLM / Prompt Writer LLM / BI Eval Review は本契約のスコープ外�
 
 この契約は実装の確定仕様である。実装が本契約と乖離した場合、実装か本契約のどちらかを直す。
 
+## 0. 命名規約
+
+tool 名・prompt・render の各レイヤーで同じ語を使い回さない（旧コードは `synthesis` を tool 実行・prompt 生成・テンプレート名に多重利用していて読めなかった）。以下を固定し、新規コードで混同しない。
+
+| レイヤー | 語 | 具体 |
+| :--- | :--- | :--- |
+| ドメイン tool（LLM を実行する） | **knowledge tree generation** | `process.GenerateKnowledgeTree` / `ToolKnowledgeTree` / case の `tool: knowledge_tree`。tool の固有名であり改名しない |
+| prompt を組み立てるもの | **Renderer** | `prompts.Renderer`。storage（embed / 将来の GCS）を隠す。`Render()` を持つ |
+| render の入力 | **RenderInput** | `prompts.RenderInput`。`process.GenerateKnowledgeTreeArgs` と同じフィールドを写す |
+| render の出力 | **Prompt** | `prompts.Prompt`（System / User） |
+| tool 1 個分の prompt 一式を束ねるキー | **tool key** | `"knowledge_tree"`。`knowledge_tree.system.tmpl` / variant dir / case の `tool:` 値はこのキーで揃える |
+
+「tool を実行する」(`GenerateKnowledgeTree`) と「その prompt 文字列を組む」(`Renderer.Render`) を同名にしない。これが本契約の命名上の不変条件である。
+
 ## 1. コンポーネントと責任
 
 | コンポーネント | 所在 | 責任 |
 | :--- | :--- | :--- |
-| Prompt Provider | `apps/worker/pkg/worker/prompts` | `go:embed` した production prompt template を render して返す。source of truth は repo file |
-| Prompt templates | `apps/worker/pkg/worker/prompts/templates` | `synthesis.system.tmpl` / `synthesis.user.tmpl`。production prompt の唯一の正本 |
-| Worker process tool | `apps/worker/pkg/worker/tools/process` | `Synthesize` は hardcoded prompt をやめ、provider が render した prompt を使う |
-| Eval Runner | `apps/eval/runner` | `--variant` 指定時は variant prompt、未指定時は production prompt で `synthesize` を実行する。golden と突き合わせる |
+| Prompt Renderer | `apps/worker/pkg/worker/prompts` | `go:embed` した production prompt template を render して返す（型は `prompts.Renderer`）。source of truth は repo file |
+| Prompt templates | `apps/worker/pkg/worker/prompts/templates` | `knowledge_tree.system.tmpl` / `knowledge_tree.user.tmpl`。production prompt の唯一の正本 |
+| Worker process tool | `apps/worker/pkg/worker/tools/process` | `GenerateKnowledgeTree` は hardcoded prompt をやめ、renderer が render した prompt を使う |
+| Eval Runner | `apps/eval/runner` | `--variant` 指定時は variant prompt、未指定時は production prompt で `GenerateKnowledgeTree` を実行する。golden と突き合わせる |
 | Eval CLI | `apps/eval/cmd` | `--variant` / `--golden` / `--update-golden` flag を解釈し runner に渡す |
 | Variant store | `apps/eval/variants/{name}/` | 手書き variant template。production image に混入させない |
 | Golden store | `apps/eval/golden/{case_name}.json` | case ごとの期待 output。strict 判定対象フィールドのみを保持する |
 
 依存方向は `apps/eval` → `apps/worker/pkg/worker/prompts` の一方向に限定する（[dependency-architecture-ideal.md](../improvements/dependency-architecture-ideal.md) の理想構成と整合させ、worker は eval を import しない）。
 
-## 2. Prompt Provider 契約
+## 2. Prompt Renderer 契約
 
 ### 2.1 Template layout
 
@@ -34,8 +48,8 @@ Analyst LLM / Prompt Writer LLM / BI Eval Review は本契約のスコープ外�
 apps/worker/pkg/worker/prompts/
   prompts.go
   templates/
-    synthesis.system.tmpl
-    synthesis.user.tmpl
+    knowledge_tree.system.tmpl
+    knowledge_tree.user.tmpl
 ```
 
 - `prompts.go` は `//go:embed templates/*.tmpl` で template を埋め込む。実行時にファイルシステムや GCS を参照しない。
@@ -43,7 +57,7 @@ apps/worker/pkg/worker/prompts/
 
 ### 2.2 Render 入力契約
 
-provider は次の入力から system / user prompt を render する。入力フィールドは現行 `process.SynthesisArgs` と一致させる。
+renderer は次の入力から system / user prompt を render する。入力フィールドは現行 `process.GenerateKnowledgeTreeArgs` と一致させる。
 
 | 入力 | 対応 | 用途 |
 | :--- | :--- | :--- |
@@ -51,13 +65,13 @@ provider は次の入力から system / user prompt を render する。入力�
 | `Instruction` | `args.Instruction`（空なら `none`） | user prompt の `Instruction:` 行 |
 | `Chunks` | `args.Chunks` | `[index] heading\ntext` 形式で連結し user prompt に埋める |
 
-- 移行は出力同値を必須とする。template 化直後の system / user prompt は、現行 [synthesis.go](../../apps/worker/pkg/worker/tools/process/synthesis.go) の hardcoded 文字列とバイト一致する（chunk 連結フォーマット `[%d] %s\n%s\n\n` と空 instruction の `none` 既定を含む）。
+- 移行は出力同値を必須とする。template 化直後の system / user prompt は、現行 [knowledge_tree.go](../../apps/worker/pkg/worker/tools/process/knowledge_tree.go) の hardcoded 文字列とバイト一致する（chunk 連結フォーマット `[%d] %s\n%s\n\n` と空 instruction の `none` 既定を含む）。
 - prompt の意味的変更はこの移行 PR では行わない。挙動変更は variant または別 PR で行う。
 
 ### 2.3 Worker / Eval 双方の利用契約
 
-- `process.Synthesize` は provider から render した prompt を `llm.StructuredRequest` に渡す。`Schema` と JSON parse / fallback（array 形 unmarshal、`no items` エラー）の挙動は現行と変えない。
-- eval runner は variant 未指定時、worker と同一の provider を呼ぶ。eval 専用に prompt を複製しない。
+- `process.GenerateKnowledgeTree` は renderer から render した prompt を `llm.StructuredRequest` に渡す。`Schema` と JSON parse / fallback（array 形 unmarshal、`no items` エラー）の挙動は現行と変えない。
+- eval runner は variant 未指定時、worker と同一の renderer を呼ぶ。eval 専用に prompt を複製しない。
 
 ## 3. Variant 契約
 
@@ -66,8 +80,8 @@ provider は次の入力から system / user prompt を render する。入力�
 ```text
 apps/eval/variants/
   {variant_name}/
-    synthesis.system.tmpl
-    synthesis.user.tmpl
+    knowledge_tree.system.tmpl
+    knowledge_tree.user.tmpl
 ```
 
 - variant template は `apps/eval` 配下にのみ置き、production worker image（`apps/worker`）に含めない。
@@ -77,7 +91,7 @@ apps/eval/variants/
 
 | flag | 必須 | 内容 |
 | :--- | :--- | :--- |
-| `--variant` | 任意 | `apps/eval/variants/{name}` を prompt source にする。未指定時は production provider を使う |
+| `--variant` | 任意 | `apps/eval/variants/{name}` を prompt source にする。未指定時は production renderer を使う |
 
 ```bash
 go run ./apps/eval/cmd --cases apps/eval/cases --variant concise-structure-v1 --format json
@@ -96,7 +110,7 @@ apps/eval/golden/
   {case_name}.json
 ```
 
-ファイル名は case の `name` と一致させる（例: `synthesis_api_spec.json`）。
+ファイル名は case の `name` と一致させる（例: `knowledge_tree_api_spec.json`）。
 
 strict 判定に含めるフィールド:
 
@@ -160,7 +174,7 @@ go run ./apps/eval/cmd --cases apps/eval/cases --update-golden apps/eval/golden
 
 ## 7. Test 契約
 
-- prompt provider: render 出力が現行 hardcoded prompt とバイト一致する golden test を置く（移行同値の保証）。
+- prompt renderer: render 出力が現行 hardcoded prompt とバイト一致する golden test を置く（移行同値の保証）。
 - variant: 不在 variant 指定で exit `2`、有効 variant 指定で `prompt_source=variant:{name}` になることを test する。
 - golden: match / mismatch / `--update-golden` 書き出しの 3 経路を test する。mismatch 時に exit `1` かつ `golden_diff` が `content` 全文を含まないことを assert する。
 - 既存 eval test（rule 判定、exit code）の挙動を回帰させないこと。
@@ -169,6 +183,6 @@ go run ./apps/eval/cmd --cases apps/eval/cases --update-golden apps/eval/golden
 
 - Analyst LLM / Prompt Writer LLM の出力契約。
 - BI Eval Review の `prompt_variant_reviews` model と approve / apply API。
-- `synthesis` 以外の tool（`summary` / `briefing` / `critique` / `merging`）の prompt 外出し。
+- `knowledge_tree` 以外の tool（`summary` / `briefing` / `critique` / `merging`）の prompt 外出し。
 - GCS prompt registry / 管理 DB への移行。
 - generated variant（`apps/eval/variants/generated/`）の扱い。手書き variant のみ本契約の対象とする。

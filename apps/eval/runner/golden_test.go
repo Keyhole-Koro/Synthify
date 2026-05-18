@@ -15,14 +15,14 @@ import (
 func goldenCase() Case {
 	return Case{
 		Name:   "g",
-		Tool:   ToolSynthesis,
+		Tool:   ToolKnowledgeTree,
 		Input:  CaseInput{DocumentID: "doc_1", Chunks: "chunks.json"},
 		Expect: CaseExpect{SchemaValid: true, MinItems: 1},
 	}
 }
 
-func goldenItems() []domain.SynthesizedItem {
-	return []domain.SynthesizedItem{
+func goldenItems() []domain.GeneratedTreeItem {
+	return []domain.GeneratedTreeItem{
 		{
 			LocalID:        "item_1",
 			Title:          "Auth",
@@ -79,7 +79,7 @@ func TestGolden_MismatchFailsAndOmitsContent(t *testing.T) {
 	}
 
 	// Different title set + extra item: strict mismatch.
-	drifted := []domain.SynthesizedItem{
+	drifted := []domain.GeneratedTreeItem{
 		{LocalID: "item_1", Title: "Renamed", Level: 1, Content: "<p>secret content</p>", SourceChunkIDs: []string{"doc_1_chunk_0"}},
 		{LocalID: "item_2", Title: "Extra", Level: 1},
 	}
@@ -109,10 +109,10 @@ func TestRunCase_VariantPromptSource(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Minimal valid variant templates.
-	if err := os.WriteFile(filepath.Join(variantDir, "synthesis.system.tmpl"), []byte("sys"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(variantDir, "knowledge_tree.system.tmpl"), []byte("sys"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(variantDir, "synthesis.user.tmpl"), []byte("{{.DocumentID}}"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(variantDir, "knowledge_tree.user.tmpl"), []byte("{{.DocumentID}}"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "Auth", Text: "x"}})
@@ -124,7 +124,7 @@ func TestRunCase_VariantPromptSource(t *testing.T) {
 
 	res, err := Runner{
 		LLM:          fakeLLM{items: goldenItems(), usage: llm.Usage{Model: "fake"}},
-		Provider:     p,
+		Renderer:     p,
 		PromptSource: "variant:concise-v1",
 	}.RunCase(context.Background(), goldenCase(), dir)
 	if err != nil {
@@ -134,6 +134,6 @@ func TestRunCase_VariantPromptSource(t *testing.T) {
 		t.Fatalf("expected prompt_source=variant:concise-v1, got %q", res.PromptSource)
 	}
 	if !res.Passed {
-		t.Fatalf("expected pass with variant provider, got %#v", res)
+		t.Fatalf("expected pass with variant renderer, got %#v", res)
 	}
 }

@@ -2,7 +2,7 @@
 
 ## 背景
 
-LLM Eval Runner は `synthesis` の Tool eval、JSON report、Cloud Run Job、GCS artifact 保存まで進んだ。
+LLM Eval Runner は `knowledge_tree` の Tool eval、JSON report、Cloud Run Job、GCS artifact 保存まで進んだ。
 次の課題は、eval 結果をもとに prompt 改善案を作り、同じ case set で安全に検証する loop を作ることである。
 
 この loop では、LLM は本番 prompt を直接書き換えない。
@@ -11,15 +11,18 @@ LLM は失敗理由の分析と prompt variant の生成だけを担当し、採
 基盤設計は [llm-eval-runner.md](llm-eval-runner.md) を参照する。
 実装済みコンポーネント契約は [llm-eval-runner-contract.md](../contracts/llm-eval-runner-contract.md) と [llm-eval-gcs-artifact-contract.md](../contracts/llm-eval-gcs-artifact-contract.md) を参照する。
 
-### 現在地 (2026-05-17 時点)
+### 現在地 (2026-05-18 時点)
 
-このドキュメントの Phase は **すべて未着手** である。読者は Phase 1 が済んでいる前提で読まないこと。
+「最初の実装単位」3 つ（Phase 1〜3）は **実装済み**。確定仕様は
+[prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md) に切り出した。
+Phase 4 以降（Analyst LLM / Prompt Writer LLM / BI Eval Review）は未着手。
 
-- `synthesis` prompt は [apps/worker/pkg/worker/tools/process/synthesis.go](../../apps/worker/pkg/worker/tools/process/synthesis.go) に `SystemPrompt` / `UserPrompt` として hardcoded されている。`go:embed` も `prompts` package もまだ無い。Phase 1 はこの解体から始まる。
-- eval runner ([apps/eval/cmd/main.go](../../apps/eval/cmd/main.go)) のフラグは `--case` / `--cases` / `--format` / `--out` / `--out-gcs` / `--timeout` のみ。`--variant` / `--golden` / `--update-golden` は未実装。
-- `apps/eval/{variants,golden,analysis}/` ディレクトリは未作成。
+- Phase 1: prompt は [prompts](../../apps/worker/pkg/worker/prompts) package に `go:embed` で外出し済み。`prompts.Renderer` が render し、`process.GenerateKnowledgeTree` はそれを使う。hardcoded prompt は廃止。
+- Phase 2: eval runner に `--variant` 実装済み。未指定時は production renderer、指定時は `apps/eval/variants/{name}`。不在 variant は exit `2`。
+- Phase 3: `--golden` / `--update-golden` 実装済み。strict フィールド判定、`golden_diff` を report に additive 追加。
+- 旧 `synthesis` 命名は廃止し、tool key は `knowledge_tree` に統一（命名規約は契約 §0）。
 
-「llm-eval-runner は GCS artifact まで進んだ」のは事実だが、この loop が前提とする prompt 外出し (Phase 1) はまだ存在しない。
+未着手は Phase 4 以降と、`apps/eval/analysis/` 系。この loop の自動化部分はまだ存在しない。
 
 ## 目的
 
@@ -43,7 +46,7 @@ LLM は失敗理由の分析と prompt variant の生成だけを担当し、採
 
 | Role | 責任 | 備考 |
 | :--- | :--- | :--- |
-| Generator LLM | `synthesis` output を生成する | eval 対象。現行の Gemini model を使う |
+| Generator LLM | `knowledge_tree` output を生成する | eval 対象。現行の Gemini model を使う |
 | Analyst LLM | eval report / golden diff を読み、失敗理由と改善方針を構造化する | Generator と同じ model でもよいが、役割は分ける |
 | Prompt Writer LLM | Analyst output をもとに prompt variant を生成する | 本番 prompt ではなく variant directory にだけ書く |
 | Eval Runner | baseline / variant を同じ case set で実行し、rule / golden / usage を比較する | `apps/eval` に閉じる |
@@ -76,7 +79,7 @@ Phase 6 までは人間が手動で回す one-shot pipeline であり、自動�
 
 ## Implementation Phases
 
-### 1. `synthesis` prompt 外出し
+### 1. `knowledge_tree` prompt 外出し
 
 `apps/worker/pkg/worker/prompts` を作り、`go:embed` で本番 prompt を埋め込む。
 
@@ -84,18 +87,18 @@ Phase 6 までは人間が手動で回す one-shot pipeline であり、自動�
 apps/worker/pkg/worker/prompts/
   prompts.go
   templates/
-    synthesis.system.tmpl
-    synthesis.user.tmpl
+    knowledge_tree.system.tmpl
+    knowledge_tree.user.tmpl
 ```
 
-`process.Synthesize` は hardcoded `SystemPrompt` / `UserPrompt` をやめ、prompt provider から render した prompt を使う。
+`process.GenerateKnowledgeTree` は hardcoded `SystemPrompt` / `UserPrompt` をやめ、prompt renderer から render した prompt を使う。
 eval runner も同じ production prompt を使えるようにする。
 
-**prompt の source of truth は repo file + `go:embed` で暫定確定する。** GCS prompt registry / 管理 DB 化は Phase 1 のアーキテクチャ（埋め込み vs ランタイム取得）を変えてしまうため、loop 全体が安定するまで採用しない。これは Open Questions ではなく Phase 1 着手の前提とする（後続で registry 化する場合も、provider interface を挟んでおけば差し替えられる構成にする）。
+**prompt の source of truth は repo file + `go:embed` で暫定確定する。** GCS prompt registry / 管理 DB 化は Phase 1 のアーキテクチャ（埋め込み vs ランタイム取得）を変えてしまうため、loop 全体が安定するまで採用しない。これは Open Questions ではなく Phase 1 着手の前提とする（後続で registry 化する場合も、renderer 抽象を挟んでおけば差し替えられる構成にする）。
 
 ### 2. Variant prompt 対応
 
-eval runner に prompt provider の差し替えを追加する。
+eval runner に prompt renderer の差し替えを追加する。
 
 CLI:
 
@@ -112,8 +115,8 @@ variant layout:
 ```text
 apps/eval/variants/
   concise-structure-v1/
-    synthesis.system.tmpl
-    synthesis.user.tmpl
+    knowledge_tree.system.tmpl
+    knowledge_tree.user.tmpl
 ```
 
 generated variant は本番 image に混入させない。Cloud Run Job の通常 eval は production prompt を使う。
@@ -124,9 +127,9 @@ case ごとの期待 output を保存する。
 
 ```text
 apps/eval/golden/
-  synthesis_api_spec.json
-  synthesis_meeting_notes.json
-  synthesis_numeric_spec.json
+  knowledge_tree_api_spec.json
+  knowledge_tree_meeting_notes.json
+  knowledge_tree_numeric_spec.json
 ```
 
 CLI:
@@ -165,7 +168,7 @@ eval report と golden diff を入力に、失敗理由を構造化出力する�
   "summary": "Required source headings are being paraphrased too aggressively.",
   "failure_patterns": [
     {
-      "case_name": "synthesis_api_spec",
+      "case_name": "knowledge_tree_api_spec",
       "issue": "required title missing",
       "likely_prompt_cause": "prompt does not emphasize preserving source section names"
     }
@@ -192,8 +195,8 @@ Analyst output と production prompt を入力に、prompt variant を生成す�
 
 ```text
 apps/eval/variants/generated/{timestamp}/
-  synthesis.system.tmpl
-  synthesis.user.tmpl
+  knowledge_tree.system.tmpl
+  knowledge_tree.user.tmpl
   rationale.md
 ```
 
@@ -294,18 +297,18 @@ production prompt への反映方式は Phase 1 と同じく **repo file 更新*
 
 ```text
 apps/worker/pkg/worker/prompts/templates/
-  synthesis.system.tmpl
-  synthesis.user.tmpl
+  knowledge_tree.system.tmpl
+  knowledge_tree.user.tmpl
 
 apps/eval/variants/
   {variant_name}/
-    synthesis.system.tmpl
-    synthesis.user.tmpl
+    knowledge_tree.system.tmpl
+    knowledge_tree.user.tmpl
 
 apps/eval/variants/generated/
   {timestamp}/
-    synthesis.system.tmpl
-    synthesis.user.tmpl
+    knowledge_tree.system.tmpl
+    knowledge_tree.user.tmpl
     rationale.md
 
 apps/eval/golden/
@@ -335,7 +338,7 @@ generated variants を GCS artifact として残すか repo commit 対象にす�
 
 Phase 1（最初の実装単位）着手前に決める必要があるもの:
 
-- prompt 外出しを `synthesis` だけ先行するか、`summary` / `briefing` / `critique` / `merging` も同時に進めるか。
+- prompt 外出しを `knowledge_tree` だけ先行するか、`summary` / `briefing` / `critique` / `merging` も同時に進めるか。
 - golden mismatch をすべて fail にするか、warn mode を用意するか（Phase 3 の exit code を規定する）。
 
 （解決済み: prompt の source of truth と apply 先 → repo file + `go:embed` で暫定確定。背景・Phase 1・Phase 7 参照。）
@@ -351,7 +354,7 @@ Phase 1（最初の実装単位）着手前に決める必要があるもの:
 
 最初は次の 3 つに絞る。
 
-1. `synthesis` prompt 外出し
+1. `knowledge_tree` prompt 外出し
 2. eval runner の `--variant`
 3. golden diff
 

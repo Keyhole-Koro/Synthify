@@ -8,9 +8,9 @@ Eval Runner は本番 worker のプロンプト・モデル変更による出力
 | コンポーネント | 所在 | 責任 |
 | :--- | :--- | :--- |
 | Eval CLI | `apps/eval/cmd` | case を読み込み、LLM tool eval を実行し、report を stdout / `--out` に出力する |
-| Eval Runner | `apps/eval/runner` | YAML case / fixture を解決し、`synthesis` を実行し、schema/rule/golden 以外の現行スコアを計算する |
+| Eval Runner | `apps/eval/runner` | YAML case / fixture を解決し、`knowledge_tree` を実行し、schema/rule/golden 以外の現行スコアを計算する |
 | Report Writer | `apps/eval/report` | `table` / `json` report を生成する。JSON は HTML を `\u003c` 等に escape しない |
-| Worker process tool | `apps/worker/pkg/worker/tools/process` | 本番と同じ `Synthesize` API を提供する。eval は ADK を通さずこの API を直接呼ぶ |
+| Worker process tool | `apps/worker/pkg/worker/tools/process` | 本番と同じ `GenerateKnowledgeTree` API を提供する。eval は ADK を通さずこの API を直接呼ぶ |
 | Eval image | `apps/eval/Dockerfile` | CLI binary、`apps/eval/cases`、`apps/eval/testdata` を含む Cloud Run Job 用 image を作る |
 | Cloud Run Job | `terraform/services/eval` | eval image を 1 task / retry なしで実行する。結果は Cloud Logging に stdout として残す。GCS artifact 保存は別契約を参照 |
 | Cloud Scheduler | `terraform/services/eval` | cron で Cloud Run Job の `:run` endpoint を呼ぶ |
@@ -21,7 +21,7 @@ Eval Runner は本番 worker のプロンプト・モデル変更による出力
 Eval CLI は次のどちらか一方を必須とする。
 
 ```bash
-go run ./apps/eval/cmd --case apps/eval/cases/synthesis_api_spec.yaml --format json
+go run ./apps/eval/cmd --case apps/eval/cases/knowledge_tree_api_spec.yaml --format json
 go run ./apps/eval/cmd --cases apps/eval/cases --format json --out apps/eval/results/latest.json
 ```
 
@@ -45,11 +45,11 @@ go run ./apps/eval/cmd --cases apps/eval/cases --format json --out apps/eval/res
 
 ## 3. Case / Fixture 契約
 
-現行 MVP は `tool: synthesis` のみ対応する。他 tool 名は明示エラーにする。
+現行 MVP は `tool: knowledge_tree` のみ対応する。他 tool 名は明示エラーにする。
 
 ```yaml
-name: synthesis_api_spec
-tool: synthesis
+name: knowledge_tree_api_spec
+tool: knowledge_tree
 input:
   document_id: doc_api_spec
   instruction: "技術仕様書として整理して"
@@ -75,12 +75,12 @@ JSON report は `[]Result` を stdout に出す。`--out` 指定時は同じ byt
 | :--- | :--- |
 | `case_name` / `tool` | 実行 case の識別子 |
 | `passed` | schema/rule/error を総合した合否 |
-| `schema_valid` | LLM 出力が `SynthesizedItem` として parse できたか |
+| `schema_valid` | LLM 出力が `GeneratedTreeItem` として parse できたか |
 | `item_count` / `max_depth` | 生成 item 数と最大階層 |
 | `missing_titles` | `expect.must_contain_titles` の未達項目 |
 | `duration_ms` | LLM call を含む case 実行時間 |
 | `model` / `input_tokens` / `output_tokens` | LLM provider の usage |
-| `items` | 生成された `[]domain.SynthesizedItem`。JSON report のみ実質レビュー対象 |
+| `items` | 生成された `[]domain.GeneratedTreeItem`。JSON report のみ実質レビュー対象 |
 | `error` | LLM call / parse error |
 | `failed_input` | fail 時のみ。document_id、instruction、chunks path、chunks 本体 |
 

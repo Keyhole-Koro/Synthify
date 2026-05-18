@@ -1,4 +1,4 @@
-# Knowledge Tree Synthesis 仕様
+# Knowledge Tree Knowledge Tree Generation 仕様
 
 ## 何を作るか
 
@@ -44,7 +44,7 @@ paper-in-paper の UX は「リンクをクリックすると子ペーパーが�
 ## デフォルトプロンプト
 
 アップロード時にユーザーが何も指定しなかった場合に適用する。
-`goal_driven_synthesis` のシステムプロンプトに追加注入する。
+`generate_knowledge_tree` のシステムプロンプトに追加注入する。
 
 ```
 You are building a knowledge tree for paper-in-paper, a UI where each item
@@ -83,7 +83,7 @@ Authoring rules:
 
 ### 1. データモデル
 
-`documents` テーブルに `synthesis_prompt TEXT` カラムを追加。
+`documents` テーブルに `knowledge_tree_prompt TEXT` カラムを追加。
 アップロード時に保存し、ジョブ開始時に `ProcessDocument` へ渡す。
 
 ### 2. プロンプト注入
@@ -95,12 +95,12 @@ Authoring rules:
 // BeforeModelCallback 内
 systemInstruction := existingInstruction +
     "\n\n" + workingMemory +
-    "\n\n## Synthesis Style Guide\n" + defaultPrompt +
+    "\n\n## Knowledge Tree Generation Style Guide\n" + defaultPrompt +
     "\n\n" + userPrompt  // userPromptが空なら省略
 ```
 
-全ツール（brief・synthesis・critique）が同じシステムプロンプトを受け取るため、
-スタイルが一貫する。synthesis の `instruction` フィールドは引き続き
+全ツール（brief・knowledge tree generation・critique）が同じシステムプロンプトを受け取るため、
+スタイルが一貫する。knowledge tree generation の `instruction` フィールドは引き続き
 「このチャンクに特化した追加指示」用として残す。
 
 ### 3. UI
@@ -112,6 +112,6 @@ systemInstruction := existingInstruction +
 
 ## 未決事項
 
-- `synthesis_prompt` カラムの文字数上限（とりあえず 2000 字程度を想定）
+- `knowledge_tree_prompt` カラムの文字数上限（とりあえず 2000 字程度を想定）
 - デフォルトプロンプトの多言語対応（日本語ドキュメントには日本語で生成させるか）
 - ユーザープロンプトのプリセット選択 UI（自由入力だけか、よくある指示を選べるようにするか）

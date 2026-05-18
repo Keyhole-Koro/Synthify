@@ -1,5 +1,5 @@
-name: synthesis_numeric_spec
-tool: synthesis
+name: knowledge_tree_numeric_spec
+tool: knowledge_tree
 input:
   document_id: doc_numeric_spec
   instruction: "数値制約と運用ルールが比較しやすい技術仕様として整理して"

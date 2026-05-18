@@ -37,9 +37,9 @@ type ToolLogger interface {
 }
 
 var stageTools = map[string]string{
-	"generate_brief":         "briefing",
-	"goal_driven_synthesis":  "synthesis",
-	"persist_knowledge_tree": "persistence",
+	"generate_brief":          "briefing",
+	"generate_knowledge_tree": "knowledge_tree",
+	"persist_knowledge_tree":  "persistence",
 }
 
 const currentCheckpointVersion = 1
@@ -62,7 +62,7 @@ func NewOrchestrator(m model.LLM, b *base.Context, repo any, fs *storage.FileSys
 	if err != nil {
 		return nil, err
 	}
-	synthesis, err := process.NewSynthesisTool(b)
+	knowledgeTree, err := process.NewGenerateKnowledgeTreeTool(b)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ Core Engineering Workflow:
 3. Intelligence: Generate a 'generate_brief' to understand the core themes. This is your master blueprint.
 4. Intelligent Execution (Context-Aware):
    - The Working Memory section above contains your current glossary, task list, and document brief — use it.
-   - When calling 'goal_driven_synthesis', refer to the brief and glossary already in Working Memory.
+   - When calling 'generate_knowledge_tree', refer to the brief and glossary already in Working Memory.
    - If the current section references past topics, use 'semantic_search' to refresh your memory.
    - If you encounter a table, use 'extract_table_data' to preserve its logic.
    - If no existing tool can reshape some data, use 'create_transform' to define a small Starlark transform(input)->string and verify it with an input_sample. Use sparingly; prefer existing tools.
@@ -162,7 +162,7 @@ Core Engineering Workflow:
 You are self-correcting. Register new domain terms with 'glossary_register' as you encounter them.
 Mark tasks complete with 'journal_update_task' as you finish them.`,
 		Tools: []tool.Tool{
-			chunking, synthesis, persistence,
+			chunking, knowledgeTree, persistence,
 			journalAdd, journalUpdate,
 			analysis,
 			glossaryRegister, glossaryLookup,
@@ -302,7 +302,7 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, runner *runner.Runne
 	}
 	o.currentJobID.Store(&jobID)
 	msg := fmt.Sprintf(
-		"Process this document and build a knowledge tree.\n\njob_id: %s\ndocument_id: %s\nworkspace_id: %s\nfile_uri: %s\nfilename: %s\nmime_type: %s\n\nFollow your workflow: extract text, chunk, generate brief, synthesize items, critique, then persist.",
+		"Process this document and build a knowledge tree.\n\njob_id: %s\ndocument_id: %s\nworkspace_id: %s\nfile_uri: %s\nfilename: %s\nmime_type: %s\n\nFollow your workflow: extract text, chunk, generate brief, generate tree items, critique, then persist.",
 		jobID, documentID, workspaceID, fileURI, filename, mimeType,
 	)
 	for event, err := range runner.Run(ctx, "worker", jobID, genai.NewContentFromText(msg, genai.RoleUser), agent.RunConfig{}) {

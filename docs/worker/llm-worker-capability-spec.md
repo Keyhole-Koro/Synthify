@@ -107,7 +107,7 @@ LLM call は 2 経路で数える。
 | ADK orchestrator の model call | `BeforeModelCallbacks` |
 | tool 内で `base.LLMClient` を直接呼ぶ call | `CountingLLMClient` |
 
-これにより、`goal_driven_synthesis` / `generate_brief` / `quality_critique` などが `b.LLM.GenerateStructured` を呼ぶ場合も、tool 側に個別カウントを書かずに `MaxLLMCalls` を強制できる。
+これにより、`generate_knowledge_tree` / `generate_brief` / `quality_critique` などが `b.LLM.GenerateStructured` を呼ぶ場合も、tool 側に個別カウントを書かずに `MaxLLMCalls` を強制できる。
 
 ### Tool run
 
@@ -135,7 +135,7 @@ if err := b.IncrementItemCreations(ctx, len(args.Items)); err != nil {
 
 重複排除や再処理時の二重作成防止は、別の層で扱う。
 
-- synthesis 後の `deduplicate_and_merge`
+- knowledge tree generation 後の `deduplicate_and_merge`
 - persistence 前の local item dedupe
 - DB 保存時の deterministic id / unique key / upsert
 - `item_sources` を使った「この document chunk 由来は保存済み」の判定

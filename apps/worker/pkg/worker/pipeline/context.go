@@ -24,7 +24,7 @@ type PipelineContext struct {
 	DocumentBrief *domain.DocumentBrief
 	SectionBriefs []domain.SectionBrief
 
-	SynthesizedItems []domain.SynthesizedItem
+	GeneratedTreeItems []domain.GeneratedTreeItem
 
 	ItemIDMap map[string]string
 

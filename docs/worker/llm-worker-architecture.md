@@ -11,7 +11,7 @@ Process(req)
             ├─ extract_text
             ├─ semantic_chunking
             ├─ generate_brief        → Working Memory に書き込む
-            ├─ goal_driven_synthesis
+            ├─ generate_knowledge_tree
             ├─ quality_critique
             └─ persist_knowledge_tree
 ```
@@ -100,7 +100,7 @@ LLM に推論・変換をさせるツール群。引数はツール固有の「�
 | ツール | 入力 | 出力 |
 |---|---|---|
 | `generate_brief` | outline | DocumentBrief（→ Brief に書き込む） |
-| `goal_driven_synthesis` | chunks, instruction | []SynthesizedItem |
+| `generate_knowledge_tree` | chunks, instruction | []GeneratedTreeItem |
 | `quality_critique` | target_data, criteria | CritiqueResult |
 | `deduplicate_and_merge` | items[] | MergedID |
 | `generate_html_summary` | item | HTML |
@@ -131,12 +131,12 @@ Working Memory（Brief、Glossary、Journal）はすでに system prompt にあ�
 
 ```
 ❌ 旧設計
-goal_driven_synthesis(chunks, document_brief, glossary[], parent_structure)
+generate_knowledge_tree(chunks, document_brief, glossary[], parent_structure)
                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                                 Working Memory と二重になっていた
 
 ✅ 現在の設計
-goal_driven_synthesis(chunks, instruction)
+generate_knowledge_tree(chunks, instruction)
 ```
 
 ツールのスキーマが小さいほど、LLM が正しく呼び出せる確率が上がる。

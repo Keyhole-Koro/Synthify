@@ -18,7 +18,7 @@ type PersistenceArgs struct {
 }
 
 type PersistenceItem struct {
-	domain.SynthesizedItem
+	domain.GeneratedTreeItem
 	FileID string `json:"file_id"`
 }
 
@@ -30,7 +30,7 @@ type PersistenceResult struct {
 func NewPersistenceTool(b *base.Context) (tool.Tool, error) {
 	return functiontool.New(functiontool.Config{
 		Name:        "persist_knowledge_tree",
-		Description: "Permanently saves the synthesized knowledge tree items to the database.",
+		Description: "Permanently saves the generated knowledge tree items to the database.",
 	}, func(ctx tool.Context, args PersistenceArgs) (PersistenceResult, error) {
 		if len(args.Items) == 0 {
 			return PersistenceResult{Success: false, Message: "No items to persist"}, nil

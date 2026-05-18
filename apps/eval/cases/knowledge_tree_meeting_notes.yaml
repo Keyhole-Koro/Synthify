@@ -1,5 +1,5 @@
-name: synthesis_meeting_notes
-tool: synthesis
+name: knowledge_tree_meeting_notes
+tool: knowledge_tree
 input:
   document_id: doc_meeting_notes
   instruction: "議事録として意思決定と未解決事項が分かるように整理して"

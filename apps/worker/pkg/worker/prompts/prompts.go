@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"strings"
+	"sync"
 	"text/template"
 
 	"github.com/synthify/backend/packages/shared/domain"
@@ -21,10 +22,15 @@ import (
 //go:embed templates/*.tmpl
 var templatesFS embed.FS
 
-// SynthesisInput is the render input for the synthesis prompt. The fields
-// mirror process.SynthesisArgs so the worker and the eval runner render
+// toolKnowledgeTree is the tool key that binds a prompt template pair
+// (knowledge_tree.system.tmpl / knowledge_tree.user.tmpl), the eval variant
+// dir, and the case "tool:" value.
+const toolKnowledgeTree = "knowledge_tree"
+
+// RenderInput is the input for rendering the knowledge tree prompt. The fields
+// mirror process.GenerateKnowledgeTreeArgs so the worker and the eval runner render
 // identical prompts from identical inputs.
-type SynthesisInput struct {
+type RenderInput struct {
 	DocumentID  string
 	Instruction string
 	Chunks      []domain.Chunk
@@ -36,27 +42,42 @@ type Prompt struct {
 	User   string
 }
 
-// Provider renders prompts from a template set. The default provider uses the
-// embedded production templates; the eval runner swaps in a variant provider
-// backed by a different template directory.
-type Provider struct {
+// Renderer renders a tool's prompt from its template set. The embedded
+// renderer uses the production templates; the eval runner swaps in a variant
+// renderer backed by a different template directory. Callers never learn
+// whether the templates came from embed or disk — that is the storage
+// boundary this type hides.
+type Renderer struct {
 	system *template.Template
 	user   *template.Template
 }
 
-// Default returns the provider backed by the embedded production templates.
-func Default() (*Provider, error) {
-	return fromFS(templatesFS, "templates")
+var (
+	embeddedOnce     sync.Once
+	embeddedRenderer *Renderer
+	embeddedErr      error
+)
+
+// Default returns the renderer backed by the embedded production templates.
+//
+// The embedded templates are immutable, so the parsed renderer is built once
+// and reused. Render is called once per chunk batch, so re-parsing on every
+// call would be pure waste.
+func Default() (*Renderer, error) {
+	embeddedOnce.Do(func() {
+		embeddedRenderer, embeddedErr = fromFS(templatesFS, "templates")
+	})
+	return embeddedRenderer, embeddedErr
 }
 
-// FromDir returns a provider backed by an on-disk template directory. It is
+// FromDir returns a renderer backed by an on-disk template directory. It is
 // used by the eval runner for variant prompts. dir must contain
-// synthesis.system.tmpl and synthesis.user.tmpl.
-func FromDir(dir string) (*Provider, error) {
+// knowledge_tree.system.tmpl and knowledge_tree.user.tmpl.
+func FromDir(dir string) (*Renderer, error) {
 	return fromFS(nil, dir)
 }
 
-func fromFS(efs fs.FS, dir string) (*Provider, error) {
+func fromFS(efs fs.FS, dir string) (*Renderer, error) {
 	read := func(name string) ([]byte, error) {
 		if efs != nil {
 			return fs.ReadFile(efs, dir+"/"+name)
@@ -64,32 +85,35 @@ func fromFS(efs fs.FS, dir string) (*Provider, error) {
 		return os.ReadFile(dir + "/" + name)
 	}
 
-	sysRaw, err := read("synthesis.system.tmpl")
+	systemFile := toolKnowledgeTree + ".system.tmpl"
+	userFile := toolKnowledgeTree + ".user.tmpl"
+
+	sysRaw, err := read(systemFile)
 	if err != nil {
-		return nil, fmt.Errorf("read synthesis.system.tmpl: %w", err)
+		return nil, fmt.Errorf("read %s: %w", systemFile, err)
 	}
-	userRaw, err := read("synthesis.user.tmpl")
+	userRaw, err := read(userFile)
 	if err != nil {
-		return nil, fmt.Errorf("read synthesis.user.tmpl: %w", err)
+		return nil, fmt.Errorf("read %s: %w", userFile, err)
 	}
 
-	sysTmpl, err := template.New("synthesis.system").Parse(string(sysRaw))
+	sysTmpl, err := template.New(systemFile).Parse(string(sysRaw))
 	if err != nil {
-		return nil, fmt.Errorf("parse synthesis.system.tmpl: %w", err)
+		return nil, fmt.Errorf("parse %s: %w", systemFile, err)
 	}
-	userTmpl, err := template.New("synthesis.user").Parse(string(userRaw))
+	userTmpl, err := template.New(userFile).Parse(string(userRaw))
 	if err != nil {
-		return nil, fmt.Errorf("parse synthesis.user.tmpl: %w", err)
+		return nil, fmt.Errorf("parse %s: %w", userFile, err)
 	}
 
-	return &Provider{system: sysTmpl, user: userTmpl}, nil
+	return &Renderer{system: sysTmpl, user: userTmpl}, nil
 }
 
-// Synthesis renders the synthesis system/user prompt for the given input.
+// Render builds the knowledge tree system/user prompt for the given input.
 //
 // The chunk block and the empty-instruction default ("none") reproduce the
 // previous hardcoded behaviour byte-for-byte (contract §2.2).
-func (p *Provider) Synthesis(in SynthesisInput) (Prompt, error) {
+func (r *Renderer) Render(in RenderInput) (Prompt, error) {
 	instruction := in.Instruction
 	if instruction == "" {
 		instruction = "none"
@@ -101,12 +125,12 @@ func (p *Provider) Synthesis(in SynthesisInput) (Prompt, error) {
 	}
 
 	var sysBuf strings.Builder
-	if err := p.system.Execute(&sysBuf, nil); err != nil {
-		return Prompt{}, fmt.Errorf("render synthesis system prompt: %w", err)
+	if err := r.system.Execute(&sysBuf, nil); err != nil {
+		return Prompt{}, fmt.Errorf("render system prompt: %w", err)
 	}
 
 	var userBuf strings.Builder
-	err := p.user.Execute(&userBuf, struct {
+	err := r.user.Execute(&userBuf, struct {
 		DocumentID  string
 		Instruction string
 		Chunks      string
@@ -116,7 +140,7 @@ func (p *Provider) Synthesis(in SynthesisInput) (Prompt, error) {
 		Chunks:      chunks.String(),
 	})
 	if err != nil {
-		return Prompt{}, fmt.Errorf("render synthesis user prompt: %w", err)
+		return Prompt{}, fmt.Errorf("render user prompt: %w", err)
 	}
 
 	return Prompt{System: sysBuf.String(), User: userBuf.String()}, nil

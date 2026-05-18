@@ -42,16 +42,16 @@ func main() {
 		os.Exit(2)
 	}
 
-	var provider *prompts.Provider
+	var renderer *prompts.Renderer
 	promptSource := "production"
 	if *variant != "" {
 		dir := filepath.Join(*variantsDir, *variant)
-		p, err := prompts.FromDir(dir)
+		r, err := prompts.FromDir(dir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "load variant %q: %v\n", *variant, err)
 			os.Exit(2)
 		}
-		provider = p
+		renderer = r
 		promptSource = "variant:" + *variant
 	}
 
@@ -87,7 +87,7 @@ func main() {
 
 	results, err := runner.Runner{
 		LLM:          client,
-		Provider:     provider,
+		Renderer:     renderer,
 		PromptSource: promptSource,
 		GoldenDir:    *goldenDir,
 		UpdateGolden: *updateGolden,

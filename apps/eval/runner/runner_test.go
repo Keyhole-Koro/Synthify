@@ -12,7 +12,7 @@ import (
 )
 
 type fakeLLM struct {
-	items    []domain.SynthesizedItem
+	items    []domain.GeneratedTreeItem
 	rawItems bool
 	usage    llm.Usage
 	err      error
@@ -34,12 +34,12 @@ func (f fakeLLM) GenerateText(context.Context, llm.TextRequest) (string, llm.Usa
 	return "", f.usage, f.err
 }
 
-func TestRunCase_SynthesisPasses(t *testing.T) {
+func TestRunCase_KnowledgeTreePasses(t *testing.T) {
 	dir := t.TempDir()
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}})
 	c := Case{
 		Name: "ok",
-		Tool: ToolSynthesis,
+		Tool: ToolKnowledgeTree,
 		Input: CaseInput{
 			DocumentID: "doc_1",
 			Chunks:     "chunks.json",
@@ -53,7 +53,7 @@ func TestRunCase_SynthesisPasses(t *testing.T) {
 	}
 
 	res, err := Runner{LLM: fakeLLM{
-		items: []domain.SynthesizedItem{{
+		items: []domain.GeneratedTreeItem{{
 			LocalID: "item_1",
 			Title:   "Authentication",
 			Level:   1,
@@ -78,7 +78,7 @@ func TestRunCase_SynthesisPasses(t *testing.T) {
 func TestRunCaseFiles_RunsMultipleCases(t *testing.T) {
 	dir := t.TempDir()
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}})
-	caseBody := []byte("name: ok\ntool: synthesis\ninput:\n  document_id: doc_1\n  chunks: chunks.json\nexpect:\n  schema_valid: true\n  min_items: 1\n")
+	caseBody := []byte("name: ok\ntool: knowledge_tree\ninput:\n  document_id: doc_1\n  chunks: chunks.json\nexpect:\n  schema_valid: true\n  min_items: 1\n")
 	caseA := filepath.Join(dir, "a.yaml")
 	caseB := filepath.Join(dir, "b.yaml")
 	if err := os.WriteFile(caseA, caseBody, 0o644); err != nil {
@@ -88,7 +88,7 @@ func TestRunCaseFiles_RunsMultipleCases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results, err := Runner{LLM: fakeLLM{items: []domain.SynthesizedItem{{
+	results, err := Runner{LLM: fakeLLM{items: []domain.GeneratedTreeItem{{
 		LocalID: "item_1",
 		Title:   "Authentication",
 		Level:   1,
@@ -124,7 +124,7 @@ func TestRunCase_RuleFailures(t *testing.T) {
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "API", Text: "Errors."}})
 	c := Case{
 		Name:  "bad",
-		Tool:  ToolSynthesis,
+		Tool:  ToolKnowledgeTree,
 		Input: CaseInput{DocumentID: "doc_1", Chunks: "chunks.json"},
 		Expect: CaseExpect{
 			SchemaValid:       true,
@@ -134,7 +134,7 @@ func TestRunCase_RuleFailures(t *testing.T) {
 		},
 	}
 
-	res, err := Runner{LLM: fakeLLM{items: []domain.SynthesizedItem{{
+	res, err := Runner{LLM: fakeLLM{items: []domain.GeneratedTreeItem{{
 		LocalID: "item_1",
 		Title:   "Authentication",
 		Level:   2,
@@ -159,7 +159,7 @@ func TestRunCase_AcceptsTopLevelItemArray(t *testing.T) {
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "認証", Text: "Tokens."}})
 	c := Case{
 		Name: "array",
-		Tool: ToolSynthesis,
+		Tool: ToolKnowledgeTree,
 		Input: CaseInput{
 			DocumentID: "doc_1",
 			Chunks:     "chunks.json",
@@ -169,7 +169,7 @@ func TestRunCase_AcceptsTopLevelItemArray(t *testing.T) {
 
 	res, err := Runner{LLM: fakeLLM{
 		rawItems: true,
-		items: []domain.SynthesizedItem{{
+		items: []domain.GeneratedTreeItem{{
 			LocalID: "item_1",
 			Title:   "認証",
 			Level:   1,
@@ -189,12 +189,12 @@ func TestRunCase_EmptyItemsFailsSchema(t *testing.T) {
 	writeJSON(t, filepath.Join(dir, "chunks.json"), []domain.Chunk{{ChunkIndex: 0, Heading: "API", Text: "Errors."}})
 	c := Case{
 		Name:   "empty",
-		Tool:   ToolSynthesis,
+		Tool:   ToolKnowledgeTree,
 		Input:  CaseInput{DocumentID: "doc_1", Chunks: "chunks.json"},
 		Expect: CaseExpect{SchemaValid: true, MinItems: 1},
 	}
 
-	res, err := Runner{LLM: fakeLLM{items: []domain.SynthesizedItem{}}}.RunCase(context.Background(), c, dir)
+	res, err := Runner{LLM: fakeLLM{items: []domain.GeneratedTreeItem{}}}.RunCase(context.Background(), c, dir)
 	if err != nil {
 		t.Fatalf("RunCase returned error: %v", err)
 	}

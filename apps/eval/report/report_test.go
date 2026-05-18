@@ -13,7 +13,7 @@ import (
 func TestWriteJSON(t *testing.T) {
 	results := []runner.Result{{
 		CaseName:     "case_1",
-		Tool:         runner.ToolSynthesis,
+		Tool:         runner.ToolKnowledgeTree,
 		Passed:       true,
 		SchemaValid:  true,
 		ItemCount:    2,
@@ -22,7 +22,7 @@ func TestWriteJSON(t *testing.T) {
 		Model:        "fake",
 		InputTokens:  10,
 		OutputTokens: 20,
-		Items: []domain.SynthesizedItem{{
+		Items: []domain.GeneratedTreeItem{{
 			LocalID: "item_1",
 			Title:   "Authentication",
 			Level:   1,
@@ -67,7 +67,7 @@ func TestWriteJSONIncludesFailedInput(t *testing.T) {
 func TestWriteJSONDoesNotEscapeHTML(t *testing.T) {
 	results := []runner.Result{{
 		CaseName: "case_1",
-		Items: []domain.SynthesizedItem{{
+		Items: []domain.GeneratedTreeItem{{
 			LocalID: "item_1",
 			Title:   "HTML",
 			Content: `<p class="lede">A & B</p>`,

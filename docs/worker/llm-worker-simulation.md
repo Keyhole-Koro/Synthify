@@ -45,7 +45,7 @@ filename: api-design-v2.3.pdf
 mime_type: application/pdf
 
 Follow your workflow: extract text, chunk, generate brief,
-synthesize items, critique, then persist.
+generate tree items, critique, then persist.
 ```
 
 ---
@@ -57,7 +57,7 @@ LLM の判断：「PDFだ、まず計画を立てよう」
 ```
 → journal_add_task("extract and chunk the document")
 → journal_add_task("generate document brief")
-→ journal_add_task("synthesize knowledge tree")
+→ journal_add_task("generate knowledge tree")
 → journal_add_task("critique and persist")
 ```
 
@@ -66,7 +66,7 @@ Working Memory（以降のターンに自動注入）:
 ### Tasks
 - [ ] task_1: extract and chunk the document
 - [ ] task_2: generate document brief
-- [ ] task_3: synthesize knowledge tree
+- [ ] task_3: generate knowledge tree
 - [ ] task_4: critique and persist
 ```
 
@@ -140,13 +140,13 @@ Working Memory（次ターン以降に注入）:
 ### Tasks
 - [x] task_1: extract and chunk the document
 - [x] task_2: generate document brief
-- [ ] task_3: synthesize knowledge tree
+- [ ] task_3: generate knowledge tree
 - [ ] task_4: critique and persist
 ```
 
 ---
 
-## ターン4 — Synthesis
+## ターン4 — Knowledge Tree Generation
 
 LLM は priorities の順でチャンクを処理。テーブルを含むチャンクを検出して先に構造化する。
 
@@ -165,7 +165,7 @@ table_json = {
   ]
 }
 
-→ goal_driven_synthesis(
+→ generate_knowledge_tree(
     chunks=[chunk_0, chunk_1, chunk_2, chunk_3, chunk_4, chunk_5],
     instruction="エンドポイント一覧は table_json の構造を保持すること。
                  エラーコードはエラーハンドリングの子ノードとして配置すること。"
@@ -213,13 +213,13 @@ items = [
 
 **ツールが連携した点**
 - テーブル検出 → `extract_table_data` → `instruction` に反映という流れが自然に成立する
-- Glossary が Working Memory に蓄積されて synthesis 時に暗黙的に参照される
-- `analyze_dependencies` が処理順を決め、LLM がそれに従って synthesis の instruction を構成する
+- Glossary が Working Memory に蓄積されて knowledge tree generation 時に暗黙的に参照される
+- `analyze_dependencies` が処理順を決め、LLM がそれに従って knowledge tree generation の instruction を構成する
 - Journal が状態管理として機能し、LLM が自分の進捗を把握できる
 
 **現在のスタブでは動かない点**
 - `generate_brief` — 単純結合なので Entities が空になる
-- `goal_driven_synthesis` — LLM を使わないので instruction が無視される
+- `generate_knowledge_tree` — LLM を使わないので instruction が無視される
 - `quality_critique` — 静的チェックのみで構造的な問題を検出できない
 
 シミュレーション上の流れは正しく、`process/` ツール群の LLM 化が次のステップとなる。

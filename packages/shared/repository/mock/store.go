@@ -838,7 +838,7 @@ func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domai
 			MutationID:     "m5",
 			JobID:          jobID,
 			TargetType:     "tool_call",
-			TargetID:       "goal_driven_synthesis",
+			TargetID:       "generate_knowledge_tree",
 			MutationType:   "execute",
 			BeforeJSON:     `{"document_brief": "Master blueprint..."}`,
 			AfterJSON:      `{"items": [{"label": "Concept A", "level": 0}]}`,

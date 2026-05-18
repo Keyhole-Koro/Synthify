@@ -31,7 +31,7 @@ type GoldenItem struct {
 	SourceChunkIDs []string `json:"source_chunk_ids"`
 }
 
-func goldenFromItems(items []domain.SynthesizedItem) Golden {
+func goldenFromItems(items []domain.GeneratedTreeItem) Golden {
 	g := Golden{
 		ItemCount: len(items),
 		MaxDepth:  maxDepth(items),
@@ -57,7 +57,7 @@ func goldenPath(dir, caseName string) string {
 	return filepath.Join(dir, caseName+".json")
 }
 
-func writeGolden(dir, caseName string, items []domain.SynthesizedItem) error {
+func writeGolden(dir, caseName string, items []domain.GeneratedTreeItem) error {
 	if dir == "" {
 		return fmt.Errorf("--update-golden requires --golden directory")
 	}
@@ -75,7 +75,7 @@ func writeGolden(dir, caseName string, items []domain.SynthesizedItem) error {
 // compareGolden returns nil when items match the stored golden on all strict
 // fields, or a GoldenDiff summarizing the mismatches. The diff never contains
 // full "content" HTML (contract §6).
-func compareGolden(dir, caseName string, items []domain.SynthesizedItem) (*GoldenDiff, error) {
+func compareGolden(dir, caseName string, items []domain.GeneratedTreeItem) (*GoldenDiff, error) {
 	raw, err := os.ReadFile(goldenPath(dir, caseName))
 	if err != nil {
 		if os.IsNotExist(err) {

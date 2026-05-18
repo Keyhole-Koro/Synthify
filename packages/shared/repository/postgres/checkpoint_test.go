@@ -65,7 +65,7 @@ func TestListStageCheckpoints_Success(t *testing.T) {
 
 	rows := sqlmock.NewRows([]string{"job_id", "stage", "status", "gcs_ref", "updated_at"}).
 		AddRow(jobID, "briefing", "succeeded", "ref_1", time.Now()).
-		AddRow(jobID, "synthesis", "running", "", time.Now())
+		AddRow(jobID, "knowledge_tree", "running", "", time.Now())
 
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT job_id, stage, status, gcs_ref, updated_at FROM job_stage_checkpoints")).
 		WithArgs(jobID).

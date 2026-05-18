@@ -209,7 +209,7 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 		"steps": []map[string]any{
 			{"name": "text_extraction", "operation": treev1.JobOperation_JOB_OPERATION_READ_DOCUMENT.String(), "risk_tier": "tier_0"},
 			{"name": "semantic_chunking", "operation": treev1.JobOperation_JOB_OPERATION_INVOKE_LLM.String(), "risk_tier": "tier_0"},
-			{"name": "goal_driven_synthesis", "operation": treev1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
+			{"name": "generate_knowledge_tree", "operation": treev1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
 			{"name": "persistence", "operation": treev1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
 			{"name": "evaluation", "operation": treev1.JobOperation_JOB_OPERATION_EMIT_EVAL.String(), "risk_tier": "tier_0"},
 		},
@@ -226,7 +226,7 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 		PlanID:    "plan_" + req.JobID,
 		JobID:     req.JobID,
 		Status:    "approved",
-		Summary:   "Extract text, chunk semantically, synthesize knowledge tree items, persist mutations, and evaluate the job.",
+		Summary:   "Extract text, chunk semantically, generate knowledge tree items, persist mutations, and evaluate the job.",
 		PlanJSON:  string(planJSONBytes),
 		CreatedBy: "llm_worker",
 	}

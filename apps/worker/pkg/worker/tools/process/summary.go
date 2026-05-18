@@ -12,7 +12,7 @@ import (
 )
 
 type SummaryArgs struct {
-	Item domain.SynthesizedItem `json:"item"`
+	Item domain.GeneratedTreeItem `json:"item"`
 }
 
 type SummaryResult struct {

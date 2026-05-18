@@ -96,9 +96,9 @@ This is intentionally an upsert key. Re-saving the same item/document/chunk sour
 
 ## Worker local IDs
 
-`domain.SynthesizedItem.LocalID` is not a persisted DB ID.
+`domain.GeneratedTreeItem.LocalID` is not a persisted DB ID.
 
-It is a temporary ID used inside one synthesis result so `parent_local_id` can refer to another generated item before database IDs exist.
+It is a temporary ID used inside one knowledge tree generation result so `parent_local_id` can refer to another generated item before database IDs exist.
 
 Examples:
 
@@ -117,7 +117,7 @@ local_id -> tree_items.id
 
 Required behavior:
 
-- `local_id` only needs to be unique within a single synthesis payload.
+- `local_id` only needs to be unique within a single knowledge tree generation payload.
 - Before persistence, duplicate `local_id` values should be rejected or normalized, because duplicate local IDs can break `parent_local_id` resolution.
 - `local_id` must not be stored as `tree_items.id`.
 
@@ -129,7 +129,7 @@ Generated summaries may include links such as:
 <a data-paper-id="{local_id}">...</a>
 ```
 
-During synthesis, `{local_id}` refers to temporary local IDs. For persisted content, these references should be rewritten to real `tree_items.id` values once the local-to-persisted ID mapping is known.
+During knowledge tree generation, `{local_id}` refers to temporary local IDs. For persisted content, these references should be rewritten to real `tree_items.id` values once the local-to-persisted ID mapping is known.
 
 If this rewrite is missing, links may point to non-persisted local IDs such as `item_1` or `chunk_0`.
 
@@ -137,5 +137,5 @@ If this rewrite is missing, links may point to non-persisted local IDs such as `
 
 - `plan_{job_id}` and `cap_{job_id}` assume one plan and one capability per job.
 - `document_chunks.chunk_id` assumes chunk IDs include the globally unique document ID.
-- `SynthesizedItem.LocalID` is local-scope only and needs uniqueness validation before persistence.
+- `GeneratedTreeItem.LocalID` is local-scope only and needs uniqueness validation before persistence.
 - HTML `data-paper-id` values need a local-to-persisted ID rewrite if they are generated with local IDs.

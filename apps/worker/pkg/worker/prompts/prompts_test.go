@@ -8,7 +8,7 @@ import (
 	"github.com/synthify/backend/packages/shared/domain"
 )
 
-// legacySystemPrompt is the verbatim system prompt that synthesis.go embedded
+// legacySystemPrompt is the verbatim system prompt that knowledge tree generation.go embedded
 // as a raw string literal before prompt externalization. The migration must
 // reproduce it byte-for-byte (contract §2.2). Do not "fix" this string to
 // match the template; if they diverge the template changed behaviour.
@@ -36,7 +36,7 @@ Rules for Structure:
 - source_chunk_ids: list of chunk IDs referenced (format: "{document_id}_chunk_{index}").`
 
 // legacyUserPrompt reproduces the previous fmt.Sprintf construction in
-// synthesis.go: the "none" default for empty instruction and the
+// knowledge tree generation.go: the "none" default for empty instruction and the
 // "[%d] %s\n%s\n\n" chunk block.
 func legacyUserPrompt(documentID, instruction string, chunks []domain.Chunk) string {
 	var sb strings.Builder
@@ -49,13 +49,13 @@ func legacyUserPrompt(documentID, instruction string, chunks []domain.Chunk) str
 	return fmt.Sprintf("document_id: %s\nInstruction: %s\n\nChunks:\n%s", documentID, instruction, sb.String())
 }
 
-func TestDefaultProviderMatchesLegacyPrompt(t *testing.T) {
-	p, err := Default()
+func TestDefaultRendererMatchesLegacyPrompt(t *testing.T) {
+	r, err := Default()
 	if err != nil {
 		t.Fatalf("Default(): %v", err)
 	}
 
-	cases := []SynthesisInput{
+	cases := []RenderInput{
 		{
 			DocumentID:  "doc_api_spec",
 			Instruction: "技術仕様書として整理して",
@@ -82,9 +82,9 @@ func TestDefaultProviderMatchesLegacyPrompt(t *testing.T) {
 
 	for _, in := range cases {
 		t.Run(in.DocumentID, func(t *testing.T) {
-			got, err := p.Synthesis(in)
+			got, err := r.Render(in)
 			if err != nil {
-				t.Fatalf("Synthesis(): %v", err)
+				t.Fatalf("Render(): %v", err)
 			}
 			if got.System != legacySystemPrompt {
 				t.Errorf("system prompt diverged from legacy.\n--- got ---\n%q\n--- want ---\n%q", got.System, legacySystemPrompt)

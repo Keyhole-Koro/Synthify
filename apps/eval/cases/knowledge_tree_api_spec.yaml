@@ -1,5 +1,5 @@
-name: synthesis_api_spec
-tool: synthesis
+name: knowledge_tree_api_spec
+tool: knowledge_tree
 input:
   document_id: doc_api_spec
   instruction: "技術仕様書として整理して"

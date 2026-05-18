@@ -71,8 +71,8 @@ Connect handler 実装は [connect.go](/home/unix/Synthify/worker/pkg/worker/con
 2. `semantic_chunking`
    - テキストを見出しベースで分割する
    - `document_chunks` に保存する
-3. `goal_driven_synthesis`
-   - chunk ごとに `domain.SynthesizedItem` を作る
+3. `generate_knowledge_tree`
+   - chunk ごとに `domain.GeneratedTreeItem` を作る
 
 4. `persistence`
    - `JobCapability` を確認する
@@ -88,7 +88,7 @@ worker は ADK agent を初期化するが、今の実装では deterministic pi
   - ただし現在は best-effort review に近い使い方で、主保存経路は deterministic code
 - LLM が使えない場合:
   - worker はそのまま動く
-  - chunking / synthesis / persistence はコードベースの fallback で進む
+  - chunking / knowledge tree generation / persistence はコードベースの fallback で進む
 
 このため、現在の worker は「LLM を使えるときに補助的に使う」構成で、完全な agent 主導ではない。
 
@@ -100,7 +100,7 @@ orchestrator に登録されている tool 群は [orchestrator.go](/home/unix/S
 
 - `extract_text`
 - `semantic_chunking`
-- `goal_driven_synthesis`
+- `generate_knowledge_tree`
 - `persist_knowledge_tree`
 - `generate_brief`
 - `quality_critique`
@@ -164,7 +164,7 @@ Firestore の内容だけで UI を確定しないのが前提。
 
 - LLM agent は主経路ではなく補助経路
 - semantic search は OLTP 上の bounded fallback query が中心
-- chunking / synthesis はまだ軽量実装
+- chunking / knowledge tree generation はまだ軽量実装
 - Firestore rules は job status read を暫定的に広めに許可している
 - workspace membership を Firestore rules で厳密に見るための mirror は未実装
 

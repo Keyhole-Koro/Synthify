@@ -51,7 +51,7 @@ type TreeItem struct {
 	Content     string                     `json:"content,omitempty"`
 }
 
-type SynthesizedItem struct {
+type GeneratedTreeItem struct {
 	LocalID        string   `json:"local_id"`
 	Title          string   `json:"title"`
 	Level          int      `json:"level"`

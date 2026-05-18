@@ -16,7 +16,7 @@
 - **目的**: LLM が一度に扱えるサイズに、文脈を壊さずに分割する。
 - **Schema**: RawText -> Chunks[], Outline[]
 
-### `goal_driven_synthesis`
+### `generate_knowledge_tree`
 - **目的**: ドキュメントの論理構造を解析し、ナレッジツリーを再構築する。
 - **自律性**: LLM がドキュメントの性質に合わせて最適なアイテム分類と階層を決定する。
 

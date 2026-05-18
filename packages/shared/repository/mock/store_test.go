@@ -88,7 +88,7 @@ func TestFindPaths_FindsConnectedPath(t *testing.T) {
 	items, paths, err := store.FindPaths(ctx, wsID, "item-n3", "item-n1", 4, 3)
 	require.NoError(t, err, "FindPaths")
 	require.NotEmpty(t, items, "expected at least one item")
-	assert.Empty(t, paths, "mock FindPaths does not synthesize path edges")
+	assert.Empty(t, paths, "mock FindPaths does not generate path edges")
 }
 
 func TestFindPaths_NoPathExists_ReturnsEmptyPaths(t *testing.T) {
