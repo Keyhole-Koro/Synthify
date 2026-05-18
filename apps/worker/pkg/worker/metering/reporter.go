@@ -24,11 +24,11 @@ import (
 // When serviceToken is empty the returned reporter is a no-op; usage will be
 // dropped silently with a single warn log at construction. This keeps local
 // dev (where the token may not be configured) from breaking the worker.
-func NewConnectReporter(apiBaseURL, serviceToken string) llm.UsageReporter {
+func NewConnectReporter(apiBaseURL, serviceToken string, opts ...connect.ClientOption) llm.UsageReporter {
 	if apiBaseURL == "" || serviceToken == "" {
 		return noopReporter{}
 	}
-	client := treev1connect.NewBillingServiceClient(http.DefaultClient, apiBaseURL)
+	client := treev1connect.NewBillingServiceClient(http.DefaultClient, apiBaseURL, opts...)
 	return &connectReporter{client: client, token: serviceToken}
 }
 

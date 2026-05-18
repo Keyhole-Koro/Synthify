@@ -127,6 +127,12 @@ variable "new_relic_app_name" {
   default     = ""
 }
 
+variable "new_relic_worker_app_name" {
+  description = "Empty => prod: synthify-worker, else synthify-worker-<environment>."
+  type        = string
+  default     = ""
+}
+
 variable "api_base_url" {
   description = "Public URL for the API service. Apply once with default empty, then set to the api Cloud Run URL and re-apply so the worker can call back."
   type        = string

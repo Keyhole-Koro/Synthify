@@ -7,17 +7,18 @@ require github.com/synthify/backend/packages/shared v0.0.0
 replace github.com/synthify/backend/packages/shared => ./packages/shared
 
 require (
+	cloud.google.com/go/storage v1.56.1
 	connectrpc.com/connect v1.18.1
 	github.com/newrelic/go-agent/v3 v3.43.3
-	github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1
-	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0
+	github.com/oklog/ulid/v2 v2.1.1
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/text v0.36.0
 	go.starlark.net v0.0.0-20260326113308-fadfc96def35
+	golang.org/x/text v0.36.0
 	google.golang.org/adk v1.2.0
 	google.golang.org/api v0.272.0
 	google.golang.org/genai v1.54.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -30,7 +31,6 @@ require (
 	cloud.google.com/go/iam v1.5.3 // indirect
 	cloud.google.com/go/longrunning v0.8.0 // indirect
 	cloud.google.com/go/monitoring v1.24.3 // indirect
-	cloud.google.com/go/storage v1.56.1 // indirect
 	firebase.google.com/go/v4 v4.19.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.53.0 // indirect
@@ -59,8 +59,9 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.9.2 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1 // indirect
 	github.com/newrelic/go-agent/v3/integrations/nrpgx5 v1.3.4 // indirect
-	github.com/oklog/ulid/v2 v2.1.1 // indirect
+	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
@@ -86,7 +87,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260316180232-0b37fe3546d5 // indirect
 	google.golang.org/grpc v1.80.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/omap v1.2.0 // indirect
 	rsc.io/ordered v1.1.1 // indirect
 )

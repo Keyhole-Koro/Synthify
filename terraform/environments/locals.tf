@@ -24,6 +24,11 @@ locals {
     var.environment == "prod" ? "synthify-api" : "synthify-api-${var.environment}"
   )
 
+  new_relic_worker_app_name = (
+    var.new_relic_worker_app_name != "" ? var.new_relic_worker_app_name :
+    var.environment == "prod" ? "synthify-worker" : "synthify-worker-${var.environment}"
+  )
+
   # Cloud Run delete guard: prod is protected; non-prod is replaceable so a
   # tainted/failed revision can be recreated without manual intervention.
   deletion_protection = var.environment == "prod"

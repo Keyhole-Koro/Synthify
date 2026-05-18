@@ -36,6 +36,7 @@ module "service" {
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     GEMINI_MODEL                 = var.gemini_model
     API_BASE_URL                 = var.api_base_url
+    NEW_RELIC_APP_NAME           = var.new_relic_app_name
   }
 
   secret_env_vars = [
@@ -50,6 +51,10 @@ module "service" {
     {
       name   = "INTERNAL_WORKER_TOKEN"
       secret = var.secret_ids["internal-worker-token"]
+    },
+    {
+      name   = "NEW_RELIC_LICENSE_KEY"
+      secret = var.secret_ids["new-relic-license-key"]
     },
   ]
 }

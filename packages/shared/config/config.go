@@ -56,6 +56,7 @@ type Worker struct {
 	GCSFuseMountPath         string
 	APIBaseURL               string
 	InternalServiceToken     string
+	NewRelic                 NewRelic
 }
 
 type Store struct {
@@ -118,6 +119,10 @@ func LoadWorker() Worker {
 		GCSFuseMountPath:         mustMountPath("GCS_FUSE_MOUNT_PATH", os.Getenv("GCS_FUSE_MOUNT_PATH")),
 		APIBaseURL:               get("NEXT_PUBLIC_API_BASE_URL", get("API_BASE_URL", "http://127.0.0.1:8080")),
 		InternalServiceToken:     os.Getenv("INTERNAL_WORKER_TOKEN"),
+		NewRelic: NewRelic{
+			AppName:    get("NEW_RELIC_APP_NAME", "synthify-worker"),
+			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
+		},
 	}
 }
 

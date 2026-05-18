@@ -100,6 +100,7 @@ locals {
     "database-dsn",
     "gemini-api-key",
     "internal-worker-token",
+    "new-relic-license-key",
   ])
 
   eval_secrets = toset([

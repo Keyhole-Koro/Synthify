@@ -40,6 +40,11 @@ variable "api_base_url" {
   type        = string
 }
 
+variable "new_relic_app_name" {
+  type    = string
+  default = "synthify-worker"
+}
+
 variable "deletion_protection" {
   description = "Cloud Run delete guard. false in non-prod so a tainted service can be replaced."
   type        = bool

@@ -11,13 +11,13 @@ import (
 	"github.com/synthify/backend/apps/api/internal/infrastructure/storage"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/stripe"
 	apiworker "github.com/synthify/backend/apps/api/internal/infrastructure/worker"
-	"github.com/synthify/backend/apps/api/internal/observability"
 	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/packages/shared/app"
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/config"
 	treev1connect "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1/treev1connect"
 	"github.com/synthify/backend/packages/shared/middleware"
+	"github.com/synthify/backend/packages/shared/observability"
 )
 
 func main() {
@@ -41,7 +41,7 @@ func main() {
 	// Document pipeline wiring. The dispatcher talks to the worker service
 	// over Connect; object metadata + source URLs are derived from the
 	// internal GCS upload base.
-	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL)
+	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, observability.ConnectClientOptions(nrApp)...)
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := app.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 	uploadURLIssuer := app.NewDocumentUploadURLIssuer(cfg.GCSBucket, cfg.GCSUploadURLBase)
@@ -65,7 +65,7 @@ func main() {
 		APIVersion:       cfg.Stripe.APIVersion,
 		MeterInputEvent:  cfg.Stripe.MeterInputEvent,
 		MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
-		})
+	})
 
 	if err != nil {
 		log.Fatalf("stripe provider init: %v", err)
@@ -80,12 +80,13 @@ func main() {
 	billingHandler := handler.NewBillingHandler(billingSvc)
 
 	mux := http.NewServeMux()
-	mux.Handle(treev1connect.NewDocumentServiceHandler(documentHandler))
-	mux.Handle(treev1connect.NewTreeServiceHandler(treeHandler))
-	mux.Handle(treev1connect.NewItemServiceHandler(itemHandler))
-	mux.Handle(treev1connect.NewWorkspaceServiceHandler(workspaceHandler))
-	mux.Handle(treev1connect.NewJobServiceHandler(jobHandler))
-	mux.Handle(treev1connect.NewBillingServiceHandler(billingHandler))
+	connectOptions := observability.ConnectHandlerOptions(nrApp)
+	mux.Handle(treev1connect.NewDocumentServiceHandler(documentHandler, connectOptions...))
+	mux.Handle(treev1connect.NewTreeServiceHandler(treeHandler, connectOptions...))
+	mux.Handle(treev1connect.NewItemServiceHandler(itemHandler, connectOptions...))
+	mux.Handle(treev1connect.NewWorkspaceServiceHandler(workspaceHandler, connectOptions...))
+	mux.Handle(treev1connect.NewJobServiceHandler(jobHandler, connectOptions...))
+	mux.Handle(treev1connect.NewBillingServiceHandler(billingHandler, connectOptions...))
 
 	// Stripe sends raw, signed webhook bodies — this is a plain HTTP
 	// endpoint, not Connect. The auth middleware exempts /stripe/webhook.

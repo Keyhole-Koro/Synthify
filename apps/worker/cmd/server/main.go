@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
@@ -15,6 +16,7 @@ import (
 	treev1connect "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1/treev1connect"
 	"github.com/synthify/backend/packages/shared/job/log"
 	"github.com/synthify/backend/packages/shared/middleware"
+	"github.com/synthify/backend/packages/shared/observability"
 	"github.com/synthify/backend/packages/shared/repository/postgres"
 	"github.com/synthify/backend/packages/shared/storage"
 )
@@ -24,15 +26,21 @@ func main() {
 	cfg := config.LoadWorker()
 
 	fs := storage.NewFileSystem(cfg.GCSFuseMountPath)
-	appLogger := applog.NewStdLogger()
+	slogLogger := applog.NewJSONSlogLogger(os.Stdout)
+	appLogger := applog.WrapSlogLogger(slogLogger)
 
-	appCtx := app.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nil)
+	nrApp, err := observability.InitNewRelic(cfg.NewRelic, slogLogger)
+	if err != nil {
+		appLogger.Error(ctx, "worker.newrelic_init_failed", err, nil)
+	}
+
+	appCtx := app.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
 	store := appCtx.Store
 	notifier := appCtx.Notifier
 	jobLogger := postgres.NewDBLogger(store)
 
 	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger)
-	llmClient := metering.NewWrappedClient(embedder, cfg, appLogger)
+	llmClient := metering.NewWrappedClient(embedder, cfg, appLogger, observability.ConnectClientOptions(nrApp)...)
 
 	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, fs, appLogger)
 	if err != nil {
@@ -42,7 +50,10 @@ func main() {
 	evaluator := worker.NewJobEvaluator(store, embedder, appLogger)
 
 	mux := http.NewServeMux()
-	mux.Handle(treev1connect.NewWorkerServiceHandler(worker.NewConnectHandler(workerService, store, planner, evaluator, appLogger)))
+	mux.Handle(treev1connect.NewWorkerServiceHandler(
+		worker.NewConnectHandler(workerService, store, planner, evaluator, appLogger),
+		observability.ConnectHandlerOptions(nrApp)...,
+	))
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, `{"status":"ok"}`)

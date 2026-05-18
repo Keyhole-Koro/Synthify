@@ -26,10 +26,11 @@ import (
 // service over Connect. It satisfies service.WorkerDispatcher.
 type HTTPDispatcher struct {
 	baseURL string
+	opts    []connect.ClientOption
 }
 
-func NewHTTPDispatcher(baseURL string) *HTTPDispatcher {
-	return &HTTPDispatcher{baseURL: baseURL}
+func NewHTTPDispatcher(baseURL string, opts ...connect.ClientOption) *HTTPDispatcher {
+	return &HTTPDispatcher{baseURL: baseURL, opts: opts}
 }
 
 func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
@@ -37,7 +38,7 @@ func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.E
 	if err != nil {
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"))
+	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
 	rpcReq := connect.NewRequest(&treev1.GenerateExecutionPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
@@ -58,7 +59,7 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.Exe
 	if err != nil {
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"))
+	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
 	rpcReq := connect.NewRequest(&treev1.ExecuteApprovedPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,

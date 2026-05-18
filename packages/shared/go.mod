@@ -8,6 +8,8 @@ require (
 	firebase.google.com/go/v4 v4.19.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/jackc/pgx/v5 v5.9.2
+	github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1
+	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/stretchr/testify v1.11.1

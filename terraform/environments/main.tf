@@ -28,6 +28,7 @@ module "worker" {
   firebase_project_id   = local.firebase_project_id
   gemini_model          = var.gemini_model
   api_base_url          = var.api_base_url
+  new_relic_app_name    = local.new_relic_worker_app_name
   deletion_protection   = local.deletion_protection
 }
 

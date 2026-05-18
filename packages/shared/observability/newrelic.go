@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	connect "connectrpc.com/connect"
+	"github.com/newrelic/go-agent/v3/integrations/nrconnect"
 	"github.com/newrelic/go-agent/v3/integrations/nrslog"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/packages/shared/config"
@@ -32,4 +34,18 @@ func InitNewRelic(cfg config.NewRelic, logger *slog.Logger) (*newrelic.Applicati
 		}
 	}
 	return app, nil
+}
+
+func ConnectHandlerOptions(app *newrelic.Application) []connect.HandlerOption {
+	if app == nil {
+		return nil
+	}
+	return []connect.HandlerOption{connect.WithInterceptors(nrconnect.Interceptor(app))}
+}
+
+func ConnectClientOptions(app *newrelic.Application) []connect.ClientOption {
+	if app == nil {
+		return nil
+	}
+	return []connect.ClientOption{connect.WithInterceptors(nrconnect.Interceptor(app))}
 }
