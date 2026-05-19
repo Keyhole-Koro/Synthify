@@ -15,9 +15,9 @@ Backend deploys run `scripts/smoke-test.sh api` and `scripts/smoke-test.sh worke
 - Terraform receives the key through `-var="readiness_api_key=..."`.
 - API and Worker Cloud Run revisions receive it as `SYNTHIFY_READINESS_KEY`.
 - The same key is passed to `scripts/smoke-test.sh` for readiness calls.
-- Worker is internal-only, so the workflow checks it through `gcloud run services proxy`.
+- Worker is internal-only, so the workflow installs the `cloud-run-proxy` component and checks it through `gcloud run services proxy`.
 
-Frontend deploys run `scripts/smoke-test.sh frontend` from `.github/workflows/deploy-frontend.yml`.
+Frontend deploys run `scripts/smoke-test.sh frontend` from `.github/workflows/deploy-frontend.yml`. The workflow runs `firebase deploy --json`, extracts the Hosting URL from the deploy result, and falls back to `https://<GCP_PROJECT_ID>.web.app` if the JSON does not contain a URL.
 
 ## Checks
 
@@ -76,10 +76,6 @@ Backend deploy workflow:
 - `GCP_PROJECT_ID`
 - `GCP_REGION`
 
-Frontend deploy workflow:
-
-- `FRONTEND_URL`
-
 Runtime:
 
 - `SYNTHIFY_READINESS_KEY` is injected by Terraform from the deploy-generated `readiness_api_key` variable.
@@ -92,6 +88,7 @@ Any smoke test failure exits non-zero and fails the GitHub Actions job.
 Common failures:
 
 - `/health` fails: service is unreachable or not serving HTTP.
+- Worker proxy never opens locally: `cloud-run-proxy` is missing or `gcloud run services proxy` cannot reach the service.
 - `/health?ready=1` returns `401`: deploy key did not reach the Cloud Run revision or smoke script.
 - `/health?ready=1` returns `503`: required dependency check failed, currently DB `SELECT 1`.
 - API auth gate check is not `401`: auth middleware may be misconfigured.

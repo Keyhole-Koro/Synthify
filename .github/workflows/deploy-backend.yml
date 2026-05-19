@@ -59,6 +59,9 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Install Cloud Run proxy component
+        run: gcloud components install cloud-run-proxy --quiet
+
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
@@ -221,7 +224,10 @@ jobs:
       - name: Smoke test Worker
         run: |
           set -euo pipefail
+          # The worker is internal-only, so the deploy smoke test reaches it
+          # through the Cloud Run proxy instead of the public service URL.
           gcloud run services proxy "synthify-worker-${ENVIRONMENT}" \
+            --quiet \
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ vars.GCP_REGION }}" \
             --port 18081 \

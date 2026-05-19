@@ -51,8 +51,8 @@ FRONTEND_URL=https://... ./scripts/smoke-test.sh frontend
 
 `.github/workflows/deploy-frontend.yml` の Firebase Hosting deploy 後に frontend smoke test step を追加する。
 
-- `FRONTEND_URL` は GitHub Environment variable で受け取る。
-- 未設定の場合は workflow を fail させる。
+- `firebase deploy --json` の結果から Hosting URL を抽出し、`FRONTEND_URL` として smoke test に渡す。
+- deploy JSON に URL がない場合は `https://<GCP_PROJECT_ID>.web.app` に fallback する。
 - prod でもトップページの 2xx 到達確認のみ行う。
 
 ## 将来拡張

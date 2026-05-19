@@ -69,11 +69,31 @@ jobs:
           service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
 
       - name: Deploy to Firebase Hosting
-        run: >-
-          bunx firebase-tools@13 deploy --only hosting --non-interactive
-          --project ${{ vars.GCP_PROJECT_ID }}
+        run: |
+          set -o pipefail
+          bunx firebase-tools@13 deploy --only hosting --non-interactive --json \
+            --project ${{ vars.GCP_PROJECT_ID }} \
+            | tee /tmp/firebase-deploy.json
+
+      - name: Resolve Firebase Hosting URL
+        run: |
+          FRONTEND_URL="$(
+            jq -r '
+              [
+                .result.hosting.url?,
+                (.result.hosting[]?.url?),
+                (.result.hosting.site? | select(. != null) | "https://" + . + ".web.app"),
+                (.result.hosting[]?.site? | select(. != null) | "https://" + . + ".web.app")
+              ]
+              | map(select(. != null and . != ""))
+              | first // empty
+            ' /tmp/firebase-deploy.json
+          )"
+          if [ -z "$FRONTEND_URL" ]; then
+            FRONTEND_URL="https://${{ vars.GCP_PROJECT_ID }}.web.app"
+          fi
+          echo "FRONTEND_URL=${FRONTEND_URL}" >> "$GITHUB_ENV"
+          echo "Resolved Firebase Hosting URL: ${FRONTEND_URL}"
 
       - name: Smoke test Frontend
-        env:
-          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
         run: scripts/smoke-test.sh frontend
