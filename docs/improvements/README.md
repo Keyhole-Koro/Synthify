@@ -51,6 +51,7 @@
 
 ## テスト・品質
 
+- [stage-prod-smoke-tests.md](stage-prod-smoke-tests.md) — stage / prod deploy 後に API・Worker・Frontend の最低限の死活を確認する smoke test 導入計画
 - [tool-calling-tests.md](tool-calling-tests.md) — LLM エージェントが各ツールを正しく呼び出せているかを確認するテストの追加
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加
 - [llm-eval-runner.md](llm-eval-runner.md) — プロンプト・モデルを変えながら LLM ツール出力を定量評価・横並び比較する CLI 基盤 (プロンプト外出しが前提)

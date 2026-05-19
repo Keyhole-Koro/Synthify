@@ -59,6 +59,14 @@ resource "google_cloud_run_v2_service" "this" {
       }
 
       dynamic "env" {
+        for_each = nonsensitive(toset(keys(var.sensitive_env_vars)))
+        content {
+          name  = env.value
+          value = var.sensitive_env_vars[env.value]
+        }
+      }
+
+      dynamic "env" {
         for_each = var.secret_env_vars
         content {
           name = env.value.name

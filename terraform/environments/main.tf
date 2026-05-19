@@ -28,6 +28,7 @@ module "worker" {
   firebase_project_id   = local.firebase_project_id
   gemini_model          = var.gemini_model
   api_base_url          = var.api_base_url
+  readiness_api_key     = var.readiness_api_key
   new_relic_app_name    = local.new_relic_worker_app_name
   deletion_protection   = local.deletion_protection
 }
@@ -73,6 +74,7 @@ module "api" {
   billing_cancel_url        = local.billing_cancel_url
   billing_portal_return_url = local.billing_portal_return_url
   new_relic_app_name        = local.new_relic_app_name
+  readiness_api_key         = var.readiness_api_key
 
   gcs_upload_issuer                 = var.gcs_upload_issuer
   gcs_signing_service_account_email = var.gcs_signing_service_account_email == "" ? module.bootstrap.api_service_account_email : var.gcs_signing_service_account_email

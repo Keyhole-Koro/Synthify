@@ -23,6 +23,7 @@ on:
       - go.mod
       - go.sum
       - terraform/**
+      - scripts/smoke-test.sh
       - .github/workflows/deploy-backend.yml
 
 concurrency:
@@ -71,6 +72,12 @@ jobs:
           echo "api_image=${REGISTRY}/api:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "worker_image=${REGISTRY}/worker:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "eval_image=${REGISTRY}/eval:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate readiness smoke key
+        run: |
+          READINESS_API_KEY="$(openssl rand -base64 32)"
+          echo "::add-mask::${READINESS_API_KEY}"
+          echo "READINESS_API_KEY=${READINESS_API_KEY}" >> "$GITHUB_ENV"
 
       # Upsert the Terraform state bucket. Idempotent: creates it if missing,
       # otherwise just re-asserts versioning/lifecycle. Also (re)writes
@@ -173,6 +180,7 @@ jobs:
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
+            -var="readiness_api_key=${READINESS_API_KEY}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
@@ -193,6 +201,7 @@ jobs:
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
             -var="api_base_url=${API_URI}"
+            -var="readiness_api_key=${READINESS_API_KEY}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
@@ -202,3 +211,30 @@ jobs:
       - name: Outputs
         working-directory: ${{ env.TF_DIR }}
         run: terraform output
+
+      - name: Smoke test API
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          API_URI="$(terraform output -raw api_uri)"
+          API_BASE_URL="${API_URI}" READINESS_API_KEY="${READINESS_API_KEY}" ../../scripts/smoke-test.sh api
+
+      - name: Smoke test Worker
+        run: |
+          set -euo pipefail
+          gcloud run services proxy "synthify-worker-${ENVIRONMENT}" \
+            --project "${{ vars.GCP_PROJECT_ID }}" \
+            --region "${{ vars.GCP_REGION }}" \
+            --port 18081 \
+            > /tmp/synthify-worker-proxy.log 2>&1 &
+          proxy_pid="$!"
+          trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 24); do
+            if SMOKE_TEST_TIMEOUT_SECONDS=5 SMOKE_TEST_RETRY_COUNT=0 WORKER_BASE_URL="http://127.0.0.1:18081" READINESS_API_KEY="${READINESS_API_KEY}" scripts/smoke-test.sh worker; then
+              exit 0
+            fi
+            sleep 2
+          done
+
+          cat /tmp/synthify-worker-proxy.log >&2
+          exit 1

@@ -96,6 +96,12 @@ variable "new_relic_app_name" {
   default = "synthify-api"
 }
 
+variable "readiness_api_key" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
 variable "gcs_upload_issuer" {
   type    = string
   default = "signed"

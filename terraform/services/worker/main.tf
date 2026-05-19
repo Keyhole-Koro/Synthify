@@ -39,6 +39,10 @@ module "service" {
     NEW_RELIC_APP_NAME           = var.new_relic_app_name
   }
 
+  sensitive_env_vars = {
+    SYNTHIFY_READINESS_KEY = var.readiness_api_key
+  }
+
   secret_env_vars = [
     {
       name   = "DATABASE_DSN"

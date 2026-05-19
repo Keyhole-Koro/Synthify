@@ -18,6 +18,7 @@ on:
     paths:
       - apps/web/**
       - packages/shared/**
+      - scripts/smoke-test.sh
       - .github/workflows/deploy-frontend.yml
 
 concurrency:
@@ -71,3 +72,8 @@ jobs:
         run: >-
           bunx firebase-tools@13 deploy --only hosting --non-interactive
           --project ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Smoke test Frontend
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+        run: scripts/smoke-test.sh frontend

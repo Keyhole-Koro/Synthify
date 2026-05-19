@@ -23,6 +23,12 @@ variable "env_vars" {
   default = {}
 }
 
+variable "sensitive_env_vars" {
+  type      = map(string)
+  default   = {}
+  sensitive = true
+}
+
 variable "secret_env_vars" {
   type = list(object({
     name    = string

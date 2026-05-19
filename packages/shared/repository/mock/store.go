@@ -79,6 +79,10 @@ func (s *Store) SetUploadURLIssuer(issuer repository.DocumentUploadURLIssuer) {
 	s.uploadURLIssuer = issuer
 }
 
+func (s *Store) CheckReadiness(context.Context) error {
+	return nil
+}
+
 // AccountRepository
 func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	s.mu.Lock()

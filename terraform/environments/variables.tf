@@ -139,6 +139,13 @@ variable "api_base_url" {
   default     = ""
 }
 
+variable "readiness_api_key" {
+  description = "Ephemeral deploy-smoke key injected into API/Worker Cloud Run revisions for /health?ready=1."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # --------------------------------------------------------------------
 # Signed upload URLs
 # --------------------------------------------------------------------

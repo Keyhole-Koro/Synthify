@@ -52,6 +52,10 @@ module "service" {
     LOG_LLM_PAYLOAD              = var.log_llm_payload
   }
 
+  sensitive_env_vars = {
+    SYNTHIFY_READINESS_KEY = var.readiness_api_key
+  }
+
   secret_env_vars = [
     {
       name   = "DATABASE_DSN"

@@ -11,6 +11,7 @@ import (
 type API struct {
 	Port                     string
 	Env                      string
+	ReadinessKey             string
 	CORSAllowedOrigins       string
 	GCSBucket                string
 	GCSUploadURLBase         string
@@ -49,6 +50,7 @@ type NewRelic struct {
 
 type Worker struct {
 	Port                     string
+	ReadinessKey             string
 	GCSBucket                string
 	GCSUploadURLBase         string
 	FirebaseProjectID        string
@@ -78,6 +80,7 @@ func LoadAPI() API {
 	return API{
 		Port:                     get("PORT", "8080"),
 		Env:                      get("ENV", "production"),
+		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000"),
 		GCSBucket:                get("GCS_BUCKET", "synthify-uploads"),
 		GCSUploadURLBase:         uploadBase,
@@ -112,6 +115,7 @@ func LoadAPI() API {
 func LoadWorker() Worker {
 	return Worker{
 		Port:                     get("PORT", "8080"),
+		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
 		GCSBucket:                get("GCS_BUCKET", "synthify-uploads"),
 		GCSUploadURLBase:         mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443")),
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),

@@ -62,6 +62,11 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+func (s *Store) CheckReadiness(ctx context.Context) error {
+	var one int
+	return s.db.QueryRowContext(ctx, "SELECT 1").Scan(&one)
+}
+
 func (s *Store) q() *sqlcgen.Queries {
 	if s.queries == nil {
 		s.queries = sqlcgen.New(s.db)

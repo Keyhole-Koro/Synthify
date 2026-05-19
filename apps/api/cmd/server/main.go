@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/synthify/backend/apps/api/internal/handler"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/storage"
@@ -92,10 +96,7 @@ func main() {
 	// endpoint, not Connect. The auth middleware exempts /stripe/webhook.
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, appLogger))
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, `{"status":"ok"}`)
-	})
+	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
 	// Outermost first: recover → log → CORS → auth → routes.
 	// CORS must be outside of Auth to handle preflight (OPTIONS) requests
@@ -111,4 +112,49 @@ func main() {
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Fatal(err)
 	}
+}
+
+type readinessChecker interface {
+	CheckReadiness(context.Context) error
+}
+
+func healthHandler(store any, readinessKey string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("ready") != "1" {
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprintln(w, `{"status":"ok"}`)
+			return
+		}
+
+		// Readiness is used by deploy smoke tests and exposes dependency
+		// status, so it is protected separately from the public liveness check.
+		if !readinessAuthorized(r, readinessKey) {
+			http.Error(w, `{"status":"error","error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		checker, ok := store.(readinessChecker)
+		if !ok {
+			http.Error(w, `{"status":"error","dependency":"store"}`, http.StatusServiceUnavailable)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := checker.CheckReadiness(ctx); err != nil {
+			http.Error(w, `{"status":"error","dependency":"store"}`, http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"status":"ok","ready":true}`)
+	}
+}
+
+func readinessAuthorized(r *http.Request, expected string) bool {
+	expected = strings.TrimSpace(expected)
+	got := strings.TrimSpace(r.Header.Get("X-Synthify-Readiness-Key"))
+	if expected == "" || got == "" {
+		return false
+	}
+	expectedHash := sha256.Sum256([]byte(expected))
+	gotHash := sha256.Sum256([]byte(got))
+	return subtle.ConstantTimeCompare(gotHash[:], expectedHash[:]) == 1
 }
