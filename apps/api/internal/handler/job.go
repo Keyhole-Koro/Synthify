@@ -17,21 +17,33 @@ import (
 )
 
 type JobHandler struct {
-	repo       repository.DocumentRepository
+	jobs       repository.JobRepository
+	approvals  repository.JobApprovalRepository
+	jobLogs    repository.JobLogRepository
 	workspaces repository.WorkspaceRepository
 	documents  repository.DocumentRepository
 	lifecycle  *joblifecycle.Service
 }
 
-func NewJobHandler(jobRepo repository.DocumentRepository, workspaceRepo repository.WorkspaceRepository, documentRepo repository.DocumentRepository, logger applog.Logger) *JobHandler {
+func NewJobHandler(
+	jobRepo repository.JobRepository,
+	approvalRepo repository.JobApprovalRepository,
+	jobLogRepo repository.JobLogRepository,
+	lifecycleRepo joblifecycle.Repository,
+	workspaceRepo repository.WorkspaceRepository,
+	documentRepo repository.DocumentRepository,
+	logger applog.Logger,
+) *JobHandler {
 	if logger == nil {
 		logger = applog.NoopLogger{}
 	}
 	return &JobHandler{
-		repo:       jobRepo,
+		jobs:       jobRepo,
+		approvals:  approvalRepo,
+		jobLogs:    jobLogRepo,
 		workspaces: workspaceRepo,
 		documents:  documentRepo,
-		lifecycle:  joblifecycle.New(jobRepo, nil, logger),
+		lifecycle:  joblifecycle.New(lifecycleRepo, nil, logger),
 	}
 }
 
@@ -47,7 +59,7 @@ func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Reque
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
-	plan, err := h.repo.GetJobExecutionPlan(ctx, req.Msg.GetJobId())
+	plan, err := h.jobs.GetJobExecutionPlan(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -60,7 +72,7 @@ func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.R
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
-	requests, err := h.repo.ListJobApprovalRequests(ctx, req.Msg.GetJobId())
+	requests, err := h.approvals.ListJobApprovalRequests(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -154,7 +166,7 @@ func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Reque
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
-	logs, err := h.repo.ListJobMutationLogs(ctx, req.Msg.GetJobId())
+	logs, err := h.jobLogs.ListJobMutationLogs(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -173,7 +185,7 @@ func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[appv1
 	if limit <= 0 {
 		limit = 500
 	}
-	logs, nextToken, err := h.repo.ListJobLogs(ctx, req.Msg.GetJobId(), req.Msg.GetPageToken(), limit)
+	logs, nextToken, err := h.jobLogs.ListJobLogs(ctx, req.Msg.GetJobId(), req.Msg.GetPageToken(), limit)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list job logs: %w", err))
 	}
@@ -205,7 +217,7 @@ func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[app
 	if err := h.authorizeLogSearch(ctx, filter); err != nil {
 		return nil, err
 	}
-	logs, nextToken, err := h.repo.SearchJobLogs(ctx, filter)
+	logs, nextToken, err := h.jobLogs.SearchJobLogs(ctx, filter)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to search job logs"))
 	}
@@ -239,7 +251,7 @@ func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Reques
 	if limit <= 0 {
 		limit = 100
 	}
-	groups, nextToken, err := h.repo.ListRelatedJobLogs(ctx, scope, req.Msg.GetWorkspaceId(), req.Msg.GetDocumentId(), req.Msg.GetJobId(), req.Msg.GetPageToken(), limit)
+	groups, nextToken, err := h.jobLogs.ListRelatedJobLogs(ctx, scope, req.Msg.GetWorkspaceId(), req.Msg.GetDocumentId(), req.Msg.GetJobId(), req.Msg.GetPageToken(), limit)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list related job logs"))
 	}
@@ -262,7 +274,7 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.L
 	if !middleware.IsAdmin(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
-	jobs, err := h.repo.ListAllJobs(ctx)
+	jobs, err := h.jobs.ListAllJobs(ctx)
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
@@ -281,7 +293,7 @@ func (h *JobHandler) authorizeAndLoadJob(ctx context.Context, jobID string) (*do
 	if jobID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("job_id is required"))
 	}
-	job, err := h.repo.GetProcessingJob(ctx, jobID)
+	job, err := h.jobs.GetProcessingJob(ctx, jobID)
 	if err != nil {
 		return nil, toError(err)
 	}

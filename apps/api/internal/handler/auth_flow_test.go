@@ -180,7 +180,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
-	handler := NewJobHandler(store, store, store, nil)
+	handler := NewJobHandler(store, store, store, store, store, store, nil)
 
 	t.Run("status requires authentication", func(t *testing.T) {
 		resp, err := handler.GetJobStatus(ctx, connect.NewRequest(&appv1.GetJobStatusRequest{
@@ -226,8 +226,8 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
 	uploadURLIssuer := testUploadURLIssuer{}
-	svc := service.NewDocumentService(store, store, sourceURL, nil, nil, nil, nil)
-	return NewDocumentHandler(svc, store, store, uploadURLIssuer)
+	svc := service.NewDocumentService(store, store, store, store, sourceURL, nil, nil, nil, nil)
+	return NewDocumentHandler(svc, store, store, store, uploadURLIssuer)
 }
 
 type testUploadURLIssuer struct{}

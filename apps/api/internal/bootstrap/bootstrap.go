@@ -42,6 +42,10 @@ type Store interface {
 	repository.AccountRepository
 	repository.WorkspaceRepository
 	repository.DocumentRepository
+	repository.DocumentChunkRepository
+	repository.JobRepository
+	repository.JobApprovalRepository
+	repository.JobLogRepository
 	repository.TreeRepository
 	repository.ItemRepository
 	repository.UsageRepository

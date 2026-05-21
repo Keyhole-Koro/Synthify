@@ -11,6 +11,11 @@
 
 ## P1 — 設計上の問題
 
+- [api-layering-cleanup.md](api-layering-cleanup.md) — apps/api のレイヤリング整理 (Handler → Service → Repository) の overview。以下 PR 1〜4 の親ドキュメント。
+  - [api-document-repository-split.md](api-document-repository-split.md) — PR 1: `DocumentRepository` (32 メソッド) を 5 つの interface に分割
+  - [api-tree-service.md](api-tree-service.md) — PR 2: `TreeService` を新設して `FindPaths` 等の調整ロジックを移動
+  - [api-service-interfaces.md](api-service-interfaces.md) — PR 3: 各 Service に `*Usecase` interface を導入し handler を interface 依存に統一
+  - [api-authz-to-service.md](api-authz-to-service.md) — PR 4: 認可ロジックを Service 層へ移動 (`domain.ErrForbidden` 経由)
 - [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: monitor (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
 - [remove-shared-package.md](remove-shared-package.md) — shared package 解体後の境界整理メモ
 - [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `monitor` の理想依存構成と段階的移行方針

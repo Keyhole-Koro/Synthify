@@ -26,6 +26,7 @@ type ObjectMetadataFetcher interface {
 
 type DocumentService struct {
 	repo             repository.DocumentRepository
+	jobs             repository.JobRepository
 	tree             repository.TreeRepository
 	sourceURLBuilder repository.DocumentSourceURLBuilder
 	objectMetadata   ObjectMetadataFetcher
@@ -37,6 +38,8 @@ type DocumentService struct {
 
 func NewDocumentService(
 	repo repository.DocumentRepository,
+	jobs repository.JobRepository,
+	lifecycleRepo joblifecycle.Repository,
 	tree repository.TreeRepository,
 	sourceURLBuilder repository.DocumentSourceURLBuilder,
 	objectMetadata ObjectMetadataFetcher,
@@ -49,11 +52,12 @@ func NewDocumentService(
 	}
 	return &DocumentService{
 		repo:             repo,
+		jobs:             jobs,
 		tree:             tree,
 		sourceURLBuilder: sourceURLBuilder,
 		objectMetadata:   objectMetadata,
 		dispatcher:       dispatcher,
-		lifecycle:        joblifecycle.New(repo, notifier, logger),
+		lifecycle:        joblifecycle.New(lifecycleRepo, notifier, logger),
 		notifier:         notifier,
 		logger:           logger,
 	}
@@ -100,7 +104,7 @@ func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time
 
 func (s *DocumentService) StartProcessing(ctx context.Context, wsID, documentID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
 	if !forceReprocess {
-		if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
+		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
 			case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
 				appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
@@ -133,7 +137,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, document
 		return nil, err
 	}
 	if resumeExisting {
-		if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
+		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
 			case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
 				appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED:
@@ -145,7 +149,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, document
 	if err != nil {
 		return nil, err
 	}
-	job := s.repo.CreateProcessingJob(ctx, documentID, wsID, jobType)
+	job := s.jobs.CreateProcessingJob(ctx, documentID, wsID, jobType)
 	if job == nil {
 		return nil, domain.ErrNotFound
 	}
@@ -159,7 +163,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, document
 		}
 		if err := s.dispatcher.ExecuteApprovedPlan(ctx, dispatchReq); err != nil {
 			if errors.Is(err, domain.ErrApprovalRequired) || errors.Is(err, domain.ErrPlanRejected) {
-				if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
+				if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 					return latest, nil
 				}
 				return job, nil
@@ -167,7 +171,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, document
 			return s.handleDispatchFailure(ctx, job, payload, wsID, documentID, err, true), nil
 		}
 	}
-	if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
+	if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 		job = latest
 	}
 	return job, nil
@@ -224,7 +228,7 @@ func (s *DocumentService) handleDispatchFailure(ctx context.Context, job *domain
 	})
 	s.lifecycle.TryFail(ctx, payload, dispatchErr.Error())
 	if reloadLatest {
-		if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
+		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			return latest
 		}
 	}
@@ -242,7 +246,7 @@ func documentJobPayload(job *domain.DocumentProcessingJob, documentID, wsID, tre
 }
 
 func (s *DocumentService) GetLatestProcessingJob(ctx context.Context, documentID string) (*domain.DocumentProcessingJob, error) {
-	job, err := s.repo.GetLatestProcessingJob(ctx, documentID)
+	job, err := s.jobs.GetLatestProcessingJob(ctx, documentID)
 	if err != nil {
 		return nil, err
 	}

@@ -49,17 +49,29 @@ type WorkspaceRepository interface {
 	CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace
 }
 
+// DocumentRepository は document/file 自体のメタデータ操作を扱う。
+// Job / Chunk / Log は別 interface に分離されている (docs/improvements/api-document-repository-split.md)。
 type DocumentRepository interface {
 	ListDocuments(ctx context.Context, wsID string) []*domain.Document
 	GetDocument(ctx context.Context, id string) (*domain.Document, error)
-	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
-	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
 	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, DocumentUploadTarget, error)
 	ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error
 	ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error)
 	CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error)
 	ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error)
 	GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error)
+}
+
+// DocumentChunkRepository はドキュメントを分割した chunk と vector 検索を扱う。
+type DocumentChunkRepository interface {
+	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
+	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
+	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
+}
+
+// JobRepository は document processing job の lifecycle と planning を扱う。
+// (approval / log / tool-call は別 interface)
+type JobRepository interface {
 	GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error)
 	GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error)
 	GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, error)
@@ -67,20 +79,27 @@ type DocumentRepository interface {
 	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error
 	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error
 	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error)
-	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, error)
-	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error)
-	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error
-	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
-	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
-	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error
 	CompleteProcessingJob(ctx context.Context, jobID string) error
-	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
-	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error)
 	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, error)
+	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
+}
+
+// JobApprovalRepository は job の人手承認フローを扱う。
+type JobApprovalRepository interface {
+	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, error)
+	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error)
+	ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error
+	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
+}
+
+// JobLogRepository は job 実行ログ / mutation ログ / tool 呼び出し記録を扱う。
+type JobLogRepository interface {
+	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
+	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error)
 	ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, error)
 	SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error)
 	ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error)

@@ -17,6 +17,7 @@ type DocumentHandler struct {
 	service         *service.DocumentService
 	workspaces      repository.WorkspaceRepository
 	documents       repository.DocumentRepository
+	jobs            repository.JobRepository
 	uploadURLIssuer repository.DocumentUploadURLIssuer
 }
 
@@ -24,12 +25,14 @@ func NewDocumentHandler(
 	svc *service.DocumentService,
 	workspaceRepo repository.WorkspaceRepository,
 	documentRepo repository.DocumentRepository,
+	jobRepo repository.JobRepository,
 	uploadURLIssuer repository.DocumentUploadURLIssuer,
 ) *DocumentHandler {
 	return &DocumentHandler{
 		service:         svc,
 		workspaces:      workspaceRepo,
 		documents:       documentRepo,
+		jobs:            jobRepo,
 		uploadURLIssuer: uploadURLIssuer,
 	}
 }
@@ -44,7 +47,7 @@ func (h *DocumentHandler) ListDocuments(ctx context.Context, req *connect.Reques
 	docs := h.service.ListDocuments(ctx, req.Msg.GetWorkspaceId())
 	res := connect.NewResponse(&appv1.ListDocumentsResponse{})
 	for _, doc := range docs {
-		latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
+		latest, _ := h.jobs.GetLatestProcessingJob(ctx, doc.DocumentID)
 		res.Msg.Documents = append(res.Msg.Documents, toProtoDocument(doc, latest))
 	}
 	return res, nil
@@ -61,7 +64,7 @@ func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, toError(err)
 	}
-	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
+	latest, _ := h.jobs.GetLatestProcessingJob(ctx, doc.DocumentID)
 	return connect.NewResponse(&appv1.GetDocumentResponse{Document: toProtoDocument(doc, latest)}), nil
 }
 
@@ -124,7 +127,7 @@ func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, toError(err)
 	}
-	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
+	latest, _ := h.jobs.GetLatestProcessingJob(ctx, doc.DocumentID)
 	return connect.NewResponse(&appv1.ConfirmUploadResponse{Document: toProtoDocument(doc, latest)}), nil
 }
 
