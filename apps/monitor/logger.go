@@ -3,7 +3,7 @@ package joblog
 import (
 	"context"
 
-	sharedjoblog "github.com/synthify/backend/apps/log-viewer/joblog"
+	sharedjoblog "github.com/synthify/backend/apps/monitor/joblog"
 )
 
 type Level = sharedjoblog.Level

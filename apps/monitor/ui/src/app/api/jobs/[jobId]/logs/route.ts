@@ -43,7 +43,7 @@ export async function GET(
     const response: ListJobLogsResponse = { logs, nextPageToken };
     return NextResponse.json(response);
   } catch (error) {
-    console.error('log-viewer listJobLogs failed:', error);
+    console.error('monitor listJobLogs failed:', error);
     const response: ListJobLogsResponse = { logs: [], nextPageToken: '' };
     return NextResponse.json(response, { status: 500 });
   }

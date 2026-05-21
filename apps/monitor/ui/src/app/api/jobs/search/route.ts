@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     };
     return NextResponse.json(response);
   } catch (error) {
-    console.error('log-viewer searchJobLogs failed:', error);
+    console.error('monitor searchJobLogs failed:', error);
     const response: ListJobLogsResponse = { logs: [], nextPageToken: '' };
     return NextResponse.json(response, { status: 500 });
   }

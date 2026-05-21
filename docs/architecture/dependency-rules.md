@@ -13,7 +13,7 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 
 *   **内側（Core/Contract）:** `internal/gen`, `apps/web/src/gen/proto`
 *   **横断基盤（Platform）:** `internal/platform`
-*   **外側（Implementation/App）:** `apps/api`, `apps/worker`, `apps/log-viewer`, `apps/web`
+*   **外側（Implementation/App）:** `apps/api`, `apps/worker`, `apps/monitor`, `apps/web`
 
 **禁止事項:**
 *   `internal/platform` から `apps/api` や `apps/worker` を import すること。
@@ -44,7 +44,7 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 │  │  └─ internal/ # API 固有の domain, service, repository, bootstrap, middleware
 │  ├─ worker/
 │  │  └─ pkg/worker/ # worker 固有の logic (eval から参照するため pkg 配下)
-│  ├─ log-viewer/
+│  ├─ monitor/
 │  ├─ web/
 │  │  └─ src/gen/proto # Web 向けの TS generated proto code
 │  └─ eval/        # worker の評価・テストツール (worker/pkg を参照)
@@ -57,7 +57,7 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 api --------> internal/gen, internal/platform
 worker -----> internal/gen, internal/platform
 eval -------> apps/worker/pkg/worker/..., internal/platform
-log-viewer -> (自己完結したコードを使用)
+monitor -> (自己完結したコードを使用)
 ```
 
 ---

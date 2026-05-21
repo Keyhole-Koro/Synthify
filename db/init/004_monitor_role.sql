@@ -1,25 +1,25 @@
--- log-viewer 用 read-only ロールと view
+-- monitor 用 read-only ロールと view
 --
--- log-viewer は API 経由ではなく Postgres を直接参照する。
+-- monitor は API 経由ではなく Postgres を直接参照する。
 -- アプリケーション層の認可を介さないため、DB レイヤで read のみに縛る。
 
 -- ロール作成 (パスワードは環境変数で配るので空でも CREATE は通す)
--- 本番では SQL 適用後に `ALTER ROLE log_viewer WITH PASSWORD '...'` で更新する想定
+-- 本番では SQL 適用後に `ALTER ROLE monitor WITH PASSWORD '...'` で更新する想定
 -- ロールはスキーマ外のクラスタレベルオブジェクトのため、DROP SCHEMA では
 -- 消えない。reset-db 等での再実行に耐えるよう IF NOT EXISTS で冪等化する。
-CREATE ROLE IF NOT EXISTS log_viewer LOGIN;
+CREATE ROLE IF NOT EXISTS monitor LOGIN;
 
--- log-viewer が参照するテーブル
-GRANT SELECT ON document_processing_jobs TO log_viewer;
-GRANT SELECT ON job_logs TO log_viewer;
-GRANT SELECT ON workspaces TO log_viewer;
-GRANT SELECT ON documents TO log_viewer;
+-- monitor が参照するテーブル
+GRANT SELECT ON document_processing_jobs TO monitor;
+GRANT SELECT ON job_logs TO monitor;
+GRANT SELECT ON workspaces TO monitor;
+GRANT SELECT ON documents TO monitor;
 
 -- write は明示的に拒否
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON document_processing_jobs FROM log_viewer;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON job_logs FROM log_viewer;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON workspaces FROM log_viewer;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON documents FROM log_viewer;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON document_processing_jobs FROM monitor;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON job_logs FROM monitor;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON workspaces FROM monitor;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON documents FROM monitor;
 
 -- センシティブカラムを含むテーブルは view 経由で公開する。
 -- v_job_logs: job_logs から直接公開してよい列をフィルタする (現状は全列)
@@ -36,7 +36,7 @@ CREATE VIEW v_job_logs AS
     created_at
   FROM job_logs;
 
-GRANT SELECT ON v_job_logs TO log_viewer;
+GRANT SELECT ON v_job_logs TO monitor;
 
 -- v_processing_jobs: 課金や internal flags を含まない最小のジョブ一覧
 CREATE VIEW v_processing_jobs AS
@@ -53,7 +53,7 @@ CREATE VIEW v_processing_jobs AS
     updated_at
   FROM document_processing_jobs;
 
-GRANT SELECT ON v_processing_jobs TO log_viewer;
+GRANT SELECT ON v_processing_jobs TO monitor;
 
 -- BI ダッシュボード用 view
 -- usage_events: PII なし (account_id は ID のみ)
@@ -74,8 +74,8 @@ CREATE VIEW v_usage_events AS
     created_at
   FROM usage_events;
 
-GRANT SELECT ON usage_events TO log_viewer;
-GRANT SELECT ON v_usage_events TO log_viewer;
+GRANT SELECT ON usage_events TO monitor;
+GRANT SELECT ON v_usage_events TO monitor;
 
 -- account_usage_daily: 日次ロールアップ (PII なし)
 CREATE VIEW v_account_usage_daily AS
@@ -90,8 +90,8 @@ CREATE VIEW v_account_usage_daily AS
     updated_at
   FROM account_usage_daily;
 
-GRANT SELECT ON account_usage_daily TO log_viewer;
-GRANT SELECT ON v_account_usage_daily TO log_viewer;
+GRANT SELECT ON account_usage_daily TO monitor;
+GRANT SELECT ON v_account_usage_daily TO monitor;
 
 -- v_workspaces: workspace 活動量に使う (name は管理目的で公開)
 CREATE VIEW v_workspaces AS
@@ -102,7 +102,7 @@ CREATE VIEW v_workspaces AS
     updated_at
   FROM workspaces;
 
-GRANT SELECT ON v_workspaces TO log_viewer;
+GRANT SELECT ON v_workspaces TO monitor;
 
 -- v_documents: uploaded_by (ユーザー識別子) を除外
 CREATE VIEW v_documents AS
@@ -115,8 +115,8 @@ CREATE VIEW v_documents AS
     created_at
   FROM documents;
 
-GRANT SELECT ON documents TO log_viewer;
-GRANT SELECT ON v_documents TO log_viewer;
+GRANT SELECT ON documents TO monitor;
+GRANT SELECT ON v_documents TO monitor;
 
 -- v_tree_items: コンテンツ列を除外してカウント用途のみ公開
 CREATE VIEW v_tree_items AS
@@ -129,8 +129,8 @@ CREATE VIEW v_tree_items AS
     updated_at
   FROM tree_items;
 
-GRANT SELECT ON tree_items TO log_viewer;
-GRANT SELECT ON v_tree_items TO log_viewer;
+GRANT SELECT ON tree_items TO monitor;
+GRANT SELECT ON v_tree_items TO monitor;
 
 -- v_job_mutation_logs: ツール呼び出しトレース用 (PII なし)
 CREATE VIEW v_job_mutation_logs AS
@@ -147,5 +147,5 @@ CREATE VIEW v_job_mutation_logs AS
     created_at
   FROM job_mutation_logs;
 
-GRANT SELECT ON job_mutation_logs TO log_viewer;
-GRANT SELECT ON v_job_mutation_logs TO log_viewer;
+GRANT SELECT ON job_mutation_logs TO monitor;
+GRANT SELECT ON v_job_mutation_logs TO monitor;

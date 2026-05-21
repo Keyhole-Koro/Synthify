@@ -1,16 +1,16 @@
-# log-viewer の BI ダッシュボード化
+# monitor の BI ダッシュボード化
 
 ## Objective
-log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
+monitor を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 ジョブ成功率・LLM コスト・ワークスペース活動量などを可視化し、
 日常的な運用判断と異常検知をブラウザで完結させる。
 
-前提として log-viewer は Postgres を read-only ロールで直接参照する
+前提として monitor は Postgres を read-only ロールで直接参照する
 構造に移行済み。
 追加クエリは API を経由せず BFF (Next.js Route Handlers) から発行する。
 
 ## Motivation
-- 現状 log-viewer はジョブログを横串で見るだけで、集計値や時系列を出せない
+- 現状 monitor はジョブログを横串で見るだけで、集計値や時系列を出せない
 - ジョブ成功率や失敗ステージを毎回 psql で取るのは効率が悪い
 - 従量課金 ([usage-based-billing.md](usage-based-billing.md)) を導入すると、
   当月予算消費・モデル別コスト・予算アラートの状況をすぐ見たい場面が増える
@@ -35,7 +35,7 @@ log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 クエリ元: `usage_events`, `account_usage_daily`, `model_pricing`
 
 新規 view: `v_account_usage_daily`, `v_usage_events` (account_id / job_id だけ
-を公開、PII は遮蔽) を `db/init/004_log_viewer_role.sql` に追加する。
+を公開、PII は遮蔽) を `db/init/004_monitor_role.sql` に追加する。
 
 ### 3. Workspace Activity
 - workspace 別のドキュメント追加ペース (created_at の日次)
@@ -54,16 +54,16 @@ log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 ## Implementation Strategy
 
 ### Phase 1: 固定ダッシュボード (内製) ✅ 完了
-- [x] log-viewer に `/dashboards` ページを追加 (`src/app/dashboards/page.tsx`)
+- [x] monitor に `/dashboards` ページを追加 (`src/app/dashboards/page.tsx`)
 - [x] BFF `app/api/dashboards/{job-health,cost,workspace,errors}` で集計クエリを発行
 - [x] 描画は recharts (BarChart / LineChart)
 - [x] 期間プリセット (今日 / 過去7日 / 今月)
-- [x] BI 用 DB view を `004_log_viewer_role.sql` に追加 (v_usage_events, v_account_usage_daily, v_workspaces, v_documents, v_tree_items)
+- [x] BI 用 DB view を `004_monitor_role.sql` に追加 (v_usage_events, v_account_usage_daily, v_workspaces, v_documents, v_tree_items)
 
 ### Phase 2: Ad-hoc 分析ツール接続 (検討)
-- Metabase / Redash / Grafana のいずれかを Postgres の log_viewer ロールで接続
+- Metabase / Redash / Grafana のいずれかを Postgres の monitor ロールで接続
 - 内製ダッシュボードでカバーできない深掘りや、ピボット集計はそちらで
-- log-viewer 側はあくまで日常 UX 用、BI 専門ツールは "explorer" として共存
+- monitor 側はあくまで日常 UX 用、BI 専門ツールは "explorer" として共存
 
 ### Phase 3: 集計マテビュー / pre-aggregation
 - ダッシュボードクエリが重くなったら、`account_usage_daily` のような
@@ -72,11 +72,11 @@ log-viewer を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 
 ## Open Questions
 - **権限の追加グラント**: BI 用途で `workspaces` / `documents` / `tree_items` を
-  log_viewer ロールにグラントする際、メールなどの PII は view で除外しないと、
+  monitor ロールにグラントする際、メールなどの PII は view で除外しないと、
   ロールを抜けば誰でも見られる状態になる。view 設計を最初に固める必要あり。
 - **テナント分離**: ダッシュボードは admin 向け前提で全 workspace を横断する。
   個別 workspace owner にも一部公開する場合は別途認可層が要る。
-- **誰がアクセスするか**: 現状 log-viewer は内部用。BI を入れるとプロダクトチーム
+- **誰がアクセスするか**: 現状 monitor は内部用。BI を入れるとプロダクトチーム
   / SRE / billing 担当など参照者が増える。誰がどこまで見えるかを Phase 1 着手前に
   整理する。
 - **可観測性ツールとの棲み分け**: New Relic などの APM と機能が重複する。BI は

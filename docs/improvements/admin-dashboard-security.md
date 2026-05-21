@@ -1,7 +1,7 @@
 # Admin Dashboard Security & Management Features
 
 ## 現状の課題
-- `log-viewer` (将来の管理者用 Dashboard) の API エンドポイント (`/api/jobs`, `/api/dashboards/*`) が無認証で公開されており、誰でも全ユーザーの活動履歴やコスト情報を閲覧できてしまう。
+- `monitor` (将来の管理者用 Dashboard) の API エンドポイント (`/api/jobs`, `/api/dashboards/*`) が無認証で公開されており、誰でも全ユーザーの活動履歴やコスト情報を閲覧できてしまう。
 - クレジット付与 (`GrantCredit`) などの特権操作を実行する UI が存在せず、現在は API 直叩きが必要。
 
 ## 改善目標
@@ -11,7 +11,7 @@
 ## 実装計画
 
 ### Phase 1: Dashboard API の保護
-- **認証の導入**: `log-viewer` の Next.js Route Handlers に Firebase Auth 等による認証チェックを追加。
+- **認証の導入**: `monitor` の Next.js Route Handlers に Firebase Auth 等による認証チェックを追加。
 - **認可の導入**: `SYNTHIFY_ADMIN_USER_EMAILS` に含まれるユーザーのみが API を実行できるように制限。
 - **ミドルウェア化**: `src/middleware.ts` を活用し、Dashboard 全体へのアクセスを管理者限定にする。
 
@@ -27,5 +27,5 @@
 - **Worker サービスの保護**: Worker 側のエンドポイントも API サーバーからのリクエスト（サービス間トークン）のみを受け付けるように多層防御を強化。
 
 ## 関連ドキュメント
-- [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) (BI機能としての詳細)
+- [monitor-bi-dashboards.md](monitor-bi-dashboards.md) (BI機能としての詳細)
 - [../contracts/api-authorization-contract.md](../contracts/api-authorization-contract.md) (API認可モデル)

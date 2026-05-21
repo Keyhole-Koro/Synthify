@@ -5,8 +5,8 @@
     "": {
       "name": "synthify-workspace",
     },
-    "apps/log-viewer/ui": {
-      "name": "@synthify/log-viewer-ui",
+    "apps/monitor/ui": {
+      "name": "@synthify/monitor-ui",
       "version": "0.1.0",
       "dependencies": {
         "next": "^16.2.2",
@@ -494,7 +494,7 @@
 
     "@swc/helpers": ["@swc/helpers@0.5.15", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g=="],
 
-    "@synthify/log-viewer-ui": ["@synthify/log-viewer-ui@workspace:apps/log-viewer/ui"],
+    "@synthify/monitor-ui": ["@synthify/monitor-ui@workspace:apps/monitor/ui"],
 
     "@tailwindcss/node": ["@tailwindcss/node@4.2.4", "", { "dependencies": { "@jridgewell/remapping": "^2.3.5", "enhanced-resolve": "^5.19.0", "jiti": "^2.6.1", "lightningcss": "1.32.0", "magic-string": "^0.30.21", "source-map-js": "^1.2.1", "tailwindcss": "4.2.4" } }, "sha512-Ai7+yQPxz3ddrDQzFfBKdHEVBg0w3Zl83jnjuwxnZOsnH9pGn93QHQtpU0p/8rYWxvbFZHneni6p1BSLK4DkGA=="],
 

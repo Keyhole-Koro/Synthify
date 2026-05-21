@@ -155,7 +155,7 @@ case $COMMAND in
         psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 <<'SQL'
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
-DROP ROLE IF EXISTS log_viewer;
+DROP ROLE IF EXISTS monitor;
 SQL
 
         log "Applying init scripts from db/init/ in alphabetical order..."

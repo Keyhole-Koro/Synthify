@@ -1,4 +1,4 @@
-// log-viewer はクライアント側からは API (Connect/gRPC) を叩かず、
+// monitor はクライアント側からは API (Connect/gRPC) を叩かず、
 // 同一 Next.js アプリの Route Handlers (/api/jobs/...) を経由して
 // サーバーサイドで Postgres を read-only ロールで直接参照する。
 

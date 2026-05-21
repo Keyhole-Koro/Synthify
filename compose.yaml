@@ -166,11 +166,11 @@ services:
       firebase-auth:
         condition: service_started
 
-  log-viewer:
+  monitor:
     image: oven/bun:1
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     network_mode: host
-    working_dir: /workspace/apps/log-viewer/ui
+    working_dir: /workspace/apps/monitor/ui
     command: >
       bash -c '
         set -e;
@@ -178,13 +178,13 @@ services:
           cd /workspace;
           bun install --frozen-lockfile;
         fi;
-        cd /workspace/apps/log-viewer/ui;
+        cd /workspace/apps/monitor/ui;
         bun run dev
       '
     environment:
       NODE_ENV: development
-      # log-viewer は Postgres を read-only ロールで直接参照する。
-      LOG_VIEWER_DATABASE_URL: ${LOG_VIEWER_DATABASE_URL:-postgres://log_viewer@127.0.0.1:${POSTGRES_PORT:-5432}/synthify?sslmode=disable}
+      # monitor は Postgres を read-only ロールで直接参照する。
+      MONITOR_DATABASE_URL: ${MONITOR_DATABASE_URL:-postgres://monitor@127.0.0.1:${POSTGRES_PORT:-5432}/synthify?sslmode=disable}
     volumes:
       - .:/workspace
     depends_on:

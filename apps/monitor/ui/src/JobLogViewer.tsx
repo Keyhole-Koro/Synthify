@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { JobLog, JobLogDataSource, JobLogFilters, JobLogGroup } from './types';
 
-interface JobLogViewerProps {
+interface JobMonitorProps {
   jobId: string;
   documentId?: string;
   workspaceId?: string;
@@ -18,7 +18,7 @@ const levelClass: Record<string, string> = {
   ERROR: 'border-red-200 bg-red-50 text-red-800',
 };
 
-export function JobLogViewer({ jobId, documentId, workspaceId, dataSource }: JobLogViewerProps) {
+export function JobMonitor({ jobId, documentId, workspaceId, dataSource }: JobMonitorProps) {
   const [logs, setLogs] = useState<JobLog[]>([]);
   const [related, setRelated] = useState<JobLogGroup[]>([]);
   const [mode, setMode] = useState<ViewMode>('timeline');

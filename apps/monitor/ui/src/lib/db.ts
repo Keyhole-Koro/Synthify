@@ -10,7 +10,7 @@ declare global {
 
 function createPool(): Pool {
   return new Pool({
-    connectionString: config.LOG_VIEWER_DATABASE_URL,
+    connectionString: config.MONITOR_DATABASE_URL,
     max: 5,
     idleTimeoutMillis: 30_000,
   });

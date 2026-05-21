@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Synthify Log Viewer API
+  title: Synthify Monitor API
   version: 0.1.0
-  description: Internal API contract for the log-viewer Next.js route handlers.
+  description: Internal API contract for the monitor Next.js route handlers.
 servers:
   - url: /
 paths:

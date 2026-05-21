@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import type { ListJobsResponse } from '@/types';
 
-// GET /api/jobs - 全 job 列挙 (admin / log-viewer 用途)
+// GET /api/jobs - 全 job 列挙 (admin / monitor 用途)
 export async function GET() {
   try {
     const pool = getPool();
@@ -38,7 +38,7 @@ export async function GET() {
     };
     return NextResponse.json(response);
   } catch (error) {
-    console.error('log-viewer jobs list failed:', error);
+    console.error('monitor jobs list failed:', error);
     const response: ListJobsResponse = { jobs: [] };
     return NextResponse.json(response, { status: 500 });
   }

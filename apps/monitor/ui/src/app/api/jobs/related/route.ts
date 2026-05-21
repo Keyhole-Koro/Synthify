@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     };
     return NextResponse.json(response);
   } catch (error) {
-    console.error('log-viewer listRelatedJobLogs failed:', error);
+    console.error('monitor listRelatedJobLogs failed:', error);
     return NextResponse.json(emptyRelatedResponse(), { status: 500 });
   }
 }

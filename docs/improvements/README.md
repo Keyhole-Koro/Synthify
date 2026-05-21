@@ -11,9 +11,9 @@
 
 ## P1 — 設計上の問題
 
-- [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: log-viewer (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
+- [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: monitor (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
 - [remove-shared-package.md](remove-shared-package.md) — shared package 解体後の境界整理メモ
-- [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `log-viewer` の理想依存構成と段階的移行方針
+- [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `monitor` の理想依存構成と段階的移行方針
 - [api-refactor-cleanup.md](api-refactor-cleanup.md) — API 層の仕様変更残骸、mapper 不整合、重複 dispatch、no-op RPC の整理
 - [store-interface-narrowing.md](store-interface-narrowing.md) — handler / service が `app.Store` を丸ごと受け取らず、必要な repository interface だけを受け取るようにする段階移行
 - [refactor-backlog-008-010.md](refactor-backlog-008-010.md) — `sqlc` 移行残件、job/document 状態遷移集約、テスト fixture 共通化の具体作業
@@ -37,8 +37,8 @@
 - [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
-- [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) — 旧 log-viewer を BI として扱う設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
-- [dynamic-tool-pipeline.md](dynamic-tool-pipeline.md) — worker(生成) → log-viewer(承認) → eval(評価・改善提案) パイプライン全体の残作業集約。worker 道A 化と per-job dynamic resolve は完了済み、Phase 1 (worker DB 配線) から始めるのが起点。旧 `dynamic-tool-synthesis.md` / `transform-engine-registry.md` の設計仕様書は 2026-05-19 削除済み (設計根拠はコード doc コメントに保全、設計再考は git 履歴参照)
+- [monitor-bi-dashboards.md](monitor-bi-dashboards.md) — 旧 monitor を BI として扱う設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
+- [dynamic-tool-pipeline.md](dynamic-tool-pipeline.md) — worker(生成) → monitor(承認) → eval(評価・改善提案) パイプライン全体の残作業集約。worker 道A 化と per-job dynamic resolve は完了済み、Phase 1 (worker DB 配線) から始めるのが起点。旧 `dynamic-tool-synthesis.md` / `transform-engine-registry.md` の設計仕様書は 2026-05-19 削除済み (設計根拠はコード doc コメントに保全、設計再考は git 履歴参照)
 
 ## Future Improvements（別ファイル）
 
@@ -47,7 +47,7 @@
 ## 可観測性・ロギング
 
 - [logging.md](logging.md) — 追加すべきログ一覧（P1〜P3）
-- [log-viewer.md](log-viewer.md) — log-viewer サブモジュール設計（Logger + JobLogViewer コンポーネント）
+- [monitor.md](monitor.md) — monitor サブモジュール設計（Logger + JobMonitor コンポーネント）
 
 ## テスト・品質
 

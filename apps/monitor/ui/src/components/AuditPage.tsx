@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createJobLogDataSource } from '@/lib/data-source';
-import { JobLogViewer } from '../JobLogViewer';
+import { JobMonitor } from '../JobMonitor';
 import { JobTrace } from './JobTrace';
 import type { JobSummary, ListJobsResponse } from '../types';
 
@@ -137,7 +137,7 @@ export function AuditPage({ embedded = false, forcedJobId, onJobSelect }: AuditP
 
             <div className="flex-1 overflow-hidden">
               {mainTab === 'logs' ? (
-                <JobLogViewer
+                <JobMonitor
                   jobId={selectedJob.jobId}
                   documentId={selectedJob.documentId}
                   workspaceId={selectedJob.workspaceId}

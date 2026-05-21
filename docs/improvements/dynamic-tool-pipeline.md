@@ -7,7 +7,7 @@ worker が生成した dynamic tool が「**人間が承認 → 本番で再利�
 ## 全体像
 
 ```
-worker (本番処理)                    log-viewer (人間)              eval (バッチ)
+worker (本番処理)                    monitor (人間)              eval (バッチ)
 ─────────────────                  ──────────────                ──────────────
   agent が文書を処理                  candidate 一覧                 active な dynamic tool を
        │                              │                            固定 case で回帰実行
@@ -18,12 +18,12 @@ worker (本番処理)                    log-viewer (人間)              eval (
        │                                                            │
        │ 次の job で resolve                                          │ 採用された改善は
        ▼                                                            ▼
-  active を agent に合流                                            log-viewer で再承認
+  active を agent に合流                                            monitor で再承認
 ```
 
 3 アプリの責務:
 - **worker** = 生成 + 実行 (本番ランタイム)
-- **log-viewer / BI** = 人間が承認する場所
+- **monitor / BI** = 人間が承認する場所
 - **eval** = バッチ品質管理 (回帰チェック + 改善提案 LLM)
 
 データフローのハブは **Postgres `dynamic_tools` テーブル**（status: candidate / active / held / rejected / disabled）。
@@ -42,7 +42,7 @@ worker (本番処理)                    log-viewer (人間)              eval (
 
 ### 動いていないもの
 - worker: `create_transform` 成功時に `RecordCandidate` を呼ぶ配線がない → **dynamic tool が DB に保存されない**
-- log-viewer: candidate を表示する UI / approve API がない → **人間が承認できない**
+- monitor: candidate を表示する UI / approve API がない → **人間が承認できない**
 - worker: 結果として active な dynamic tool が常に空 → per-job 再構築は動いても合流するものがない
 - eval: `apps/eval/runner/dynamic.go` は stub → **eval で dynamic tool を評価できない**
 - 改善提案 LLM (prompt 用・dynamic tool 用) はゼロ
@@ -79,13 +79,13 @@ worker (本番処理)                    log-viewer (人間)              eval (
 
 ---
 
-### Phase 2: log-viewer 承認 UI
+### Phase 2: monitor 承認 UI
 
 **目的**: candidate を一覧表示し、人間が approve / reject する画面。これがないと active 状態に
 遷移しない。
 
 **やること**:
-- `apps/log-viewer` (Next.js) に新ページ追加:
+- `apps/monitor` (Next.js) に新ページ追加:
   - `candidate` 一覧（DB から read-only 取得）
   - 各行に「approve」「reject」「held (tier_3 用)」「kill switch (active→disabled)」ボタン
   - 詳細パネル: Code / IOSchema / InputSample / FloorTier / DeclaredTier / OriginWorkspaceID
@@ -139,7 +139,7 @@ agent に合流する。残作業なし。
 - `apps/eval/analysis/` パッケージ新設
 - Analyst CLI: `synthify-eval analyze --report <gs://path>` → `analysis.json` 出力
 - Prompt Writer CLI: `synthify-eval write-prompt --analysis <path>` → `apps/eval/variants/generated/<ts>/`
-- 改善案は人間 review (log-viewer) を経て採用
+- 改善案は人間 review (monitor) を経て採用
 
 **前提**: golden 機能は道A で削除済み。回帰判定は JSON rule + schema 適合 + LLM 主観評価のどれを
 根拠にするか先に decision。
@@ -195,7 +195,7 @@ agent に合流する。残作業なし。
 
 ```
 Phase 1 (worker DB 配線)
-  ├─▶ Phase 2 (log-viewer 承認)
+  ├─▶ Phase 2 (monitor 承認)
   │      └─▶ Phase 3 [完了済] (worker resolve)
   │            └─▶ Phase 4 (eval dynamic 評価)
   │                  └─▶ Phase 5b (dynamic 改善 LLM)
@@ -215,6 +215,6 @@ Phase D (shared/tool 統合) はどの Phase ともクロスせず独立
   `apps/eval/runner/tool.go` の doc コメント
 - prompt 変異 eval: [../contracts/prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md)
 - eval runner: [llm-eval-runner.md](llm-eval-runner.md)
-- log-viewer BI: [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md)
-- log-viewer 認証: [admin-dashboard-security.md](admin-dashboard-security.md)
+- monitor BI: [monitor-bi-dashboards.md](monitor-bi-dashboards.md)
+- monitor 認証: [admin-dashboard-security.md](admin-dashboard-security.md)
 - 旧 dynamic-tool-synthesis.md / transform-engine-registry.md は git 履歴に存在（設計再考のため削除済み）

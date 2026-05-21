@@ -254,7 +254,7 @@ func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Reques
 
 func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.ListAllJobsRequest]) (*connect.Response[appv1.ListAllJobsResponse], error) {
 	// 全 workspace 横断のため admin 権限を要求。
-	// log-viewer など読み取り専用ツールは API を経由せず Postgres を直接参照する設計に
+	// monitor など読み取り専用ツールは API を経由せず Postgres を直接参照する設計に
 	// 切り替えたため、anonymous バイパスは存在しない。
 	if _, err := currentUser(ctx); err != nil {
 		return nil, err
