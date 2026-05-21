@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrNotFound             = errors.New("not found")
+	ErrForbidden            = errors.New("forbidden")
 	ErrApprovalRequired     = errors.New("job execution plan requires approval")
 	ErrPlanRejected         = errors.New("job execution plan was rejected")
 	ErrNotImplemented       = errors.New("not implemented")

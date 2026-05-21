@@ -97,7 +97,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	handler := NewTreeHandler(store, store, store)
+	handler := NewTreeHandler(service.NewTreeService(store, nil), store)
 
 	t.Run("get tree requires authentication", func(t *testing.T) {
 		resp, err := handler.GetTree(ctx, connect.NewRequest(&appv1.GetTreeRequest{

@@ -1,0 +1,69 @@
+package service
+
+import (
+	"context"
+	"errors"
+
+	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/platform/applog"
+)
+
+const defaultSubtreeMaxDepth = 3
+
+type TreeService struct {
+	tree   repository.TreeRepository
+	logger applog.Logger
+}
+
+func NewTreeService(tree repository.TreeRepository, logger applog.Logger) *TreeService {
+	if logger == nil {
+		logger = applog.NoopLogger{}
+	}
+	return &TreeService{tree: tree, logger: logger}
+}
+
+// GetTree は workspace 配下の全 item を返す。
+func (s *TreeService) GetTree(ctx context.Context, workspaceID string) ([]*domain.Item, error) {
+	if workspaceID == "" {
+		return nil, errors.New("workspace_id is required")
+	}
+	return s.tree.GetTreeByWorkspace(ctx, workspaceID)
+}
+
+// GetSubtree は itemID をルートとする部分木を返す。
+// 取得した部分木が指定 workspace に属さない場合は ErrForbidden を返す
+// (item の存在を未認可ユーザーに NotFound 経由で漏らさないため)。
+// 部分木が空の場合は ErrNotFound を返す。
+func (s *TreeService) GetSubtree(ctx context.Context, workspaceID, itemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
+	if workspaceID == "" || itemID == "" {
+		return nil, errors.New("workspace_id and item_id are required")
+	}
+	if maxDepth <= 0 {
+		maxDepth = defaultSubtreeMaxDepth
+	}
+	items, err := s.tree.GetSubtree(ctx, itemID, maxDepth)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, domain.ErrNotFound
+	}
+	if items[0].WorkspaceID != workspaceID {
+		return nil, domain.ErrForbidden
+	}
+	return items, nil
+}
+
+// FindPaths は source-target 間の path を検索する。
+// workspace の tree が未作成なら作成する (GetOrCreateTree の副作用)。
+func (s *TreeService) FindPaths(ctx context.Context, workspaceID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
+	if workspaceID == "" || sourceItemID == "" || targetItemID == "" {
+		return nil, nil, errors.New("workspace_id, source_item_id, target_item_id are required")
+	}
+	tree, err := s.tree.GetOrCreateTree(ctx, workspaceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s.tree.FindPaths(ctx, tree.TreeID, sourceItemID, targetItemID, maxDepth, limit)
+}

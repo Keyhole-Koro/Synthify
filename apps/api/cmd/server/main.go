@@ -80,9 +80,10 @@ func main() {
 	itemSvc := service.NewItemService(store, store, appLogger)
 	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
 	userSvc := service.NewUserService(store, store, billingSvc, appLogger)
+	treeSvc := service.NewTreeService(store, appLogger)
 
 	documentHandler := handler.NewDocumentHandler(documentSvc, store, store, store, uploadURLIssuer)
-	treeHandler := handler.NewTreeHandler(store, store, store)
+	treeHandler := handler.NewTreeHandler(treeSvc, store)
 	itemHandler := handler.NewItemHandler(itemSvc, store, store)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc, store)
 	userHandler := handler.NewUserHandler(userSvc)

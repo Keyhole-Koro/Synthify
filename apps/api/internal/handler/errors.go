@@ -20,6 +20,8 @@ func toError(err error) error {
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
 		return connect.NewError(connect.CodeNotFound, err)
+	case errors.Is(err, domain.ErrForbidden):
+		return connect.NewError(connect.CodePermissionDenied, err)
 	case errors.Is(err, domain.ErrBillingPlanInvalid):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, domain.ErrBillingCurrencyUnsupported):

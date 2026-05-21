@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -56,7 +57,7 @@ func TestDocumentHandler_ResumeProcessing_Unauthenticated(t *testing.T) {
 
 func TestTreeHandler_GetSubtree_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewTreeHandler(store, store, store)
+	h := NewTreeHandler(service.NewTreeService(store, nil), store)
 	resp, err := h.GetSubtree(context.Background(), connect.NewRequest(&appv1.GetSubtreeRequest{
 		WorkspaceId: "ws", ItemId: "i",
 	}))
@@ -66,7 +67,7 @@ func TestTreeHandler_GetSubtree_Unauthenticated(t *testing.T) {
 
 func TestTreeHandler_FindPaths_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewTreeHandler(store, store, store)
+	h := NewTreeHandler(service.NewTreeService(store, nil), store)
 	resp, err := h.FindPaths(context.Background(), connect.NewRequest(&appv1.FindPathsRequest{
 		WorkspaceId: "ws", SourceItemId: "a", TargetItemId: "b",
 	}))
