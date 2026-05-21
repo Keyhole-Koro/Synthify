@@ -5,7 +5,7 @@ import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-pape
 import type { AuthUser } from '@/features/auth/session';
 import type { Workspace } from '@/features/workspaces/api';
 import { clearOpenState, loadOpenState, saveOpenState } from '@/features/paperMap/expansionPersistence';
-import { computeDefaultOpenState } from '@/features/paperMap/defaultOpenState';
+import { computeDefaultOpenState, mergeWithDefaultOpenState } from '@/features/paperMap/defaultOpenState';
 
 interface UsePersistentPaperOpenStateOptions {
   user: AuthUser | null;
@@ -36,7 +36,9 @@ export function usePersistentPaperOpenState({
   useEffect(() => {
     if (loading) return;
     const persisted = loadOpenState(user);
-    const resolved = persisted ?? computeDefaultOpenState({ user, workspaces });
+    const defaults = computeDefaultOpenState({ user, workspaces });
+    const resolved = mergeWithDefaultOpenState(persisted, defaults);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDefaultOpenState(resolved);
     setExpansionMap(resolved.expansionMap ?? new Map());
     setFocusedNodeId(resolved.focusedNodeId ?? null);
