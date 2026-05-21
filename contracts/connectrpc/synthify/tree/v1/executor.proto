@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package synthify.tree.v1;
 
-option go_package = "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1;treev1";
+option go_package = "github.com/synthify/backend/internal/gen/synthify/tree/v1;treev1";
 
 // ExecutorService runs LLM-generated transform code in an isolated Cloud Run
 // service. It has no DB / GCS / Secret access. Data is exchanged via worker-signed,

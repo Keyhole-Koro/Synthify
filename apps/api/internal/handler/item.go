@@ -6,10 +6,10 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/service"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/repository"
-	"github.com/synthify/backend/packages/shared/transport/connect"
-	"github.com/synthify/backend/packages/shared/transport/connect/mappers"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/apps/api/internal/transport/connect"
+	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
 )
 
 type ItemHandler struct {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
-	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
 type WorkspaceService struct {

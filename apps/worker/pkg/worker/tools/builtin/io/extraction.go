@@ -13,11 +13,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
-	"github.com/synthify/backend/packages/shared/domain"
 )
 
 type ExtractionArgs struct {

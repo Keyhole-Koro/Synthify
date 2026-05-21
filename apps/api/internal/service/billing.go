@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
-	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
 type BillingUsecase interface {

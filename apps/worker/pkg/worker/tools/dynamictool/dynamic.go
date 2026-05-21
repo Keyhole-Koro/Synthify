@@ -19,9 +19,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
-	"github.com/synthify/backend/packages/shared/domain"
 )
 
 // FromDomain turns one DynamicTool row into a core.Tool whose Run executes

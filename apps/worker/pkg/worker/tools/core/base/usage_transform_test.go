@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
 // jobCtx is a context whose SessionID() is the jobID, matching how the worker

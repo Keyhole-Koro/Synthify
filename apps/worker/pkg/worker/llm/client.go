@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
 type Client interface {

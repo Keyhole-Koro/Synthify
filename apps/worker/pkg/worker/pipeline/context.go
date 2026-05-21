@@ -1,6 +1,6 @@
 package pipeline
 
-import "github.com/synthify/backend/packages/shared/domain"
+import "github.com/synthify/backend/apps/worker/pkg/worker/domain"
 
 type PipelineContext struct {
 	JobID       string

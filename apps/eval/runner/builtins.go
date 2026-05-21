@@ -2,7 +2,7 @@ package runner
 
 import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
 // builtinAll returns every builtin tool the runner should offer for a run.

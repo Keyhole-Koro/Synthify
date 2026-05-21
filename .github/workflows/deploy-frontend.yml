@@ -17,7 +17,7 @@ on:
       - prod
     paths:
       - apps/web/**
-      - packages/shared/**
+      - internal/platform/**
       - scripts/smoke-test.sh
       - .github/workflows/deploy-frontend.yml
 

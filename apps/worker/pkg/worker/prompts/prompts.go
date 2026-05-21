@@ -16,7 +16,7 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
 //go:embed templates/*.tmpl

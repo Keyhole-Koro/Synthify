@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 )
 
 type ConnectHandler struct {

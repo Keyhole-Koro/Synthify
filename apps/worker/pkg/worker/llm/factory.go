@@ -3,9 +3,9 @@ package llm
 import (
 	"context"
 
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/config"
-	"github.com/synthify/backend/packages/shared/storage"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
+	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/model/gemini"
 	"google.golang.org/genai"

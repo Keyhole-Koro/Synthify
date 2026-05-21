@@ -14,15 +14,15 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
-	"github.com/synthify/backend/packages/shared/app"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/config"
-	treev1connect "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1/treev1connect"
-	"github.com/synthify/backend/packages/shared/job/log"
-	"github.com/synthify/backend/packages/shared/middleware"
-	"github.com/synthify/backend/packages/shared/observability"
-	"github.com/synthify/backend/packages/shared/repository/postgres"
-	"github.com/synthify/backend/packages/shared/storage"
+	"github.com/synthify/backend/apps/worker/pkg/worker/bootstrap"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
+	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
+	"github.com/synthify/backend/internal/platform/job/log"
+	"github.com/synthify/backend/internal/platform/httpmiddleware"
+	"github.com/synthify/backend/internal/platform/observability"
+	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres"
+	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 )
 
 func main() {
@@ -33,12 +33,15 @@ func main() {
 	slogLogger := applog.NewJSONSlogLogger(os.Stdout)
 	appLogger := applog.WrapSlogLogger(slogLogger)
 
-	nrApp, err := observability.InitNewRelic(cfg.NewRelic, slogLogger)
+	nrApp, err := observability.InitNewRelic(observability.Config{
+		AppName:    cfg.NewRelic.AppName,
+		LicenseKey: cfg.NewRelic.LicenseKey,
+	}, slogLogger)
 	if err != nil {
 		appLogger.Error(ctx, "worker.newrelic_init_failed", err, nil)
 	}
 
-	appCtx := app.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
+	appCtx := bootstrap.Bootstrap(ctx, cfg.FirebaseProjectID, appLogger, nrApp)
 	store := appCtx.Store
 	notifier := appCtx.Notifier
 	jobLogger := postgres.NewDBLogger(store)
@@ -62,7 +65,7 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	appLogger.Info(ctx, "worker.started", map[string]any{"addr": addr})
-	h := middleware.Recover(appLogger, middleware.Logger(appLogger, withJobLogger(jobLogger, mux)))
+	h := httpmiddleware.Recover(appLogger, httpmiddleware.Logger(appLogger, withJobLogger(jobLogger, mux)))
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Fatal(err)
 	}

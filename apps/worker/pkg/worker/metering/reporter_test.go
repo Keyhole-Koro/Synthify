@@ -7,8 +7,8 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/packages/shared/domain"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 )
 
 func TestConnectReporter_RecordUsage_ForwardsUsageEventFields(t *testing.T) {

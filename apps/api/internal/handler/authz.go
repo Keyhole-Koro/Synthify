@@ -6,9 +6,9 @@ import (
 	"log"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/packages/shared/middleware"
-	"github.com/synthify/backend/packages/shared/repository"
-	"github.com/synthify/backend/packages/shared/transport/connect"
+	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/apps/api/internal/transport/connect"
 )
 
 func currentUser(ctx context.Context) (middleware.AuthUser, error) {

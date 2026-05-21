@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
-	"github.com/synthify/backend/packages/shared/domain"
 )
 
 // DynamicToolSource is the eval-side seam for promoted tools. The current

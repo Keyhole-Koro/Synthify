@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/api/internal/domain"
 )
 
 type Config struct {

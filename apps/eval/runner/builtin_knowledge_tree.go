@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/process"
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/process"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
 type ktInput struct {

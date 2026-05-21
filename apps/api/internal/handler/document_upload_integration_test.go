@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/packages/shared/app"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/middleware"
-	"github.com/synthify/backend/packages/shared/repository/mock"
+	"github.com/synthify/backend/apps/api/internal/bootstrap"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/repository/mock"
 )
 
 func TestDocumentUpload_Integration(t *testing.T) {
@@ -41,7 +41,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	store := mock.NewStore()
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
 
-	uploadURLIssuer := app.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL, bucket)
+	uploadURLIssuer := bootstrap.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL, bucket)
 	store.SetUploadURLIssuer(uploadURLIssuer)
 
 	svc := service.NewDocumentService(store, store, nil, nil, nil, nil, nil)

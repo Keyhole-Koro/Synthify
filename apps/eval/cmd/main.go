@@ -16,7 +16,7 @@ import (
 	"github.com/synthify/backend/apps/eval/runner"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
-	"github.com/synthify/backend/packages/shared/config"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 )
 
 func main() {

@@ -4,7 +4,7 @@ FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 
-# Copy the entire workspace to handle local package dependencies (packages/shared)
+# Copy the entire workspace to handle local package dependencies (internal/gen, internal/platform)
 COPY . .
 
 # Build the API binary

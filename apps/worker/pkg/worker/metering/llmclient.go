@@ -9,10 +9,10 @@ import (
 	"github.com/oklog/ulid/v2"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/config"
-	"github.com/synthify/backend/packages/shared/domain"
-	joblog "github.com/synthify/backend/packages/shared/job/log"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
 // LLMClient wraps an llm.Client and ships a domain.UsageEvent through

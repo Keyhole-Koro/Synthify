@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
-	"github.com/synthify/backend/packages/shared/job/log"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/platform/job/log"
 )
 
 type sessionIDContext interface {

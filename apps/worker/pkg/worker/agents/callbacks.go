@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	shareddocument "github.com/synthify/backend/apps/worker/pkg/worker/document"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
-	shareddocument "github.com/synthify/backend/packages/shared/document"
 )
 
 type Dependency struct {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { listWorkspaces, type Workspace } from '@/features/workspaces/api';
 import { getInitialAuthUser, signInWithGoogleSession, subscribeAuthUser, type AuthUser } from '@/features/auth/session';
 
@@ -30,7 +30,7 @@ export function useAuthState() {
     });
   }, []);
 
-  async function handleGoogleSubmit() {
+  const handleGoogleSubmit = useCallback(async () => {
     setLoading(true);
     try {
       await signInWithGoogleSession();
@@ -38,7 +38,7 @@ export function useAuthState() {
       console.error(err);
       setLoading(false);
     }
-  }
+  }, []);
 
   return {
     user,

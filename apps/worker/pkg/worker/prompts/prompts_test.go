@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
 // legacySystemPrompt is the verbatim system prompt that knowledge tree generation.go embedded

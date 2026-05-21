@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/packages/shared/domain"
-	"github.com/synthify/backend/packages/shared/repository/mock"
+	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/apps/api/internal/repository/mock"
 )
 
 func TestCreateCheckoutSession_InvalidPlan_WarnsAndReturnsError(t *testing.T) {

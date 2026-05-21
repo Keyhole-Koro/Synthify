@@ -11,15 +11,16 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 ### 1.1 一方向依存の徹底（Dependency Rule）
 依存は常に「外側から内側へ」向かう必要があります。
 
-*   **内側（Core/Contract）:** `packages/shared`, `packages/proto-ts`
+*   **内側（Core/Contract）:** `internal/gen`, `packages/proto-ts`
+*   **横断基盤（Platform）:** `internal/platform`
 *   **外側（Implementation/App）:** `apps/api`, `apps/worker`, `apps/log-viewer`, `apps/web`
 
 **禁止事項:**
-*   `shared` から `api` や `worker` を import すること。
-*   `shared` が特定のデータベース実装や外部サービスの具象 SDK に強く依存すること。
+*   `internal/platform` から `apps/api` や `apps/worker` を import すること。
+*   アプリケーション間 (`apps/api` と `apps/worker` 等) で直接 import しあうこと。
 
 ### 1.2 契約と実装の分離
-共通層（`shared`）は「何をするか（Interface）」のみを定義し、「どうやるか（Implementation）」は各アプリケーション層で実装します。
+共通契約（`internal/gen`）は「何をするか（RPC Interface）」を定義し、具体的なドメインロジックや実装は各アプリケーション層に閉じ込めます。かつての `packages/shared` のような、ドメイン知識が漏れ出す巨大な共通パッケージは作成しません。
 
 ---
 
@@ -30,111 +31,70 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 プロジェクトは以下の階層構造で管理されています。
 
 ```text
-[Synthify root / superproject]
-├─ Git submodules
-│  ├─ apps/api
-│  ├─ apps/worker
-│  ├─ apps/web
-│  │  └─ nested submodule: vender/paper-in-paper
-│  ├─ apps/log-viewer
-│  └─ packages/shared
+[Synthify root]
+├─ contracts/connectrpc
+│  └─ Connect / gRPC proto source of truth
 │
-├─ JS/TS workspace (Bun)
-│  ├─ apps/web
-│  ├─ apps/log-viewer/ui
-│  └─ packages/proto-ts
+├─ internal/
+│  ├─ gen/        # Go generated proto / Connect code
+│  └─ platform/   # 変化の少ない横断基盤 (applog, observability, util等)
 │
-├─ Go module
-│  └─ github.com/synthify/backend
-│     └─ replace github.com/synthify/backend/packages/shared
-│        => ./packages/shared
+├─ apps/
+│  ├─ api/
+│  │  └─ internal/ # API 固有の domain, service, repository, bootstrap, middleware
+│  ├─ worker/
+│  │  └─ pkg/worker/ # worker 固有の logic (eval から参照するため pkg 配下)
+│  ├─ log-viewer/
+│  └─ eval/        # worker の評価・テストツール (worker/pkg を参照)
 │
-└─ Shared packages
-   ├─ packages/shared
-   │  └─ Go 共通コード + Go generated proto
-   └─ packages/proto-ts
-      └─ TS generated proto
+└─ packages/
+   └─ proto-ts/    # Web 向けの TS generated proto package
 ```
 
 ### 2.2 コード上の実依存関係
 
-各エコシステムにおける実際の依存関係は以下の通りです。
-
 #### Go 系
 ```text
-api -------------> packages/shared
-worker ----------> packages/shared
-root go.mod -----> packages/shared
-
-apps/log-viewer -> packages/shared
-  ※ apps/log-viewer/go.mod で ../../packages/shared を replace
-```
-
-#### Web 系
-```text
-apps/web --------> packages/proto-ts
-apps/log-viewer/ui
-                -> packages/proto-ts
-
-apps/web --------> vender/paper-in-paper
+api --------> internal/gen, internal/platform
+worker -----> internal/gen, internal/platform
+eval -------> apps/worker/pkg/worker/..., internal/platform
+log-viewer -> (自己完結したコードを使用)
 ```
 
 ---
 
 ## 3. モジュール別の責務
 
-### 3.1 `proto/` (Source of Truth)
-API 契約の唯一のソースです。Connect / gRPC のスキーマを管理します。
-*   API の変更は必ずここから始まります。
-*   `buf generate` により、Go と TypeScript のコードが自動生成されます。
+### 3.1 `internal/gen`
+API 契約の唯一のソース (`contracts/connectrpc`) から生成された Go コードを管理します。
+*   ビジネスロジックは持ちません。
 
-### 3.2 `packages/shared` (Go Contract Layer)
-Go バックエンド全体の共通契約層です。
-*   **保有するもの:** Domain Types, Repository Interfaces, Middleware, Config, `joblog` 契約, 生成された Go Proto コード。
-*   **保有しないもの:** UI 関連、特定の DB ドライバに依存したクエリ実装。
+### 3.2 `internal/platform`
+変更頻度が低く、ビジネスドメインに依存しない純粋な技術基盤を提供します。
+*   **applog:** 構造化ロガー
+*   **observability:** New Relic 等のテレメトリ設定
+*   **httpmiddleware:** recovery, logger 等の汎用ミドルウェア
 
-### 3.3 `packages/proto-ts` (TS Contract Layer)
-フロントエンド全体の共通契約層です。
-*   **保有するもの:** 生成された TypeScript/Connect-ES クライアント。
-*   **メリット:** `web` と `log-viewer/ui` で同一の型定義・クライアントを共有し、契約のズレを防ぎます。
+### 3.3 `apps/api/internal`
+API アプリケーションの全責任を持ちます。
+*   **domain:** API 向けのエンティティ・値オブジェクト
+*   **repository:** DB 実装 (SQLC 生成物含む)
+*   **service:** ユースケース実行
+*   **middleware:** Auth, CORS 等の API 固有処理
 
-### 3.4 `apps/` (Applications)
-*   **api:** HTTP エントリポイント。ユースケースのオーケストレーション。
-*   **worker:** 非同期ジョブ実行、LLM 連携。
-*   **web / log-viewer/ui:** プロダクトのフロントエンド実装。
-
----
-
-## 4. 抽象化パターン: `joblog`
-
-
-依存の逆流を防ぐための標準的なパターンです。
-
-1.  **契約 (shared/joblog):** `Logger` インターフェースと `Event` 構造体を定義。
-2.  **実装 (apps/log-viewer):** `Logger` を実装し、DB への保存等を行う。
-3.  **利用 (api/worker):** `shared/joblog` のインターフェースのみを使い、実装には関知しない。
-
-これにより、ログの保存先を Stdout から Firestore や Postgres に変更しても、ビジネスロジック（api/worker）を修正する必要がなくなります。
+### 3.4 `apps/worker/pkg/worker`
+Worker アプリケーションの全責任を持ちます。
+*   LLM 連携、ジョブ実行パイプライン、カスタムツール等の実装。
 
 ---
 
 ## 4. 開発ワークフロー
 
 ### 4.1 API 変更の手順
-1.  `proto/` 内の `.proto` ファイルを編集。
+1.  `contracts/connectrpc/` 内の `.proto` ファイルを編集。
 2.  ルートディレクトリで `buf generate` を実行。
-3.  `packages/shared/gen` と `packages/proto-ts/gen` が更新されたことを確認。
-4.  コンパイルエラー（破壊的変更）を各アプリで修正。
+3.  `internal/gen` と `packages/proto-ts/gen` が更新されたことを確認。
+4.  コンパイルエラーを各アプリで修正。
 
-### 4.2 フロントエンドの依存管理
-Bun Workspaces を使用しています。
-*   `packages/proto-ts` を更新したら、`bun install` を実行してワークスペース内の依存を解決してください。
-*   共通ロジックを切り出す場合は `packages/` 下に新規パッケージを作成することを検討してください。
-
----
-
-## 5. 過去の意思決定（ADR 短記）
-
-*   **Git Submodule の廃止:** モジュール間の同期コストが高すぎたため、モノリポジトリ構成へ移行しました。
-*   **Shared の一本化:** `shared-types`, `shared-utils` のように細分化せず、Go Package 境界で管理することで、プロジェクト全体の認知負荷を下げています。
-*   **Proto-TS の独立パッケージ化:** Web と Log Viewer でコード重複が発生し、API 変更時に片方が壊れる問題を防ぐために導入しました。
+### 4.2 ドメイン知識の共有
+API と Worker で同じデータベーステーブルを参照する場合でも、コード上のドメイン型や Repository 実装は共有（DRY）せず、それぞれのアプリケーション配下に定義・実装します。これにより、一方の変更が意図せず他方に影響を与えることを防ぎます。

@@ -19,7 +19,7 @@ on:
       - apps/api/**
       - apps/worker/**
       - apps/eval/**
-      - packages/shared/**
+      - internal/platform/**
       - go.mod
       - go.sum
       - terraform/**

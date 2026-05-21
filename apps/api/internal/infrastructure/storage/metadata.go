@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/synthify/backend/packages/shared/domain"
-	sharedstorage "github.com/synthify/backend/packages/shared/storage"
+	"github.com/synthify/backend/apps/api/internal/domain"
+	sharedstorage "github.com/synthify/backend/internal/platform/storage"
 )
 
 type ObjectMetadataFetcher struct {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/synthify/backend/packages/shared/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
 type Brief struct {

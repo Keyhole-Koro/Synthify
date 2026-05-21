@@ -43,7 +43,7 @@ http://127.0.0.1:4443/storage/v1/b/synthify-uploads/o/ws_seed_1%2Fdoc_llm_1?alt=
 - `%2F` は `/` のエンコード。オブジェクト名にスラッシュを含む場合、GCS JSON API はパス区切りと区別するためエンコードが必要
 - `?alt=media` でオブジェクトのメタデータではなく本体を返す
 
-生成コード: [gcsurls.go](/home/unix/Synthify/packages/shared/storage/gcsurls.go) `BuildDocumentSourceURL`
+生成コード: [gcsurls.go](/home/unix/Synthify/internal/platform/storage/gcsurls.go) `BuildDocumentSourceURL`
 
 ```go
 BuildDocumentSourceURL(baseURL, workspaceID, documentID)

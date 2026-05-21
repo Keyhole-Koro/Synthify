@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
-	jobstatus "github.com/synthify/backend/packages/shared/job/status"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 type JobRepository interface {

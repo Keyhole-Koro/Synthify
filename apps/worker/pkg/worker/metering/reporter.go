@@ -7,9 +7,9 @@ import (
 	connect "connectrpc.com/connect"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/packages/shared/domain"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/gen/synthify/tree/v1/treev1connect"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	"github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
 )
 
 // NewConnectReporter returns an llm.UsageReporter that ships usage events to

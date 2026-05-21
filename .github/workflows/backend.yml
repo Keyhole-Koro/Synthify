@@ -5,7 +5,7 @@ on:
     paths:
       - apps/api/**
       - apps/worker/**
-      - packages/shared/**
+      - internal/platform/**
       - go.mod
       - go.sum
       - sqlc.yaml
@@ -16,7 +16,7 @@ on:
     paths:
       - apps/api/**
       - apps/worker/**
-      - packages/shared/**
+      - internal/platform/**
       - go.mod
       - go.sum
       - .github/workflows/backend.yml

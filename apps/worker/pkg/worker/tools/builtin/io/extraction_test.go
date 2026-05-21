@@ -11,10 +11,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/repository/mock"
+	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
-	"github.com/synthify/backend/packages/shared/domain"
-	"github.com/synthify/backend/packages/shared/repository/mock"
-	"github.com/synthify/backend/packages/shared/storage"
 )
 
 func TestExtractionTool_Zip(t *testing.T) {

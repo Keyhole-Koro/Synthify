@@ -12,6 +12,7 @@
 ## P1 — 設計上の問題
 
 - [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: log-viewer (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
+- [remove-shared-package.md](remove-shared-package.md) — `packages/shared` を解体し、proto / platform / app 固有実装の境界を整理する段階移行計画
 - [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `log-viewer` の理想依存構成と段階的移行方針
 - [api-refactor-cleanup.md](api-refactor-cleanup.md) — API 層の仕様変更残骸、mapper 不整合、重複 dispatch、no-op RPC の整理
 - [store-interface-narrowing.md](store-interface-narrowing.md) — handler / service が `app.Store` を丸ごと受け取らず、必要な repository interface だけを受け取るようにする段階移行

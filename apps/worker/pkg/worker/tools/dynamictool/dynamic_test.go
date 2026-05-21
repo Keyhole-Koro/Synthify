@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
-	"github.com/synthify/backend/packages/shared/domain"
 )
 
 type fakeEngine struct {

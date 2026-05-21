@@ -15,13 +15,14 @@ import (
 	"github.com/synthify/backend/apps/api/internal/infrastructure/storage"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/stripe"
 	apiworker "github.com/synthify/backend/apps/api/internal/infrastructure/worker"
+	apimiddleware "github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/packages/shared/app"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/config"
-	treev1connect "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1/treev1connect"
-	"github.com/synthify/backend/packages/shared/middleware"
-	"github.com/synthify/backend/packages/shared/observability"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/api/internal/config"
+	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
+	"github.com/synthify/backend/internal/platform/httpmiddleware"
+	"github.com/synthify/backend/internal/platform/observability"
 )
 
 func main() {
@@ -33,12 +34,15 @@ func main() {
 
 	// New Relic is optional: InitNewRelic returns (nil, nil) when no license
 	// key is configured, so the app runs fine without observability wired.
-	nrApp, err := observability.InitNewRelic(cfg.NewRelic, slogLogger)
+	nrApp, err := observability.InitNewRelic(observability.Config{
+		AppName:    cfg.NewRelic.AppName,
+		LicenseKey: cfg.NewRelic.LicenseKey,
+	}, slogLogger)
 	if err != nil {
 		appLogger.Error(ctx, "api.newrelic_init_failed", err, nil)
 	}
 
-	appCtx := app.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
+	appCtx := bootstrap.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
 	store := appCtx.Store
 	notifier := appCtx.Notifier
 
@@ -47,8 +51,8 @@ func main() {
 	// internal GCS upload base.
 	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, observability.ConnectClientOptions(nrApp)...)
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
-	sourceURLBuilder := app.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
-	uploadURLIssuer := app.NewDocumentUploadURLIssuer(cfg.GCSBucket, cfg.GCSUploadURLBase)
+	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
+	uploadURLIssuer := bootstrap.NewDocumentUploadURLIssuer(cfg.GCSBucket, cfg.GCSUploadURLBase)
 	documentSvc := service.NewDocumentService(
 		store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
 	)
@@ -102,10 +106,10 @@ func main() {
 	// CORS must be outside of Auth to handle preflight (OPTIONS) requests
 	// without authentication.
 	var h http.Handler = mux
-	h = middleware.WithAuth(cfg.FirebaseProjectID, appLogger, h)
-	h = middleware.CORS(cfg.CORSAllowedOrigins, h)
-	h = middleware.Logger(appLogger, h)
-	h = middleware.Recover(appLogger, h)
+	h = apimiddleware.WithAuth(cfg.FirebaseProjectID, appLogger, h)
+	h = apimiddleware.CORS(cfg.CORSAllowedOrigins, h)
+	h = httpmiddleware.Logger(appLogger, h)
+	h = httpmiddleware.Recover(appLogger, h)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	appLogger.Info(ctx, "api.started", map[string]any{"addr": addr, "env": cfg.Env})

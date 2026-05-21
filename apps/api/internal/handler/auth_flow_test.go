@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/service"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/middleware"
-	"github.com/synthify/backend/packages/shared/repository"
-	"github.com/synthify/backend/packages/shared/repository/mock"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/apps/api/internal/repository/mock"
 )
 
 func TestWorkspaceHandler_AuthFlow(t *testing.T) {

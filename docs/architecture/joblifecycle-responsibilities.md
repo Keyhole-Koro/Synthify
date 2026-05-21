@@ -1,6 +1,6 @@
 # joblifecycle の責務
 
-`packages/shared/joblifecycle` は、job まわりの**状態遷移の入口**を集約するための層。
+`apps/api/internal/job/lifecycle` は、job まわりの**状態遷移の入口**を集約するための層。
 
 目的は、「どの状態に遷移させるか」と「そのとき何を一緒にやるか」を service / worker / handler から剥がし、1 箇所で読めるようにすること。
 
@@ -161,7 +161,7 @@ document status まで含めた完全な lifecycle 集約にする。
 
 現状の集約先:
 
-- [service.go](/home/unix/Synthify/packages/shared/joblifecycle/service.go:1)
+- [service.go](/home/unix/Synthify/apps/api/internal/job/lifecycle/service.go:1)
 
 ここから呼ぶ側の代表:
 

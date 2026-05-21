@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/domain"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	"github.com/synthify/backend/packages/shared/job/lifecycle"
-	"github.com/synthify/backend/packages/shared/job/log"
-	"github.com/synthify/backend/packages/shared/job/status"
-	"github.com/synthify/backend/packages/shared/repository"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/apps/api/internal/domain"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
+	"github.com/synthify/backend/internal/platform/job/log"
+	"github.com/synthify/backend/internal/platform/job/status"
+	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
 type WorkerDispatcher interface {

@@ -8,9 +8,9 @@ import (
 	pgvector "github.com/pgvector/pgvector-go"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/packages/shared/applog"
-	"github.com/synthify/backend/packages/shared/repository"
-	"github.com/synthify/backend/packages/shared/storage"
+	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
+	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	"github.com/synthify/backend/internal/platform/applog"
 )
 
 // LLMClient is the interface for structured and text generation used by process tools.

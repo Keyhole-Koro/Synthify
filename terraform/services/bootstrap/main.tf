@@ -14,7 +14,7 @@ module "platform" {
 }
 
 # Signed upload URLs use IAM SignBlob when no private key is provided
-# (see packages/shared/app/bootstrap.go signBytesWithIAM). The API service
+# (see apps/api/internal/bootstrap/bootstrap.go signBytesWithIAM). The API service
 # account must be able to sign blobs as itself.
 resource "google_service_account_iam_member" "api_self_sign_blob" {
   count              = var.gcs_upload_issuer == "signed" ? 1 : 0

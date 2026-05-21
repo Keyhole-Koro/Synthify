@@ -16,9 +16,9 @@ import (
 	"strings"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/packages/shared/domain"
-	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
-	treev1connect "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1/treev1connect"
+	"github.com/synthify/backend/apps/api/internal/domain"
+	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
 	"google.golang.org/api/idtoken"
 )
 
