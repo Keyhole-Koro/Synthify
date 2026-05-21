@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
+import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { useAuthState } from '@/features/auth/useAuthState';
 import { signOutSession } from '@/features/auth/session';
 import { createWorkspace } from '@/features/workspaces/api';
@@ -26,6 +26,7 @@ export function useLandingPageController() {
 
   const {
     canvasKey,
+    defaultOpenState,
     expansionMap,
     focusedNodeId,
     handleExpansionMapChange,
@@ -90,20 +91,17 @@ export function useLandingPageController() {
     buildWsPaper,
   });
 
-  const handleControlledExpansionMapChange = useCallback((map: ExpansionMap) => {
-    handleExpansionMapChange(map);
-  }, [handleExpansionMapChange]);
-
   return {
     isReady: hasMounted && !loading,
     isFullscreen,
     winSize,
     paperMap,
     canvasKey,
+    defaultOpenState,
     expansionMap,
     focusedNodeId,
     setCanvasFullscreen,
-    handleExpansionMapChange: handleControlledExpansionMapChange,
+    handleExpansionMapChange,
     handleFocusedNodeIdChange,
   };
 }

@@ -17,10 +17,18 @@ function storageKey(baseKey: string, scope?: string | null) {
 function saveExpansionMap(map: ExpansionMap, scope: string) {
   if (typeof window === 'undefined') return;
   try {
-    const serialized = JSON.stringify(Array.from(map.entries()));
+    const entries = Array.from(map.entries()).map(([parentId, entry]) => [
+      parentId,
+      { openChildIds: entry.openChildIds },
+    ]);
+    const serialized = JSON.stringify(entries);
     localStorage.setItem(storageKey(STORAGE_KEY, scope), serialized);
   } catch (e) {
-    console.error('Failed to save expansion map to localStorage', e);
+    console.error(
+      'Failed to save expansion map to localStorage',
+      e,
+      'mapSize=', map.size,
+    );
   }
 }
 

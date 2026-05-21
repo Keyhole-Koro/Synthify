@@ -92,8 +92,7 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
           key={controller.canvasKey}
           paperMap={controller.paperMap}
           rootId={ROOT_ID}
-          expansionMap={controller.expansionMap}
-          focusedNodeId={controller.focusedNodeId}
+          defaultOpenState={controller.defaultOpenState}
           isFullscreen={controller.isFullscreen}
           debug={false}
           onExpansionMapChange={controller.handleExpansionMapChange}

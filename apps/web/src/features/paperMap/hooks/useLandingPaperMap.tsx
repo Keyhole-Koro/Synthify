@@ -38,6 +38,9 @@ export function useLandingPaperMap({
   buildWsPaper,
 }: UseLandingPaperMapProps) {
   const paperMap = useMemo<PaperMap>(() => {
+    if (typeof window !== 'undefined' && (window as { __pipDebug?: boolean }).__pipDebug) {
+      console.log('[pip-debug] useLandingPaperMap regenerate', { loading, userId: user?.id, workspacesCount: workspaces.length });
+    }
     const map = new Map<string, Paper>();
 
     const hasBilling = user != null && workspaces.length > 0;

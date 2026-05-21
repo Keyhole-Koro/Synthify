@@ -1,12 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import type { ExpansionMap } from '@keyhole-koro/paper-in-paper';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-paper';
 import type { AuthUser } from '@/features/auth/session';
 import type { Workspace } from '@/features/workspaces/api';
-import { clearOpenState, loadOpenState } from '@/features/paperMap/expansionPersistence';
+import { clearOpenState, loadOpenState, saveOpenState } from '@/features/paperMap/expansionPersistence';
 import { computeDefaultOpenState } from '@/features/paperMap/defaultOpenState';
-import { usePaperCanvasOpenState } from '@/features/paperMap/hooks/usePaperCanvasOpenState';
 
 interface UsePersistentPaperOpenStateOptions {
   user: AuthUser | null;
@@ -14,58 +13,57 @@ interface UsePersistentPaperOpenStateOptions {
   workspaces: Workspace[];
 }
 
+/**
+ * Open-state persistence model: initial-load + save-only mirror.
+ * - On mount / canvasKey bump: resolve `defaultOpenState` from localStorage (or computed defaults)
+ *   and hand it to PaperCanvas as initial state via key-remount.
+ * - PaperCanvas owns the live state. We mirror it via setState for app-side consumers
+ *   (e.g. workspace-tree subtree fetcher), but never feed it back to PaperCanvas as a prop —
+ *   that round-trip was the source of the open-state echo loop.
+ * - User switch & explicit reset bump `canvasKey` to remount PaperCanvas with a fresh defaultOpenState.
+ */
 export function usePersistentPaperOpenState({
   user,
   loading,
   workspaces,
 }: UsePersistentPaperOpenStateOptions) {
+  const [canvasKey, setCanvasKey] = useState(0);
+  const [defaultOpenState, setDefaultOpenState] = useState<DefaultOpenState | undefined>(undefined);
   const [expansionMap, setExpansionMap] = useState<ExpansionMap>(() => new Map());
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
-  const [canvasKey, setCanvasKey] = useState(0);
-  const ownerId = user?.id ?? null;
+  const latestFocusedNodeIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (loading) return;
     const persisted = loadOpenState(user);
-    if (persisted) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setExpansionMap(persisted.expansionMap ?? new Map());
-      setFocusedNodeId(persisted.focusedNodeId ?? null);
-      return;
-    }
-
-    const defaults = computeDefaultOpenState({ user, workspaces });
-    setExpansionMap(defaults.expansionMap ?? new Map());
-    setFocusedNodeId(defaults.focusedNodeId ?? null);
-  // Re-resolve only when the authenticated owner changes; workspace mutations should not reset canvas state.
+    const resolved = persisted ?? computeDefaultOpenState({ user, workspaces });
+    setDefaultOpenState(resolved);
+    setExpansionMap(resolved.expansionMap ?? new Map());
+    setFocusedNodeId(resolved.focusedNodeId ?? null);
+    latestFocusedNodeIdRef.current = resolved.focusedNodeId ?? null;
+  // Re-resolve only on canvasKey bump (user switch / explicit reset) or once loading clears.
+  // workspaces mutations should not reset canvas open-state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, ownerId]);
-
-  const {
-    onExpansionMapChange: persistExpansionMap,
-    onFocusedNodeIdChange: persistFocusedNodeId,
-  } = usePaperCanvasOpenState(user, expansionMap, focusedNodeId);
+  }, [canvasKey, loading]);
 
   const handleExpansionMapChange = useCallback((map: ExpansionMap) => {
     setExpansionMap(map);
-    persistExpansionMap(map);
-  }, [persistExpansionMap]);
+    saveOpenState(user, map, latestFocusedNodeIdRef.current);
+  }, [user]);
 
   const handleFocusedNodeIdChange = useCallback((id: string | null) => {
+    latestFocusedNodeIdRef.current = id;
     setFocusedNodeId(id);
-    persistFocusedNodeId(id);
-  }, [persistFocusedNodeId]);
+  }, []);
 
   const resetToLoggedOutDefaults = useCallback((previousUser: AuthUser | null) => {
     clearOpenState(previousUser);
-    const defaults = computeDefaultOpenState({ user: null, workspaces: [] });
-    setExpansionMap(defaults.expansionMap ?? new Map());
-    setFocusedNodeId(defaults.focusedNodeId ?? null);
     setCanvasKey((prev) => prev + 1);
   }, []);
 
   return {
     canvasKey,
+    defaultOpenState,
     expansionMap,
     focusedNodeId,
     handleExpansionMapChange,
