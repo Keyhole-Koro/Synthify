@@ -7,7 +7,6 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
-	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -38,7 +37,7 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 	}
 	items, err := h.repo.GetTreeByWorkspace(ctx, req.Msg.GetWorkspaceId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 
 	tree := &appv1.Tree{
@@ -72,7 +71,7 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
 	if len(items) == 0 {
-		return nil, connectutil.ToError(domain.ErrNotFound)
+		return nil, toError(domain.ErrNotFound)
 	}
 	if items[0].WorkspaceID != wsID {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("item does not belong to workspace"))
@@ -97,12 +96,12 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 
 	tree, err := h.repo.GetOrCreateTree(ctx, req.Msg.GetWorkspaceId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 
 	items, paths, err := h.repo.FindPaths(ctx, tree.TreeID, req.Msg.GetSourceItemId(), req.Msg.GetTargetItemId(), int(req.Msg.GetMaxDepth()), int(req.Msg.GetLimit()))
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 
 	protoTree := &appv1.Tree{

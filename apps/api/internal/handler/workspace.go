@@ -8,7 +8,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -45,7 +44,7 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 	}
 	workspace, err := h.service.GetWorkspace(ctx, req.Msg.GetWorkspaceId(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.GetWorkspaceResponse{
 		Workspace: toProtoWorkspace(workspace),
@@ -62,7 +61,7 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 	}
 	ws, err := h.service.CreateWorkspace(ctx, req.Msg.GetName(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	// サインアップ時の無料クレジット付与（冪等なので毎回呼んで問題なし）
 	if h.billing != nil {

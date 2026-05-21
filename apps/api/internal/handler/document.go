@@ -10,7 +10,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -60,7 +59,7 @@ func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[
 	}
 	doc, err := h.service.GetDocument(ctx, req.Msg.GetDocumentId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
 	return connect.NewResponse(&appv1.GetDocumentResponse{Document: toProtoDocument(doc, latest)}), nil
@@ -79,7 +78,7 @@ func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Reque
 	}
 	doc, uploadTarget, err := h.service.CreateDocument(ctx, req.Msg.GetWorkspaceId(), user.ID, req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.CreateDocumentResponse{
 		Document:          toProtoDocument(doc, nil),
@@ -101,7 +100,7 @@ func (h *DocumentHandler) GetUploadURL(ctx context.Context, req *connect.Request
 	// extend the Generator. For now, keep the Generator as the base and wrap it as needed.
 	uploadTarget, err := h.uploadURLIssuer.IssueDocumentUploadURL(ctx, req.Msg.GetWorkspaceId(), token+"/"+req.Msg.GetFilename(), req.Msg.GetMimeType())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	expiresAt := ""
 	if !uploadTarget.ExpiresAt.IsZero() {
@@ -123,7 +122,7 @@ func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Reques
 	}
 	doc, err := h.service.ConfirmUpload(ctx, req.Msg.GetDocumentId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
 	return connect.NewResponse(&appv1.ConfirmUploadResponse{Document: toProtoDocument(doc, latest)}), nil
@@ -138,11 +137,11 @@ func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Requ
 	}
 	doc, err := h.documents.GetDocument(ctx, req.Msg.GetDocumentId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	job, err := h.service.StartProcessing(ctx, doc.WorkspaceID, req.Msg.GetDocumentId(), req.Msg.GetForceReprocess())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.StartProcessingResponse{
 		DocumentId: req.Msg.GetDocumentId(),
@@ -164,11 +163,11 @@ func (h *DocumentHandler) ResumeProcessing(ctx context.Context, req *connect.Req
 	}
 	doc, err := h.service.GetDocument(ctx, req.Msg.GetDocumentId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	job, err := h.service.ResumeProcessing(ctx, doc.WorkspaceID, doc.DocumentID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.ResumeProcessingResponse{
 		DocumentId: doc.DocumentID,

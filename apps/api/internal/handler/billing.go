@@ -11,7 +11,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/applog"
 )
@@ -63,7 +62,7 @@ func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Req
 	}
 	account, err := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	creditBalance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
 	return connect.NewResponse(&appv1.GetBillingAccountResponse{
@@ -110,7 +109,7 @@ func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect
 	}
 	session, err := h.service.CreateCheckoutSession(ctx, req.Msg.GetAccountId(), user.ID, domain.BillingPlanUsageBased, domain.BillingCurrency(req.Msg.GetCurrency()))
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.CreateCheckoutSessionResponse{
 		CheckoutUrl: session.URL,
@@ -127,7 +126,7 @@ func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.R
 	}
 	session, err := h.service.CreatePortalSession(ctx, req.Msg.GetAccountId(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.CreatePortalSessionResponse{
 		PortalUrl: session.URL,
@@ -148,7 +147,7 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv
 	}
 	report, err := h.service.GetUsage(ctx, req.Msg.GetAccountId(), user.ID, req.Msg.GetPeriodStart(), req.Msg.GetPeriodEnd())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	resp := &appv1.GetUsageResponse{
 		AccountId:   report.AccountID,
@@ -198,7 +197,7 @@ func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[a
 	}
 	result, err := h.service.RecordUsage(ctx, ev)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.RecordUsageResponse{
 		EventId:        result.EventID,
@@ -217,7 +216,7 @@ func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[
 	}
 	limit, err := h.service.UpdateBudget(ctx, req.Msg.GetAccountId(), user.ID, req.Msg.GetBudgetLimit())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.UpdateBudgetResponse{BudgetLimit: limit}), nil
 }
@@ -232,7 +231,7 @@ func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[
 	}
 	list, err := h.service.ListInvoices(ctx, req.Msg.GetAccountId(), user.ID, int(req.Msg.GetLimit()))
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	resp := &appv1.ListInvoicesResponse{
 		UpcomingAmount:    list.UpcomingAmount,
@@ -271,7 +270,7 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[a
 	}
 	grant, err := h.service.GrantCredit(ctx, user.ID, req.Msg.GetAccountId(), req.Msg.GetAmountMinor(), req.Msg.GetNote())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	balance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
 	return connect.NewResponse(&appv1.GrantCreditResponse{
@@ -292,7 +291,7 @@ func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Requ
 	}
 	balance, err := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	account, _ := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), user.ID)
 	stopped := account != nil && account.Plan == string(domain.BillingPlanFree) && balance <= 0
@@ -312,7 +311,7 @@ func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Re
 	}
 	methods, err := h.service.ListPaymentMethods(ctx, req.Msg.GetAccountId(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	resp := &appv1.ListPaymentMethodsResponse{}
 	for _, pm := range methods {

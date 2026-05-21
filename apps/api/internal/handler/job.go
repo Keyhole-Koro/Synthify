@@ -11,7 +11,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
-	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/job/log"
@@ -50,7 +49,7 @@ func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Reque
 	}
 	plan, err := h.repo.GetJobExecutionPlan(ctx, req.Msg.GetJobId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.GetJobExecutionPlanResponse{
 		Plan: toProtoExecutionPlan(plan),
@@ -63,7 +62,7 @@ func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.R
 	}
 	requests, err := h.repo.ListJobApprovalRequests(ctx, req.Msg.GetJobId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	res := connect.NewResponse(&appv1.ListJobApprovalRequestsResponse{})
 	for _, request := range requests {
@@ -83,7 +82,7 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 	}
 	approval, err := h.lifecycle.RequestApproval(ctx, req.Msg.GetJobId(), user.ID, req.Msg.GetReason())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:       job.JobID,
@@ -110,7 +109,7 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("approval_id is required"))
 	}
 	if err := h.lifecycle.ApproveApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), user.ID); err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:       job.JobID,
@@ -137,7 +136,7 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("approval_id is required"))
 	}
 	if err := h.lifecycle.RejectApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), user.ID, req.Msg.GetReason()); err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:       job.JobID,
@@ -157,7 +156,7 @@ func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Reque
 	}
 	logs, err := h.repo.ListJobMutationLogs(ctx, req.Msg.GetJobId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	res := connect.NewResponse(&appv1.ListJobMutationLogsResponse{})
 	for _, log := range logs {
@@ -284,7 +283,7 @@ func (h *JobHandler) authorizeAndLoadJob(ctx context.Context, jobID string) (*do
 	}
 	job, err := h.repo.GetProcessingJob(ctx, jobID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	if err := authorizeDocument(ctx, h.workspaces, h.documents, job.DocumentID, ""); err != nil {
 		return nil, err

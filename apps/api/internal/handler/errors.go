@@ -1,4 +1,4 @@
-package connectutil
+package handler
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 )
 
-func ToError(err error) error {
+func toError(err error) error {
 	if err == nil {
 		return nil
 	}

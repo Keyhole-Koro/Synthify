@@ -7,7 +7,6 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -39,7 +38,7 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 
 	item, err := h.items.GetItem(ctx, req.Msg.GetTargetRef().GetId())
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 
 	detail := &appv1.TreeEntityDetail{
@@ -69,7 +68,7 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 	}
 	item, err := h.service.CreateItem(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetLabel(), req.Msg.GetDescription(), req.Msg.GetParentId(), user.ID)
 	if err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.CreateItemResponse{Item: toProtoItem(item)}), nil
 }
@@ -82,7 +81,7 @@ func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[app
 		return nil, err
 	}
 	if err := h.items.ApproveAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId()); err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.ApproveAliasResponse{
 		CanonicalItemId: req.Msg.GetCanonicalItemId(),
@@ -99,7 +98,7 @@ func (h *ItemHandler) RejectAlias(ctx context.Context, req *connect.Request[appv
 		return nil, err
 	}
 	if err := h.items.RejectAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId()); err != nil {
-		return nil, connectutil.ToError(err)
+		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.RejectAliasResponse{
 		CanonicalItemId: req.Msg.GetCanonicalItemId(),
