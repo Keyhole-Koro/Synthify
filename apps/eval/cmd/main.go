@@ -27,18 +27,11 @@ func main() {
 	outGCS := flag.String("out-gcs", "", "optional gs:// prefix to write the report artifact")
 	variant := flag.String("variant", "", "variant name under apps/eval/variants/{name}; empty = production prompt")
 	variantsDir := flag.String("variants-dir", "apps/eval/variants", "root directory holding variant prompt sets")
-	goldenDir := flag.String("golden", "", "golden directory; enables strict golden judgement")
-	updateGolden := flag.Bool("update-golden", false, "write golden files instead of judging against them (requires --golden)")
 	timeout := flag.Duration("timeout", 60*time.Second, "eval timeout")
 	flag.Parse()
 
 	if (*casePath == "") == (*casesPath == "") {
 		fmt.Fprintln(os.Stderr, "set exactly one of --case or --cases")
-		os.Exit(2)
-	}
-
-	if *updateGolden && *goldenDir == "" {
-		fmt.Fprintln(os.Stderr, "--update-golden requires --golden")
 		os.Exit(2)
 	}
 
@@ -89,8 +82,6 @@ func main() {
 		LLM:          client,
 		Renderer:     renderer,
 		PromptSource: promptSource,
-		GoldenDir:    *goldenDir,
-		UpdateGolden: *updateGolden,
 	}.RunCaseFiles(ctx, caseFiles)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run eval: %v\n", err)
@@ -119,12 +110,6 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Fprintf(os.Stderr, "eval artifact uploaded: %s\n", res.URI)
-	}
-	// Contract §5: --update-golden exits 0 on successful write-out; golden
-	// judgement is not performed in that mode. Write errors already aborted
-	// above via RunCaseFiles.
-	if *updateGolden {
-		return
 	}
 	if !allPassed(results) {
 		os.Exit(1)

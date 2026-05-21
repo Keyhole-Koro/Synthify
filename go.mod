@@ -9,7 +9,9 @@ replace github.com/synthify/backend/packages/shared => ./packages/shared
 require (
 	cloud.google.com/go/storage v1.56.1
 	connectrpc.com/connect v1.18.1
+	github.com/google/jsonschema-go v0.4.2
 	github.com/newrelic/go-agent/v3 v3.43.3
+	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/pgvector/pgvector-go v0.3.0
 	github.com/stretchr/testify v1.11.1
@@ -48,7 +50,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/safehtml v0.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -61,7 +62,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/newrelic/go-agent/v3/integrations/nrconnect v1.0.1 // indirect
 	github.com/newrelic/go-agent/v3/integrations/nrpgx5 v1.3.4 // indirect
-	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect

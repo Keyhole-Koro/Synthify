@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/worker/pkg/worker/agents"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
 	"github.com/synthify/backend/packages/shared/applog"
 	"github.com/synthify/backend/packages/shared/domain"
 	treev1 "github.com/synthify/backend/packages/shared/gen/synthify/tree/v1"
@@ -22,8 +24,6 @@ import (
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/storage"
 	"google.golang.org/adk/model"
-	"google.golang.org/adk/runner"
-	"google.golang.org/adk/session"
 	"google.golang.org/api/idtoken"
 )
 
@@ -39,6 +39,7 @@ type Repository interface {
 	repository.TreeRepository
 	repository.ItemRepository
 	repository.CheckpointRepository
+	repository.DynamicToolRepository
 }
 
 type Worker struct {
@@ -46,14 +47,19 @@ type Worker struct {
 	repo         Repository
 	lifecycle    *joblifecycle.Service
 	status       jobstatus.Notifier
-	runner       *runner.Runner
 	logger       applog.Logger
 }
 
 type ExecutePlanRequest = domain.ExecutePlanRequest
 
-func NewWorker(repo Repository, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger applog.Logger) (*Worker, error) {
-	return NewWorkerWithNotifier(repo, repo, nil, m, embedder, llmClient, fs, logger)
+// dynamicSource adapts the Repository's DynamicToolRepository surface to the
+// core.DynamicToolSource seam (the orchestrator only knows the seam).
+type dynamicSource struct {
+	repo repository.DynamicToolRepository
+}
+
+func (d dynamicSource) ResolveActive(ctx context.Context, workspaceID string) ([]*domain.DynamicTool, error) {
+	return d.repo.ResolveActiveTools(ctx, workspaceID)
 }
 
 func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger applog.Logger) (*Worker, error) {
@@ -69,17 +75,13 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 		FS:       fs,
 		Logger:   logger,
 	}
-	orch, err := agents.NewOrchestrator(m, b, repo, fs)
-	if err != nil {
-		return nil, err
-	}
-
-	r, err := runner.New(runner.Config{
-		AppName:           "synthify-worker",
-		Agent:             orch.Agent,
-		SessionService:    session.InMemoryService(),
-		AutoCreateSession: true,
-	})
+	// dynamic tool wiring: repo doubles as the DB-backed source; the engine
+	// matches the Starlark runtime that create_transform already uses (Phase 1
+	// of dynamic-tool-synthesis). Python executor is a separate service in a
+	// later phase.
+	dynSrc := dynamicSource{repo: repo}
+	dynEngine := transform.NewStarlarkEngine(10 * time.Second)
+	orch, err := agents.NewOrchestrator(m, b, repo, fs, dynSrc, dynEngine)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +91,6 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 		repo:         repo,
 		lifecycle:    joblifecycle.New(repo, notifier, logger),
 		status:       notifier,
-		runner:       r,
 		logger:       logger,
 	}, nil
 }
@@ -148,7 +149,7 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		return fmt.Errorf("mark job running: %w", err)
 	}
 
-	if err := w.orchestrator.ProcessDocument(ctx, w.runner, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
+	if err := w.orchestrator.ProcessDocument(ctx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
 		w.failJob(ctx, req, payload, err)
 		return err
 	}

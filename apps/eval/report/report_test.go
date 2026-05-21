@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/synthify/backend/apps/eval/runner"
-	"github.com/synthify/backend/packages/shared/domain"
 )
 
 func TestWriteJSON(t *testing.T) {
@@ -16,17 +15,11 @@ func TestWriteJSON(t *testing.T) {
 		Tool:         runner.ToolKnowledgeTree,
 		Passed:       true,
 		SchemaValid:  true,
-		ItemCount:    2,
-		MaxDepth:     1,
+		Output:       json.RawMessage(`{"items":[{"local_id":"item_1","title":"Authentication","level":1}]}`),
 		DurationMS:   123,
 		Model:        "fake",
 		InputTokens:  10,
 		OutputTokens: 20,
-		Items: []domain.GeneratedTreeItem{{
-			LocalID: "item_1",
-			Title:   "Authentication",
-			Level:   1,
-		}},
 	}}
 
 	var buf bytes.Buffer
@@ -40,8 +33,8 @@ func TestWriteJSON(t *testing.T) {
 	if len(decoded) != 1 || decoded[0].CaseName != "case_1" {
 		t.Fatalf("unexpected json report: %#v", decoded)
 	}
-	if len(decoded[0].Items) != 1 || decoded[0].Items[0].Title != "Authentication" {
-		t.Fatalf("items missing from json report: %#v", decoded[0].Items)
+	if !strings.Contains(string(decoded[0].Output), "Authentication") {
+		t.Fatalf("output missing from json report: %s", decoded[0].Output)
 	}
 }
 
@@ -67,11 +60,7 @@ func TestWriteJSONIncludesFailedInput(t *testing.T) {
 func TestWriteJSONDoesNotEscapeHTML(t *testing.T) {
 	results := []runner.Result{{
 		CaseName: "case_1",
-		Items: []domain.GeneratedTreeItem{{
-			LocalID: "item_1",
-			Title:   "HTML",
-			Content: `<p class="lede">A & B</p>`,
-		}},
+		Output:   json.RawMessage(`{"items":[{"local_id":"item_1","title":"HTML","content":"<p class=\"lede\">A & B</p>"}]}`),
 	}}
 
 	var buf bytes.Buffer

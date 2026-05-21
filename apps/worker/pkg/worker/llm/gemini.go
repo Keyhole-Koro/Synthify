@@ -117,11 +117,11 @@ func (c *GeminiClient) generate(ctx context.Context, systemPrompt, userPrompt st
 	if err == nil {
 		usage := geminiUsage(c.model, res)
 		detail := map[string]any{
-			"model":          c.model,
-			"duration_ms":    durationMs,
-			"input_tokens":   usage.InputTokens,
-			"output_tokens":  usage.OutputTokens,
-			"total_tokens":   usage.InputTokens + usage.OutputTokens,
+			"model":         c.model,
+			"duration_ms":   durationMs,
+			"input_tokens":  usage.InputTokens,
+			"output_tokens": usage.OutputTokens,
+			"total_tokens":  usage.InputTokens + usage.OutputTokens,
 		}
 		if c.logPayload {
 			if len(res.Candidates) > 0 && len(res.Candidates[0].Content.Parts) > 0 {

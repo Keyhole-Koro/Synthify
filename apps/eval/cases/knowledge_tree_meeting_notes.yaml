@@ -6,8 +6,15 @@ input:
   chunks: ../testdata/meeting_notes_chunks.json
 expect:
   schema_valid: true
-  min_items: 3
-  max_depth: 4
-  must_contain_titles:
-    - "決定事項"
-    - "未解決"
+  json:
+    - path: $.items
+      op: count_gte
+      value: 3
+    - path: $.items
+      op: tree_depth_lte
+      value: 4
+    - path: $.items[*].title
+      op: contains_all
+      value:
+        - "決定事項"
+        - "未解決"

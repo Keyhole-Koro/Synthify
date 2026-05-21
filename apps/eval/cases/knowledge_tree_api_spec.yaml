@@ -6,8 +6,15 @@ input:
   chunks: ../testdata/api_spec_chunks.json
 expect:
   schema_valid: true
-  min_items: 3
-  max_depth: 4
-  must_contain_titles:
-    - "認証"
-    - "エラーハンドリング"
+  json:
+    - path: $.items
+      op: count_gte
+      value: 3
+    - path: $.items
+      op: tree_depth_lte
+      value: 4
+    - path: $.items[*].title
+      op: contains_all
+      value:
+        - "認証"
+        - "エラーハンドリング"

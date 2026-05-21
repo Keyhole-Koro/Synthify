@@ -37,8 +37,7 @@
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
 - [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) — 旧 log-viewer を BI として扱う設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針
-- [dynamic-tool-synthesis.md](dynamic-tool-synthesis.md) — LLM が処理中に変換コードを生成・実行し、有用なら risk tier に応じて自動/レビュー昇格してレジストリに残す設計（実行環境は別 Cloud Run executor で確定・Starlark 踏み台から段階導入）
-  - 言語抽象の worker 内コード構造: [transform-engine-registry.md](transform-engine-registry.md) — language→Runtime を解決する Registry。新言語追加を 1 行登録に。starlarkrt 二重実装は削除済み
+- [dynamic-tool-pipeline.md](dynamic-tool-pipeline.md) — worker(生成) → log-viewer(承認) → eval(評価・改善提案) パイプライン全体の残作業集約。worker 道A 化と per-job dynamic resolve は完了済み、Phase 1 (worker DB 配線) から始めるのが起点。旧 `dynamic-tool-synthesis.md` / `transform-engine-registry.md` の設計仕様書は 2026-05-19 削除済み (設計根拠はコード doc コメントに保全、設計再考は git 履歴参照)
 
 ## Future Improvements（別ファイル）
 
@@ -54,7 +53,6 @@
 - [stage-prod-smoke-tests.md](stage-prod-smoke-tests.md) — stage / prod deploy 後に API・Worker・Frontend の最低限の死活を確認する smoke test 導入計画
 - [tool-calling-tests.md](tool-calling-tests.md) — LLM エージェントが各ツールを正しく呼び出せているかを確認するテストの追加
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加
-- [llm-eval-runner.md](llm-eval-runner.md) — プロンプト・モデルを変えながら LLM ツール出力を定量評価・横並び比較する CLI 基盤 (プロンプト外出しが前提)
-  - 実装済みコンポーネント契約: [../contracts/llm-eval-runner-contract.md](../contracts/llm-eval-runner-contract.md)
-- [llm-prompt-optimization-loop.md](llm-prompt-optimization-loop.md) — eval report / golden diff を LLM が分析し、prompt variant を生成して BI 上で人間が approve / apply する改善 loop
+- [llm-eval-runner.md](llm-eval-runner.md) — 道A（全 tool = `Tool{Name,IOSchema,Run}`）で実装する eval runner の現行メモ。判定は output JSON の schema validation + JSON rule。設計根拠はコードの doc コメント
+- [llm-prompt-optimization-loop.md](llm-prompt-optimization-loop.md) — eval report を LLM が分析し、prompt variant を生成して BI 上で人間が approve / apply する改善 loop
   - 最初の実装単位 3 つの契約: [../contracts/prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md)

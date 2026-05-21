@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/process"
+	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
 	"github.com/synthify/backend/packages/shared/domain"
 	"gopkg.in/yaml.v3"
 )
@@ -20,85 +22,49 @@ import (
 const ToolKnowledgeTree = "knowledge_tree"
 
 type Case struct {
-	Name   string     `yaml:"name" json:"name"`
-	Tool   string     `yaml:"tool" json:"tool"`
-	Input  CaseInput  `yaml:"input" json:"input"`
-	Expect CaseExpect `yaml:"expect" json:"expect"`
-}
-
-type CaseInput struct {
-	DocumentID  string `yaml:"document_id" json:"document_id"`
-	Instruction string `yaml:"instruction" json:"instruction"`
-	Chunks      string `yaml:"chunks" json:"chunks"`
-}
-
-type CaseExpect struct {
-	SchemaValid       bool     `yaml:"schema_valid" json:"schema_valid"`
-	MinItems          int      `yaml:"min_items" json:"min_items"`
-	MaxDepth          int      `yaml:"max_depth" json:"max_depth"`
-	MustContainTitles []string `yaml:"must_contain_titles" json:"must_contain_titles"`
+	Name   string          `yaml:"name" json:"name"`
+	Tool   string          `yaml:"tool" json:"tool"`
+	Input  json.RawMessage `yaml:"input" json:"input"`
+	Expect CaseExpect      `yaml:"expect" json:"expect"`
 }
 
 type Result struct {
-	CaseName     string                     `json:"case_name"`
-	Tool         string                     `json:"tool"`
-	Passed       bool                       `json:"passed"`
-	SchemaValid  bool                       `json:"schema_valid"`
-	ItemCount    int                        `json:"item_count"`
-	MaxDepth     int                        `json:"max_depth"`
-	MissingTitle []string                   `json:"missing_titles"`
-	DurationMS   int64                      `json:"duration_ms"`
-	Model        string                     `json:"model"`
-	InputTokens  int64                      `json:"input_tokens"`
-	OutputTokens int64                      `json:"output_tokens"`
-	Items        []domain.GeneratedTreeItem `json:"items,omitempty"`
-	Error        string                     `json:"error,omitempty"`
-	FailedInput  *InputSnapshot             `json:"failed_input,omitempty"`
-
-	// Contract §6: prompt source and golden judgement. Additive; absent
-	// fields keep the legacy report shape when --golden is not used.
-	PromptSource  string      `json:"prompt_source"`
-	GoldenChecked bool        `json:"golden_checked"`
-	GoldenMatch   bool        `json:"golden_match"`
-	GoldenDiff    *GoldenDiff `json:"golden_diff,omitempty"`
-}
-
-// GoldenDiff summarizes mismatched strict fields. It never includes full
-// "content" HTML (contract §4.1, §6).
-type GoldenDiff struct {
-	Fields []GoldenFieldDiff `json:"fields"`
-}
-
-type GoldenFieldDiff struct {
-	Field    string `json:"field"`
-	Expected string `json:"expected"`
-	Actual   string `json:"actual"`
+	CaseName     string          `json:"case_name"`
+	Tool         string          `json:"tool"`
+	Passed       bool            `json:"passed"`
+	SchemaValid  bool            `json:"schema_valid"`
+	Output       json.RawMessage `json:"output,omitempty"`
+	DurationMS   int64           `json:"duration_ms"`
+	Model        string          `json:"model"`
+	InputTokens  int64           `json:"input_tokens"`
+	OutputTokens int64           `json:"output_tokens"`
+	Error        string          `json:"error,omitempty"`
+	FailedInput  *InputSnapshot  `json:"failed_input,omitempty"`
+	PromptSource string          `json:"prompt_source"`
 }
 
 type InputSnapshot struct {
 	DocumentID  string         `json:"document_id"`
 	Instruction string         `json:"instruction,omitempty"`
-	ChunksPath  string         `json:"chunks_path"`
+	ChunksPath  string         `json:"chunks_path,omitempty"`
 	Chunks      []domain.Chunk `json:"chunks"`
 }
 
 type Runner struct {
 	LLM base.LLMClient
 
-	// Renderer renders the knowledge tree prompt. Nil means the production
-	// (embedded) prompt. A non-nil renderer is a variant (contract §3).
+	// Renderer renders the knowledge_tree prompt. Nil means the production
+	// embedded prompt. A non-nil renderer is a variant.
 	Renderer *prompts.Renderer
 
-	// PromptSource labels the report: "production" or "variant:{name}"
-	// (contract §6).
+	// PromptSource labels the report: "production" or "variant:{name}".
 	PromptSource string
 
-	// GoldenDir, when set, enables strict golden judgement (contract §4).
-	GoldenDir string
-
-	// UpdateGolden, when true, writes golden files instead of judging
-	// against them (contract §4.2).
-	UpdateGolden bool
+	// DynTools and TransformEngine are the dynamic-tool seam. Dynamic execution
+	// is stubbed in this phase, but the runner resolves every tool through the
+	// same Tool abstraction.
+	DynTools        DynamicToolSource
+	TransformEngine transform.Engine
 }
 
 func CaseFiles(path string) ([]string, error) {
@@ -124,6 +90,7 @@ func CaseFiles(path string) ([]string, error) {
 			files = append(files, filepath.Join(path, entry.Name()))
 		}
 	}
+	sort.Strings(files)
 	if len(files) == 0 {
 		return nil, fmt.Errorf("no YAML case files found in %s", path)
 	}
@@ -132,8 +99,7 @@ func CaseFiles(path string) ([]string, error) {
 
 // resolveRenderer returns the prompt renderer for this run. A non-nil
 // r.Renderer is a variant; otherwise the cached embedded production renderer
-// is used. Resolving once per run (not per case) keeps case throughput flat
-// as the case set grows.
+// is used. Resolving once per run keeps multi-case throughput flat.
 func (r Runner) resolveRenderer() (*prompts.Renderer, string, error) {
 	promptSource := r.PromptSource
 	if promptSource == "" {
@@ -158,11 +124,19 @@ func (r Runner) RunCaseFile(ctx context.Context, path string) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	return r.runCase(ctx, c, filepath.Dir(path), renderer, promptSource)
+	tools, err := r.toolTable(renderer)
+	if err != nil {
+		return Result{}, err
+	}
+	return r.runCase(ctx, c, filepath.Dir(path), promptSource, tools)
 }
 
 func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, error) {
 	renderer, promptSource, err := r.resolveRenderer()
+	if err != nil {
+		return nil, err
+	}
+	tools, err := r.toolTable(renderer)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +146,7 @@ func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, err
 		if err != nil {
 			return nil, err
 		}
-		res, err := r.runCase(ctx, c, filepath.Dir(path), renderer, promptSource)
+		res, err := r.runCase(ctx, c, filepath.Dir(path), promptSource, tools)
 		if err != nil {
 			return nil, err
 		}
@@ -182,86 +156,98 @@ func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, err
 }
 
 // RunCase resolves the renderer and runs a single case. Prefer RunCaseFiles
-// for multi-case runs so the renderer is resolved once.
+// for multi-case runs so the renderer and tool table are built once.
 func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, error) {
 	renderer, promptSource, err := r.resolveRenderer()
 	if err != nil {
 		return Result{}, err
 	}
-	return r.runCase(ctx, c, baseDir, renderer, promptSource)
-}
-
-func (r Runner) runCase(ctx context.Context, c Case, baseDir string, renderer *prompts.Renderer, promptSource string) (Result, error) {
-	if strings.TrimSpace(c.Name) == "" {
-		return Result{}, fmt.Errorf("case name is required")
-	}
-	if c.Tool != ToolKnowledgeTree {
-		return Result{}, fmt.Errorf("unsupported tool %q: only %q is supported", c.Tool, ToolKnowledgeTree)
-	}
-	if strings.TrimSpace(c.Input.DocumentID) == "" {
-		return Result{}, fmt.Errorf("input.document_id is required")
-	}
-	if strings.TrimSpace(c.Input.Chunks) == "" {
-		return Result{}, fmt.Errorf("input.chunks is required")
-	}
-
-	chunksPath := resolvePath(baseDir, c.Input.Chunks)
-	chunks, err := LoadChunks(chunksPath)
+	tools, err := r.toolTable(renderer)
 	if err != nil {
 		return Result{}, err
 	}
-	input := InputSnapshot{
-		DocumentID:  c.Input.DocumentID,
-		Instruction: c.Input.Instruction,
-		ChunksPath:  chunksPath,
-		Chunks:      chunks,
+	return r.runCase(ctx, c, baseDir, promptSource, tools)
+}
+
+// toolTable builds the per-run Tool lookup. The runner does not know which
+// concrete builtin tools exist — that enumeration lives in builtins.go.
+// Dynamic tools are merged in on-demand by resolveRunTool (see DynamicToolSource).
+func (r Runner) toolTable(renderer *prompts.Renderer) (map[string]Tool, error) {
+	return builtinTable(r.LLM, renderer), nil
+}
+
+func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSource string, tools map[string]Tool) (Result, error) {
+	if strings.TrimSpace(c.Name) == "" {
+		return Result{}, fmt.Errorf("case name is required")
+	}
+	tool, err := r.resolveRunTool(ctx, tools, c.Tool)
+	if err != nil {
+		return Result{}, err
+	}
+
+	prepared, err := prepareToolInput(c, baseDir)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := validateRaw(tool.IOSchema.Input, prepared.Raw); err != nil {
+		return Result{}, fmt.Errorf("%s input schema: %w", c.Tool, err)
 	}
 
 	res := Result{CaseName: c.Name, Tool: c.Tool, PromptSource: promptSource}
 	start := time.Now()
-	items, usage, err := process.GenerateKnowledgeTreeWithRenderer(ctx, r.LLM, renderer, process.GenerateKnowledgeTreeArgs{
-		DocumentID:  c.Input.DocumentID,
-		Chunks:      chunks,
-		Instruction: c.Input.Instruction,
-	})
+	output, usage, toolErr := tool.Run(ctx, prepared.Raw)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.Model = usage.Model
 	res.InputTokens = usage.InputTokens
 	res.OutputTokens = usage.OutputTokens
-	if err != nil {
-		res.Error = err.Error()
-		res.FailedInput = &input
+	if toolErr != nil {
+		res.Error = toolErr.Error()
+		res.FailedInput = prepared.Snapshot
 		return res, nil
 	}
 
-	res.SchemaValid = true
-	res.Items = items
-	res.ItemCount = len(items)
-	res.MaxDepth = maxDepth(items)
-	res.MissingTitle = missingTitles(items, c.Expect.MustContainTitles)
-	res.Passed = passes(c.Expect, res)
-
-	if r.UpdateGolden {
-		if err := writeGolden(r.GoldenDir, c.Name, items); err != nil {
-			return Result{}, fmt.Errorf("update golden %s: %w", c.Name, err)
-		}
-	} else if r.GoldenDir != "" {
-		res.GoldenChecked = true
-		diff, err := compareGolden(r.GoldenDir, c.Name, items)
-		if err != nil {
-			return Result{}, fmt.Errorf("compare golden %s: %w", c.Name, err)
-		}
-		res.GoldenMatch = diff == nil
-		if diff != nil {
-			res.GoldenDiff = diff
-			res.Passed = false
-		}
+	res.Output = output
+	res.SchemaValid = validateRaw(tool.IOSchema.Output, output) == nil
+	passed, err := evaluateExpect(c.Expect, output, res.SchemaValid)
+	if err != nil {
+		return Result{}, fmt.Errorf("%s expectations: %w", c.Name, err)
 	}
-
+	res.Passed = passed && res.Error == ""
 	if !res.Passed {
-		res.FailedInput = &input
+		res.FailedInput = prepared.Snapshot
 	}
 	return res, nil
+}
+
+func (r Runner) resolveRunTool(ctx context.Context, tools map[string]Tool, name string) (Tool, error) {
+	tool, err := resolveTool(tools, name)
+	if err == nil {
+		return tool, nil
+	}
+	if r.DynTools == nil {
+		return Tool{}, err
+	}
+	dt, ok, dynErr := r.DynTools.Resolve(ctx, name)
+	if dynErr != nil {
+		return Tool{}, dynErr
+	}
+	if !ok {
+		return Tool{}, err
+	}
+	tool = newDynamicTool(dt, r.TransformEngine)
+	tools[name] = tool
+	return tool, nil
+}
+
+func validateRaw(schema *jsonschema.Resolved, raw json.RawMessage) error {
+	if schema == nil {
+		return fmt.Errorf("missing schema")
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return err
+	}
+	return schema.Validate(v)
 }
 
 func LoadCase(path string) (Case, error) {
@@ -293,72 +279,6 @@ func resolvePath(baseDir, path string) string {
 		return path
 	}
 	return filepath.Join(baseDir, path)
-}
-
-func maxDepth(items []domain.GeneratedTreeItem) int {
-	max := 0
-	byID := map[string]domain.GeneratedTreeItem{}
-	for _, item := range items {
-		byID[item.LocalID] = item
-		if item.Level > max {
-			max = item.Level
-		}
-	}
-	if max > 0 {
-		return max
-	}
-	for _, item := range items {
-		depth := 1
-		seen := map[string]bool{item.LocalID: true}
-		parentID := item.ParentLocalID
-		for parentID != "" && !seen[parentID] {
-			seen[parentID] = true
-			parent, ok := byID[parentID]
-			if !ok {
-				break
-			}
-			depth++
-			parentID = parent.ParentLocalID
-		}
-		if depth > max {
-			max = depth
-		}
-	}
-	return max
-}
-
-func missingTitles(items []domain.GeneratedTreeItem, expected []string) []string {
-	var missing []string
-	for _, want := range expected {
-		want = strings.TrimSpace(want)
-		if want == "" {
-			continue
-		}
-		found := false
-		for _, item := range items {
-			if strings.Contains(strings.ToLower(item.Title), strings.ToLower(want)) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			missing = append(missing, want)
-		}
-	}
-	return missing
-}
-
-func passes(expect CaseExpect, res Result) bool {
-	if expect.SchemaValid && !res.SchemaValid {
-		return false
-	}
-	if expect.MinItems > 0 && res.ItemCount < expect.MinItems {
-		return false
-	}
-	if expect.MaxDepth > 0 && res.MaxDepth > expect.MaxDepth {
-		return false
-	}
-	return len(res.MissingTitle) == 0 && res.Error == ""
 }
 
 var _ base.LLMClient = llm.Client(nil)

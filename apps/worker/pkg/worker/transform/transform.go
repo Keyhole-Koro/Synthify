@@ -41,9 +41,9 @@ const (
 // code uses a construct that is never allowed (e.g. Starlark load()), in which
 // case FloorTier is meaningless and the caller must not execute the code.
 type AnalysisResult struct {
-	Rejected bool   // analyzer_rejected: do not execute
-	Reason   string // human/LLM-facing explanation when Rejected or SyntaxErr
-	SyntaxErr bool  // code failed to parse (syntax_error)
+	Rejected  bool   // analyzer_rejected: do not execute
+	Reason    string // human/LLM-facing explanation when Rejected or SyntaxErr
+	SyntaxErr bool   // code failed to parse (syntax_error)
 	// FloorTier is the machine-derived lower bound. Defined only when neither
 	// Rejected nor SyntaxErr is set. Defaults to Tier3 on analyzer failure
 	// (fail-secure).

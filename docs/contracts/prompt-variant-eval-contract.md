@@ -1,10 +1,11 @@
 # Prompt Variant Eval Contract
 
-このドキュメントは、prompt optimization loop の「最初の実装単位」3 つの契約を定義する。
+このドキュメントは、prompt optimization loop の「最初の実装単位」の契約を定義する。
 
 1. `knowledge_tree` prompt 外出し（prompt renderer + `go:embed`）
 2. eval runner の `--variant`
-3. golden diff（`--golden` / `--update-golden`）
+
+> **2026-05-20 注記**: 元は 3 項目目に「golden diff（`--golden` / `--update-golden`）」を含んでいたが、eval runner の道A 移行（全 tool = `Tool{Name,IOSchema,Run}` 単一概念、`apps/eval/runner`）で golden 機能は eval runner の責務から外された（[llm-eval-runner.md](../improvements/llm-eval-runner.md)）。本契約の §4 (旧 Golden 契約) は削除済み、§5/§6 から golden 関連の記述も除去している。
 
 設計の背景は [llm-prompt-optimization-loop.md](../improvements/llm-prompt-optimization-loop.md)、
 評価実行基盤の既存契約は [llm-eval-runner-contract.md](llm-eval-runner-contract.md) を参照する。
@@ -33,10 +34,9 @@ tool 名・prompt・render の各レイヤーで同じ語を使い回さない�
 | Prompt Renderer | `apps/worker/pkg/worker/prompts` | `go:embed` した production prompt template を render して返す（型は `prompts.Renderer`）。source of truth は repo file |
 | Prompt templates | `apps/worker/pkg/worker/prompts/templates` | `knowledge_tree.system.tmpl` / `knowledge_tree.user.tmpl`。production prompt の唯一の正本 |
 | Worker process tool | `apps/worker/pkg/worker/tools/process` | `GenerateKnowledgeTree` は hardcoded prompt をやめ、renderer が render した prompt を使う |
-| Eval Runner | `apps/eval/runner` | `--variant` 指定時は variant prompt、未指定時は production prompt で `GenerateKnowledgeTree` を実行する。golden と突き合わせる |
-| Eval CLI | `apps/eval/cmd` | `--variant` / `--golden` / `--update-golden` flag を解釈し runner に渡す |
+| Eval Runner | `apps/eval/runner` | `--variant` 指定時は variant prompt、未指定時は production prompt で `GenerateKnowledgeTree` を実行する。判定は output JSON の schema validation と JSON rule（道A、[llm-eval-runner.md](../improvements/llm-eval-runner.md)） |
+| Eval CLI | `apps/eval/cmd` | `--variant` flag を解釈し runner に渡す |
 | Variant store | `apps/eval/variants/{name}/` | 手書き variant template。production image に混入させない |
-| Golden store | `apps/eval/golden/{case_name}.json` | case ごとの期待 output。strict 判定対象フィールドのみを保持する |
 
 依存方向は `apps/eval` → `apps/worker/pkg/worker/prompts` の一方向に限定する（[dependency-architecture-ideal.md](../improvements/dependency-architecture-ideal.md) の理想構成と整合させ、worker は eval を import しない）。
 
@@ -101,48 +101,24 @@ go run ./apps/eval/cmd --cases apps/eval/cases   # variant 未指定 = productio
 - 指定 variant directory が存在しない、または必須 template を欠く場合は exit `2` で明示エラーにする（暗黙の production fallback はしない）。
 - Cloud Run Job の通常 eval は `--variant` を付けない。定期 eval は常に production prompt で走る。
 
-## 4. Golden 契約
+## 4. (削除済み) 旧 Golden 契約
 
-### 4.1 Layout と判定対象
-
-```text
-apps/eval/golden/
-  {case_name}.json
-```
-
-ファイル名は case の `name` と一致させる（例: `knowledge_tree_api_spec.json`）。
-
-strict 判定に含めるフィールド:
-
-- item count
-- title set
-- parent structure（`local_id`, `parent_local_id`）
-- `source_chunk_ids`
-- max depth
-
-strict 判定に含めないフィールド:
-
-- `content` HTML 全文
-- description の表現差分
-- item ordering の軽微な差分
-
-`source_chunk_ids` を strict に含めるのは、入力 testdata（chunk 分割・順序）が固定である前提に依存する。testdata を変更した場合は golden 再生成が必要であり、これを破壊的変更として扱う。
-
-### 4.2 CLI
-
-| flag | 必須 | 内容 |
-| :--- | :--- | :--- |
-| `--golden` | 任意 | golden directory。指定時、各 case を 4.1 の strict フィールドで突き合わせる |
-| `--update-golden` | 任意 | 現在の出力で golden を書き出す。`--golden` と排他にせず、本 flag 指定時は判定ではなく書き出しを行う |
-
-```bash
-go run ./apps/eval/cmd --cases apps/eval/cases --golden apps/eval/golden
-go run ./apps/eval/cmd --cases apps/eval/cases --update-golden apps/eval/golden
-```
-
-- `--golden` 未指定時の挙動は既存契約（[llm-eval-runner-contract.md](llm-eval-runner-contract.md) の rule 判定）と同一で、golden 判定を行わない。
-- golden 書き出しは `--update-golden` 明示時のみ。`--golden` 判定時に golden を自動更新しない。
-- 初回 golden は無条件採用しない。`--update-golden` で雛形を生成し、人間が strict フィールドを確認・修正して commit する。以降の更新も diff を人間が確認したうえで commit する前提とする（CI 上で `--update-golden` を自動実行しない）。
+> **2026-05-20 削除**: eval runner の道A 移行で golden 機能は runner 責務から外された
+> （[llm-eval-runner.md](../improvements/llm-eval-runner.md) 「golden 判定、golden 更新、golden diff は現行 runner の責務から外す」）。
+>
+> 旧 §4 は `apps/eval/golden/` ディレクトリ + `--golden` / `--update-golden` フラグ +
+> tree 固有 strict diff（item_count / title_set / parent_structure / source_chunk_ids / max_depth）
+> を規定していたが、対応する実装（`apps/eval/runner/golden.go`、`apps/eval/golden/*.json`、
+> CLI フラグ）はすべて削除済み。
+>
+> 道A の判定は **output JSON の JSON Schema 適合 + JSON rule（`expect.json`: count_gte /
+> tree_depth_lte / contains_all 等）** に統一されている。旧 §4 の strict フィールドは
+> JSON rule で概ね表現できる（item count → `count_gte`、max depth → `tree_depth_lte`、
+> title set → `contains_all`）。parent structure と source_chunk_ids の strict 検証は
+> 現状の JSON rule op では非対応 — 必要になったら op を足す（YAGNI）。
+>
+> 旧設計の意図（同じ case set で variant と production を比較するための固定期待値）は、
+> 道A では「case YAML の `expect.json` 述語が固定期待値である」ことで等価に達成される。
 
 ## 5. Failure / Exit Code 契約
 
@@ -151,38 +127,42 @@ go run ./apps/eval/cmd --cases apps/eval/cases --update-golden apps/eval/golden
 | 条件 | exit code |
 | :--- | :--- |
 | flag 不正、variant directory 不在、case 読み込み不能 | `2` |
-| すべての case が rule pass かつ（`--golden` 時）golden match | `0` |
-| 1 件以上の case が rule fail、または golden mismatch | `1` |
-| `--update-golden` で全 case 書き出し成功 | `0` |
-
-- golden mismatch は exit `1` とする。warn mode の要否は未決定（[llm-prompt-optimization-loop.md](../improvements/llm-prompt-optimization-loop.md) の Open Questions）。本契約では mismatch = fail を既定とする。
-- variant・production 双方が同一 case で golden mismatch する場合も exit `1` だが、report 上はその case を golden 自体の要再レビュー候補として識別できる情報を残す（§6）。
+| すべての case が schema 適合かつ JSON rule pass | `0` |
+| 1 件以上の case が schema 不適合 / rule fail / tool error | `1` |
 
 ## 6. Report Payload 契約
 
-§4.1 の判定を行った場合、case ごとの Result に golden 判定結果を追加する。既存 `Result`（[runner.go](../../apps/eval/runner/runner.go) の `Result`）の互換を壊さず additive に拡張する。
+case ごとの Result（[runner.go](../../apps/eval/runner/runner.go) の `Result`）は道A 移行で
+golden 関連フィールド（`golden_checked` / `golden_match` / `golden_diff`）と tree 固有
+フィールド（`Items` / `ItemCount` / `MaxDepth` / `MissingTitle`）を削除し、tool 非依存の
+output JSON に統一済み。
 
 | field | 型 | 意味 |
 | :--- | :--- | :--- |
-| `golden_checked` | bool | `--golden` 指定で判定対象だったか |
-| `golden_match` | bool | strict フィールドが golden と一致したか |
-| `golden_diff` | object | mismatch したフィールドと expected / actual の要約。`content` 全文は含めない |
+| `output` | json.RawMessage | tool が返した output JSON そのまま（tool 非依存） |
+| `schema_valid` | bool | output が tool の宣言 IOSchema に適合したか（道A の共通最低判定） |
 | `prompt_source` | string | `production` または `variant:{name}` |
+| `passed` | bool | schema_valid かつ `expect.json` の全 rule が pass |
+| `error` | string | tool-level error（LLM error / no items / transform 非OK）。空なら成功 |
+| `failed_input` | object | 失敗時に添付される入力スナップショット（prepare 層が組む） |
 
 - JSON report の HTML escape 方針（`<` にしない）は既存契約を踏襲する。
 - `prompt_source` を必ず出すことで、baseline / variant のどちらの結果かを report 単体で判別できる。
 
 ## 7. Test 契約
 
-- prompt renderer: render 出力が現行 hardcoded prompt とバイト一致する golden test を置く（移行同値の保証）。
+- prompt renderer: render 出力が現行 hardcoded prompt とバイト一致する regression test を置く（移行同値の保証。`prompts_test.go` の `TestDefaultRendererMatchesLegacyPrompt`。これは「prompts package の固定期待値テスト」であって eval runner の golden 機能ではない）。
 - variant: 不在 variant 指定で exit `2`、有効 variant 指定で `prompt_source=variant:{name}` になることを test する。
-- golden: match / mismatch / `--update-golden` 書き出しの 3 経路を test する。mismatch 時に exit `1` かつ `golden_diff` が `content` 全文を含まないことを assert する。
-- 既存 eval test（rule 判定、exit code）の挙動を回帰させないこと。
+- 道A 判定: schema 適合 / 不適合、JSON rule pass / fail、tool error の各経路を test する。
+- 既存 eval test（rule 判定、exit code）の挙動を回帰させないこと（API は道A で変わったが pass/fail/exit の振る舞いは維持）。
 
 ## 8. スコープ外
+
+本契約は単一 tool（`knowledge_tree`）に閉じて正しい。マルチツール化は別レイヤー（eval 実装の「道A」: 全 tool を `Tool{Name,IOSchema,Run}` 単一概念に統一、`apps/eval/runner`）が引き受ける。別契約 md は廃止し設計根拠はコード doc コメントに保全。`--variant` / `prompt_source` は道A でも knowledge_tree builtin tool として動く（renderer はクロージャ捕捉）。`Result` payload と判定方法は道A で再定義済み（§6 / §4 注記）。
 
 - Analyst LLM / Prompt Writer LLM の出力契約。
 - BI Eval Review の `prompt_variant_reviews` model と approve / apply API。
 - `knowledge_tree` 以外の tool（`summary` / `briefing` / `critique` / `merging`）の prompt 外出し。
+- eval runner のマルチツール対応（→ eval 実装「道A」が所有。`apps/eval/runner`、別契約 md は廃止）。
 - GCS prompt registry / 管理 DB への移行。
 - generated variant（`apps/eval/variants/generated/`）の扱い。手書き variant のみ本契約の対象とする。

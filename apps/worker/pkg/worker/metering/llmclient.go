@@ -17,7 +17,7 @@ import (
 
 // LLMClient wraps an llm.Client and ships a domain.UsageEvent through
 // the provided reporter after every successful LLM call. It satisfies the
-// plain llm.Client surface (and therefore tools/base.LLMClient) so it can be
+// plain llm.Client surface (and therefore tools/core/base.LLMClient) so it can be
 // dropped into the existing wrapper chain.
 //
 // Usage attribution requires WithTag(ctx, Tag{AccountID: ...}) to have run

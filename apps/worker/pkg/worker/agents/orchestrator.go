@@ -2,38 +2,51 @@ package agents
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync/atomic"
-	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/base"
-	toolsio "github.com/synthify/backend/apps/worker/pkg/worker/tools/io"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/memory"
-	"github.com/synthify/backend/apps/worker/pkg/worker/tools/process"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
-	"github.com/synthify/backend/packages/shared/domain"
 	"github.com/synthify/backend/packages/shared/repository"
 	"github.com/synthify/backend/packages/shared/storage"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
 	"google.golang.org/adk/runner"
-	"google.golang.org/adk/tool"
+	"google.golang.org/adk/session"
 	"google.golang.org/genai"
 )
 
-type Orchestrator struct {
-	Agent        agent.Agent
-	currentJobID atomic.Pointer[string]
-	base         *base.Context
-	repo         repository.CheckpointRepository
-	fs           *storage.FileSystem
+// Orchestrator owns the agent wiring for the worker. The agent is rebuilt per
+// job so dynamic tools (DB-resolved, workspace-scoped) can merge with the
+// static builtin set without leaking across jobs. For builtin-only runs (no
+// DynamicSource, or empty workspace) the agent's Tools set is identical to
+// what the pre-道A wiring produced.
+// Repo is the persistence surface the orchestrator needs: checkpoint state for
+// resume/save and per-tool-call logging. Worker passes its full Repository
+// composite, which already satisfies both.
+type Repo interface {
+	repository.CheckpointRepository
+	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 }
 
-// ToolLogger matches the repository interface for logging tool calls.
-type ToolLogger interface {
-	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
+type Orchestrator struct {
+	currentJobID atomic.Pointer[string]
+	base         *base.Context
+	repo         Repo
+	fs           *storage.FileSystem
+
+	// model and the inputs to per-job llmagent.New rebuilt by buildAgent.
+	model          model.LLM
+	instruction    string
+	builtinTools   []core.Tool
+	beforeModelCBs []llmagent.BeforeModelCallback
+	beforeToolCBs  []llmagent.BeforeToolCallback
+	afterToolCBs   []llmagent.AfterToolCallback
+	dynamicSource  core.DynamicToolSource // optional; nil = builtin-only
+	dynamicEngine  transform.Engine       // engine for executing dynamic tool Code
 }
 
 var stageTools = map[string]string{
@@ -44,268 +57,62 @@ var stageTools = map[string]string{
 
 const currentCheckpointVersion = 1
 
-func NewOrchestrator(m model.LLM, b *base.Context, repo any, fs *storage.FileSystem) (*Orchestrator, error) {
-	checkpointRepo, _ := repo.(repository.CheckpointRepository)
+// NewOrchestrator wires the worker agent. dynSrc and dynEngine are optional
+// (nil means "builtin tools only"). When non-nil, ProcessDocument resolves
+// active dynamic tools for the job's workspace and merges them into the
+// agent's tool set before running.
+func NewOrchestrator(m model.LLM, b *base.Context, repo Repo, fs *storage.FileSystem, dynSrc core.DynamicToolSource, dynEngine transform.Engine) (*Orchestrator, error) {
+	builtins, err := builtin.Build(b)
+	if err != nil {
+		return nil, err
+	}
+	b.Memories = builtins.Memories
+
 	orch := &Orchestrator{
-		base: b,
-		repo: checkpointRepo,
-		fs:   fs,
+		base:          b,
+		repo:          repo,
+		fs:            fs,
+		model:         m,
+		instruction:   orchestratorInstruction,
+		builtinTools:  builtins.Tools,
+		dynamicSource: dynSrc,
+		dynamicEngine: dynEngine,
 	}
 
-	glossary := memory.NewGlossary()
-	journal := memory.NewJournal()
-	brief := memory.NewBrief()
+	orch.beforeModelCBs = orch.beforeModelCallbacks()
+	orch.beforeToolCBs = orch.beforeToolCallbacks()
+	orch.afterToolCBs = orch.afterToolCallbacks()
 
-	b.Memories = []base.PromptMemory{brief, glossary, journal}
-
-	chunking, err := toolsio.NewChunkingTool(b)
-	if err != nil {
-		return nil, err
-	}
-	knowledgeTree, err := process.NewGenerateKnowledgeTreeTool(b)
-	if err != nil {
-		return nil, err
-	}
-	persistence, err := toolsio.NewPersistenceTool(b)
-	if err != nil {
-		return nil, err
-	}
-	journalAdd, err := memory.NewAddTaskTool(journal)
-	if err != nil {
-		return nil, err
-	}
-	journalUpdate, err := memory.NewUpdateTaskTool(journal)
-	if err != nil {
-		return nil, err
-	}
-	analysis, err := toolsio.NewAnalysisTool()
-	if err != nil {
-		return nil, err
-	}
-	glossaryRegister, err := memory.NewRegisterTool(glossary)
-	if err != nil {
-		return nil, err
-	}
-	glossaryLookup, err := memory.NewLookupTool(glossary)
-	if err != nil {
-		return nil, err
-	}
-	critique, err := process.NewCritiqueTool(b)
-	if err != nil {
-		return nil, err
-	}
-	search, err := toolsio.NewSearchTool(b)
-	if err != nil {
-		return nil, err
-	}
-	merge, err := process.NewMergeTool(b)
-	if err != nil {
-		return nil, err
-	}
-	tables, err := toolsio.NewTableTool()
-	if err != nil {
-		return nil, err
-	}
-	repair, err := toolsio.NewRepairTool()
-	if err != nil {
-		return nil, err
-	}
-	extraction, err := toolsio.NewExtractionTool(b)
-	if err != nil {
-		return nil, err
-	}
-	briefing, err := process.NewBriefTool(b, brief)
-	if err != nil {
-		return nil, err
-	}
-	summary, err := process.NewSummaryTool(b)
-	if err != nil {
-		return nil, err
-	}
-	grep, err := toolsio.NewGrepTool(b)
-	if err != nil {
-		return nil, err
-	}
-	// Stage 1: Starlark-only dynamic tool synthesis. Python is dispatched to a
-	// separate executor service in a later stage.
-	createTransform, err := process.NewCreateTransformTool(
-		b,
-		transform.NewStarlarkAnalyzer(),
-		transform.NewStarlarkEngine(10*time.Second),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	a, err := llmagent.New(llmagent.Config{
-		Name:  "orchestrator",
-		Model: m,
-		Instruction: `You are the Lead Knowledge Architect for Synthify.
-Your mission is to build a flawless knowledge tree from raw document data.
-
-Core Engineering Workflow:
-1. Preparation: Determine document nature. Use 'repair_encoding' if text is garbled.
-2. Planning: Use 'journal_add_task' and 'analyze_dependencies' to map out the extraction.
-3. Intelligence: Generate a 'generate_brief' to understand the core themes. This is your master blueprint.
-4. Intelligent Execution (Context-Aware):
-   - The Working Memory section above contains your current glossary, task list, and document brief — use it.
-   - When calling 'generate_knowledge_tree', refer to the brief and glossary already in Working Memory.
-   - If the current section references past topics, use 'semantic_search' to refresh your memory.
-   - If you encounter a table, use 'extract_table_data' to preserve its logic.
-   - If no existing tool can reshape some data, use 'create_transform' to define a small Starlark transform(input)->string and verify it with an input_sample. Use sparingly; prefer existing tools.
-5. Content Refinement: Use 'generate_html_summary' for each key item.
-6. Quality Control:
-   - Use 'quality_critique' to audit your work against the original source.
-   - Use 'deduplicate_and_merge' to resolve redundant concepts across chapters.
-7. Finalization: 'persist_knowledge_tree' only when the tree is architecturally sound.
-
-You are self-correcting. Register new domain terms with 'glossary_register' as you encounter them.
-Mark tasks complete with 'journal_update_task' as you finish them.`,
-		Tools: []tool.Tool{
-			chunking, knowledgeTree, persistence,
-			journalAdd, journalUpdate,
-			analysis,
-			glossaryRegister, glossaryLookup,
-			critique, search, merge, tables, repair, extraction, briefing, summary,
-			grep, createTransform,
-		},
-		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
-			func(ctx agent.CallbackContext, req *model.LLMRequest) (*model.LLMResponse, error) {
-				if err := b.IncrementLLMCalls(ctx); err != nil {
-					return nil, err
-				}
-				workingMemory := b.RenderWorkingMemory()
-				if req.Config == nil {
-					req.Config = &genai.GenerateContentConfig{}
-				}
-				if req.Config.SystemInstruction == nil {
-					req.Config.SystemInstruction = genai.NewContentFromText(workingMemory, "system")
-				} else {
-					existing := ""
-					for _, part := range req.Config.SystemInstruction.Parts {
-						existing += part.Text
-					}
-					req.Config.SystemInstruction = genai.NewContentFromText(existing+"\n\n"+workingMemory, "system")
-				}
-				return nil, nil
-			},
-		},
-		BeforeToolCallbacks: []llmagent.BeforeToolCallback{
-			func(ctx tool.Context, t tool.Tool, args map[string]any) (map[string]any, error) {
-				if err := b.IncrementToolRuns(ctx); err != nil {
-					return nil, err
-				}
-
-				stage := stageTools[t.Name()]
-				if stage == "" || orch.repo == nil || orch.fs == nil {
-					return nil, nil
-				}
-
-				jobIDPtr := orch.currentJobID.Load()
-				if jobIDPtr == nil || *jobIDPtr == "" {
-					return nil, nil
-				}
-				jobID := *jobIDPtr
-
-				// Check for existing checkpoint
-				var envelope domain.CheckpointEnvelope
-				found, err := orch.fs.ReadCheckpoint(jobID, stage, &envelope)
-				if err != nil || !found {
-					_ = orch.repo.UpsertStageRunning(ctx, jobID, stage)
-					return nil, nil
-				}
-
-				// Validate checkpoint
-				if envelope.SchemaVersion != currentCheckpointVersion {
-					orch.base.Logger.Warn(ctx, "orchestrator.checkpoint_version_mismatch", nil, map[string]any{"stage": stage, "version": envelope.SchemaVersion, "expected": currentCheckpointVersion})
-					_ = orch.repo.UpsertStageRunning(ctx, jobID, stage)
-					return nil, nil
-				}
-
-				// Basic input validation - compare document_id
-				if b.Job != nil && envelope.DocumentID != b.Job.DocumentID {
-					orch.base.Logger.Warn(ctx, "orchestrator.checkpoint_document_id_mismatch", nil, map[string]any{"stage": stage, "doc_id": envelope.DocumentID, "expected": b.Job.DocumentID})
-					_ = orch.repo.UpsertStageRunning(ctx, jobID, stage)
-					return nil, nil
-				}
-
-				orch.base.Logger.Info(ctx, "orchestrator.resuming_from_checkpoint", map[string]any{"stage": stage})
-				return envelope.Outputs, nil
-			},
-		},
-		AfterToolCallbacks: []llmagent.AfterToolCallback{
-			func(ctx tool.Context, t tool.Tool, args, result map[string]any, err error) (map[string]any, error) {
-				start := time.Now()
-				argJSON, _ := json.Marshal(args)
-				resJSON, _ := json.Marshal(result)
-				if err != nil {
-					resJSON, _ = json.Marshal(map[string]string{"error": err.Error()})
-				}
-
-				jobIDPtr := orch.currentJobID.Load()
-				jobID := ""
-				if jobIDPtr != nil {
-					jobID = *jobIDPtr
-				}
-
-				if logger, ok := repo.(ToolLogger); ok && jobID != "" {
-					_ = logger.LogToolCall(ctx, jobID, t.Name(), string(argJSON), string(resJSON), time.Since(start).Milliseconds())
-				}
-
-				// Save checkpoint if successful and stage-able
-				stage := stageTools[t.Name()]
-				if err == nil && stage != "" && jobID != "" && orch.repo != nil && orch.fs != nil {
-					docID := ""
-					wsID := ""
-					if b.Job != nil {
-						docID = b.Job.DocumentID
-						wsID = b.Job.WorkspaceID
-					}
-					envelope := domain.CheckpointEnvelope{
-						SchemaVersion: currentCheckpointVersion,
-						Kind:          "synthify.worker_checkpoint",
-						Stage:         stage,
-						JobID:         jobID,
-						DocumentID:    docID,
-						WorkspaceID:   wsID,
-						CreatedAt:     time.Now().UTC().Format(time.RFC3339),
-						Inputs:        args,
-						Outputs:       result,
-					}
-					if writeErr := orch.fs.WriteCheckpoint(jobID, stage, envelope); writeErr == nil {
-						_ = orch.repo.MarkStageSucceeded(ctx, jobID, stage, orch.fs.CheckpointPath(jobID, stage))
-					} else {
-						orch.base.Logger.Error(ctx, "orchestrator.write_checkpoint_failed", writeErr, map[string]any{"stage": stage})
-					}
-				} else if err != nil && stage != "" && jobID != "" && orch.repo != nil {
-					_ = orch.repo.MarkStageFailed(ctx, jobID, stage, err.Error())
-				}
-
-				return result, err
-			},
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	orch.Agent = a
 	return orch, nil
 }
 
-func (o *Orchestrator) ProcessDocument(ctx context.Context, runner *runner.Runner, jobID, documentID, workspaceID, fileURI, filename, mimeType string) error {
-	if runner == nil {
-		return fmt.Errorf("runner is not configured")
-	}
+func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, workspaceID, fileURI, filename, mimeType string) error {
 	if o.base != nil {
 		o.base.BeginJob(ctx, jobID, workspaceID, documentID)
 	}
 	o.currentJobID.Store(&jobID)
+
+	// Per-job agent: builtin + workspace-resolved dynamic tools merged.
+	dyn := o.resolveDynamicTools(ctx, workspaceID)
+	jobAgent, err := o.buildAgent(dyn)
+	if err != nil {
+		return fmt.Errorf("build per-job agent: %w", err)
+	}
+	jobRunner, err := runner.New(runner.Config{
+		AppName:           "synthify-worker",
+		Agent:             jobAgent,
+		SessionService:    session.InMemoryService(),
+		AutoCreateSession: true,
+	})
+	if err != nil {
+		return fmt.Errorf("build per-job runner: %w", err)
+	}
+
 	msg := fmt.Sprintf(
 		"Process this document and build a knowledge tree.\n\njob_id: %s\ndocument_id: %s\nworkspace_id: %s\nfile_uri: %s\nfilename: %s\nmime_type: %s\n\nFollow your workflow: extract text, chunk, generate brief, generate tree items, critique, then persist.",
 		jobID, documentID, workspaceID, fileURI, filename, mimeType,
 	)
-	for event, err := range runner.Run(ctx, "worker", jobID, genai.NewContentFromText(msg, genai.RoleUser), agent.RunConfig{}) {
+	for event, err := range jobRunner.Run(ctx, "worker", jobID, genai.NewContentFromText(msg, genai.RoleUser), agent.RunConfig{}) {
 		if err != nil {
 			return fmt.Errorf("agent run: %w", err)
 		}
