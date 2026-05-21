@@ -1,20 +1,22 @@
 import { useMemo } from 'react';
-import type { ExpansionMap } from '@keyhole-koro/paper-in-paper';
+import type { ExpansionMap, PaperId } from '@keyhole-koro/paper-in-paper';
 import { ROOT_ID } from '@/features/paperMap/staticPapers';
 
-interface HomeCanvasViewState {
-  isWorkspaceExpanded: boolean;
-  isFullscreen: boolean;
-}
+// Root children that should NOT trigger the fullscreen canvas on their own.
+// `auth` is the login/profile pane — surfacing the brand header & hero copy
+// while it's the only thing open is intentional (it's part of the landing).
+const FULLSCREEN_EXCLUDED_ROOT_CHILDREN: ReadonlySet<PaperId> = new Set(['auth']);
 
 export function useHomeCanvasViewState(
   expansionMap: ExpansionMap,
   canvasFullscreen: boolean,
-): HomeCanvasViewState {
-  const isWorkspaceExpanded = expansionMap.get(ROOT_ID)?.openChildIds.includes('workspaces') ?? false;
+) {
+  const rootOpenIds = expansionMap.get(ROOT_ID)?.openChildIds ?? [];
+  const hasMeaningfulOpen = rootOpenIds.some(
+    (id) => !FULLSCREEN_EXCLUDED_ROOT_CHILDREN.has(id),
+  );
 
   return useMemo(() => ({
-    isWorkspaceExpanded,
-    isFullscreen: isWorkspaceExpanded || canvasFullscreen,
-  }), [isWorkspaceExpanded, canvasFullscreen]);
+    isFullscreen: canvasFullscreen || hasMeaningfulOpen,
+  }), [canvasFullscreen, hasMeaningfulOpen]);
 }

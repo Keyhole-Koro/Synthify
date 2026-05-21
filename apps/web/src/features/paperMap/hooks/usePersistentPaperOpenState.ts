@@ -5,7 +5,7 @@ import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-pape
 import type { AuthUser } from '@/features/auth/session';
 import type { Workspace } from '@/features/workspaces/api';
 import { clearOpenState, loadOpenState, saveOpenState } from '@/features/paperMap/expansionPersistence';
-import { computeDefaultOpenState, mergeWithDefaultOpenState } from '@/features/paperMap/defaultOpenState';
+import { computeDefaultOpenState } from '@/features/paperMap/defaultOpenState';
 
 interface UsePersistentPaperOpenStateOptions {
   user: AuthUser | null;
@@ -35,9 +35,14 @@ export function usePersistentPaperOpenState({
 
   useEffect(() => {
     if (loading) return;
+    // Persisted state is authoritative: an absent entry means the user
+    // explicitly closed everything there, not "show the default". Merging
+    // with defaults would resurrect papers the user has closed, because
+    // the sparse representation can't distinguish "never touched" from
+    // "closed everything". Fall back to defaults only when there is no
+    // persisted state at all.
     const persisted = loadOpenState(user);
-    const defaults = computeDefaultOpenState({ user, workspaces });
-    const resolved = mergeWithDefaultOpenState(persisted, defaults);
+    const resolved = persisted ?? computeDefaultOpenState({ user, workspaces });
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDefaultOpenState(resolved);
     setExpansionMap(resolved.expansionMap ?? new Map());

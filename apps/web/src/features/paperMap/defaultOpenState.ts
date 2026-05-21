@@ -25,29 +25,6 @@ function synthifyExpansionMap(extraRootChildren: string[]): ExpansionMap {
   return map;
 }
 
-export function mergeWithDefaultOpenState(
-  persisted: DefaultOpenState | null,
-  defaults: DefaultOpenState,
-): DefaultOpenState {
-  if (!persisted?.expansionMap) return defaults;
-
-  const expansionMap: ExpansionMap = new Map(persisted.expansionMap);
-  for (const [parentId, defaultEntry] of defaults.expansionMap ?? new Map()) {
-    const current = expansionMap.get(parentId);
-    if (!current) {
-      expansionMap.set(parentId, defaultEntry);
-      continue;
-    }
-    const openChildIds = Array.from(new Set([...defaultEntry.openChildIds, ...current.openChildIds]));
-    expansionMap.set(parentId, { openChildIds });
-  }
-
-  return {
-    expansionMap,
-    focusedNodeId: persisted.focusedNodeId ?? defaults.focusedNodeId,
-  };
-}
-
 export function computeDefaultOpenState(opts: DefaultOpenStateOptions): DefaultOpenState {
   if (opts.user && opts.workspaces.length > 0) {
     const map = synthifyExpansionMap([workspacesPaper.id]);
