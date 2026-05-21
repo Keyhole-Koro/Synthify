@@ -47,37 +47,40 @@ export declare type User = Message<"synthify.app.v1.User"> & {
 export declare const UserSchema: GenMessage<User>;
 
 /**
- * @generated from message synthify.app.v1.SyncUserRequest
+ * @generated from message synthify.app.v1.SignInUserRequest
  */
-export declare type SyncUserRequest = Message<"synthify.app.v1.SyncUserRequest"> & {
+export declare type SignInUserRequest = Message<"synthify.app.v1.SignInUserRequest"> & {
 };
 
 /**
- * Describes the message synthify.app.v1.SyncUserRequest.
- * Use `create(SyncUserRequestSchema)` to create a new message.
+ * Describes the message synthify.app.v1.SignInUserRequest.
+ * Use `create(SignInUserRequestSchema)` to create a new message.
  */
-export declare const SyncUserRequestSchema: GenMessage<SyncUserRequest>;
+export declare const SignInUserRequestSchema: GenMessage<SignInUserRequest>;
 
 /**
- * @generated from message synthify.app.v1.SyncUserResponse
+ * @generated from message synthify.app.v1.SignInUserResponse
  */
-export declare type SyncUserResponse = Message<"synthify.app.v1.SyncUserResponse"> & {
+export declare type SignInUserResponse = Message<"synthify.app.v1.SignInUserResponse"> & {
   /**
    * @generated from field: synthify.app.v1.User user = 1;
    */
   user?: User;
 
   /**
-   * @generated from field: bool is_new_user = 2;
+   * 今回の呼び出しで account を新規作成したか。
+   * users 行があっても accounts が無い回復ケースでも true になる。
+   *
+   * @generated from field: bool is_new_account = 2;
    */
-  isNewUser: boolean;
+  isNewAccount: boolean;
 };
 
 /**
- * Describes the message synthify.app.v1.SyncUserResponse.
- * Use `create(SyncUserResponseSchema)` to create a new message.
+ * Describes the message synthify.app.v1.SignInUserResponse.
+ * Use `create(SignInUserResponseSchema)` to create a new message.
  */
-export declare const SyncUserResponseSchema: GenMessage<SyncUserResponse>;
+export declare const SignInUserResponseSchema: GenMessage<SignInUserResponse>;
 
 /**
  * @generated from message synthify.app.v1.GetMeRequest
@@ -117,15 +120,16 @@ export declare const GetMeResponseSchema: GenMessage<GetMeResponse>;
  */
 export declare const UserService: GenService<{
   /**
-   * Firebase Auth ログイン後にフロントから呼ぶ
-   * 初回ログイン時はユーザーレコードを作成し、2回目以降は last_login_at を更新する
+   * Firebase Auth ログイン成功後にクライアントから毎回呼ぶ provisioning RPC。
+   * users 行を upsert し、account が無ければ作成して無料クレジットを付与する。
+   * 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
    *
-   * @generated from rpc synthify.app.v1.UserService.SyncUser
+   * @generated from rpc synthify.app.v1.UserService.SignInUser
    */
-  syncUser: {
+  signInUser: {
     methodKind: "unary";
-    input: typeof SyncUserRequestSchema;
-    output: typeof SyncUserResponseSchema;
+    input: typeof SignInUserRequestSchema;
+    output: typeof SignInUserResponseSchema;
   },
   /**
    * @generated from rpc synthify.app.v1.UserService.GetMe

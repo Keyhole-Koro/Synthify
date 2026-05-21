@@ -5,9 +5,10 @@ package synthify.app.v1;
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
 service UserService {
-  // Firebase Auth ログイン後にフロントから呼ぶ
-  // 初回ログイン時はユーザーレコードを作成し、2回目以降は last_login_at を更新する
-  rpc SyncUser(SyncUserRequest) returns (SyncUserResponse);
+  // Firebase Auth ログイン成功後にクライアントから毎回呼ぶ provisioning RPC。
+  // users 行を upsert し、account が無ければ作成して無料クレジットを付与する。
+  // 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
+  rpc SignInUser(SignInUserRequest) returns (SignInUserResponse);
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
 }
 
@@ -19,11 +20,13 @@ message User {
   string last_login_at = 5;
 }
 
-message SyncUserRequest {}  // ID トークンはヘッダで渡す
+message SignInUserRequest {}  // ID トークンはヘッダで渡す
 
-message SyncUserResponse {
+message SignInUserResponse {
   User user = 1;
-  bool is_new_user = 2;
+  // 今回の呼び出しで account を新規作成したか。
+  // users 行があっても accounts が無い回復ケースでも true になる。
+  bool is_new_account = 2;
 }
 
 message GetMeRequest {}

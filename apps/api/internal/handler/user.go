@@ -16,20 +16,22 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 	return &UserHandler{service: svc}
 }
 
-func (h *UserHandler) SyncUser(ctx context.Context, req *connect.Request[appv1.SyncUserRequest]) (*connect.Response[appv1.SyncUserResponse], error) {
-	user, err := currentUser(ctx)
+func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1.SignInUserRequest]) (*connect.Response[appv1.SignInUserResponse], error) {
+	user, err := requireAuthUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := h.service.SyncUser(ctx, user.ID, user.Email, "") // displayName is empty for now if not available in context
+	// displayName は Firebase 側のクレームに含まれていないため当面空のまま。
+	// 将来 ID トークンの name クレームから引くなら middleware で AuthUser に詰めること。
+	result, err := h.service.SignInUser(ctx, user.ID, user.Email, "")
 	if err != nil {
 		return nil, err
 	}
 
-	return connect.NewResponse(&appv1.SyncUserResponse{
-		User:      toProtoUser(result.User),
-		IsNewUser: result.IsNewUser,
+	return connect.NewResponse(&appv1.SignInUserResponse{
+		User:         toProtoUser(result.User),
+		IsNewAccount: result.IsNewAccount,
 	}), nil
 }
 

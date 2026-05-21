@@ -62,11 +62,11 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
 		return nil, err
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	item, err := h.service.CreateItem(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetLabel(), req.Msg.GetDescription(), req.Msg.GetParentId(), user.ID)
+	item, err := h.service.CreateItem(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetLabel(), req.Msg.GetDescription(), req.Msg.GetParentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}

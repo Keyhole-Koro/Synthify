@@ -21,11 +21,11 @@ func NewWorkspaceHandler(svc *service.WorkspaceService, workspaceRepo repository
 }
 
 func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[appv1.ListWorkspacesRequest]) (*connect.Response[appv1.ListWorkspacesResponse], error) {
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	workspaces := h.workspaces.ListWorkspacesByUser(ctx, user.ID)
+	workspaces := h.workspaces.ListWorkspacesByUser(ctx, userID)
 	res := connect.NewResponse(&appv1.ListWorkspacesResponse{})
 	for _, workspace := range workspaces {
 		res.Msg.Workspaces = append(res.Msg.Workspaces, toProtoWorkspace(workspace))
@@ -37,11 +37,11 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	workspace, err := h.service.GetWorkspace(ctx, req.Msg.GetWorkspaceId(), user.ID)
+	workspace, err := h.service.GetWorkspace(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -54,11 +54,11 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 	if req.Msg.GetName() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ws, err := h.service.CreateWorkspace(ctx, req.Msg.GetName(), user.ID)
+	ws, err := h.service.CreateWorkspace(ctx, req.Msg.GetName(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}

@@ -31,71 +31,98 @@ func NewUserService(users repository.UserRepository, accounts repository.Account
 	}
 }
 
-type SyncUserResult struct {
-	User      *domain.User
-	IsNewUser bool
+type SignInUserResult struct {
+	User *domain.User
+	// IsNewAccount は今回の呼び出しで account を新規作成したかどうか。
+	// 「users 行があるが accounts 行が無い」途中失敗からの自己回復ケースでも true になる。
+	IsNewAccount bool
 }
 
-func (s *UserService) SyncUser(ctx context.Context, userID, email, displayName string) (*SyncUserResult, error) {
+// SignInUser は Firebase 認証済みユーザーを我々の DB に provision する。
+// クライアントはサインインに成功するたびに呼ぶ:
+//  1. users 行を upsert (LastLoginAt を更新、無ければ作成)
+//  2. account が無ければ作成し、無料サインアップクレジットを付与
+//
+// 冪等。何度呼んでも安全。途中失敗 (users 行はあるが accounts が無い等) からも
+// 次回呼び出しで自動回復する。
+func (s *UserService) SignInUser(ctx context.Context, userID, email, displayName string) (*SignInUserResult, error) {
 	if userID == "" {
 		return nil, errors.New("user_id is required")
 	}
 
-	// 1. Check if user exists in our users table
-	existingUser, err := s.users.GetUser(ctx, userID)
-	isNewUser := false
-
+	user, err := s.upsertUserRow(ctx, userID, email, displayName)
 	if err != nil {
-		if errors.Is(err, domain.ErrNotFound) {
-			isNewUser = true
-		} else {
-			return nil, err
-		}
+		return nil, err
 	}
 
-	// 2. Upsert user info (updates last_login_at)
+	account, isNewAccount, err := s.ensureAccount(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if isNewAccount {
+		s.grantSignupCreditIfFirstTime(ctx, userID, account.AccountID)
+	}
+
+	return &SignInUserResult{User: user, IsNewAccount: isNewAccount}, nil
+}
+
+// upsertUserRow は users 行を upsert する。毎回呼ばれる前提。
+// 既存行があれば CreatedAt を保持し、無ければ now で初期化する。
+func (s *UserService) upsertUserRow(ctx context.Context, userID, email, displayName string) (*domain.User, error) {
+	existing, err := s.users.GetUser(ctx, userID)
+	isNew := false
+	if err != nil {
+		if !errors.Is(err, domain.ErrNotFound) {
+			return nil, err
+		}
+		isNew = true
+	}
+
+	now := s.now().UTC().Format(time.RFC3339)
 	user := &domain.User{
 		UserID:      userID,
 		Email:       email,
 		DisplayName: displayName,
-		LastLoginAt: s.now().UTC().Format(time.RFC3339),
+		LastLoginAt: now,
 	}
-	if isNewUser {
-		user.CreatedAt = user.LastLoginAt
+	if isNew {
+		user.CreatedAt = now
 	} else {
-		user.CreatedAt = existingUser.CreatedAt
+		user.CreatedAt = existing.CreatedAt
 	}
 
-	updatedUser, err := s.users.UpsertUser(ctx, user)
+	return s.users.UpsertUser(ctx, user)
+}
+
+// ensureAccount は account を取得し、無ければ作成する。
+// isNewAccount は今回の呼び出しで作成したかどうか。
+func (s *UserService) ensureAccount(ctx context.Context, userID string) (*domain.Account, bool, error) {
+	existing, err := s.accounts.GetAccountByUser(ctx, userID)
+	if err == nil {
+		return existing, false, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, false, err
+	}
+	created, err := s.accounts.CreateAccount(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
+	return created, true, nil
+}
 
-	// 3. Ensure Account exists (if new user, create it)
-	var account *domain.Account
-	if isNewUser {
-		account, err = s.accounts.CreateAccount(ctx, userID)
-	} else {
-		account, err = s.accounts.GetAccountByUser(ctx, userID)
+// grantSignupCreditIfFirstTime は無料サインアップクレジットを付与する。
+// billing 側で credit_id が "free-signup-<accountID>" 固定で冪等になっているため
+// 万一二重で呼ばれても問題ない。失敗時は sync 全体を失敗させずログのみ。
+func (s *UserService) grantSignupCreditIfFirstTime(ctx context.Context, userID, accountID string) {
+	if s.billing == nil {
+		return
 	}
-	if err != nil {
-		return nil, err
+	if err := s.billing.GrantFreeSignupCredit(ctx, accountID); err != nil {
+		s.logger.Error(ctx, "user.sign_in.grant_credit_failed", err, map[string]any{
+			"user_id":    userID,
+			"account_id": accountID,
+		})
 	}
-
-	// 4. If it's a new user, grant free signup credit
-	if isNewUser && s.billing != nil {
-		if err := s.billing.GrantFreeSignupCredit(ctx, account.AccountID); err != nil {
-			s.logger.Error(ctx, "user.sync_user.grant_credit_failed", err, map[string]any{
-				"user_id":    userID,
-				"account_id": account.AccountID,
-			})
-			// We don't fail the whole sync just because of credit grant failure,
-			// but it's not ideal.
-		}
-	}
-
-	return &SyncUserResult{
-		User:      updatedUser,
-		IsNewUser: isNewUser,
-	}, nil
 }

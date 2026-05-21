@@ -13,7 +13,7 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-func TestUserHandler_SyncUser(t *testing.T) {
+func TestUserHandler_SignInUser(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	// Mock billing as nil for simplicity here
@@ -21,24 +21,24 @@ func TestUserHandler_SyncUser(t *testing.T) {
 	h := NewUserHandler(userSvc)
 
 	t.Run("requires authentication", func(t *testing.T) {
-		resp, err := h.SyncUser(ctx, connect.NewRequest(&appv1.SyncUserRequest{}))
+		resp, err := h.SignInUser(ctx, connect.NewRequest(&appv1.SignInUserRequest{}))
 		assert.Nil(t, resp)
 		assert.Error(t, err)
 		assert.Equal(t, connect.CodeUnauthenticated, connect.CodeOf(err))
 	})
 
-	t.Run("syncs authenticated user", func(t *testing.T) {
+	t.Run("provisions authenticated user", func(t *testing.T) {
 		userID := "owner"
 		email := "owner@example.com"
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: userID, Email: email})
 
-		resp, err := h.SyncUser(authedCtx, connect.NewRequest(&appv1.SyncUserRequest{}))
+		resp, err := h.SignInUser(authedCtx, connect.NewRequest(&appv1.SignInUserRequest{}))
 
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 		assert.Equal(t, userID, resp.Msg.GetUser().GetUserId())
 		assert.Equal(t, email, resp.Msg.GetUser().GetEmail())
-		assert.True(t, resp.Msg.GetIsNewUser())
+		assert.True(t, resp.Msg.GetIsNewAccount())
 
 		// Verify Account exists
 		account, err := store.GetAccountByUser(ctx, userID)

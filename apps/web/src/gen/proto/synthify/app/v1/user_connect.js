@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetMeRequest, GetMeResponse, SyncUserRequest, SyncUserResponse } from "./user_pb.js";
+import { GetMeRequest, GetMeResponse, SignInUserRequest, SignInUserResponse } from "./user_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -13,15 +13,16 @@ export const UserService = {
   typeName: "synthify.app.v1.UserService",
   methods: {
     /**
-     * Firebase Auth ログイン後にフロントから呼ぶ
-     * 初回ログイン時はユーザーレコードを作成し、2回目以降は last_login_at を更新する
+     * Firebase Auth ログイン成功後にクライアントから毎回呼ぶ provisioning RPC。
+     * users 行を upsert し、account が無ければ作成して無料クレジットを付与する。
+     * 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
      *
-     * @generated from rpc synthify.app.v1.UserService.SyncUser
+     * @generated from rpc synthify.app.v1.UserService.SignInUser
      */
-    syncUser: {
-      name: "SyncUser",
-      I: SyncUserRequest,
-      O: SyncUserResponse,
+    signInUser: {
+      name: "SignInUser",
+      I: SignInUserRequest,
+      O: SignInUserResponse,
       kind: MethodKind.Unary,
     },
     /**

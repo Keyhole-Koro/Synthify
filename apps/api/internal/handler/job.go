@@ -76,11 +76,11 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	approval, err := h.lifecycle.RequestApproval(ctx, req.Msg.GetJobId(), user.ID, req.Msg.GetReason())
+	approval, err := h.lifecycle.RequestApproval(ctx, req.Msg.GetJobId(), userID, req.Msg.GetReason())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -90,8 +90,8 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 		DocumentID:  job.DocumentID,
 		Level:       joblog.INFO,
 		Event:       "approval.requested",
-		Message:     fmt.Sprintf("approval requested by=%s reason=%q", user.ID, req.Msg.GetReason()),
-		Detail:      map[string]any{"by": user.ID, "reason": req.Msg.GetReason()},
+		Message:     fmt.Sprintf("approval requested by=%s reason=%q", userID, req.Msg.GetReason()),
+		Detail:      map[string]any{"by": userID, "reason": req.Msg.GetReason()},
 	})
 	return connect.NewResponse(&appv1.RequestJobApprovalResponse{Request: toProtoApprovalRequest(approval)}), nil
 }
@@ -101,14 +101,14 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if req.Msg.GetApprovalId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("approval_id is required"))
 	}
-	if err := h.lifecycle.ApproveApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), user.ID); err != nil {
+	if err := h.lifecycle.ApproveApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), userID); err != nil {
 		return nil, toError(err)
 	}
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
@@ -117,8 +117,8 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 		DocumentID:  job.DocumentID,
 		Level:       joblog.INFO,
 		Event:       "approval.approved",
-		Message:     fmt.Sprintf("approval approved by=%s approval_id=%s", user.ID, req.Msg.GetApprovalId()),
-		Detail:      map[string]any{"by": user.ID, "approval_id": req.Msg.GetApprovalId()},
+		Message:     fmt.Sprintf("approval approved by=%s approval_id=%s", userID, req.Msg.GetApprovalId()),
+		Detail:      map[string]any{"by": userID, "approval_id": req.Msg.GetApprovalId()},
 	})
 	return connect.NewResponse(&appv1.ApproveJobApprovalResponse{Status: "approved"}), nil
 }
@@ -128,14 +128,14 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 	if err != nil {
 		return nil, err
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if req.Msg.GetApprovalId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("approval_id is required"))
 	}
-	if err := h.lifecycle.RejectApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), user.ID, req.Msg.GetReason()); err != nil {
+	if err := h.lifecycle.RejectApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), userID, req.Msg.GetReason()); err != nil {
 		return nil, toError(err)
 	}
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
@@ -144,8 +144,8 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 		DocumentID:  job.DocumentID,
 		Level:       joblog.WARN,
 		Event:       "approval.rejected",
-		Message:     fmt.Sprintf("approval rejected by=%s approval_id=%s reason=%q", user.ID, req.Msg.GetApprovalId(), req.Msg.GetReason()),
-		Detail:      map[string]any{"by": user.ID, "approval_id": req.Msg.GetApprovalId(), "reason": req.Msg.GetReason()},
+		Message:     fmt.Sprintf("approval rejected by=%s approval_id=%s reason=%q", userID, req.Msg.GetApprovalId(), req.Msg.GetReason()),
+		Detail:      map[string]any{"by": userID, "approval_id": req.Msg.GetApprovalId(), "reason": req.Msg.GetReason()},
 	})
 	return connect.NewResponse(&appv1.RejectJobApprovalResponse{Status: "rejected"}), nil
 }
@@ -256,7 +256,7 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.L
 	// 全 workspace 横断のため admin 権限を要求。
 	// monitor など読み取り専用ツールは API を経由せず Postgres を直接参照する設計に
 	// 切り替えたため、anonymous バイパスは存在しない。
-	if _, err := currentUser(ctx); err != nil {
+	if _, err := requireUserID(ctx); err != nil {
 		return nil, err
 	}
 	if !middleware.IsAdmin(ctx) {
@@ -275,7 +275,7 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.L
 
 func (h *JobHandler) authorizeAndLoadJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error) {
 	// 認証を先にチェック。job_id 空 / job not found を未認証ユーザーに返さないため。
-	if _, err := currentUser(ctx); err != nil {
+	if _, err := requireUserID(ctx); err != nil {
 		return nil, err
 	}
 	if jobID == "" {

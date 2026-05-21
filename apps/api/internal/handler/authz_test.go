@@ -32,24 +32,39 @@ func setupItemFixturesInStore(t *testing.T, store *mock.Store, userID string) st
 	return fixture.Workspace.WorkspaceID
 }
 
-// ── currentUser ──────────────────────────────────────────────────────────────
+// ── requireUserID ────────────────────────────────────────────────────────────
 
-func TestCurrentUser_NoAuthInContext_ReturnsUnauthenticated(t *testing.T) {
-	_, err := currentUser(context.Background())
+func TestRequireUserID_NoAuthInContext_ReturnsUnauthenticated(t *testing.T) {
+	_, err := requireUserID(context.Background())
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 }
 
-func TestCurrentUser_EmptyUserID_ReturnsUnauthenticated(t *testing.T) {
+func TestRequireUserID_EmptyUserID_ReturnsUnauthenticated(t *testing.T) {
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "", Email: "x@y.com"})
-	_, err := currentUser(ctx)
+	_, err := requireUserID(ctx)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 }
 
-func TestCurrentUser_ValidUser_ReturnsUser(t *testing.T) {
+func TestRequireUserID_ValidUser_ReturnsUserID(t *testing.T) {
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "u1", Email: "u@example.com"})
-	user, err := currentUser(ctx)
-	require.NoError(t, err, "currentUser")
+	userID, err := requireUserID(ctx)
+	require.NoError(t, err, "requireUserID")
+	assert.Equal(t, "u1", userID, "userID")
+}
+
+// ── requireAuthUser ──────────────────────────────────────────────────────────
+
+func TestRequireAuthUser_NoAuthInContext_ReturnsUnauthenticated(t *testing.T) {
+	_, err := requireAuthUser(context.Background())
+	assertConnectCode(t, err, connect.CodeUnauthenticated)
+}
+
+func TestRequireAuthUser_ValidUser_ReturnsUser(t *testing.T) {
+	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "u1", Email: "u@example.com"})
+	user, err := requireAuthUser(ctx)
+	require.NoError(t, err, "requireAuthUser")
 	assert.Equal(t, "u1", user.ID, "user.ID")
+	assert.Equal(t, "u@example.com", user.Email, "user.Email")
 }
 
 // ── authorizeWorkspace ────────────────────────────────────────────────────────

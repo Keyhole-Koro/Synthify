@@ -33,17 +33,18 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
-	// UserServiceSyncUserProcedure is the fully-qualified name of the UserService's SyncUser RPC.
-	UserServiceSyncUserProcedure = "/synthify.app.v1.UserService/SyncUser"
+	// UserServiceSignInUserProcedure is the fully-qualified name of the UserService's SignInUser RPC.
+	UserServiceSignInUserProcedure = "/synthify.app.v1.UserService/SignInUser"
 	// UserServiceGetMeProcedure is the fully-qualified name of the UserService's GetMe RPC.
 	UserServiceGetMeProcedure = "/synthify.app.v1.UserService/GetMe"
 )
 
 // UserServiceClient is a client for the synthify.app.v1.UserService service.
 type UserServiceClient interface {
-	// Firebase Auth ログイン後にフロントから呼ぶ
-	// 初回ログイン時はユーザーレコードを作成し、2回目以降は last_login_at を更新する
-	SyncUser(context.Context, *connect.Request[v1.SyncUserRequest]) (*connect.Response[v1.SyncUserResponse], error)
+	// Firebase Auth ログイン成功後にクライアントから毎回呼ぶ provisioning RPC。
+	// users 行を upsert し、account が無ければ作成して無料クレジットを付与する。
+	// 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
+	SignInUser(context.Context, *connect.Request[v1.SignInUserRequest]) (*connect.Response[v1.SignInUserResponse], error)
 	GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error)
 }
 
@@ -58,10 +59,10 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 	baseURL = strings.TrimRight(baseURL, "/")
 	userServiceMethods := v1.File_synthify_app_v1_user_proto.Services().ByName("UserService").Methods()
 	return &userServiceClient{
-		syncUser: connect.NewClient[v1.SyncUserRequest, v1.SyncUserResponse](
+		signInUser: connect.NewClient[v1.SignInUserRequest, v1.SignInUserResponse](
 			httpClient,
-			baseURL+UserServiceSyncUserProcedure,
-			connect.WithSchema(userServiceMethods.ByName("SyncUser")),
+			baseURL+UserServiceSignInUserProcedure,
+			connect.WithSchema(userServiceMethods.ByName("SignInUser")),
 			connect.WithClientOptions(opts...),
 		),
 		getMe: connect.NewClient[v1.GetMeRequest, v1.GetMeResponse](
@@ -75,13 +76,13 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 
 // userServiceClient implements UserServiceClient.
 type userServiceClient struct {
-	syncUser *connect.Client[v1.SyncUserRequest, v1.SyncUserResponse]
-	getMe    *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
+	signInUser *connect.Client[v1.SignInUserRequest, v1.SignInUserResponse]
+	getMe      *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
 }
 
-// SyncUser calls synthify.app.v1.UserService.SyncUser.
-func (c *userServiceClient) SyncUser(ctx context.Context, req *connect.Request[v1.SyncUserRequest]) (*connect.Response[v1.SyncUserResponse], error) {
-	return c.syncUser.CallUnary(ctx, req)
+// SignInUser calls synthify.app.v1.UserService.SignInUser.
+func (c *userServiceClient) SignInUser(ctx context.Context, req *connect.Request[v1.SignInUserRequest]) (*connect.Response[v1.SignInUserResponse], error) {
+	return c.signInUser.CallUnary(ctx, req)
 }
 
 // GetMe calls synthify.app.v1.UserService.GetMe.
@@ -91,9 +92,10 @@ func (c *userServiceClient) GetMe(ctx context.Context, req *connect.Request[v1.G
 
 // UserServiceHandler is an implementation of the synthify.app.v1.UserService service.
 type UserServiceHandler interface {
-	// Firebase Auth ログイン後にフロントから呼ぶ
-	// 初回ログイン時はユーザーレコードを作成し、2回目以降は last_login_at を更新する
-	SyncUser(context.Context, *connect.Request[v1.SyncUserRequest]) (*connect.Response[v1.SyncUserResponse], error)
+	// Firebase Auth ログイン成功後にクライアントから毎回呼ぶ provisioning RPC。
+	// users 行を upsert し、account が無ければ作成して無料クレジットを付与する。
+	// 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
+	SignInUser(context.Context, *connect.Request[v1.SignInUserRequest]) (*connect.Response[v1.SignInUserResponse], error)
 	GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error)
 }
 
@@ -104,10 +106,10 @@ type UserServiceHandler interface {
 // and JSON codecs. They also support gzip compression.
 func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption) (string, http.Handler) {
 	userServiceMethods := v1.File_synthify_app_v1_user_proto.Services().ByName("UserService").Methods()
-	userServiceSyncUserHandler := connect.NewUnaryHandler(
-		UserServiceSyncUserProcedure,
-		svc.SyncUser,
-		connect.WithSchema(userServiceMethods.ByName("SyncUser")),
+	userServiceSignInUserHandler := connect.NewUnaryHandler(
+		UserServiceSignInUserProcedure,
+		svc.SignInUser,
+		connect.WithSchema(userServiceMethods.ByName("SignInUser")),
 		connect.WithHandlerOptions(opts...),
 	)
 	userServiceGetMeHandler := connect.NewUnaryHandler(
@@ -118,8 +120,8 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 	)
 	return "/synthify.app.v1.UserService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case UserServiceSyncUserProcedure:
-			userServiceSyncUserHandler.ServeHTTP(w, r)
+		case UserServiceSignInUserProcedure:
+			userServiceSignInUserHandler.ServeHTTP(w, r)
 		case UserServiceGetMeProcedure:
 			userServiceGetMeHandler.ServeHTTP(w, r)
 		default:
@@ -131,8 +133,8 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 // UnimplementedUserServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedUserServiceHandler struct{}
 
-func (UnimplementedUserServiceHandler) SyncUser(context.Context, *connect.Request[v1.SyncUserRequest]) (*connect.Response[v1.SyncUserResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.UserService.SyncUser is not implemented"))
+func (UnimplementedUserServiceHandler) SignInUser(context.Context, *connect.Request[v1.SignInUserRequest]) (*connect.Response[v1.SignInUserResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.UserService.SignInUser is not implemented"))
 }
 
 func (UnimplementedUserServiceHandler) GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error) {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { listWorkspaces, type Workspace } from '@/features/workspaces/api';
+import { signInUser } from '@/features/auth/userApi';
 import { getInitialAuthUser, signInWithGoogleSession, subscribeAuthUser, type AuthUser } from '@/features/auth/session';
 
 export function useAuthState() {
@@ -11,7 +12,7 @@ export function useAuthState() {
   const [workspaceError, setWorkspaceError] = useState<Error | null>(null);
 
   useEffect(() => {
-    return subscribeAuthUser((nextUser) => {
+    return subscribeAuthUser(async (nextUser) => {
       setUser(nextUser);
       if (!nextUser) {
         setWorkspaces([]);
@@ -20,13 +21,19 @@ export function useAuthState() {
       }
 
       setWorkspaceError(null);
-      void listWorkspaces()
-        .then(setWorkspaces)
-        .catch((err) => {
-          console.error('Failed to list workspaces:', err);
-          setWorkspaceError(err instanceof Error ? err : new Error(String(err)));
-        })
-        .finally(() => setLoading(false));
+      try {
+        // サーバ側で users / accounts を provision してから workspace を取りに行く。
+        // この順序を守らないと初回サインインユーザーで CreateWorkspace が account
+        // 不在で失敗する。
+        await signInUser();
+        const ws = await listWorkspaces();
+        setWorkspaces(ws);
+      } catch (err) {
+        console.error('Failed to provision/list workspaces:', err);
+        setWorkspaceError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setLoading(false);
+      }
     });
   }, []);
 

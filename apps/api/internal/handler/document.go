@@ -72,11 +72,11 @@ func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Reque
 	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
 		return nil, err
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	doc, uploadTarget, err := h.service.CreateDocument(ctx, req.Msg.GetWorkspaceId(), user.ID, req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
+	doc, uploadTarget, err := h.service.CreateDocument(ctx, req.Msg.GetWorkspaceId(), userID, req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
 	if err != nil {
 		return nil, toError(err)
 	}

@@ -3,32 +3,38 @@ package handler
 import (
 	"context"
 	"errors"
-	"log"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
-func currentUser(ctx context.Context) (middleware.AuthUser, error) {
+// requireUserID は認証済みユーザーの ID を返す。未認証なら Unauthenticated を返す。
+// ID 以外を必要としない handler はこちらを使う (大半のケース)。
+func requireUserID(ctx context.Context) (string, error) {
 	user, ok := middleware.CurrentUser(ctx)
-	if !ok {
-		log.Printf("currentUser: user not found in context")
-		return middleware.AuthUser{}, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
+	if !ok || user.ID == "" {
+		return "", connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
 	}
-	if user.ID == "" {
-		log.Printf("currentUser: user ID is empty in context")
+	return user.ID, nil
+}
+
+// requireAuthUser は AuthUser 全体 (ID + Email) を必要とする handler 用。
+// 現状は SyncUser のみが利用する。
+func requireAuthUser(ctx context.Context) (middleware.AuthUser, error) {
+	user, ok := middleware.CurrentUser(ctx)
+	if !ok || user.ID == "" {
 		return middleware.AuthUser{}, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
 	}
 	return user, nil
 }
 
 func authorizeWorkspace(ctx context.Context, repo repository.WorkspaceRepository, workspaceID string) error {
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return err
 	}
-	if !repo.IsWorkspaceAccessible(ctx, workspaceID, user.ID) {
+	if !repo.IsWorkspaceAccessible(ctx, workspaceID, userID) {
 		return connect.NewError(connect.CodePermissionDenied, errors.New("workspace access denied"))
 	}
 	return nil
@@ -43,7 +49,7 @@ func authorizeDocument(
 ) error {
 	// 認証を先にチェック。未認証ユーザーに「document が存在するか」を NotFound 経由で
 	// 漏らさないため。
-	if _, err := currentUser(ctx); err != nil {
+	if _, err := requireUserID(ctx); err != nil {
 		return err
 	}
 	doc, err := documentRepo.GetDocument(ctx, documentID)
@@ -63,7 +69,7 @@ func authorizeItem(
 	itemID string,
 	workspaceID string,
 ) error {
-	if _, err := currentUser(ctx); err != nil {
+	if _, err := requireUserID(ctx); err != nil {
 		return err
 	}
 	item, err := itemRepo.GetItem(ctx, itemID)

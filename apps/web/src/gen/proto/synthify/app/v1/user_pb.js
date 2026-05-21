@@ -8,7 +8,7 @@ import { fileDesc, messageDesc, serviceDesc } from "@bufbuild/protobuf/codegenv2
  * Describes the file synthify/app/v1/user.proto.
  */
 export const file_synthify_app_v1_user = /*@__PURE__*/
-  fileDesc("ChpzeW50aGlmeS9hcHAvdjEvdXNlci5wcm90bxIPc3ludGhpZnkuYXBwLnYxImcKBFVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKY3JlYXRlZF9hdBgEIAEoCRIVCg1sYXN0X2xvZ2luX2F0GAUgASgJIhEKD1N5bmNVc2VyUmVxdWVzdCJMChBTeW5jVXNlclJlc3BvbnNlEiMKBHVzZXIYASABKAsyFS5zeW50aGlmeS5hcHAudjEuVXNlchITCgtpc19uZXdfdXNlchgCIAEoCCIOCgxHZXRNZVJlcXVlc3QiSwoNR2V0TWVSZXNwb25zZRIjCgR1c2VyGAEgASgLMhUuc3ludGhpZnkuYXBwLnYxLlVzZXISFQoNd29ya3NwYWNlX2lkcxgCIAMoCTKmAQoLVXNlclNlcnZpY2USTwoIU3luY1VzZXISIC5zeW50aGlmeS5hcHAudjEuU3luY1VzZXJSZXF1ZXN0GiEuc3ludGhpZnkuYXBwLnYxLlN5bmNVc2VyUmVzcG9uc2USRgoFR2V0TWUSHS5zeW50aGlmeS5hcHAudjEuR2V0TWVSZXF1ZXN0Gh4uc3ludGhpZnkuYXBwLnYxLkdldE1lUmVzcG9uc2VCQFo+Z2l0aHViLmNvbS9zeW50aGlmeS9iYWNrZW5kL2ludGVybmFsL2dlbi9zeW50aGlmeS9hcHAvdjE7YXBwdjFiBnByb3RvMw");
+  fileDesc("ChpzeW50aGlmeS9hcHAvdjEvdXNlci5wcm90bxIPc3ludGhpZnkuYXBwLnYxImcKBFVzZXISDwoHdXNlcl9pZBgBIAEoCRINCgVlbWFpbBgCIAEoCRIUCgxkaXNwbGF5X25hbWUYAyABKAkSEgoKY3JlYXRlZF9hdBgEIAEoCRIVCg1sYXN0X2xvZ2luX2F0GAUgASgJIhMKEVNpZ25JblVzZXJSZXF1ZXN0IlEKElNpZ25JblVzZXJSZXNwb25zZRIjCgR1c2VyGAEgASgLMhUuc3ludGhpZnkuYXBwLnYxLlVzZXISFgoOaXNfbmV3X2FjY291bnQYAiABKAgiDgoMR2V0TWVSZXF1ZXN0IksKDUdldE1lUmVzcG9uc2USIwoEdXNlchgBIAEoCzIVLnN5bnRoaWZ5LmFwcC52MS5Vc2VyEhUKDXdvcmtzcGFjZV9pZHMYAiADKAkyrAEKC1VzZXJTZXJ2aWNlElUKClNpZ25JblVzZXISIi5zeW50aGlmeS5hcHAudjEuU2lnbkluVXNlclJlcXVlc3QaIy5zeW50aGlmeS5hcHAudjEuU2lnbkluVXNlclJlc3BvbnNlEkYKBUdldE1lEh0uc3ludGhpZnkuYXBwLnYxLkdldE1lUmVxdWVzdBoeLnN5bnRoaWZ5LmFwcC52MS5HZXRNZVJlc3BvbnNlQkBaPmdpdGh1Yi5jb20vc3ludGhpZnkvYmFja2VuZC9pbnRlcm5hbC9nZW4vc3ludGhpZnkvYXBwL3YxO2FwcHYxYgZwcm90bzM");
 
 /**
  * Describes the message synthify.app.v1.User.
@@ -18,17 +18,17 @@ export const UserSchema = /*@__PURE__*/
   messageDesc(file_synthify_app_v1_user, 0);
 
 /**
- * Describes the message synthify.app.v1.SyncUserRequest.
- * Use `create(SyncUserRequestSchema)` to create a new message.
+ * Describes the message synthify.app.v1.SignInUserRequest.
+ * Use `create(SignInUserRequestSchema)` to create a new message.
  */
-export const SyncUserRequestSchema = /*@__PURE__*/
+export const SignInUserRequestSchema = /*@__PURE__*/
   messageDesc(file_synthify_app_v1_user, 1);
 
 /**
- * Describes the message synthify.app.v1.SyncUserResponse.
- * Use `create(SyncUserResponseSchema)` to create a new message.
+ * Describes the message synthify.app.v1.SignInUserResponse.
+ * Use `create(SignInUserResponseSchema)` to create a new message.
  */
-export const SyncUserResponseSchema = /*@__PURE__*/
+export const SignInUserResponseSchema = /*@__PURE__*/
   messageDesc(file_synthify_app_v1_user, 2);
 
 /**

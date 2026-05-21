@@ -56,15 +56,15 @@ func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Req
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	account, err := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), user.ID)
+	account, err := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
-	creditBalance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
+	creditBalance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
 	return connect.NewResponse(&appv1.GetBillingAccountResponse{
 		AccountId:              account.AccountID,
 		Plan:                   account.Plan,
@@ -103,11 +103,11 @@ func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	session, err := h.service.CreateCheckoutSession(ctx, req.Msg.GetAccountId(), user.ID, domain.BillingPlanUsageBased, domain.BillingCurrency(req.Msg.GetCurrency()))
+	session, err := h.service.CreateCheckoutSession(ctx, req.Msg.GetAccountId(), userID, domain.BillingPlanUsageBased, domain.BillingCurrency(req.Msg.GetCurrency()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -120,11 +120,11 @@ func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.R
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	session, err := h.service.CreatePortalSession(ctx, req.Msg.GetAccountId(), user.ID)
+	session, err := h.service.CreatePortalSession(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -141,11 +141,11 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	report, err := h.service.GetUsage(ctx, req.Msg.GetAccountId(), user.ID, req.Msg.GetPeriodStart(), req.Msg.GetPeriodEnd())
+	report, err := h.service.GetUsage(ctx, req.Msg.GetAccountId(), userID, req.Msg.GetPeriodStart(), req.Msg.GetPeriodEnd())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -210,11 +210,11 @@ func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	limit, err := h.service.UpdateBudget(ctx, req.Msg.GetAccountId(), user.ID, req.Msg.GetBudgetLimit())
+	limit, err := h.service.UpdateBudget(ctx, req.Msg.GetAccountId(), userID, req.Msg.GetBudgetLimit())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -225,11 +225,11 @@ func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	list, err := h.service.ListInvoices(ctx, req.Msg.GetAccountId(), user.ID, int(req.Msg.GetLimit()))
+	list, err := h.service.ListInvoices(ctx, req.Msg.GetAccountId(), userID, int(req.Msg.GetLimit()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -258,21 +258,18 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[a
 	if req.Msg.GetAccountId() == "" || req.Msg.GetAmountMinor() <= 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id and amount_minor > 0 are required"))
 	}
-	if _, err := currentUser(ctx); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
 	if !middleware.IsAdmin(ctx) {
 		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
-	user, err := currentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
-	grant, err := h.service.GrantCredit(ctx, user.ID, req.Msg.GetAccountId(), req.Msg.GetAmountMinor(), req.Msg.GetNote())
+	grant, err := h.service.GrantCredit(ctx, userID, req.Msg.GetAccountId(), req.Msg.GetAmountMinor(), req.Msg.GetNote())
 	if err != nil {
 		return nil, toError(err)
 	}
-	balance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
+	balance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
 	return connect.NewResponse(&appv1.GrantCreditResponse{
 		CreditId:      grant.CreditID,
 		AccountId:     grant.AccountID,
@@ -285,15 +282,15 @@ func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Requ
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	balance, err := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
+	balance, err := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
-	account, _ := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), user.ID)
+	account, _ := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
 	stopped := account != nil && account.Plan == string(domain.BillingPlanFree) && balance <= 0
 	return connect.NewResponse(&appv1.GetCreditBalanceResponse{
 		CreditBalance: minorToDecimal(balance),
@@ -305,11 +302,11 @@ func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Re
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
-	user, err := currentUser(ctx)
+	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	methods, err := h.service.ListPaymentMethods(ctx, req.Msg.GetAccountId(), user.ID)
+	methods, err := h.service.ListPaymentMethods(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
