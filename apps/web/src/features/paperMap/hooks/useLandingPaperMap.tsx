@@ -69,14 +69,25 @@ export function useLandingPaperMap({
               Synthify は、アップロードした資料を AI worker が読み解き、概念・主張・根拠・反論を paper-in-paper で辿れる知識構造へ変換するプロダクトです。
             </p>
             <div style={{ display: 'grid', gap: 6 }}>
-              {[
-                ['auth', user ? 'アカウント' : 'ログイン'],
-                ['synthify:overview', 'プロダクト像'],
-                ['synthify:documents', 'ドキュメント入力'],
-                ['synthify:worker', 'AI worker'],
-                ['synthify:tree', '知識ツリー'],
-                ['synthify:collaboration', '共有と運用'],
-              ].map(([id, label]) => (
+              {(user
+                ? [
+                    ['auth', 'アカウント'],
+                    ['workspaces', 'ワークスペース'],
+                    ['synthify:overview', 'プロダクト像'],
+                    ['synthify:documents', 'ドキュメント入力'],
+                    ['synthify:worker', 'AI worker'],
+                    ['synthify:tree', '知識ツリー'],
+                    ['synthify:collaboration', '共有と運用'],
+                  ]
+                : [
+                    ['auth', 'ログイン'],
+                    ['synthify:overview', 'プロダクト像'],
+                    ['synthify:documents', 'ドキュメント入力'],
+                    ['synthify:worker', 'AI worker'],
+                    ['synthify:tree', '知識ツリー'],
+                    ['synthify:collaboration', '共有と運用'],
+                  ]
+              ).map(([id, label]) => (
                 <a
                   key={id}
                   data-paper-id={id}

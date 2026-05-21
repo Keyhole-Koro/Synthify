@@ -26,9 +26,13 @@ function synthifyExpansionMap(extraRootChildren: string[]): ExpansionMap {
 }
 
 export function computeDefaultOpenState(opts: DefaultOpenStateOptions): DefaultOpenState {
-  if (opts.user && opts.workspaces.length > 0) {
+  if (opts.user) {
     const map = synthifyExpansionMap([workspacesPaper.id]);
-    return { expansionMap: map, focusedNodeId: workspacesPaper.id };
+    const hasWorkspaces = opts.workspaces.length > 0;
+    return {
+      expansionMap: map,
+      focusedNodeId: hasWorkspaces ? workspacesPaper.id : authPaper.id,
+    };
   }
 
   const map = synthifyExpansionMap([]);
