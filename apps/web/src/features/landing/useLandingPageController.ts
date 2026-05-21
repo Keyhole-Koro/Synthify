@@ -27,6 +27,7 @@ export function useLandingPageController() {
   const {
     canvasKey,
     defaultOpenState,
+    hasDefaultOpenState,
     expansionMap,
     focusedNodeId,
     handleExpansionMapChange,
@@ -92,7 +93,7 @@ export function useLandingPageController() {
   });
 
   return {
-    isReady: hasMounted && !loading,
+    isReady: hasMounted && hasDefaultOpenState,
     isFullscreen,
     winSize,
     paperMap,

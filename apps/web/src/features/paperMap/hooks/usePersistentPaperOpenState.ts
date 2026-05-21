@@ -32,6 +32,20 @@ export function usePersistentPaperOpenState({
   const [expansionMap, setExpansionMap] = useState<ExpansionMap>(() => new Map());
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const latestFocusedNodeIdRef = useRef<string | null>(null);
+  const resolvedScopeRef = useRef<string | null>(null);
+  const currentScope = user?.id ?? 'anonymous';
+
+  useEffect(() => {
+    if (loading) return;
+    if (resolvedScopeRef.current === null) {
+      resolvedScopeRef.current = currentScope;
+      return;
+    }
+    if (resolvedScopeRef.current !== currentScope) {
+      resolvedScopeRef.current = currentScope;
+      setCanvasKey((prev) => prev + 1);
+    }
+  }, [currentScope, loading]);
 
   useEffect(() => {
     if (loading) return;
@@ -65,12 +79,14 @@ export function usePersistentPaperOpenState({
 
   const resetToLoggedOutDefaults = useCallback((previousUser: AuthUser | null) => {
     clearOpenState(previousUser);
+    resolvedScopeRef.current = 'anonymous';
     setCanvasKey((prev) => prev + 1);
   }, []);
 
   return {
     canvasKey,
     defaultOpenState,
+    hasDefaultOpenState: defaultOpenState !== undefined,
     expansionMap,
     focusedNodeId,
     handleExpansionMapChange,
