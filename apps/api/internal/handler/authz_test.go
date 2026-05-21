@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
-	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 // assertConnectCode fails the test if err is nil or does not carry the expected connect code.
@@ -19,17 +18,6 @@ func assertConnectCode(t *testing.T, err error, want connect.Code) {
 	var ce *connect.Error
 	require.ErrorAs(t, err, &ce, "expected *connect.Error")
 	assert.Equal(t, want, ce.Code(), "connect code")
-}
-
-// setupItemFixturesInStore creates workspace + tree + seed items in the store.
-// Returns workspaceID.
-func setupItemFixturesInStore(t *testing.T, store *mock.Store, userID string) string {
-	t.Helper()
-	ctx := context.Background()
-	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, userID)
-	doc, _, _ := store.CreateDocument(ctx, fixture.Workspace.WorkspaceID, userID, "f.pdf", "application/pdf", 100)
-	store.CreateProcessingJob(ctx, doc.DocumentID, fixture.Tree.TreeID, appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
-	return fixture.Workspace.WorkspaceID
 }
 
 // ── requireUserID ────────────────────────────────────────────────────────────
@@ -137,30 +125,7 @@ func TestAuthorizeDocument_Member_ReturnsNil(t *testing.T) {
 	assert.NoError(t, err, "authorizeDocument")
 }
 
-// ── authorizeItem ─────────────────────────────────────────────────────────────
+// ── ItemService.GetItem authz (移植先: PR 4 で ItemService に認可を統合) ─────
 
-func TestAuthorizeItem_ItemNotFound_ReturnsNotFound(t *testing.T) {
-	store := mock.NewStore()
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "u1", Email: "u@example.com"})
-
-	err := authorizeItem(ctx, store, store, "nonexistent_item", "")
-	assertConnectCode(t, err, connect.CodeNotFound)
-}
-
-func TestAuthorizeItem_ValidItem_AuthorizesViaWorkspace(t *testing.T) {
-	store := mock.NewStore()
-	wsID := setupItemFixturesInStore(t, store, "owner")
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
-
-	err := authorizeItem(ctx, store, store, "nd_root", wsID)
-	assert.NoError(t, err, "authorizeItem")
-}
-
-func TestAuthorizeItem_NotMember_ReturnsPermissionDenied(t *testing.T) {
-	store := mock.NewStore()
-	wsID := setupItemFixturesInStore(t, store, "owner")
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "stranger", Email: "s@example.com"})
-
-	err := authorizeItem(ctx, store, store, "nd_root", wsID)
-	assertConnectCode(t, err, connect.CodePermissionDenied)
-}
+// ItemService.GetItem の認可テストは service/item_test.go へ。
+// item 存在しない / 別 workspace / member 等のシナリオは ItemService の責務。

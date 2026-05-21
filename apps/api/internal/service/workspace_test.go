@@ -10,14 +10,14 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 )
 
-func TestGetWorkspace_NonMember_ReturnsErrNotFound(t *testing.T) {
+func TestGetWorkspace_NonMember_ReturnsErrForbidden(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	wsID := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner").Workspace.WorkspaceID
 	svc := NewWorkspaceService(store, store, nil)
 
 	_, err := svc.GetWorkspace(ctx, wsID, "stranger")
-	assert.ErrorIs(t, err, domain.ErrNotFound, "GetWorkspace non-member")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "GetWorkspace non-member")
 }
 
 func TestGetWorkspace_Member_ReturnsWorkspace(t *testing.T) {
@@ -31,13 +31,14 @@ func TestGetWorkspace_Member_ReturnsWorkspace(t *testing.T) {
 	assert.Equal(t, wsID, got.WorkspaceID, "workspace ID")
 }
 
-func TestGetWorkspace_UnknownID_ReturnsErrNotFound(t *testing.T) {
+// 存在しない workspace への access も Forbidden を返す (存在の有無を漏らさない)。
+func TestGetWorkspace_UnknownID_ReturnsErrForbidden(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	svc := NewWorkspaceService(store, store, nil)
 
 	_, err := svc.GetWorkspace(ctx, "nonexistent_ws", "anyone")
-	assert.ErrorIs(t, err, domain.ErrNotFound, "GetWorkspace unknown ID")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "GetWorkspace unknown ID")
 }
 
 func TestCreateWorkspace_NoAccount_ReturnsError(t *testing.T) {

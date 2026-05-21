@@ -5,31 +5,27 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type TreeHandler struct {
-	service    *service.TreeService
-	workspaces repository.WorkspaceRepository
+	service service.TreeUsecase
 }
 
-func NewTreeHandler(svc *service.TreeService, workspaceRepo repository.WorkspaceRepository) *TreeHandler {
-	return &TreeHandler{
-		service:    svc,
-		workspaces: workspaceRepo,
-	}
+func NewTreeHandler(svc service.TreeUsecase) *TreeHandler {
+	return &TreeHandler{service: svc}
 }
 
 func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.GetTreeRequest]) (*connect.Response[appv1.GetTreeResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	items, err := h.service.GetTree(ctx, req.Msg.GetWorkspaceId())
+	items, err := h.service.GetTree(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -46,13 +42,14 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 	if wsID == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, wsID); err != nil {
-		return nil, err
-	}
 	if req.Msg.GetItemId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("item_id is required"))
 	}
-	items, err := h.service.GetSubtree(ctx, wsID, req.Msg.GetItemId(), int(req.Msg.GetMaxDepth()))
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := h.service.GetSubtree(ctx, wsID, req.Msg.GetItemId(), userID, int(req.Msg.GetMaxDepth()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -70,7 +67,8 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
 
@@ -79,6 +77,7 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 		req.Msg.GetWorkspaceId(),
 		req.Msg.GetSourceItemId(),
 		req.Msg.GetTargetItemId(),
+		userID,
 		int(req.Msg.GetMaxDepth()),
 		int(req.Msg.GetLimit()),
 	)

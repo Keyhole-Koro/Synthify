@@ -18,7 +18,7 @@ func TestCreateDocumentRejectsOversizedFile(t *testing.T) {
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
 
 	doc, uploadURL, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "huge.pdf", "application/pdf", account.MaxFileSizeBytes+1)
 
@@ -36,7 +36,7 @@ func TestCreateDocumentReservesQuotaUntilConfirmation(t *testing.T) {
 	account.StorageQuotaBytes = 200
 	account.MaxFileSizeBytes = 200
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
 
 	first, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "first.pdf", "application/pdf", 150)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestCreateDocumentAllowsExactQuotaLimit(t *testing.T) {
 	account.StorageQuotaBytes = 128
 	account.MaxFileSizeBytes = 128
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
 
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "exact.pdf", "application/pdf", 128)
 
@@ -72,7 +72,7 @@ func TestExpireUploadReservationsReleasesReservedQuota(t *testing.T) {
 	account.StorageQuotaBytes = 200
 	account.MaxFileSizeBytes = 200
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
 
 	expired, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "expired.pdf", "application/pdf", 150)
 	require.NoError(t, err)
@@ -94,11 +94,11 @@ func TestStartProcessingConfirmsUploadedObjectSize(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 128}
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
-	job, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, false)
+	job, err := svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
 
 	require.NoError(t, err)
 	require.NotNil(t, job)
@@ -115,11 +115,11 @@ func TestStartProcessingRejectsSizeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 256}
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
-	job, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, false)
+	job, err := svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrUploadSizeMismatch)
@@ -136,11 +136,11 @@ func TestConfirmUploadConfirmsUploadedObjectSize(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 128}
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
-	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID)
+	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID, "owner")
 
 	require.NoError(t, err)
 	require.NotNil(t, confirmed)
@@ -156,11 +156,11 @@ func TestConfirmUploadRejectsSizeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 256}
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
-	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID)
+	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID, "owner")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, domain.ErrUploadSizeMismatch)
@@ -177,23 +177,23 @@ func TestStartProcessingRespectsForceReprocess(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 128}
-	svc := NewDocumentService(store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
 	// First time
-	job1, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, false)
+	job1, err := svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
 	require.NoError(t, err)
 	require.NotNil(t, job1)
 	job1.Status = appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED
 
 	// Second time without force - should return job1
-	job2, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, false)
+	job2, err := svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
 	require.NoError(t, err)
 	assert.Equal(t, job1.JobID, job2.JobID, "should return existing completed job")
 
 	// Third time with force - should return a new job
-	job3, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, true)
+	job3, err := svc.StartProcessing(ctx, doc.DocumentID, "owner", true)
 	require.NoError(t, err)
 	assert.NotEqual(t, job1.JobID, job3.JobID, "should create new job when forced")
 	assert.Equal(t, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, job3.JobType)

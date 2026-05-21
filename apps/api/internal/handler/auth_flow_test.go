@@ -35,7 +35,7 @@ func TestWorkspaceHandler_AuthFlow(t *testing.T) {
 		}))
 
 		assert.Nil(t, resp)
-		assertConnectCode(t, err, connect.CodeNotFound)
+		assertConnectCode(t, err, connect.CodePermissionDenied)
 	})
 
 	t.Run("get allows owner", func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	handler := NewTreeHandler(service.NewTreeService(store, nil), store)
+	handler := NewTreeHandler(service.NewTreeService(store, store, nil))
 
 	t.Run("get tree requires authentication", func(t *testing.T) {
 		resp, err := handler.GetTree(ctx, connect.NewRequest(&appv1.GetTreeRequest{
@@ -218,7 +218,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 
 func newTestWorkspaceHandler(store *mock.Store) *WorkspaceHandler {
 	svc := service.NewWorkspaceService(store, store, nil)
-	return NewWorkspaceHandler(svc, store)
+	return NewWorkspaceHandler(svc)
 }
 
 func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
@@ -226,8 +226,8 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
 	uploadURLIssuer := testUploadURLIssuer{}
-	svc := service.NewDocumentService(store, store, store, store, sourceURL, nil, nil, nil, nil)
-	return NewDocumentHandler(svc, store, store, store, uploadURLIssuer)
+	svc := service.NewDocumentService(store, store, store, store, store, sourceURL, nil, nil, nil, nil)
+	return NewDocumentHandler(svc, store, uploadURLIssuer)
 }
 
 type testUploadURLIssuer struct{}
@@ -241,6 +241,6 @@ func (testUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, workspaceID
 }
 
 func newTestItemHandler(store *mock.Store) *ItemHandler {
-	svc := service.NewItemService(store, store, nil)
-	return NewItemHandler(svc, store, store)
+	svc := service.NewItemService(store, store, store, nil)
+	return NewItemHandler(svc)
 }

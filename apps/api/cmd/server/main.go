@@ -75,17 +75,17 @@ func main() {
 	billingSvc := service.NewBillingService(store, store, stripeProvider, appLogger)
 
 	documentSvc := service.NewDocumentService(
-		store, store, store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
+		store, store, store, store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
 	)
-	itemSvc := service.NewItemService(store, store, appLogger)
+	itemSvc := service.NewItemService(store, store, store, appLogger)
 	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
 	userSvc := service.NewUserService(store, store, billingSvc, appLogger)
-	treeSvc := service.NewTreeService(store, appLogger)
+	treeSvc := service.NewTreeService(store, store, appLogger)
 
-	documentHandler := handler.NewDocumentHandler(documentSvc, store, store, store, uploadURLIssuer)
-	treeHandler := handler.NewTreeHandler(treeSvc, store)
-	itemHandler := handler.NewItemHandler(itemSvc, store, store)
-	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc, store)
+	documentHandler := handler.NewDocumentHandler(documentSvc, store, uploadURLIssuer)
+	treeHandler := handler.NewTreeHandler(treeSvc)
+	itemHandler := handler.NewItemHandler(itemSvc)
+	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc)
 	userHandler := handler.NewUserHandler(userSvc)
 	jobHandler := handler.NewJobHandler(store, store, store, store, store, store, appLogger)
 	billingHandler := handler.NewBillingHandler(billingSvc)

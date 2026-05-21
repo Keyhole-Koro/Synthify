@@ -29,6 +29,9 @@ func requireAuthUser(ctx context.Context) (middleware.AuthUser, error) {
 	return user, nil
 }
 
+// authorizeWorkspace / authorizeDocument は現状 job handler だけが残存利用している。
+// JobUsecase を新設すれば撤去できる (TODO: docs/improvements/api-layering-cleanup.md 参照)。
+
 func authorizeWorkspace(ctx context.Context, repo repository.WorkspaceRepository, workspaceID string) error {
 	userID, err := requireUserID(ctx)
 	if err != nil {
@@ -60,24 +63,4 @@ func authorizeDocument(
 		return connect.NewError(connect.CodePermissionDenied, errors.New("document does not belong to workspace"))
 	}
 	return authorizeWorkspace(ctx, workspaceRepo, doc.WorkspaceID)
-}
-
-func authorizeItem(
-	ctx context.Context,
-	workspaceRepo repository.WorkspaceRepository,
-	itemRepo repository.ItemRepository,
-	itemID string,
-	workspaceID string,
-) error {
-	if _, err := requireUserID(ctx); err != nil {
-		return err
-	}
-	item, err := itemRepo.GetItem(ctx, itemID)
-	if err != nil {
-		return toError(err)
-	}
-	if item.WorkspaceID != workspaceID {
-		return connect.NewError(connect.CodePermissionDenied, errors.New("item does not belong to workspace"))
-	}
-	return authorizeWorkspace(ctx, workspaceRepo, workspaceID)
 }

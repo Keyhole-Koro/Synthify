@@ -24,9 +24,22 @@ type ObjectMetadataFetcher interface {
 	GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error)
 }
 
+// DocumentUsecase は handler が依存する DocumentService の API 表面。
+// 各メソッドは userID を受け取り、内部で workspace authz を実施する。
+// 未認可は domain.ErrForbidden を返す。
+type DocumentUsecase interface {
+	ListDocuments(ctx context.Context, workspaceID, userID string) ([]*domain.Document, error)
+	GetDocument(ctx context.Context, documentID, userID string) (*domain.Document, error)
+	CreateDocument(ctx context.Context, wsID, userID, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error)
+	ConfirmUpload(ctx context.Context, documentID, userID string) (*domain.Document, error)
+	StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error)
+	ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error)
+}
+
 type DocumentService struct {
 	repo             repository.DocumentRepository
 	jobs             repository.JobRepository
+	workspaces       repository.WorkspaceRepository
 	tree             repository.TreeRepository
 	sourceURLBuilder repository.DocumentSourceURLBuilder
 	objectMetadata   ObjectMetadataFetcher
@@ -40,6 +53,7 @@ func NewDocumentService(
 	repo repository.DocumentRepository,
 	jobs repository.JobRepository,
 	lifecycleRepo joblifecycle.Repository,
+	workspaces repository.WorkspaceRepository,
 	tree repository.TreeRepository,
 	sourceURLBuilder repository.DocumentSourceURLBuilder,
 	objectMetadata ObjectMetadataFetcher,
@@ -53,6 +67,7 @@ func NewDocumentService(
 	return &DocumentService{
 		repo:             repo,
 		jobs:             jobs,
+		workspaces:       workspaces,
 		tree:             tree,
 		sourceURLBuilder: sourceURLBuilder,
 		objectMetadata:   objectMetadata,
@@ -63,24 +78,50 @@ func NewDocumentService(
 	}
 }
 
-func (s *DocumentService) ListDocuments(ctx context.Context, workspaceID string) []*domain.Document {
-	return s.repo.ListDocuments(ctx, workspaceID)
+// authorizeWorkspace は userID が workspace にアクセスできるかチェックする。
+func (s *DocumentService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
+	if !s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID) {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
-func (s *DocumentService) GetDocument(ctx context.Context, documentID string) (*domain.Document, error) {
+// authorizeDocument は document を取得しつつ workspace authz をする。
+// document 不在も認可前に Forbidden を返す (存在を漏らさないため)。
+func (s *DocumentService) authorizeDocument(ctx context.Context, documentID, userID string) (*domain.Document, error) {
 	doc, err := s.repo.GetDocument(ctx, documentID)
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, domain.ErrForbidden
+		}
+		return nil, err
+	}
+	if err := s.authorizeWorkspace(ctx, doc.WorkspaceID, userID); err != nil {
 		return nil, err
 	}
 	return doc, nil
 }
 
-func (s *DocumentService) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
-	return s.repo.CreateDocument(ctx, wsID, uploadedBy, filename, mimeType, fileSize)
+func (s *DocumentService) ListDocuments(ctx context.Context, workspaceID, userID string) ([]*domain.Document, error) {
+	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
+		return nil, err
+	}
+	return s.repo.ListDocuments(ctx, workspaceID), nil
 }
 
-func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID string) (*domain.Document, error) {
-	doc, err := s.repo.GetDocument(ctx, documentID)
+func (s *DocumentService) GetDocument(ctx context.Context, documentID, userID string) (*domain.Document, error) {
+	return s.authorizeDocument(ctx, documentID, userID)
+}
+
+func (s *DocumentService) CreateDocument(ctx context.Context, wsID, userID, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
+	if err := s.authorizeWorkspace(ctx, wsID, userID); err != nil {
+		return nil, repository.DocumentUploadTarget{}, err
+	}
+	return s.repo.CreateDocument(ctx, wsID, userID, filename, mimeType, fileSize)
+}
+
+func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID, userID string) (*domain.Document, error) {
+	doc, err := s.authorizeDocument(ctx, documentID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +143,11 @@ func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time
 	return expired, nil
 }
 
-func (s *DocumentService) StartProcessing(ctx context.Context, wsID, documentID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
+func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
+	doc, err := s.authorizeDocument(ctx, documentID, userID)
+	if err != nil {
+		return nil, err
+	}
 	if !forceReprocess {
 		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
@@ -118,21 +163,20 @@ func (s *DocumentService) StartProcessing(ctx context.Context, wsID, documentID 
 	if forceReprocess {
 		jobType = appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
 	}
-	return s.startProcessingJob(ctx, wsID, documentID, jobType, false)
+	return s.startProcessingJob(ctx, doc, jobType, false)
 }
 
-func (s *DocumentService) ResumeProcessing(ctx context.Context, wsID, documentID string) (*domain.DocumentProcessingJob, error) {
-	return s.startProcessingJob(ctx, wsID, documentID, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
-}
-
-func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, documentID string, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
-	doc, err := s.repo.GetDocument(ctx, documentID)
+func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error) {
+	doc, err := s.authorizeDocument(ctx, documentID, userID)
 	if err != nil {
-		if resumeExisting {
-			return nil, domain.ErrNotFound
-		}
 		return nil, err
 	}
+	return s.startProcessingJob(ctx, doc, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
+}
+
+func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Document, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
+	wsID := doc.WorkspaceID
+	documentID := doc.DocumentID
 	if err := s.confirmUploadedObject(ctx, doc); err != nil {
 		return nil, err
 	}

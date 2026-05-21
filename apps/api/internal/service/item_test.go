@@ -6,26 +6,45 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 )
 
-var (
-	repo *mock.Store
-	svc  *ItemService
-)
-
-func TestMain(m *testing.M) {
-	repo = mock.NewStore()
-	svc = NewItemService(repo, repo, nil)
-	m.Run()
-}
-
 func TestCreateItem_CreatesItem(t *testing.T) {
 	ctx := context.Background()
-	wsID := "ws-1"
-	repo.CreateWorkspace(ctx, "acct-1", "Test")
+	repo := mock.NewStore()
+	svc := NewItemService(repo, repo, repo, nil)
 
-	item, err := svc.CreateItem(ctx, wsID, "root", "root desc", "", "system")
+	// fixture: owner ユーザーで workspace を作る (acct id == user id)。
+	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
+
+	item, err := svc.CreateItem(ctx, fixture.Workspace.WorkspaceID, "root", "root desc", "", "owner")
 	require.NoError(t, err, "CreateItem")
 	assert.NotNil(t, item, "expected item, got nil")
+}
+
+func TestCreateItem_NonMember_ReturnsForbidden(t *testing.T) {
+	ctx := context.Background()
+	repo := mock.NewStore()
+	svc := NewItemService(repo, repo, repo, nil)
+	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
+
+	_, err := svc.CreateItem(ctx, fixture.Workspace.WorkspaceID, "root", "", "", "stranger")
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestGetItem_OtherWorkspaceID_ReturnsForbidden(t *testing.T) {
+	ctx := context.Background()
+	repo := mock.NewStore()
+	svc := NewItemService(repo, repo, repo, nil)
+	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
+	// item を作って別 workspaceID を query で渡す
+	item := repo.CreateItem(ctx, fixture.Workspace.WorkspaceID, "x", "", "", "owner")
+	require.NotNil(t, item)
+
+	_, err := svc.GetItem(ctx, item.ItemID, "ws-bogus", "owner")
+	require.Error(t, err)
+	// 'owner' は ws-bogus の member ではないので Forbidden が先に出る
+	assert.ErrorIs(t, err, domain.ErrForbidden)
 }

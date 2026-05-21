@@ -5,38 +5,27 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type ItemHandler struct {
-	service    *service.ItemService
-	workspaces repository.WorkspaceRepository
-	items      repository.ItemRepository
+	service service.ItemUsecase
 }
 
-func NewItemHandler(
-	svc *service.ItemService,
-	workspaceRepo repository.WorkspaceRepository,
-	itemRepo repository.ItemRepository,
-) *ItemHandler {
-	return &ItemHandler{
-		service:    svc,
-		workspaces: workspaceRepo,
-		items:      itemRepo,
-	}
+func NewItemHandler(svc service.ItemUsecase) *ItemHandler {
+	return &ItemHandler{service: svc}
 }
 
 func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Request[appv1.GetTreeEntityDetailRequest]) (*connect.Response[appv1.GetTreeEntityDetailResponse], error) {
 	if req.Msg.GetTargetRef() == nil || req.Msg.GetTargetRef().GetId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("target_ref.id is required"))
 	}
-	if err := authorizeItem(ctx, h.workspaces, h.items, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId()); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-
-	item, err := h.items.GetItem(ctx, req.Msg.GetTargetRef().GetId())
+	item, err := h.service.GetItem(ctx, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -59,9 +48,6 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetLabel() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and label are required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
-		return nil, err
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -77,10 +63,11 @@ func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[app
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalItemId() == "" || req.Msg.GetAliasItemId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_item_id, and alias_item_id are required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	if err := h.items.ApproveAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId()); err != nil {
+	if err := h.service.ApproveAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId(), userID); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.ApproveAliasResponse{
@@ -94,10 +81,11 @@ func (h *ItemHandler) RejectAlias(ctx context.Context, req *connect.Request[appv
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalItemId() == "" || req.Msg.GetAliasItemId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_item_id, and alias_item_id are required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	if err := h.items.RejectAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId()); err != nil {
+	if err := h.service.RejectAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId(), userID); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.RejectAliasResponse{

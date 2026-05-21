@@ -10,6 +10,11 @@ import (
 	"github.com/synthify/backend/internal/platform/applog"
 )
 
+// UserUsecase は handler が依存する UserService の API 表面。
+type UserUsecase interface {
+	SignInUser(ctx context.Context, userID, email, displayName string) (*SignInUserResult, error)
+}
+
 type UserService struct {
 	users    repository.UserRepository
 	accounts repository.AccountRepository

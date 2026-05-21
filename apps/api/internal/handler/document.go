@@ -14,24 +14,18 @@ import (
 )
 
 type DocumentHandler struct {
-	service         *service.DocumentService
-	workspaces      repository.WorkspaceRepository
-	documents       repository.DocumentRepository
+	service         service.DocumentUsecase
 	jobs            repository.JobRepository
 	uploadURLIssuer repository.DocumentUploadURLIssuer
 }
 
 func NewDocumentHandler(
-	svc *service.DocumentService,
-	workspaceRepo repository.WorkspaceRepository,
-	documentRepo repository.DocumentRepository,
+	svc service.DocumentUsecase,
 	jobRepo repository.JobRepository,
 	uploadURLIssuer repository.DocumentUploadURLIssuer,
 ) *DocumentHandler {
 	return &DocumentHandler{
 		service:         svc,
-		workspaces:      workspaceRepo,
-		documents:       documentRepo,
 		jobs:            jobRepo,
 		uploadURLIssuer: uploadURLIssuer,
 	}
@@ -41,10 +35,14 @@ func (h *DocumentHandler) ListDocuments(ctx context.Context, req *connect.Reques
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	docs := h.service.ListDocuments(ctx, req.Msg.GetWorkspaceId())
+	docs, err := h.service.ListDocuments(ctx, req.Msg.GetWorkspaceId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
 	res := connect.NewResponse(&appv1.ListDocumentsResponse{})
 	for _, doc := range docs {
 		latest, _ := h.jobs.GetLatestProcessingJob(ctx, doc.DocumentID)
@@ -57,10 +55,11 @@ func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	doc, err := h.service.GetDocument(ctx, req.Msg.GetDocumentId())
+	doc, err := h.service.GetDocument(ctx, req.Msg.GetDocumentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -71,9 +70,6 @@ func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[
 func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Request[appv1.CreateDocumentRequest]) (*connect.Response[appv1.CreateDocumentResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
-	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
-		return nil, err
 	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
@@ -95,12 +91,13 @@ func (h *DocumentHandler) GetUploadURL(ctx context.Context, req *connect.Request
 	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
 	}
-	if err := authorizeWorkspace(ctx, h.workspaces, req.Msg.GetWorkspaceId()); err != nil {
+	if _, err := requireUserID(ctx); err != nil {
 		return nil, err
 	}
+	// GetUploadURL は upload token を発行するだけ。workspace 認可は意図的に省略する。
+	// 認可は実際に upload する CreateDocument 側で行う (現状の挙動を維持)。
+	// TODO: 一貫性を上げるなら WorkspaceUsecase.AuthorizeWorkspace を呼ぶ。
 	token := fmt.Sprintf("upload-%s", req.Msg.GetFilename())
-	// GetUploadURL uses a special tokenized path. If that also needs to be shared,
-	// extend the Generator. For now, keep the Generator as the base and wrap it as needed.
 	uploadTarget, err := h.uploadURLIssuer.IssueDocumentUploadURL(ctx, req.Msg.GetWorkspaceId(), token+"/"+req.Msg.GetFilename(), req.Msg.GetMimeType())
 	if err != nil {
 		return nil, toError(err)
@@ -120,10 +117,11 @@ func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Reques
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	doc, err := h.service.ConfirmUpload(ctx, req.Msg.GetDocumentId())
+	doc, err := h.service.ConfirmUpload(ctx, req.Msg.GetDocumentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -135,14 +133,11 @@ func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Requ
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	doc, err := h.documents.GetDocument(ctx, req.Msg.GetDocumentId())
-	if err != nil {
-		return nil, toError(err)
-	}
-	job, err := h.service.StartProcessing(ctx, doc.WorkspaceID, req.Msg.GetDocumentId(), req.Msg.GetForceReprocess())
+	job, err := h.service.StartProcessing(ctx, req.Msg.GetDocumentId(), userID, req.Msg.GetForceReprocess())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -161,22 +156,19 @@ func (h *DocumentHandler) ResumeProcessing(ctx context.Context, req *connect.Req
 	if req.Msg.GetDocumentId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("document_id is required"))
 	}
-	if err := authorizeDocument(ctx, h.workspaces, h.documents, req.Msg.GetDocumentId(), ""); err != nil {
+	userID, err := requireUserID(ctx)
+	if err != nil {
 		return nil, err
 	}
-	doc, err := h.service.GetDocument(ctx, req.Msg.GetDocumentId())
-	if err != nil {
-		return nil, toError(err)
-	}
-	job, err := h.service.ResumeProcessing(ctx, doc.WorkspaceID, doc.DocumentID)
+	job, err := h.service.ResumeProcessing(ctx, req.Msg.GetDocumentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.ResumeProcessingResponse{
-		DocumentId: doc.DocumentID,
+		DocumentId: req.Msg.GetDocumentId(),
 		Job: &appv1.Job{
 			JobId:      job.JobID,
-			DocumentId: doc.DocumentID,
+			DocumentId: job.DocumentID,
 			Type:       appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT,
 			Status:     job.Status,
 		},

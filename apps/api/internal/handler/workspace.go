@@ -6,18 +6,16 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type WorkspaceHandler struct {
-	service    *service.WorkspaceService
-	workspaces repository.WorkspaceRepository
+	service service.WorkspaceUsecase
 }
 
-func NewWorkspaceHandler(svc *service.WorkspaceService, workspaceRepo repository.WorkspaceRepository) *WorkspaceHandler {
-	return &WorkspaceHandler{service: svc, workspaces: workspaceRepo}
+func NewWorkspaceHandler(svc service.WorkspaceUsecase) *WorkspaceHandler {
+	return &WorkspaceHandler{service: svc}
 }
 
 func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[appv1.ListWorkspacesRequest]) (*connect.Response[appv1.ListWorkspacesResponse], error) {
@@ -25,7 +23,7 @@ func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	workspaces := h.workspaces.ListWorkspacesByUser(ctx, userID)
+	workspaces := h.service.ListWorkspaces(ctx, userID)
 	res := connect.NewResponse(&appv1.ListWorkspacesResponse{})
 	for _, workspace := range workspaces {
 		res.Msg.Workspaces = append(res.Msg.Workspaces, toProtoWorkspace(workspace))
