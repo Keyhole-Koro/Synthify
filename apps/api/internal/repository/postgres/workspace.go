@@ -37,12 +37,27 @@ var proPlan = struct {
 
 func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	// Return the existing account if present.
-	existing, err := s.q().GetAccountByUser(ctx, userID)
+	existing, err := s.GetAccountByUser(ctx, userID)
 	if err == nil {
-		return s.GetAccount(ctx, existing.AccountID)
+		return existing, nil
 	}
 
 	// Otherwise create a new account.
+	return s.CreateAccount(ctx, userID)
+}
+
+func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
+	row, err := s.q().GetAccountByUser(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return s.GetAccount(ctx, row.AccountID)
+}
+
+func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	accountID := newID()
 	createdAt := nowTime()
 	row, err := s.q().GetOrCreateAccount(ctx, sqlcgen.GetOrCreateAccountParams{

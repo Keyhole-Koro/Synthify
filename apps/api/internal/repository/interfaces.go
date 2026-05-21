@@ -25,6 +25,8 @@ type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
+	GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error)
+	CreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	IsAccountAccessible(ctx context.Context, accountID, userID string) bool
 	SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error
 	ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error)
@@ -33,6 +35,11 @@ type AccountRepository interface {
 	RecordBillingWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error)
 	MarkBillingWebhookEventProcessed(ctx context.Context, provider, eventID, status, errorMessage string) error
 	ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error
+}
+
+type UserRepository interface {
+	GetUser(ctx context.Context, userID string) (*domain.User, error)
+	UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error)
 }
 
 type WorkspaceRepository interface {

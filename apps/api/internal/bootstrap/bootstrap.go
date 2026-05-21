@@ -45,6 +45,7 @@ type Store interface {
 	repository.TreeRepository
 	repository.ItemRepository
 	repository.UsageRepository
+	repository.UserRepository
 	repository.CheckpointRepository
 	repository.JobLogWriter
 	repository.DynamicToolRepository

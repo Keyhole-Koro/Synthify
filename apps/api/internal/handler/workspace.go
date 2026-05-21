@@ -13,12 +13,11 @@ import (
 
 type WorkspaceHandler struct {
 	service    *service.WorkspaceService
-	billing    service.BillingUsecase
 	workspaces repository.WorkspaceRepository
 }
 
-func NewWorkspaceHandler(svc *service.WorkspaceService, billing service.BillingUsecase, workspaceRepo repository.WorkspaceRepository) *WorkspaceHandler {
-	return &WorkspaceHandler{service: svc, billing: billing, workspaces: workspaceRepo}
+func NewWorkspaceHandler(svc *service.WorkspaceService, workspaceRepo repository.WorkspaceRepository) *WorkspaceHandler {
+	return &WorkspaceHandler{service: svc, workspaces: workspaceRepo}
 }
 
 func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[appv1.ListWorkspacesRequest]) (*connect.Response[appv1.ListWorkspacesResponse], error) {
@@ -62,10 +61,6 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 	ws, err := h.service.CreateWorkspace(ctx, req.Msg.GetName(), user.ID)
 	if err != nil {
 		return nil, toError(err)
-	}
-	// サインアップ時の無料クレジット付与（冪等なので毎回呼んで問題なし）
-	if h.billing != nil {
-		_ = h.billing.GrantFreeSignupCredit(ctx, ws.AccountID)
 	}
 	return connect.NewResponse(&appv1.CreateWorkspaceResponse{
 		Workspace: toProtoWorkspace(ws),

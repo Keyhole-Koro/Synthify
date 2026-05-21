@@ -15,6 +15,7 @@ import (
 
 type Store struct {
 	mu              sync.RWMutex
+	users           map[string]*domain.User
 	accounts        map[string]*domain.Account
 	workspaces      map[string]*domain.Workspace
 	wsOwners        map[string]string // wsID -> ownerAccountID
@@ -52,6 +53,7 @@ type uploadReservation struct {
 
 func NewStore() *Store {
 	return &Store{
+		users:           make(map[string]*domain.User),
 		accounts:        make(map[string]*domain.Account),
 		workspaces:      make(map[string]*domain.Workspace),
 		wsOwners:        make(map[string]string),
@@ -85,10 +87,29 @@ func (s *Store) CheckReadiness(context.Context) error {
 
 // AccountRepository
 func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	// Return the existing account if present.
+	existing, err := s.GetAccountByUser(ctx, userID)
+	if err == nil {
+		return existing, nil
+	}
+	// Otherwise create a new account.
+	return s.CreateAccount(ctx, userID)
+}
+
+func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if a, ok := s.accounts[userID]; ok {
 		return a, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.accounts[userID]; ok {
+		return nil, fmt.Errorf("account already exists: %s", userID)
 	}
 	a := &domain.Account{
 		AccountID:            userID,
@@ -105,6 +126,27 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 	}
 	s.accounts[userID] = a
 	return a, nil
+}
+
+// UserRepository
+func (s *Store) GetUser(ctx context.Context, userID string) (*domain.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if u, ok := s.users[userID]; ok {
+		return u, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (s *Store) UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if user.CreatedAt == "" {
+		user.CreatedAt = time.Now().Format(time.RFC3339)
+	}
+	user.UpdatedAt = time.Now().Format(time.RFC3339)
+	s.users[user.UserID] = user
+	return user, nil
 }
 
 func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, error) {

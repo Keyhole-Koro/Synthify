@@ -34,7 +34,7 @@ func (s *WorkspaceService) GetWorkspace(ctx context.Context, id, userID string) 
 }
 
 func (s *WorkspaceService) CreateWorkspace(ctx context.Context, name, userID string) (*domain.Workspace, error) {
-	account, err := s.accounts.GetOrCreateAccount(ctx, userID)
+	account, err := s.accounts.GetAccountByUser(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

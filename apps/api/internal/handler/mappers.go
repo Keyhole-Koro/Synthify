@@ -32,3 +32,16 @@ func toProtoItem(item *domain.Item) *appv1.Item {
 		GovernanceState: item.GovernanceState,
 	}
 }
+
+func toProtoUser(user *domain.User) *appv1.User {
+	if user == nil {
+		return nil
+	}
+	return &appv1.User{
+		UserId:      user.UserID,
+		Email:       user.Email,
+		DisplayName: user.DisplayName,
+		CreatedAt:   user.CreatedAt,
+		LastLoginAt: user.LastLoginAt,
+	}
+}

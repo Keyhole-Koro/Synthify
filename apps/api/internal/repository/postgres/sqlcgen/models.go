@@ -332,6 +332,15 @@ type UsageEvent struct {
 	StripeAmountMinor int64
 }
 
+type User struct {
+	UserID      string
+	Email       string
+	DisplayName string
+	CreatedAt   time.Time
+	LastLoginAt time.Time
+	UpdatedAt   time.Time
+}
+
 type Workspace struct {
 	WorkspaceID string
 	AccountID   string

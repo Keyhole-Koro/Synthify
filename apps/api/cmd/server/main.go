@@ -53,11 +53,6 @@ func main() {
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 	uploadURLIssuer := bootstrap.NewDocumentUploadURLIssuer(cfg.GCSBucket, cfg.GCSUploadURLBase)
-	documentSvc := service.NewDocumentService(
-		store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
-	)
-	itemSvc := service.NewItemService(store, store, appLogger)
-	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
 
 	stripeProvider, err := stripe.NewProvider(stripe.Config{
 		SecretKey:        cfg.Stripe.SecretKey,
@@ -74,16 +69,23 @@ func main() {
 		MeterInputEvent:  cfg.Stripe.MeterInputEvent,
 		MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
 	})
-
 	if err != nil {
 		log.Fatalf("stripe provider init: %v", err)
 	}
 	billingSvc := service.NewBillingService(store, store, stripeProvider, appLogger)
 
+	documentSvc := service.NewDocumentService(
+		store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
+	)
+	itemSvc := service.NewItemService(store, store, appLogger)
+	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
+	userSvc := service.NewUserService(store, store, billingSvc, appLogger)
+
 	documentHandler := handler.NewDocumentHandler(documentSvc, store, store, uploadURLIssuer)
 	treeHandler := handler.NewTreeHandler(store, store, store)
 	itemHandler := handler.NewItemHandler(itemSvc, store, store)
-	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc, billingSvc, store)
+	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc, store)
+	userHandler := handler.NewUserHandler(userSvc)
 	jobHandler := handler.NewJobHandler(store, store, store, appLogger)
 	billingHandler := handler.NewBillingHandler(billingSvc)
 
@@ -93,6 +95,7 @@ func main() {
 	mux.Handle(appv1connect.NewTreeServiceHandler(treeHandler, connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(itemHandler, connectOptions...))
 	mux.Handle(appv1connect.NewWorkspaceServiceHandler(workspaceHandler, connectOptions...))
+	mux.Handle(appv1connect.NewUserServiceHandler(userHandler, connectOptions...))
 	mux.Handle(appv1connect.NewJobServiceHandler(jobHandler, connectOptions...))
 	mux.Handle(appv1connect.NewBillingServiceHandler(billingHandler, connectOptions...))
 

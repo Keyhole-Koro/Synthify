@@ -40,12 +40,22 @@ func TestGetWorkspace_UnknownID_ReturnsErrNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrNotFound, "GetWorkspace unknown ID")
 }
 
-func TestCreateWorkspace_NewUser_CreatesWorkspace(t *testing.T) {
+func TestCreateWorkspace_NoAccount_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	svc := NewWorkspaceService(store, store, nil)
 
-	ws, err := svc.CreateWorkspace(ctx, "my-workspace", "new_user")
+	_, err := svc.CreateWorkspace(ctx, "my-workspace", "new_user")
+	assert.ErrorIs(t, err, domain.ErrNotFound, "CreateWorkspace no account")
+}
+
+func TestCreateWorkspace_Success_CreatesWorkspace(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	_, _ = store.CreateAccount(ctx, "owner")
+	svc := NewWorkspaceService(store, store, nil)
+
+	ws, err := svc.CreateWorkspace(ctx, "my-workspace", "owner")
 	require.NoError(t, err, "CreateWorkspace")
 	require.NotNil(t, ws, "CreateWorkspace returned nil workspace")
 	assert.Equal(t, "my-workspace", ws.Name, "workspace.Name")
