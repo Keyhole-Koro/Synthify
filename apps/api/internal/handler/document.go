@@ -7,10 +7,10 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
+	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
-	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -46,7 +46,7 @@ func (h *DocumentHandler) ListDocuments(ctx context.Context, req *connect.Reques
 	res := connect.NewResponse(&appv1.ListDocumentsResponse{})
 	for _, doc := range docs {
 		latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
-		res.Msg.Documents = append(res.Msg.Documents, mappers.ToProtoDocument(doc, latest))
+		res.Msg.Documents = append(res.Msg.Documents, toProtoDocument(doc, latest))
 	}
 	return res, nil
 }
@@ -63,7 +63,7 @@ func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[
 		return nil, connectutil.ToError(err)
 	}
 	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
-	return connect.NewResponse(&appv1.GetDocumentResponse{Document: mappers.ToProtoDocument(doc, latest)}), nil
+	return connect.NewResponse(&appv1.GetDocumentResponse{Document: toProtoDocument(doc, latest)}), nil
 }
 
 func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Request[appv1.CreateDocumentRequest]) (*connect.Response[appv1.CreateDocumentResponse], error) {
@@ -82,7 +82,7 @@ func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Reque
 		return nil, connectutil.ToError(err)
 	}
 	return connect.NewResponse(&appv1.CreateDocumentResponse{
-		Document:          mappers.ToProtoDocument(doc, nil),
+		Document:          toProtoDocument(doc, nil),
 		UploadUrl:         uploadTarget.URL,
 		UploadMethod:      uploadTarget.Method,
 		UploadContentType: uploadTarget.ContentType,
@@ -126,7 +126,7 @@ func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Reques
 		return nil, connectutil.ToError(err)
 	}
 	latest, _ := h.documents.GetLatestProcessingJob(ctx, doc.DocumentID)
-	return connect.NewResponse(&appv1.ConfirmUploadResponse{Document: mappers.ToProtoDocument(doc, latest)}), nil
+	return connect.NewResponse(&appv1.ConfirmUploadResponse{Document: toProtoDocument(doc, latest)}), nil
 }
 
 func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Request[appv1.StartProcessingRequest]) (*connect.Response[appv1.StartProcessingResponse], error) {
@@ -179,4 +179,21 @@ func (h *DocumentHandler) ResumeProcessing(ctx context.Context, req *connect.Req
 			Status:     job.Status,
 		},
 	}), nil
+}
+
+func toProtoDocument(doc *domain.Document, latestJob *domain.DocumentProcessingJob) *appv1.Document {
+	if doc == nil {
+		return nil
+	}
+	return &appv1.Document{
+		DocumentId:  doc.DocumentID,
+		WorkspaceId: doc.WorkspaceID,
+		UploadedBy:  doc.UploadedBy,
+		Filename:    doc.Filename,
+		MimeType:    doc.MimeType,
+		FileSize:    doc.FileSize,
+		Status:      domain.DeriveLifecycleState(latestJob),
+		CreatedAt:   doc.CreatedAt,
+		UpdatedAt:   doc.CreatedAt,
+	}
 }

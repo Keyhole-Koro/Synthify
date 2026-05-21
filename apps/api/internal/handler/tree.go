@@ -8,7 +8,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
-	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -46,7 +45,7 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 		WorkspaceId: req.Msg.GetWorkspaceId(),
 	}
 	for _, item := range items {
-		protoItem := mappers.ToProtoItem(item)
+		protoItem := toProtoItem(item)
 		tree.Items = append(tree.Items, protoItem)
 	}
 	return connect.NewResponse(&appv1.GetTreeResponse{Tree: tree}), nil
@@ -80,7 +79,7 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 	}
 	protoItems := make([]*appv1.SubtreeItem, len(items))
 	for i, item := range items {
-		protoItems[i] = mappers.ToProtoSubtreeItem(item)
+		protoItems[i] = toProtoSubtreeItem(item)
 	}
 	return connect.NewResponse(&appv1.GetSubtreeResponse{Items: protoItems}), nil
 }
@@ -111,7 +110,7 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 		CrossDocument: req.Msg.GetCrossDocument(),
 	}
 	for _, item := range items {
-		protoTree.Items = append(protoTree.Items, mappers.ToProtoItem(item))
+		protoTree.Items = append(protoTree.Items, toProtoItem(item))
 	}
 
 	res := connect.NewResponse(&appv1.FindPathsResponse{Tree: protoTree})

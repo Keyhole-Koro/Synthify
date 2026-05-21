@@ -5,10 +5,10 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
+	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
-	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -30,7 +30,7 @@ func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Reques
 	workspaces := h.workspaces.ListWorkspacesByUser(ctx, user.ID)
 	res := connect.NewResponse(&appv1.ListWorkspacesResponse{})
 	for _, workspace := range workspaces {
-		res.Msg.Workspaces = append(res.Msg.Workspaces, mappers.ToProtoWorkspace(workspace))
+		res.Msg.Workspaces = append(res.Msg.Workspaces, toProtoWorkspace(workspace))
 	}
 	return res, nil
 }
@@ -48,7 +48,7 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 		return nil, connectutil.ToError(err)
 	}
 	return connect.NewResponse(&appv1.GetWorkspaceResponse{
-		Workspace: mappers.ToProtoWorkspace(workspace),
+		Workspace: toProtoWorkspace(workspace),
 	}), nil
 }
 
@@ -69,7 +69,7 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 		_ = h.billing.GrantFreeSignupCredit(ctx, ws.AccountID)
 	}
 	return connect.NewResponse(&appv1.CreateWorkspaceResponse{
-		Workspace: mappers.ToProtoWorkspace(ws),
+		Workspace: toProtoWorkspace(ws),
 	}), nil
 }
 
@@ -87,4 +87,32 @@ func (h *WorkspaceHandler) RemoveMember(_ context.Context, _ *connect.Request[ap
 
 func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Request[appv1.TransferOwnershipRequest]) (*connect.Response[appv1.TransferOwnershipResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace ownership is managed at account level"))
+}
+
+func toProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
+	if ws == nil {
+		return nil
+	}
+	return &appv1.Workspace{
+		WorkspaceId:       ws.WorkspaceID,
+		Name:              ws.Name,
+		OwnerId:           ws.AccountID,
+		Plan:              toProtoWorkspacePlan(ws.Plan),
+		StorageUsedBytes:  ws.StorageUsedBytes,
+		StorageQuotaBytes: ws.StorageQuotaBytes,
+		MaxFileSizeBytes:  ws.MaxFileSizeBytes,
+		MaxUploadsPerDay:  ws.MaxUploadsPerWeek,
+		CreatedAt:         ws.CreatedAt,
+	}
+}
+
+func toProtoWorkspacePlan(plan string) appv1.WorkspacePlan {
+	switch plan {
+	case "pro":
+		return appv1.WorkspacePlan_WORKSPACE_PLAN_PRO
+	case "free", "":
+		return appv1.WorkspacePlan_WORKSPACE_PLAN_FREE
+	default:
+		return appv1.WorkspacePlan_WORKSPACE_PLAN_UNSPECIFIED
+	}
 }

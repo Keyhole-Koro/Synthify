@@ -12,7 +12,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
-	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/job/log"
@@ -42,7 +41,7 @@ func (h *JobHandler) GetJobStatus(ctx context.Context, req *connect.Request[appv
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&appv1.GetJobStatusResponse{Job: mappers.ToProtoJob(job)}), nil
+	return connect.NewResponse(&appv1.GetJobStatusResponse{Job: toProtoJob(job)}), nil
 }
 
 func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Request[appv1.GetJobExecutionPlanRequest]) (*connect.Response[appv1.GetJobExecutionPlanResponse], error) {
@@ -54,7 +53,7 @@ func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Reque
 		return nil, connectutil.ToError(err)
 	}
 	return connect.NewResponse(&appv1.GetJobExecutionPlanResponse{
-		Plan: mappers.ToProtoExecutionPlan(plan),
+		Plan: toProtoExecutionPlan(plan),
 	}), nil
 }
 
@@ -68,7 +67,7 @@ func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.R
 	}
 	res := connect.NewResponse(&appv1.ListJobApprovalRequestsResponse{})
 	for _, request := range requests {
-		res.Msg.Requests = append(res.Msg.Requests, mappers.ToProtoApprovalRequest(request))
+		res.Msg.Requests = append(res.Msg.Requests, toProtoApprovalRequest(request))
 	}
 	return res, nil
 }
@@ -95,7 +94,7 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 		Message:     fmt.Sprintf("approval requested by=%s reason=%q", user.ID, req.Msg.GetReason()),
 		Detail:      map[string]any{"by": user.ID, "reason": req.Msg.GetReason()},
 	})
-	return connect.NewResponse(&appv1.RequestJobApprovalResponse{Request: mappers.ToProtoApprovalRequest(approval)}), nil
+	return connect.NewResponse(&appv1.RequestJobApprovalResponse{Request: toProtoApprovalRequest(approval)}), nil
 }
 
 func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Request[appv1.ApproveJobApprovalRequest]) (*connect.Response[appv1.ApproveJobApprovalResponse], error) {
@@ -162,7 +161,7 @@ func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Reque
 	}
 	res := connect.NewResponse(&appv1.ListJobMutationLogsResponse{})
 	for _, log := range logs {
-		res.Msg.Logs = append(res.Msg.Logs, mappers.ToProtoMutationLog(log))
+		res.Msg.Logs = append(res.Msg.Logs, toProtoMutationLog(log))
 	}
 	return res, nil
 }
@@ -183,7 +182,7 @@ func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[appv1
 		NextPageToken: nextToken,
 	})
 	for _, l := range logs {
-		res.Msg.Logs = append(res.Msg.Logs, mappers.ToProtoJobLog(l))
+		res.Msg.Logs = append(res.Msg.Logs, toProtoJobLog(l))
 	}
 	return res, nil
 }
@@ -215,7 +214,7 @@ func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[app
 		NextPageToken: nextToken,
 	})
 	for _, l := range logs {
-		res.Msg.Logs = append(res.Msg.Logs, mappers.ToProtoJobLog(l))
+		res.Msg.Logs = append(res.Msg.Logs, toProtoJobLog(l))
 	}
 	return res, nil
 }
@@ -249,7 +248,7 @@ func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Reques
 		NextPageToken: nextToken,
 	})
 	for _, g := range groups {
-		res.Msg.Groups = append(res.Msg.Groups, mappers.ToProtoJobLogGroup(g))
+		res.Msg.Groups = append(res.Msg.Groups, toProtoJobLogGroup(g))
 	}
 	return res, nil
 }
@@ -270,7 +269,7 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.L
 	}
 	res := connect.NewResponse(&appv1.ListAllJobsResponse{})
 	for _, job := range jobs {
-		res.Msg.Jobs = append(res.Msg.Jobs, mappers.ToProtoJob(job))
+		res.Msg.Jobs = append(res.Msg.Jobs, toProtoJob(job))
 	}
 	return res, nil
 }
@@ -327,5 +326,123 @@ func (h *JobHandler) authorizeRelatedLogSearch(ctx context.Context, scope domain
 		return authorizeWorkspace(ctx, h.workspaces, workspaceID)
 	default:
 		return connect.NewError(connect.CodeInvalidArgument, errors.New("scope must be job, document, or workspace"))
+	}
+}
+
+func toProtoJob(job *domain.DocumentProcessingJob) *appv1.Job {
+	if job == nil {
+		return nil
+	}
+	return &appv1.Job{
+		JobId:        job.JobID,
+		DocumentId:   job.DocumentID,
+		WorkspaceId:  job.WorkspaceID,
+		Type:         job.JobType,
+		Status:       job.Status,
+		CreatedAt:    job.CreatedAt,
+		CompletedAt:  job.UpdatedAt,
+		ErrorMessage: job.ErrorMessage,
+	}
+}
+
+func toProtoApprovalRequest(req *domain.JobApprovalRequest) *appv1.JobApprovalRequest {
+	if req == nil {
+		return nil
+	}
+	return &appv1.JobApprovalRequest{
+		ApprovalId:          req.ApprovalID,
+		JobId:               req.JobID,
+		PlanId:              req.PlanID,
+		Status:              req.Status,
+		RequestedOperations: req.RequestedOperations,
+		Reason:              req.Reason,
+		RiskTier:            req.RiskTier,
+		RequestedBy:         req.RequestedBy,
+		ReviewedBy:          req.ReviewedBy,
+		RequestedAt:         req.RequestedAt,
+		ReviewedAt:          req.ReviewedAt,
+	}
+}
+
+func toProtoMutationLog(log *domain.JobMutationLog) *appv1.JobMutationLog {
+	if log == nil {
+		return nil
+	}
+	return &appv1.JobMutationLog{
+		MutationId:     log.MutationID,
+		JobId:          log.JobID,
+		TargetType:     log.TargetType,
+		TargetId:       log.TargetID,
+		MutationType:   log.MutationType,
+		RiskTier:       log.RiskTier,
+		BeforeJson:     log.BeforeJSON,
+		AfterJson:      log.AfterJSON,
+		ProvenanceJson: log.ProvenanceJSON,
+		CreatedAt:      log.CreatedAt,
+	}
+}
+
+func toProtoExecutionPlan(plan *domain.JobExecutionPlan) *appv1.JobExecutionPlan {
+	if plan == nil {
+		return nil
+	}
+	return &appv1.JobExecutionPlan{
+		PlanId:    plan.PlanID,
+		JobId:     plan.JobID,
+		Status:    plan.Status,
+		Summary:   plan.Summary,
+		PlanJson:  plan.PlanJSON,
+		CreatedBy: plan.CreatedBy,
+		CreatedAt: plan.CreatedAt,
+		UpdatedAt: plan.UpdatedAt,
+	}
+}
+
+func toProtoJobLog(log *domain.JobLog) *appv1.JobLog {
+	if log == nil {
+		return nil
+	}
+	return &appv1.JobLog{
+		Timestamp:   log.Timestamp,
+		Level:       log.Level,
+		Event:       log.Event,
+		Message:     log.Message,
+		DetailJson:  log.DetailJSON,
+		Source:      log.Source,
+		SourceId:    log.SourceID,
+		JobId:       log.JobID,
+		DocumentId:  log.DocumentID,
+		WorkspaceId: log.WorkspaceID,
+	}
+}
+
+func toProtoJobLogJob(job *domain.JobLogJob) *appv1.JobLogJob {
+	if job == nil {
+		return nil
+	}
+	logs := make([]*appv1.JobLog, 0, len(job.Logs))
+	for _, l := range job.Logs {
+		logs = append(logs, toProtoJobLog(l))
+	}
+	return &appv1.JobLogJob{
+		JobId:     job.JobID,
+		Status:    job.Status,
+		CreatedAt: job.CreatedAt,
+		Logs:      logs,
+	}
+}
+
+func toProtoJobLogGroup(group *domain.JobLogGroup) *appv1.JobLogGroup {
+	if group == nil {
+		return nil
+	}
+	jobs := make([]*appv1.JobLogJob, 0, len(group.Jobs))
+	for _, j := range group.Jobs {
+		jobs = append(jobs, toProtoJobLogJob(j))
+	}
+	return &appv1.JobLogGroup{
+		WorkspaceId: group.WorkspaceID,
+		DocumentId:  group.DocumentID,
+		Jobs:        jobs,
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
-	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -49,7 +48,7 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 			Scope:       item.Scope,
 			Id:          item.ItemID,
 		},
-		Item: mappers.ToProtoItem(item),
+		Item: toProtoItem(item),
 		Evidence: &appv1.TreeEntityEvidence{
 			SourceDocumentIds: []string{},
 		},
@@ -72,7 +71,7 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&appv1.CreateItemResponse{Item: mappers.ToProtoItem(item)}), nil
+	return connect.NewResponse(&appv1.CreateItemResponse{Item: toProtoItem(item)}), nil
 }
 
 func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[appv1.ApproveAliasRequest]) (*connect.Response[appv1.ApproveAliasResponse], error) {
