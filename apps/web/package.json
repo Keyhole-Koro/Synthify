@@ -12,7 +12,6 @@
     "seed:jobs": "node ./scripts/seed-firestore-jobs.mjs"
   },
   "dependencies": {
-    "@synthify/proto-ts": "workspace:*",
     "@bufbuild/protobuf": "^2.12.0",
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1",

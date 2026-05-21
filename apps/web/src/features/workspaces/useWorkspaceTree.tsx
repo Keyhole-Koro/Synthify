@@ -7,7 +7,7 @@ import { findRootItemId } from '@/features/tree/buildTree';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { getTree, getSubtree, type ApiItem, type SubtreeItem } from '@/features/tree/api';
 import { create } from '@bufbuild/protobuf';
-import { SubtreeItemSchema } from '@synthify/proto-ts/gen/synthify/app/v1/tree_types_pb';
+import { SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import { createDocument, startProcessing, uploadFile } from '@/features/documents/api';
 import { ROOT_ID } from '@/features/paperMap/staticPapers';
 import { type Workspace } from '@/features/workspaces/api';

@@ -20,4 +20,4 @@ bun run build
 
 Use `bun add`, `bun remove`, and `bun update` for dependency changes. Do not regenerate `package-lock.json`.
 
-`../../packages/proto-ts/gen/**` and `vender/**` are intentionally excluded from the app ESLint pass. Generated protobuf files and vendored library sources are validated separately from the application code.
+`src/gen/proto/**` and `vender/**` are intentionally excluded from the app ESLint pass. Generated protobuf files and vendored library sources are validated separately from the application code.

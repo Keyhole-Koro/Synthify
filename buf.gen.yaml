@@ -15,6 +15,6 @@ plugins:
     opt:
       - paths=source_relative
   - remote: buf.build/connectrpc/es:v1.6.1
-    out: packages/proto-ts/gen
+    out: apps/web/src/gen/proto
   - remote: buf.build/bufbuild/es:v2.6.0
-    out: packages/proto-ts/gen
+    out: apps/web/src/gen/proto

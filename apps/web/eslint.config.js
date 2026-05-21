@@ -11,7 +11,7 @@ export default tseslint.config(
       "out",
       "playwright-report",
       "test-results",
-      "../../packages/proto-ts/gen/**",
+      "src/gen/proto/**",
       "vender/**"
     ]
   },

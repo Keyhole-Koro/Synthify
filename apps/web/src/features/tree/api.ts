@@ -1,12 +1,12 @@
 import { createRPCClient } from '@/lib/connect';
-import { TreeService } from '@synthify/proto-ts/gen/synthify/app/v1/tree_pb';
-import { ItemService } from '@synthify/proto-ts/gen/synthify/app/v1/item_pb';
-import { JobService } from '@synthify/proto-ts/gen/synthify/app/v1/job_pb';
-import { TreeProjectionScope, type SubtreeItem } from '@synthify/proto-ts/gen/synthify/app/v1/tree_types_pb';
+import { TreeService } from '@/gen/proto/synthify/app/v1/tree_pb';
+import { ItemService } from '@/gen/proto/synthify/app/v1/item_pb';
+import { JobService } from '@/gen/proto/synthify/app/v1/job_pb';
+import { TreeProjectionScope, type SubtreeItem } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 
-export type { Item as ApiItem, SubtreeItem } from '@synthify/proto-ts/gen/synthify/app/v1/tree_types_pb';
-export type { EntityRef, TreeEntityDetail } from '@synthify/proto-ts/gen/synthify/app/v1/item_pb';
-export { TreeProjectionScope } from '@synthify/proto-ts/gen/synthify/app/v1/tree_types_pb';
+export type { Item as ApiItem, SubtreeItem } from '@/gen/proto/synthify/app/v1/tree_types_pb';
+export type { EntityRef, TreeEntityDetail } from '@/gen/proto/synthify/app/v1/item_pb';
+export { TreeProjectionScope } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 
 const treeClient = createRPCClient(TreeService);
 const itemClient = createRPCClient(ItemService);

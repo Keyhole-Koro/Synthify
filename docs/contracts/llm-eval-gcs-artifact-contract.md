@@ -147,7 +147,7 @@ GCS upload は `apps/eval/artifact` が担当する。
 
 | 既存実装 | 判断 |
 | :--- | :--- |
-| `packages/shared/storage.FileSystem` | 使わない。GCS FUSE/local mount 前提で、Cloud Run Job の artifact 保存には重い |
+| worker の `storage.FileSystem` | 使わない。GCS FUSE/local mount 前提で、Cloud Run Job の artifact 保存には重い |
 | `WriteCache` / `WriteCheckpoint` | 使わない。worker 内部状態用で、eval artifact の責任領域と違う |
 | `BuildDocumentUploadURL` / `BuildDocumentSourceURL` | 使わない。document upload/source URL 専用 |
 | `NewGCSSignedDocumentUploadURLIssuer` | 使わない。eval Job 自身が service account で直接書くため署名 URL は不要 |

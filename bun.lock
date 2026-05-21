@@ -31,11 +31,10 @@
       "name": "synthify-frontend",
       "version": "0.1.0",
       "dependencies": {
-        "@bufbuild/protobuf": "^2.11.0",
+        "@bufbuild/protobuf": "^2.12.0",
         "@connectrpc/connect": "^2.1.1",
         "@connectrpc/connect-web": "^2.1.1",
         "@keyhole-koro/paper-in-paper": "file:./vender/paper-in-paper",
-        "@synthify/proto-ts": "file:../../packages/proto-ts",
         "firebase": "^12.12.0",
         "framer-motion": "^12.38.0",
         "next": "^16.2.2",
@@ -57,13 +56,6 @@
         "tailwindcss": "^4.2.2",
         "typescript": "^6.0.2",
         "typescript-eslint": "^8.58.0",
-      },
-    },
-    "packages/proto-ts": {
-      "name": "@synthify/proto-ts",
-      "version": "0.1.0",
-      "dependencies": {
-        "@bufbuild/protobuf": "^2.12.0",
       },
     },
   },
@@ -503,8 +495,6 @@
     "@swc/helpers": ["@swc/helpers@0.5.15", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g=="],
 
     "@synthify/log-viewer-ui": ["@synthify/log-viewer-ui@workspace:apps/log-viewer/ui"],
-
-    "@synthify/proto-ts": ["@synthify/proto-ts@workspace:packages/proto-ts"],
 
     "@tailwindcss/node": ["@tailwindcss/node@4.2.4", "", { "dependencies": { "@jridgewell/remapping": "^2.3.5", "enhanced-resolve": "^5.19.0", "jiti": "^2.6.1", "lightningcss": "1.32.0", "magic-string": "^0.30.21", "source-map-js": "^1.2.1", "tailwindcss": "4.2.4" } }, "sha512-Ai7+yQPxz3ddrDQzFfBKdHEVBg0w3Zl83jnjuwxnZOsnH9pGn93QHQtpU0p/8rYWxvbFZHneni6p1BSLK4DkGA=="],
 

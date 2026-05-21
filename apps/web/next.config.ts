@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // Static export for Firebase Hosting (no SSR/middleware/API routes; SPA
   // rewrite in firebase.json handles client-side routing). Outputs apps/web/out.
   output: 'export',
-  transpilePackages: ['@keyhole-koro/paper-in-paper', '@synthify/proto-ts'],
+  transpilePackages: ['@keyhole-koro/paper-in-paper'],
   turbopack: {
     root: path.join(process.cwd(), "../../"),
   },

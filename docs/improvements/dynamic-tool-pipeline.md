@@ -175,13 +175,11 @@ agent に合流する。残作業なし。
 ### Phase D: shared/tool 統合（型重複の解消）
 
 **目的**: 道A の `Tool/RunFn/IOSchema/Usage` 型が現在 eval (`apps/eval/runner/tool.go`) と worker
-(`apps/worker/pkg/worker/tools/sharedtool/`) に二重定義されている。`packages/shared/tool` に集約し
-両者が import する形にする。
+(`apps/worker/pkg/worker/tools/core/`) に二重定義されている場合、責務境界を崩さずに解消する。
 
 **やること**:
-- `packages/shared/tool/` パッケージ新設（worker sharedtool のコピー）
-- worker sharedtool を `import "github.com/synthify/backend/packages/shared/tool"` の re-export か削除
-- eval の `apps/eval/runner/tool.go` の Tool / RunFn / IOSchema / Usage を削除して shared を import
+- worker の `apps/worker/pkg/worker/tools/core/` を基準に、eval 側で必要な最小型だけを見直す
+- eval の `apps/eval/runner/tool.go` の Tool / RunFn / IOSchema / Usage の重複を削減
 - adkadapter / dynamic / runner / builtin_knowledge_tree 等の参照を全部更新
 - 既存テスト追従
 

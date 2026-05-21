@@ -20,4 +20,4 @@ go run github.com/bufbuild/buf/cmd/buf@latest generate
 Generated outputs:
 
 - Go protobuf and Connect handlers: `../../internal/gen`
-- TypeScript protobuf and Connect descriptors: `../../packages/proto-ts/gen`
+- TypeScript protobuf and Connect descriptors: `../../apps/web/src/gen/proto`

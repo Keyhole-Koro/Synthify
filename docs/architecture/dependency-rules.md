@@ -11,7 +11,7 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 ### 1.1 一方向依存の徹底（Dependency Rule）
 依存は常に「外側から内側へ」向かう必要があります。
 
-*   **内側（Core/Contract）:** `internal/gen`, `packages/proto-ts`
+*   **内側（Core/Contract）:** `internal/gen`, `apps/web/src/gen/proto`
 *   **横断基盤（Platform）:** `internal/platform`
 *   **外側（Implementation/App）:** `apps/api`, `apps/worker`, `apps/log-viewer`, `apps/web`
 
@@ -20,7 +20,7 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 *   アプリケーション間 (`apps/api` と `apps/worker` 等) で直接 import しあうこと。
 
 ### 1.2 契約と実装の分離
-共通契約（`internal/gen`）は「何をするか（RPC Interface）」を定義し、具体的なドメインロジックや実装は各アプリケーション層に閉じ込めます。かつての `packages/shared` のような、ドメイン知識が漏れ出す巨大な共通パッケージは作成しません。
+共通契約（`internal/gen`）は「何をするか（RPC Interface）」を定義し、具体的なドメインロジックや実装は各アプリケーション層に閉じ込めます。ドメイン知識が漏れ出す巨大な共通パッケージは作成しません。
 
 ---
 
@@ -45,10 +45,9 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 │  ├─ worker/
 │  │  └─ pkg/worker/ # worker 固有の logic (eval から参照するため pkg 配下)
 │  ├─ log-viewer/
+│  ├─ web/
+│  │  └─ src/gen/proto # Web 向けの TS generated proto code
 │  └─ eval/        # worker の評価・テストツール (worker/pkg を参照)
-│
-└─ packages/
-   └─ proto-ts/    # Web 向けの TS generated proto package
 ```
 
 ### 2.2 コード上の実依存関係
@@ -93,7 +92,7 @@ Worker アプリケーションの全責任を持ちます。
 ### 4.1 API 変更の手順
 1.  `contracts/connectrpc/` 内の `.proto` ファイルを編集。
 2.  ルートディレクトリで `buf generate` を実行。
-3.  `internal/gen` と `packages/proto-ts/gen` が更新されたことを確認。
+3.  `internal/gen` と `apps/web/src/gen/proto` が更新されたことを確認。
 4.  コンパイルエラーを各アプリで修正。
 
 ### 4.2 ドメイン知識の共有

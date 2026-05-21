@@ -5,7 +5,7 @@ import {
   type GetUsageResponse,
   type ListInvoicesResponse,
   type ListPaymentMethodsResponse,
-} from '@synthify/proto-ts/gen/synthify/app/v1/billing_pb';
+} from '@/gen/proto/synthify/app/v1/billing_pb';
 
 const client = createRPCClient(BillingService);
 

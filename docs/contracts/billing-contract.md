@@ -20,7 +20,7 @@ billing に関わる関数・インターフェイス・データフローを **
 
 ### 1.1 BillingPlan
 
-`packages/shared/domain/billing.go`
+`apps/api/internal/domain/billing.go` / `apps/worker/pkg/worker/domain/billing.go`
 
 | 値 | 意味 | Stripe 顧客 | 課金挙動 |
 |---|---|---|---|
@@ -207,7 +207,7 @@ type BillingProvider interface {
 
 ### 3.3 `repository.UsageRepository`
 
-`packages/shared/repository/interfaces.go:86`
+`apps/api/internal/repository/interfaces.go`
 
 ```go
 type UsageRepository interface {
@@ -571,7 +571,7 @@ current_period_end    TIMESTAMPTZ,
 
 ## 10. 設定 (`config.Billing`, `config.Stripe`)
 
-`packages/shared/config/config.go`
+`apps/api/internal/config/config.go` / `apps/worker/pkg/worker/config/config.go`
 
 ```go
 type Billing struct {
@@ -653,9 +653,9 @@ account.StripeCustomerID = "cus_test"
 
 ### Repository
 
-- `packages/shared/repository/interfaces.go` — `UsageRepository`, `AccountRepository`
-- `packages/shared/repository/postgres/billing.go` — postgres 実装
-- `packages/shared/repository/mock/store.go` — mock 実装 + テスト helper
+- `apps/api/internal/repository/interfaces.go` — `UsageRepository`, `AccountRepository`
+- `apps/api/internal/repository/postgres/billing.go` — postgres 実装
+- `apps/api/internal/repository/mock/store.go` — mock 実装 + テスト helper
 
 ### Worker
 
