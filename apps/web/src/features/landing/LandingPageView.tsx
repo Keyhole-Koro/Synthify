@@ -10,10 +10,30 @@ const PaperCanvas = dynamic(
   { ssr: false },
 );
 
+const FRAME_TRANSITION = [
+  'left 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
+  'right 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
+  'top 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
+  'bottom 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
+  'border-radius 0.32s ease',
+  'box-shadow 0.32s ease',
+  'outline-color 0.32s ease',
+].join(', ');
+
 function getCanvasFrameStyle(isFullscreen: boolean, winSize: { w: number; h: number }): CSSProperties {
-  const chromeTransition = 'border-radius 0.2s ease, box-shadow 0.2s ease, outline-color 0.2s ease';
   if (isFullscreen || winSize.w === 0) {
-    return { inset: 0, zIndex: 30, borderRadius: 0, boxShadow: 'none', transition: chromeTransition };
+    return {
+      // Use explicit edges (not `inset`) so the transition can animate
+      // each side as the canvas grows/shrinks between framed and fullscreen.
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      zIndex: 30,
+      borderRadius: 0,
+      boxShadow: 'none',
+      transition: FRAME_TRANSITION,
+    };
   }
 
   const w = Math.min(winSize.w * 0.95, winSize.h * 1.28);
@@ -29,7 +49,7 @@ function getCanvasFrameStyle(isFullscreen: boolean, winSize: { w: number; h: num
     borderRadius: 16,
     boxShadow: '0 20px 40px -8px rgba(120,110,90,0.3)',
     outline: '1px solid rgba(180,170,155,0.6)',
-    transition: chromeTransition,
+    transition: FRAME_TRANSITION,
   };
 }
 
