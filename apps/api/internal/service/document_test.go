@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func TestCreateDocumentRejectsOversizedFile(t *testing.T) {
@@ -185,7 +185,7 @@ func TestStartProcessingRespectsForceReprocess(t *testing.T) {
 	job1, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, false)
 	require.NoError(t, err)
 	require.NotNil(t, job1)
-	job1.Status = treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED
+	job1.Status = appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED
 
 	// Second time without force - should return job1
 	job2, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, false)
@@ -196,7 +196,7 @@ func TestStartProcessingRespectsForceReprocess(t *testing.T) {
 	job3, err := svc.StartProcessing(ctx, ws.WorkspaceID, doc.DocumentID, true)
 	require.NoError(t, err)
 	assert.NotEqual(t, job1.JobID, job3.JobID, "should create new job when forced")
-	assert.Equal(t, treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, job3.JobType)
+	assert.Equal(t, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, job3.JobType)
 }
 
 func documentSourceURL(workspaceID, documentID string) string {

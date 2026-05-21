@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Document {
@@ -681,7 +681,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return tx.Commit()
 }
 
-func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob {
 	createdAt := nowTime()
 	jobID := newID()
 	doc, err := s.GetDocument(ctx, docID)
@@ -726,7 +726,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 		DocumentID:  docID,
 		WorkspaceID: doc.WorkspaceID,
 		JobType:     strconv.Itoa(int(jobType)),
-		Status:      strconv.Itoa(int(treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
+		Status:      strconv.Itoa(int(appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
 		CreatedAt:   createdAt,
 	}); err != nil {
 		return nil
@@ -741,7 +741,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 		DocumentID:  docID,
 		WorkspaceID: doc.WorkspaceID,
 		JobType:     jobType,
-		Status:      treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+		Status:      appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 		UpdatedAt:   createdAt.Format(time.RFC3339),
 	}
@@ -979,8 +979,8 @@ func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 		DocumentID:       row.DocumentID,
 		WorkspaceID:      row.WorkspaceID,
 		ExecutionPlanID:  row.ExecutionPlanID,
-		JobType:          treev1.JobType(jobType),
-		Status:           treev1.JobLifecycleState(status),
+		JobType:          appv1.JobType(jobType),
+		Status:           appv1.JobLifecycleState(status),
 		PlanStatus:       row.PlanStatus,
 		EvaluationStatus: row.EvaluationStatus,
 		ErrorMessage:     row.ErrorMessage,

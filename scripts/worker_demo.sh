@@ -96,7 +96,7 @@ echo "── GenerateExecutionPlan ───────────────
 PLAN_HTTP_FILE=$(mktemp)
 PLAN_BODY=$(curl -s -o "${PLAN_HTTP_FILE}" -w "%{http_code}" \
   -H "Content-Type: application/json" \
-  "${WORKER_URL}/synthify.tree.v1.WorkerService/GenerateExecutionPlan" \
+  "${WORKER_URL}/synthify.worker.v1.WorkerService/GenerateExecutionPlan" \
   -d "{
     \"job_id\":       \"${JOB_ID}\",
     \"job_type\":     \"JOB_TYPE_PROCESS_DOCUMENT\",
@@ -121,7 +121,7 @@ echo "  (embedding 生成を含むため数十秒かかります)"
 EXEC_HTTP_FILE=$(mktemp)
 EXEC_STATUS=$(curl -s -o "${EXEC_HTTP_FILE}" -w "%{http_code}" \
   -H "Content-Type: application/json" \
-  "${WORKER_URL}/synthify.tree.v1.WorkerService/ExecuteApprovedPlan" \
+  "${WORKER_URL}/synthify.worker.v1.WorkerService/ExecuteApprovedPlan" \
   -d "{
     \"job_id\":       \"${JOB_ID}\",
     \"job_type\":     \"JOB_TYPE_PROCESS_DOCUMENT\",

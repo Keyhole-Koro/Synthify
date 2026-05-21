@@ -7,15 +7,15 @@ import (
 	"strings"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/middleware"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
-	"github.com/synthify/backend/internal/platform/job/log"
+	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/internal/platform/job/log"
 )
 
 type JobHandler struct {
@@ -37,15 +37,15 @@ func NewJobHandler(jobRepo repository.DocumentRepository, workspaceRepo reposito
 	}
 }
 
-func (h *JobHandler) GetJobStatus(ctx context.Context, req *connect.Request[treev1.GetJobStatusRequest]) (*connect.Response[treev1.GetJobStatusResponse], error) {
+func (h *JobHandler) GetJobStatus(ctx context.Context, req *connect.Request[appv1.GetJobStatusRequest]) (*connect.Response[appv1.GetJobStatusResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, err
 	}
-	return connect.NewResponse(&treev1.GetJobStatusResponse{Job: mappers.ToProtoJob(job)}), nil
+	return connect.NewResponse(&appv1.GetJobStatusResponse{Job: mappers.ToProtoJob(job)}), nil
 }
 
-func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Request[treev1.GetJobExecutionPlanRequest]) (*connect.Response[treev1.GetJobExecutionPlanResponse], error) {
+func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Request[appv1.GetJobExecutionPlanRequest]) (*connect.Response[appv1.GetJobExecutionPlanResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
@@ -53,12 +53,12 @@ func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&treev1.GetJobExecutionPlanResponse{
+	return connect.NewResponse(&appv1.GetJobExecutionPlanResponse{
 		Plan: mappers.ToProtoExecutionPlan(plan),
 	}), nil
 }
 
-func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.Request[treev1.ListJobApprovalRequestsRequest]) (*connect.Response[treev1.ListJobApprovalRequestsResponse], error) {
+func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.Request[appv1.ListJobApprovalRequestsRequest]) (*connect.Response[appv1.ListJobApprovalRequestsResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
@@ -66,14 +66,14 @@ func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.R
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	res := connect.NewResponse(&treev1.ListJobApprovalRequestsResponse{})
+	res := connect.NewResponse(&appv1.ListJobApprovalRequestsResponse{})
 	for _, request := range requests {
 		res.Msg.Requests = append(res.Msg.Requests, mappers.ToProtoApprovalRequest(request))
 	}
 	return res, nil
 }
 
-func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Request[treev1.RequestJobApprovalRequest]) (*connect.Response[treev1.RequestJobApprovalResponse], error) {
+func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Request[appv1.RequestJobApprovalRequest]) (*connect.Response[appv1.RequestJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, err
@@ -95,10 +95,10 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 		Message:     fmt.Sprintf("approval requested by=%s reason=%q", user.ID, req.Msg.GetReason()),
 		Detail:      map[string]any{"by": user.ID, "reason": req.Msg.GetReason()},
 	})
-	return connect.NewResponse(&treev1.RequestJobApprovalResponse{Request: mappers.ToProtoApprovalRequest(approval)}), nil
+	return connect.NewResponse(&appv1.RequestJobApprovalResponse{Request: mappers.ToProtoApprovalRequest(approval)}), nil
 }
 
-func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Request[treev1.ApproveJobApprovalRequest]) (*connect.Response[treev1.ApproveJobApprovalResponse], error) {
+func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Request[appv1.ApproveJobApprovalRequest]) (*connect.Response[appv1.ApproveJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, err
@@ -122,10 +122,10 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 		Message:     fmt.Sprintf("approval approved by=%s approval_id=%s", user.ID, req.Msg.GetApprovalId()),
 		Detail:      map[string]any{"by": user.ID, "approval_id": req.Msg.GetApprovalId()},
 	})
-	return connect.NewResponse(&treev1.ApproveJobApprovalResponse{Status: "approved"}), nil
+	return connect.NewResponse(&appv1.ApproveJobApprovalResponse{Status: "approved"}), nil
 }
 
-func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request[treev1.RejectJobApprovalRequest]) (*connect.Response[treev1.RejectJobApprovalResponse], error) {
+func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request[appv1.RejectJobApprovalRequest]) (*connect.Response[appv1.RejectJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
 		return nil, err
@@ -149,10 +149,10 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 		Message:     fmt.Sprintf("approval rejected by=%s approval_id=%s reason=%q", user.ID, req.Msg.GetApprovalId(), req.Msg.GetReason()),
 		Detail:      map[string]any{"by": user.ID, "approval_id": req.Msg.GetApprovalId(), "reason": req.Msg.GetReason()},
 	})
-	return connect.NewResponse(&treev1.RejectJobApprovalResponse{Status: "rejected"}), nil
+	return connect.NewResponse(&appv1.RejectJobApprovalResponse{Status: "rejected"}), nil
 }
 
-func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Request[treev1.ListJobMutationLogsRequest]) (*connect.Response[treev1.ListJobMutationLogsResponse], error) {
+func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Request[appv1.ListJobMutationLogsRequest]) (*connect.Response[appv1.ListJobMutationLogsResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
@@ -160,14 +160,14 @@ func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	res := connect.NewResponse(&treev1.ListJobMutationLogsResponse{})
+	res := connect.NewResponse(&appv1.ListJobMutationLogsResponse{})
 	for _, log := range logs {
 		res.Msg.Logs = append(res.Msg.Logs, mappers.ToProtoMutationLog(log))
 	}
 	return res, nil
 }
 
-func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[treev1.ListJobLogsRequest]) (*connect.Response[treev1.ListJobLogsResponse], error) {
+func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[appv1.ListJobLogsRequest]) (*connect.Response[appv1.ListJobLogsResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[treev
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, fmt.Errorf("failed to list job logs: %w", err))
 	}
-	res := connect.NewResponse(&treev1.ListJobLogsResponse{
+	res := connect.NewResponse(&appv1.ListJobLogsResponse{
 		NextPageToken: nextToken,
 	})
 	for _, l := range logs {
@@ -188,7 +188,7 @@ func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[treev
 	return res, nil
 }
 
-func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[treev1.SearchJobLogsRequest]) (*connect.Response[treev1.SearchJobLogsResponse], error) {
+func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[appv1.SearchJobLogsRequest]) (*connect.Response[appv1.SearchJobLogsResponse], error) {
 	filter := domain.JobLogSearchFilter{
 		Query:         req.Msg.GetQuery(),
 		WorkspaceID:   req.Msg.GetWorkspaceId(),
@@ -211,7 +211,7 @@ func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[tre
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to search job logs"))
 	}
-	res := connect.NewResponse(&treev1.SearchJobLogsResponse{
+	res := connect.NewResponse(&appv1.SearchJobLogsResponse{
 		NextPageToken: nextToken,
 	})
 	for _, l := range logs {
@@ -220,15 +220,15 @@ func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[tre
 	return res, nil
 }
 
-func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Request[treev1.ListRelatedJobLogsRequest]) (*connect.Response[treev1.ListRelatedJobLogsResponse], error) {
+func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Request[appv1.ListRelatedJobLogsRequest]) (*connect.Response[appv1.ListRelatedJobLogsResponse], error) {
 	scope := domain.RelatedLogScope(strings.ToLower(req.Msg.GetScope().String()))
 	// Handle enum string mapping if needed, but RelatedLogScopeJob etc match the lowercase enum names in domain
 	switch req.Msg.GetScope() {
-	case treev1.RelatedLogScope_RELATED_LOG_SCOPE_JOB:
+	case appv1.RelatedLogScope_RELATED_LOG_SCOPE_JOB:
 		scope = domain.RelatedLogScopeJob
-	case treev1.RelatedLogScope_RELATED_LOG_SCOPE_DOCUMENT:
+	case appv1.RelatedLogScope_RELATED_LOG_SCOPE_DOCUMENT:
 		scope = domain.RelatedLogScopeDocument
-	case treev1.RelatedLogScope_RELATED_LOG_SCOPE_WORKSPACE:
+	case appv1.RelatedLogScope_RELATED_LOG_SCOPE_WORKSPACE:
 		scope = domain.RelatedLogScopeWorkspace
 	default:
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("unsupported scope"))
@@ -245,7 +245,7 @@ func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, errors.New("failed to list related job logs"))
 	}
-	res := connect.NewResponse(&treev1.ListRelatedJobLogsResponse{
+	res := connect.NewResponse(&appv1.ListRelatedJobLogsResponse{
 		NextPageToken: nextToken,
 	})
 	for _, g := range groups {
@@ -254,7 +254,7 @@ func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Reques
 	return res, nil
 }
 
-func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[treev1.ListAllJobsRequest]) (*connect.Response[treev1.ListAllJobsResponse], error) {
+func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.ListAllJobsRequest]) (*connect.Response[appv1.ListAllJobsResponse], error) {
 	// 全 workspace 横断のため admin 権限を要求。
 	// log-viewer など読み取り専用ツールは API を経由せず Postgres を直接参照する設計に
 	// 切り替えたため、anonymous バイパスは存在しない。
@@ -268,7 +268,7 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[treev1.
 	if err != nil {
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	res := connect.NewResponse(&treev1.ListAllJobsResponse{})
+	res := connect.NewResponse(&appv1.ListAllJobsResponse{})
 	for _, job := range jobs {
 		res.Msg.Jobs = append(res.Msg.Jobs, mappers.ToProtoJob(job))
 	}

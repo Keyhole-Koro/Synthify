@@ -7,11 +7,11 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/service"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	"github.com/synthify/backend/apps/api/internal/service"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func TestWorkspaceHandler_AuthFlow(t *testing.T) {
@@ -21,7 +21,7 @@ func TestWorkspaceHandler_AuthFlow(t *testing.T) {
 	handler := newTestWorkspaceHandler(store)
 
 	t.Run("list requires authentication", func(t *testing.T) {
-		resp, err := handler.ListWorkspaces(ctx, connect.NewRequest(&treev1.ListWorkspacesRequest{}))
+		resp, err := handler.ListWorkspaces(ctx, connect.NewRequest(&appv1.ListWorkspacesRequest{}))
 
 		assert.Nil(t, resp)
 		assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -30,7 +30,7 @@ func TestWorkspaceHandler_AuthFlow(t *testing.T) {
 	t.Run("get rejects another user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
 
-		resp, err := handler.GetWorkspace(authedCtx, connect.NewRequest(&treev1.GetWorkspaceRequest{
+		resp, err := handler.GetWorkspace(authedCtx, connect.NewRequest(&appv1.GetWorkspaceRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 		}))
 
@@ -41,7 +41,7 @@ func TestWorkspaceHandler_AuthFlow(t *testing.T) {
 	t.Run("get allows owner", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-		resp, err := handler.GetWorkspace(authedCtx, connect.NewRequest(&treev1.GetWorkspaceRequest{
+		resp, err := handler.GetWorkspace(authedCtx, connect.NewRequest(&appv1.GetWorkspaceRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 		}))
 
@@ -58,7 +58,7 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	handler := newTestDocumentHandler(store)
 
 	t.Run("list requires authentication", func(t *testing.T) {
-		resp, err := handler.ListDocuments(ctx, connect.NewRequest(&treev1.ListDocumentsRequest{
+		resp, err := handler.ListDocuments(ctx, connect.NewRequest(&appv1.ListDocumentsRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 		}))
 
@@ -69,7 +69,7 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	t.Run("get rejects another user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
 
-		resp, err := handler.GetDocument(authedCtx, connect.NewRequest(&treev1.GetDocumentRequest{
+		resp, err := handler.GetDocument(authedCtx, connect.NewRequest(&appv1.GetDocumentRequest{
 			DocumentId: fixture.Document.DocumentID,
 		}))
 
@@ -80,7 +80,7 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	t.Run("create uses authenticated user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-		resp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&treev1.CreateDocumentRequest{
+		resp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Filename:    "owned.pdf",
 			MimeType:    "application/pdf",
@@ -100,7 +100,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	handler := NewTreeHandler(store, store, store)
 
 	t.Run("get tree requires authentication", func(t *testing.T) {
-		resp, err := handler.GetTree(ctx, connect.NewRequest(&treev1.GetTreeRequest{
+		resp, err := handler.GetTree(ctx, connect.NewRequest(&appv1.GetTreeRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 		}))
 
@@ -111,7 +111,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	t.Run("get tree rejects another user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
 
-		resp, err := handler.GetTree(authedCtx, connect.NewRequest(&treev1.GetTreeRequest{
+		resp, err := handler.GetTree(authedCtx, connect.NewRequest(&appv1.GetTreeRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 		}))
 
@@ -122,7 +122,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	t.Run("get tree allows owner", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-		resp, err := handler.GetTree(authedCtx, connect.NewRequest(&treev1.GetTreeRequest{
+		resp, err := handler.GetTree(authedCtx, connect.NewRequest(&appv1.GetTreeRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 		}))
 
@@ -139,7 +139,7 @@ func TestItemHandler_AuthFlow(t *testing.T) {
 	handler := newTestItemHandler(store)
 
 	t.Run("create requires authentication", func(t *testing.T) {
-		resp, err := handler.CreateItem(ctx, connect.NewRequest(&treev1.CreateItemRequest{
+		resp, err := handler.CreateItem(ctx, connect.NewRequest(&appv1.CreateItemRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Label:       "unauthenticated",
 		}))
@@ -151,7 +151,7 @@ func TestItemHandler_AuthFlow(t *testing.T) {
 	t.Run("create rejects another user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
 
-		resp, err := handler.CreateItem(authedCtx, connect.NewRequest(&treev1.CreateItemRequest{
+		resp, err := handler.CreateItem(authedCtx, connect.NewRequest(&appv1.CreateItemRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Label:       "stranger-item",
 		}))
@@ -163,7 +163,7 @@ func TestItemHandler_AuthFlow(t *testing.T) {
 	t.Run("create records owner as creator", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-		resp, err := handler.CreateItem(authedCtx, connect.NewRequest(&treev1.CreateItemRequest{
+		resp, err := handler.CreateItem(authedCtx, connect.NewRequest(&appv1.CreateItemRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Label:       "owner-item",
 		}))
@@ -179,11 +179,11 @@ func TestItemHandler_AuthFlow(t *testing.T) {
 func TestJobHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
-	fixture := mock.CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "owner", treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	fixture := mock.CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	handler := NewJobHandler(store, store, store, nil)
 
 	t.Run("status requires authentication", func(t *testing.T) {
-		resp, err := handler.GetJobStatus(ctx, connect.NewRequest(&treev1.GetJobStatusRequest{
+		resp, err := handler.GetJobStatus(ctx, connect.NewRequest(&appv1.GetJobStatusRequest{
 			JobId: fixture.Job.JobID,
 		}))
 
@@ -194,7 +194,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 	t.Run("status rejects another user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
 
-		resp, err := handler.GetJobStatus(authedCtx, connect.NewRequest(&treev1.GetJobStatusRequest{
+		resp, err := handler.GetJobStatus(authedCtx, connect.NewRequest(&appv1.GetJobStatusRequest{
 			JobId: fixture.Job.JobID,
 		}))
 
@@ -205,7 +205,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 	t.Run("approval request uses authenticated user", func(t *testing.T) {
 		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-		resp, err := handler.RequestJobApproval(authedCtx, connect.NewRequest(&treev1.RequestJobApprovalRequest{
+		resp, err := handler.RequestJobApproval(authedCtx, connect.NewRequest(&appv1.RequestJobApprovalRequest{
 			JobId:  fixture.Job.JobID,
 			Reason: "needs review",
 		}))

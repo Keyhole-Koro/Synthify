@@ -4,7 +4,7 @@ ConnectRPC contracts are defined with Protocol Buffers.
 
 ## Canonical Sources
 
-- Proto files: `./synthify/tree/v1/*.proto`
+- Proto files: `./synthify/{app,admin,executor,worker}/v1/*.proto`
 - Buf module config: `../../buf.yaml`
 - Go + TypeScript generation config: `../../buf.gen.yaml`
 - TypeScript-only generation config: `../../buf.gen.web.yaml`

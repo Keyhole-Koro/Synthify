@@ -4,7 +4,7 @@
 // later stage behind a separate executor service.
 package transform
 
-// Status mirrors synthify.tree.v1.ExecuteStatus. The transform package keeps
+// Status mirrors synthify.executor.v1.ExecuteStatus. The transform package keeps
 // its own value type so the engine layer does not depend on generated proto.
 type Status string
 

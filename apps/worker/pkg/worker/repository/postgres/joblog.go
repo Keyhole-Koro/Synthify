@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/job/log"
 )
 
@@ -296,9 +296,9 @@ type jobLogRow struct {
 	WorkspaceID string
 }
 
-func parseJobStatus(s string) treev1.JobLifecycleState {
+func parseJobStatus(s string) appv1.JobLifecycleState {
 	status, _ := strconv.Atoi(s)
-	return treev1.JobLifecycleState(status)
+	return appv1.JobLifecycleState(status)
 }
 
 func encodeJobLogCursor(ts time.Time, sourceID string) string {

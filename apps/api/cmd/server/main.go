@@ -11,16 +11,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/synthify/backend/apps/api/internal/bootstrap"
+	"github.com/synthify/backend/apps/api/internal/config"
 	"github.com/synthify/backend/apps/api/internal/handler"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/storage"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/stripe"
 	apiworker "github.com/synthify/backend/apps/api/internal/infrastructure/worker"
 	apimiddleware "github.com/synthify/backend/apps/api/internal/middleware"
-	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/service"
+	appv1connect "github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
 	"github.com/synthify/backend/internal/platform/applog"
-	"github.com/synthify/backend/apps/api/internal/config"
-	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	"github.com/synthify/backend/internal/platform/observability"
 )
@@ -89,12 +89,12 @@ func main() {
 
 	mux := http.NewServeMux()
 	connectOptions := observability.ConnectHandlerOptions(nrApp)
-	mux.Handle(treev1connect.NewDocumentServiceHandler(documentHandler, connectOptions...))
-	mux.Handle(treev1connect.NewTreeServiceHandler(treeHandler, connectOptions...))
-	mux.Handle(treev1connect.NewItemServiceHandler(itemHandler, connectOptions...))
-	mux.Handle(treev1connect.NewWorkspaceServiceHandler(workspaceHandler, connectOptions...))
-	mux.Handle(treev1connect.NewJobServiceHandler(jobHandler, connectOptions...))
-	mux.Handle(treev1connect.NewBillingServiceHandler(billingHandler, connectOptions...))
+	mux.Handle(appv1connect.NewDocumentServiceHandler(documentHandler, connectOptions...))
+	mux.Handle(appv1connect.NewTreeServiceHandler(treeHandler, connectOptions...))
+	mux.Handle(appv1connect.NewItemServiceHandler(itemHandler, connectOptions...))
+	mux.Handle(appv1connect.NewWorkspaceServiceHandler(workspaceHandler, connectOptions...))
+	mux.Handle(appv1connect.NewJobServiceHandler(jobHandler, connectOptions...))
+	mux.Handle(appv1connect.NewBillingServiceHandler(billingHandler, connectOptions...))
 
 	// Stripe sends raw, signed webhook bodies — this is a plain HTTP
 	// endpoint, not Connect. The auth middleware exempts /stripe/webhook.

@@ -12,17 +12,17 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker"
+	"github.com/synthify/backend/apps/worker/pkg/worker/bootstrap"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
-	"github.com/synthify/backend/apps/worker/pkg/worker/bootstrap"
-	"github.com/synthify/backend/internal/platform/applog"
-	"github.com/synthify/backend/apps/worker/pkg/worker/config"
-	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
-	"github.com/synthify/backend/internal/platform/job/log"
-	"github.com/synthify/backend/internal/platform/httpmiddleware"
-	"github.com/synthify/backend/internal/platform/observability"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/internal/platform/httpmiddleware"
+	"github.com/synthify/backend/internal/platform/job/log"
+	"github.com/synthify/backend/internal/platform/observability"
 )
 
 func main() {
@@ -57,7 +57,7 @@ func main() {
 	evaluator := worker.NewJobEvaluator(store, embedder, appLogger)
 
 	mux := http.NewServeMux()
-	mux.Handle(treev1connect.NewWorkerServiceHandler(
+	mux.Handle(workerv1connect.NewWorkerServiceHandler(
 		worker.NewConnectHandler(workerService, store, planner, evaluator, appLogger),
 		observability.ConnectHandlerOptions(nrApp)...,
 	))

@@ -17,8 +17,8 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
-	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
+	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
+	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
 	"google.golang.org/api/idtoken"
 )
 
@@ -38,8 +38,8 @@ func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.E
 	if err != nil {
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
-	rpcReq := connect.NewRequest(&treev1.GenerateExecutionPlanRequest{
+	client := workerv1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
+	rpcReq := connect.NewRequest(&workerv1.GenerateExecutionPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
 		DocumentId:  req.DocumentID,
@@ -59,8 +59,8 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.Exe
 	if err != nil {
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
-	rpcReq := connect.NewRequest(&treev1.ExecuteApprovedPlanRequest{
+	client := workerv1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
+	rpcReq := connect.NewRequest(&workerv1.ExecuteApprovedPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
 		DocumentId:  req.DocumentID,

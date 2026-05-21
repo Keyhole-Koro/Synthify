@@ -35,7 +35,7 @@ export async function callRPC<Req, Res>(
   body: Req,
 ): Promise<Res> {
   const authHeaders = await getRequestAuthHeaders();
-  const url = `${env.apiBaseUrl}/synthify.tree.v1.${service}/${method}`;
+  const url = `${env.apiBaseUrl}/synthify.app.v1.${service}/${method}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {

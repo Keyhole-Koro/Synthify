@@ -11,11 +11,11 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	"github.com/synthify/backend/apps/api/internal/service"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func TestDocumentUpload_Integration(t *testing.T) {
@@ -51,7 +51,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 
 	t.Run("upload via issued URL using POST", func(t *testing.T) {
 		// 1. Get Upload URL
-		createResp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&treev1.CreateDocumentRequest{
+		createResp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Filename:    "test-post.txt",
 			MimeType:    "text/plain",
@@ -92,7 +92,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 
 	t.Run("upload via issued URL using PUT (check if emulator supports it)", func(t *testing.T) {
 		// 1. Get Upload URL
-		createResp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&treev1.CreateDocumentRequest{
+		createResp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Filename:    "test-put.txt",
 			MimeType:    "text/plain",

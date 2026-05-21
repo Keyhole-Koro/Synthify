@@ -12,15 +12,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/middleware"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func TestBillingHandler_CreateCheckoutSession_Unauthenticated_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
 
-	resp, err := h.CreateCheckoutSession(context.Background(), connect.NewRequest(&treev1.CreateCheckoutSessionRequest{
+	resp, err := h.CreateCheckoutSession(context.Background(), connect.NewRequest(&appv1.CreateCheckoutSessionRequest{
 		AccountId: "owner",
 		Currency:  string(domain.BillingCurrencyUSD),
 	}))
@@ -37,7 +37,7 @@ func TestBillingHandler_CreateCheckoutSession_UsesAuthenticatedUser(t *testing.T
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-	resp, err := h.CreateCheckoutSession(ctx, connect.NewRequest(&treev1.CreateCheckoutSessionRequest{
+	resp, err := h.CreateCheckoutSession(ctx, connect.NewRequest(&appv1.CreateCheckoutSessionRequest{
 		AccountId: "owner",
 		Currency:  string(domain.BillingCurrencyUSD),
 	}))
@@ -56,7 +56,7 @@ func TestBillingHandler_CreatePortalSession_Unauthenticated_ReturnsUnauthenticat
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
 
-	resp, err := h.CreatePortalSession(context.Background(), connect.NewRequest(&treev1.CreatePortalSessionRequest{
+	resp, err := h.CreatePortalSession(context.Background(), connect.NewRequest(&appv1.CreatePortalSessionRequest{
 		AccountId: "owner",
 	}))
 
@@ -72,7 +72,7 @@ func TestBillingHandler_CreatePortalSession_UsesAuthenticatedUser(t *testing.T) 
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 
-	resp, err := h.CreatePortalSession(ctx, connect.NewRequest(&treev1.CreatePortalSessionRequest{
+	resp, err := h.CreatePortalSession(ctx, connect.NewRequest(&appv1.CreatePortalSessionRequest{
 		AccountId: "owner",
 	}))
 
@@ -91,7 +91,7 @@ func TestBillingHandler_CreatePortalSession_UsesAuthenticatedUser(t *testing.T) 
 func TestBillingHandler_GetBillingAccount_Unauthenticated_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	resp, err := h.GetBillingAccount(context.Background(), connect.NewRequest(&treev1.GetBillingAccountRequest{AccountId: "owner"}))
+	resp, err := h.GetBillingAccount(context.Background(), connect.NewRequest(&appv1.GetBillingAccountRequest{AccountId: "owner"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 }
@@ -99,7 +99,7 @@ func TestBillingHandler_GetBillingAccount_Unauthenticated_ReturnsUnauthenticated
 func TestBillingHandler_GetUsage_Unauthenticated_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	resp, err := h.GetUsage(context.Background(), connect.NewRequest(&treev1.GetUsageRequest{AccountId: "owner"}))
+	resp, err := h.GetUsage(context.Background(), connect.NewRequest(&appv1.GetUsageRequest{AccountId: "owner"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 	assert.Zero(t, svc.getUsageCalls)
@@ -110,7 +110,7 @@ func TestBillingHandler_GetUsage_AuthenticatedUser_CallsService(t *testing.T) {
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	resp, err := h.GetUsage(ctx, connect.NewRequest(&treev1.GetUsageRequest{AccountId: "owner"}))
+	resp, err := h.GetUsage(ctx, connect.NewRequest(&appv1.GetUsageRequest{AccountId: "owner"}))
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -120,7 +120,7 @@ func TestBillingHandler_GetUsage_AuthenticatedUser_CallsService(t *testing.T) {
 func TestBillingHandler_UpdateBudget_Unauthenticated_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	resp, err := h.UpdateBudget(context.Background(), connect.NewRequest(&treev1.UpdateBudgetRequest{AccountId: "owner", BudgetLimit: "50"}))
+	resp, err := h.UpdateBudget(context.Background(), connect.NewRequest(&appv1.UpdateBudgetRequest{AccountId: "owner", BudgetLimit: "50"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 	assert.Zero(t, svc.updateBudgetCalls)
@@ -131,7 +131,7 @@ func TestBillingHandler_UpdateBudget_AuthenticatedUser_CallsService(t *testing.T
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	resp, err := h.UpdateBudget(ctx, connect.NewRequest(&treev1.UpdateBudgetRequest{AccountId: "owner", BudgetLimit: "50"}))
+	resp, err := h.UpdateBudget(ctx, connect.NewRequest(&appv1.UpdateBudgetRequest{AccountId: "owner", BudgetLimit: "50"}))
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -141,7 +141,7 @@ func TestBillingHandler_UpdateBudget_AuthenticatedUser_CallsService(t *testing.T
 func TestBillingHandler_ListInvoices_Unauthenticated_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	resp, err := h.ListInvoices(context.Background(), connect.NewRequest(&treev1.ListInvoicesRequest{AccountId: "owner"}))
+	resp, err := h.ListInvoices(context.Background(), connect.NewRequest(&appv1.ListInvoicesRequest{AccountId: "owner"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 	assert.Zero(t, svc.listInvoicesCalls)
@@ -152,7 +152,7 @@ func TestBillingHandler_ListInvoices_AuthenticatedUser_CallsService(t *testing.T
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	resp, err := h.ListInvoices(ctx, connect.NewRequest(&treev1.ListInvoicesRequest{AccountId: "owner", Limit: 10}))
+	resp, err := h.ListInvoices(ctx, connect.NewRequest(&appv1.ListInvoicesRequest{AccountId: "owner", Limit: 10}))
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -162,7 +162,7 @@ func TestBillingHandler_ListInvoices_AuthenticatedUser_CallsService(t *testing.T
 func TestBillingHandler_ListPaymentMethods_Unauthenticated_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	resp, err := h.ListPaymentMethods(context.Background(), connect.NewRequest(&treev1.ListPaymentMethodsRequest{AccountId: "owner"}))
+	resp, err := h.ListPaymentMethods(context.Background(), connect.NewRequest(&appv1.ListPaymentMethodsRequest{AccountId: "owner"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
 	assert.Zero(t, svc.listPaymentMethodsCalls)
@@ -173,7 +173,7 @@ func TestBillingHandler_ListPaymentMethods_AuthenticatedUser_CallsService(t *tes
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	resp, err := h.ListPaymentMethods(ctx, connect.NewRequest(&treev1.ListPaymentMethodsRequest{AccountId: "owner"}))
+	resp, err := h.ListPaymentMethods(ctx, connect.NewRequest(&appv1.ListPaymentMethodsRequest{AccountId: "owner"}))
 
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -186,7 +186,7 @@ func TestBillingHandler_RecordUsage_NoServiceToken_ReturnsPermissionDenied(t *te
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
 
-	resp, err := h.RecordUsage(context.Background(), connect.NewRequest(&treev1.RecordUsageRequest{
+	resp, err := h.RecordUsage(context.Background(), connect.NewRequest(&appv1.RecordUsageRequest{
 		AccountId: "owner",
 		Model:     "gemini-2.5-pro",
 	}))
@@ -202,7 +202,7 @@ func TestBillingHandler_RecordUsage_AuthenticatedUserAlone_StillDenied(t *testin
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
 
-	resp, err := h.RecordUsage(ctx, connect.NewRequest(&treev1.RecordUsageRequest{
+	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
 		AccountId: "owner",
 		Model:     "gemini-2.5-pro",
 	}))
@@ -219,7 +219,7 @@ func TestBillingHandler_RecordUsage_ServiceToken_CallsService(t *testing.T) {
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithServiceCall(context.Background())
 
-	resp, err := h.RecordUsage(ctx, connect.NewRequest(&treev1.RecordUsageRequest{
+	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
 		EventId:      "evt-usage-1",
 		AccountId:    "owner",
 		WorkspaceId:  "ws-1",
@@ -250,7 +250,7 @@ func TestBillingHandler_RecordUsage_ServiceTokenMissingEventID_ReturnsInvalidArg
 	h := NewBillingHandler(svc)
 	ctx := middleware.ContextWithServiceCall(context.Background())
 
-	resp, err := h.RecordUsage(ctx, connect.NewRequest(&treev1.RecordUsageRequest{
+	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
 		AccountId: "owner",
 		Model:     "gemini-2.5-pro",
 	}))

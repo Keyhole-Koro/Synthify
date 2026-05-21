@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 var ctx = context.Background()
@@ -31,7 +31,7 @@ func TestIsWorkspaceAccessible_Stranger_ReturnsFalse(t *testing.T) {
 
 func TestApproveAlias_RecordsAlias(t *testing.T) {
 	store := NewStore()
-	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	ws := fixture.Workspace
 
 	// Add seed items
@@ -52,7 +52,7 @@ func TestApproveAlias_UnknownItem_ReturnsFalse(t *testing.T) {
 
 func TestRejectAlias_RemovesAlias(t *testing.T) {
 	store := NewStore()
-	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	ws := fixture.Workspace
 
 	require.NoError(t, store.ApproveAlias(ctx, ws.WorkspaceID, "item-root", "item-child"), "ApproveAlias")
@@ -63,7 +63,7 @@ func TestRejectAlias_RemovesAlias(t *testing.T) {
 
 func TestGetJobPlanningSignals_CountsProvenanceAndAliases(t *testing.T) {
 	store := NewStore()
-	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	fixture := CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "u1", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	ws := fixture.Workspace
 
 	err := store.UpsertItemSource(ctx, "nd_tel", "doc-1", "file-1", "chunk-1", "source", 0.9)

@@ -2,14 +2,14 @@ package mappers
 
 import (
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-func ToProtoJob(job *domain.DocumentProcessingJob) *treev1.Job {
+func ToProtoJob(job *domain.DocumentProcessingJob) *appv1.Job {
 	if job == nil {
 		return nil
 	}
-	return &treev1.Job{
+	return &appv1.Job{
 		JobId:        job.JobID,
 		DocumentId:   job.DocumentID,
 		WorkspaceId:  job.WorkspaceID,
@@ -21,11 +21,11 @@ func ToProtoJob(job *domain.DocumentProcessingJob) *treev1.Job {
 	}
 }
 
-func ToProtoApprovalRequest(req *domain.JobApprovalRequest) *treev1.JobApprovalRequest {
+func ToProtoApprovalRequest(req *domain.JobApprovalRequest) *appv1.JobApprovalRequest {
 	if req == nil {
 		return nil
 	}
-	return &treev1.JobApprovalRequest{
+	return &appv1.JobApprovalRequest{
 		ApprovalId:          req.ApprovalID,
 		JobId:               req.JobID,
 		PlanId:              req.PlanID,
@@ -40,11 +40,11 @@ func ToProtoApprovalRequest(req *domain.JobApprovalRequest) *treev1.JobApprovalR
 	}
 }
 
-func ToProtoMutationLog(log *domain.JobMutationLog) *treev1.JobMutationLog {
+func ToProtoMutationLog(log *domain.JobMutationLog) *appv1.JobMutationLog {
 	if log == nil {
 		return nil
 	}
-	return &treev1.JobMutationLog{
+	return &appv1.JobMutationLog{
 		MutationId:     log.MutationID,
 		JobId:          log.JobID,
 		TargetType:     log.TargetType,
@@ -58,11 +58,11 @@ func ToProtoMutationLog(log *domain.JobMutationLog) *treev1.JobMutationLog {
 	}
 }
 
-func ToProtoExecutionPlan(plan *domain.JobExecutionPlan) *treev1.JobExecutionPlan {
+func ToProtoExecutionPlan(plan *domain.JobExecutionPlan) *appv1.JobExecutionPlan {
 	if plan == nil {
 		return nil
 	}
-	return &treev1.JobExecutionPlan{
+	return &appv1.JobExecutionPlan{
 		PlanId:    plan.PlanID,
 		JobId:     plan.JobID,
 		Status:    plan.Status,
@@ -74,11 +74,11 @@ func ToProtoExecutionPlan(plan *domain.JobExecutionPlan) *treev1.JobExecutionPla
 	}
 }
 
-func ToProtoJobLog(log *domain.JobLog) *treev1.JobLog {
+func ToProtoJobLog(log *domain.JobLog) *appv1.JobLog {
 	if log == nil {
 		return nil
 	}
-	return &treev1.JobLog{
+	return &appv1.JobLog{
 		Timestamp:   log.Timestamp,
 		Level:       log.Level,
 		Event:       log.Event,
@@ -92,15 +92,15 @@ func ToProtoJobLog(log *domain.JobLog) *treev1.JobLog {
 	}
 }
 
-func ToProtoJobLogJob(job *domain.JobLogJob) *treev1.JobLogJob {
+func ToProtoJobLogJob(job *domain.JobLogJob) *appv1.JobLogJob {
 	if job == nil {
 		return nil
 	}
-	logs := make([]*treev1.JobLog, 0, len(job.Logs))
+	logs := make([]*appv1.JobLog, 0, len(job.Logs))
 	for _, l := range job.Logs {
 		logs = append(logs, ToProtoJobLog(l))
 	}
-	return &treev1.JobLogJob{
+	return &appv1.JobLogJob{
 		JobId:     job.JobID,
 		Status:    job.Status,
 		CreatedAt: job.CreatedAt,
@@ -108,15 +108,15 @@ func ToProtoJobLogJob(job *domain.JobLogJob) *treev1.JobLogJob {
 	}
 }
 
-func ToProtoJobLogGroup(group *domain.JobLogGroup) *treev1.JobLogGroup {
+func ToProtoJobLogGroup(group *domain.JobLogGroup) *appv1.JobLogGroup {
 	if group == nil {
 		return nil
 	}
-	jobs := make([]*treev1.JobLogJob, 0, len(group.Jobs))
+	jobs := make([]*appv1.JobLogJob, 0, len(group.Jobs))
 	for _, j := range group.Jobs {
 		jobs = append(jobs, ToProtoJobLogJob(j))
 	}
-	return &treev1.JobLogGroup{
+	return &appv1.JobLogGroup{
 		WorkspaceId: group.WorkspaceID,
 		DocumentId:  group.DocumentID,
 		Jobs:        jobs,

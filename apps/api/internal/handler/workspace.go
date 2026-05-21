@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/service"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
 	"github.com/synthify/backend/apps/api/internal/transport/connect/mappers"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type WorkspaceHandler struct {
@@ -22,20 +22,20 @@ func NewWorkspaceHandler(svc *service.WorkspaceService, billing service.BillingU
 	return &WorkspaceHandler{service: svc, billing: billing, workspaces: workspaceRepo}
 }
 
-func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[treev1.ListWorkspacesRequest]) (*connect.Response[treev1.ListWorkspacesResponse], error) {
+func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[appv1.ListWorkspacesRequest]) (*connect.Response[appv1.ListWorkspacesResponse], error) {
 	user, err := currentUser(ctx)
 	if err != nil {
 		return nil, err
 	}
 	workspaces := h.workspaces.ListWorkspacesByUser(ctx, user.ID)
-	res := connect.NewResponse(&treev1.ListWorkspacesResponse{})
+	res := connect.NewResponse(&appv1.ListWorkspacesResponse{})
 	for _, workspace := range workspaces {
 		res.Msg.Workspaces = append(res.Msg.Workspaces, mappers.ToProtoWorkspace(workspace))
 	}
 	return res, nil
 }
 
-func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Request[treev1.GetWorkspaceRequest]) (*connect.Response[treev1.GetWorkspaceResponse], error) {
+func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Request[appv1.GetWorkspaceRequest]) (*connect.Response[appv1.GetWorkspaceResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
@@ -47,12 +47,12 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&treev1.GetWorkspaceResponse{
+	return connect.NewResponse(&appv1.GetWorkspaceResponse{
 		Workspace: mappers.ToProtoWorkspace(workspace),
 	}), nil
 }
 
-func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[treev1.CreateWorkspaceRequest]) (*connect.Response[treev1.CreateWorkspaceResponse], error) {
+func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[appv1.CreateWorkspaceRequest]) (*connect.Response[appv1.CreateWorkspaceResponse], error) {
 	if req.Msg.GetName() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
@@ -68,23 +68,23 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 	if h.billing != nil {
 		_ = h.billing.GrantFreeSignupCredit(ctx, ws.AccountID)
 	}
-	return connect.NewResponse(&treev1.CreateWorkspaceResponse{
+	return connect.NewResponse(&appv1.CreateWorkspaceResponse{
 		Workspace: mappers.ToProtoWorkspace(ws),
 	}), nil
 }
 
-func (h *WorkspaceHandler) InviteMember(_ context.Context, _ *connect.Request[treev1.InviteMemberRequest]) (*connect.Response[treev1.InviteMemberResponse], error) {
+func (h *WorkspaceHandler) InviteMember(_ context.Context, _ *connect.Request[appv1.InviteMemberRequest]) (*connect.Response[appv1.InviteMemberResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
 }
 
-func (h *WorkspaceHandler) UpdateMemberRole(_ context.Context, _ *connect.Request[treev1.UpdateMemberRoleRequest]) (*connect.Response[treev1.UpdateMemberRoleResponse], error) {
+func (h *WorkspaceHandler) UpdateMemberRole(_ context.Context, _ *connect.Request[appv1.UpdateMemberRoleRequest]) (*connect.Response[appv1.UpdateMemberRoleResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
 }
 
-func (h *WorkspaceHandler) RemoveMember(_ context.Context, _ *connect.Request[treev1.RemoveMemberRequest]) (*connect.Response[treev1.RemoveMemberResponse], error) {
+func (h *WorkspaceHandler) RemoveMember(_ context.Context, _ *connect.Request[appv1.RemoveMemberRequest]) (*connect.Response[appv1.RemoveMemberResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
 }
 
-func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Request[treev1.TransferOwnershipRequest]) (*connect.Response[treev1.TransferOwnershipResponse], error) {
+func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Request[appv1.TransferOwnershipRequest]) (*connect.Response[appv1.TransferOwnershipResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace ownership is managed at account level"))
 }

@@ -2,14 +2,14 @@ package mappers
 
 import (
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-func ToProtoWorkspace(ws *domain.Workspace) *treev1.Workspace {
+func ToProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
 	if ws == nil {
 		return nil
 	}
-	return &treev1.Workspace{
+	return &appv1.Workspace{
 		WorkspaceId:       ws.WorkspaceID,
 		Name:              ws.Name,
 		OwnerId:           ws.AccountID,
@@ -22,13 +22,13 @@ func ToProtoWorkspace(ws *domain.Workspace) *treev1.Workspace {
 	}
 }
 
-func toProtoWorkspacePlan(plan string) treev1.WorkspacePlan {
+func toProtoWorkspacePlan(plan string) appv1.WorkspacePlan {
 	switch plan {
 	case "pro":
-		return treev1.WorkspacePlan_WORKSPACE_PLAN_PRO
+		return appv1.WorkspacePlan_WORKSPACE_PLAN_PRO
 	case "free", "":
-		return treev1.WorkspacePlan_WORKSPACE_PLAN_FREE
+		return appv1.WorkspacePlan_WORKSPACE_PLAN_FREE
 	default:
-		return treev1.WorkspacePlan_WORKSPACE_PLAN_UNSPECIFIED
+		return appv1.WorkspacePlan_WORKSPACE_PLAN_UNSPECIFIED
 	}
 }

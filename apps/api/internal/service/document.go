@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
+	"github.com/synthify/backend/apps/api/internal/repository"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/job/status"
-	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
 type WorkerDispatcher interface {
@@ -102,26 +102,26 @@ func (s *DocumentService) StartProcessing(ctx context.Context, wsID, documentID 
 	if !forceReprocess {
 		if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
-			case treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
-				treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
-				treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED:
+			case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
+				appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
+				appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED:
 				return latest, nil
 			}
 		}
 	}
 
-	jobType := treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT
+	jobType := appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT
 	if forceReprocess {
-		jobType = treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
+		jobType = appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
 	}
 	return s.startProcessingJob(ctx, wsID, documentID, jobType, false)
 }
 
 func (s *DocumentService) ResumeProcessing(ctx context.Context, wsID, documentID string) (*domain.DocumentProcessingJob, error) {
-	return s.startProcessingJob(ctx, wsID, documentID, treev1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
+	return s.startProcessingJob(ctx, wsID, documentID, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
 }
 
-func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, documentID string, jobType treev1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
+func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, documentID string, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
 	doc, err := s.repo.GetDocument(ctx, documentID)
 	if err != nil {
 		if resumeExisting {
@@ -135,8 +135,8 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, wsID, document
 	if resumeExisting {
 		if latest, err := s.repo.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
-			case treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
-				treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED:
+			case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
+				appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED:
 				return latest, nil
 			}
 		}

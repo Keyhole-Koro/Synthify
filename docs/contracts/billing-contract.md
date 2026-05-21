@@ -247,7 +247,7 @@ ApplyBillingEvent(ctx, *ProviderWebhookEvent) error
 
 ## 4. Connect RPC 表面
 
-`contracts/connectrpc/synthify/tree/v1/billing.proto`
+`contracts/connectrpc/synthify/app/v1/billing.proto`
 
 | RPC | 認可 | 用途 |
 |---|---|---|
@@ -664,9 +664,9 @@ account.StripeCustomerID = "cus_test"
 
 ### Proto
 
-- `contracts/connectrpc/synthify/tree/v1/billing.proto`
-- 生成物: `packages/shared/gen/synthify/tree/v1/billing.pb.go`,
-  `treev1connect/billing.connect.go`
+- `contracts/connectrpc/synthify/app/v1/billing.proto`
+- 生成物: `internal/gen/synthify/app/v1/billing.pb.go`,
+  `appv1connect/billing.connect.go`
 
 ### DB
 

@@ -177,7 +177,7 @@ for target in "$@"; do
       check_status \
         "api auth gate" \
         "401" \
-        "$api_base_url/synthify.tree.v1.WorkspaceService/ListWorkspaces" \
+        "$api_base_url/synthify.app.v1.WorkspaceService/ListWorkspaces" \
         --request POST \
         --header 'Content-Type: application/json' \
         --data '{}'
@@ -189,7 +189,7 @@ for target in "$@"; do
       check_status \
         "worker connect route" \
         "400" \
-        "$worker_base_url/synthify.tree.v1.WorkerService/GenerateExecutionPlan" \
+        "$worker_base_url/synthify.worker.v1.WorkerService/GenerateExecutionPlan" \
         --request POST \
         --header 'Content-Type: application/json' \
         --data '{}'

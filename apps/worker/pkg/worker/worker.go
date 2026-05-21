@@ -18,8 +18,9 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
-	treev1connect "github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
+	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
 	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/job/status"
@@ -208,11 +209,11 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 	}
 	payload := map[string]any{
 		"steps": []map[string]any{
-			{"name": "text_extraction", "operation": treev1.JobOperation_JOB_OPERATION_READ_DOCUMENT.String(), "risk_tier": "tier_0"},
-			{"name": "semantic_chunking", "operation": treev1.JobOperation_JOB_OPERATION_INVOKE_LLM.String(), "risk_tier": "tier_0"},
-			{"name": "generate_knowledge_tree", "operation": treev1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
-			{"name": "persistence", "operation": treev1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
-			{"name": "evaluation", "operation": treev1.JobOperation_JOB_OPERATION_EMIT_EVAL.String(), "risk_tier": "tier_0"},
+			{"name": "text_extraction", "operation": appv1.JobOperation_JOB_OPERATION_READ_DOCUMENT.String(), "risk_tier": "tier_0"},
+			{"name": "semantic_chunking", "operation": appv1.JobOperation_JOB_OPERATION_INVOKE_LLM.String(), "risk_tier": "tier_0"},
+			{"name": "generate_knowledge_tree", "operation": appv1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
+			{"name": "persistence", "operation": appv1.JobOperation_JOB_OPERATION_CREATE_ITEM.String(), "risk_tier": "tier_1"},
+			{"name": "evaluation", "operation": appv1.JobOperation_JOB_OPERATION_EMIT_EVAL.String(), "risk_tier": "tier_0"},
 		},
 		"document_id":  req.DocumentID,
 		"workspace_id": req.WorkspaceID,
@@ -321,8 +322,8 @@ func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req ExecuteP
 	if err != nil {
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"))
-	rpcReq := connect.NewRequest(&treev1.GenerateExecutionPlanRequest{
+	client := workerv1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"))
+	rpcReq := connect.NewRequest(&workerv1.GenerateExecutionPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
 		DocumentId:  req.DocumentID,
@@ -342,8 +343,8 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req ExecutePla
 	if err != nil {
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := treev1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"))
-	rpcReq := connect.NewRequest(&treev1.ExecuteApprovedPlanRequest{
+	client := workerv1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"))
+	rpcReq := connect.NewRequest(&workerv1.ExecuteApprovedPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
 		DocumentId:  req.DocumentID,

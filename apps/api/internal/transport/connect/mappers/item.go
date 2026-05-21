@@ -2,24 +2,24 @@ package mappers
 
 import (
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-func ToProtoSubtreeItem(item *domain.SubtreeItem) *treev1.SubtreeItem {
+func ToProtoSubtreeItem(item *domain.SubtreeItem) *appv1.SubtreeItem {
 	if item == nil {
 		return nil
 	}
-	return &treev1.SubtreeItem{
+	return &appv1.SubtreeItem{
 		Item:        ToProtoItem(&item.Item),
 		HasChildren: item.HasChildren,
 	}
 }
 
-func ToProtoItem(item *domain.Item) *treev1.Item {
+func ToProtoItem(item *domain.Item) *appv1.Item {
 	if item == nil {
 		return nil
 	}
-	return &treev1.Item{
+	return &appv1.Item{
 		Id:              item.ItemID,
 		Title:           item.Title,
 		Level:           int32(item.Level),

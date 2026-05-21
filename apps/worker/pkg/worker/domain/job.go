@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/util"
 )
 
@@ -16,35 +16,35 @@ type Job struct {
 }
 
 type DocumentProcessingJob struct {
-	JobID            string                   `json:"job_id"`
-	DocumentID       string                   `json:"document_id"`
-	WorkspaceID      string                   `json:"workspace_id,omitempty"`
-	JobType          treev1.JobType           `json:"job_type"`
-	Status           treev1.JobLifecycleState `json:"status"`
-	CurrentStage     string                   `json:"current_stage,omitempty"`
-	ErrorMessage     string                   `json:"error_message,omitempty"`
-	ParamsJSON       string                   `json:"params_json,omitempty"`
-	RequestedBy      string                   `json:"requested_by,omitempty"`
-	CapabilityID     string                   `json:"capability_id,omitempty"`
-	ExecutionPlanID  string                   `json:"execution_plan_id,omitempty"`
-	PlanStatus       string                   `json:"plan_status,omitempty"`
-	EvaluationStatus string                   `json:"evaluation_status,omitempty"`
-	RetryCount       int                      `json:"retry_count,omitempty"`
-	BudgetJSON       string                   `json:"budget_json,omitempty"`
-	CreatedAt        string                   `json:"created_at"`
-	UpdatedAt        string                   `json:"updated_at"`
+	JobID            string                  `json:"job_id"`
+	DocumentID       string                  `json:"document_id"`
+	WorkspaceID      string                  `json:"workspace_id,omitempty"`
+	JobType          appv1.JobType           `json:"job_type"`
+	Status           appv1.JobLifecycleState `json:"status"`
+	CurrentStage     string                  `json:"current_stage,omitempty"`
+	ErrorMessage     string                  `json:"error_message,omitempty"`
+	ParamsJSON       string                  `json:"params_json,omitempty"`
+	RequestedBy      string                  `json:"requested_by,omitempty"`
+	CapabilityID     string                  `json:"capability_id,omitempty"`
+	ExecutionPlanID  string                  `json:"execution_plan_id,omitempty"`
+	PlanStatus       string                  `json:"plan_status,omitempty"`
+	EvaluationStatus string                  `json:"evaluation_status,omitempty"`
+	RetryCount       int                     `json:"retry_count,omitempty"`
+	BudgetJSON       string                  `json:"budget_json,omitempty"`
+	CreatedAt        string                  `json:"created_at"`
+	UpdatedAt        string                  `json:"updated_at"`
 }
 
 type JobCapability struct {
-	CapabilityID       string                `json:"capability_id"`
-	JobID              string                `json:"job_id"`
-	WorkspaceID        string                `json:"workspace_id"`
-	AllowedDocumentIDs []string              `json:"allowed_document_ids,omitempty"`
-	AllowedItemIDs     []string              `json:"allowed_item_ids,omitempty"`
-	AllowedOperations  []treev1.JobOperation `json:"allowed_operations,omitempty"`
-	MaxLLMCalls        int                   `json:"max_llm_calls,omitempty"`
-	MaxToolRuns        int                   `json:"max_tool_runs,omitempty"`
-	MaxItemCreations   int                   `json:"max_item_creations,omitempty"`
+	CapabilityID       string               `json:"capability_id"`
+	JobID              string               `json:"job_id"`
+	WorkspaceID        string               `json:"workspace_id"`
+	AllowedDocumentIDs []string             `json:"allowed_document_ids,omitempty"`
+	AllowedItemIDs     []string             `json:"allowed_item_ids,omitempty"`
+	AllowedOperations  []appv1.JobOperation `json:"allowed_operations,omitempty"`
+	MaxLLMCalls        int                  `json:"max_llm_calls,omitempty"`
+	MaxToolRuns        int                  `json:"max_tool_runs,omitempty"`
+	MaxItemCreations   int                  `json:"max_item_creations,omitempty"`
 	// MaxTransformCreations caps create_transform invocations per job; the
 	// same counter is consumed by syntax_error fix-regeneration so there is
 	// no infinite retry loop. MaxTransformRuns caps dynamic-tool executions
@@ -56,7 +56,7 @@ type JobCapability struct {
 	CreatedAt             string `json:"created_at,omitempty"`
 }
 
-func (c *JobCapability) Allows(op treev1.JobOperation) bool {
+func (c *JobCapability) Allows(op appv1.JobOperation) bool {
 	if c == nil {
 		return false
 	}
@@ -176,17 +176,17 @@ type JobMutationLog struct {
 }
 
 type JobApprovalRequest struct {
-	ApprovalID          string                `json:"approval_id"`
-	JobID               string                `json:"job_id"`
-	PlanID              string                `json:"plan_id"`
-	Status              string                `json:"status"`
-	RequestedOperations []treev1.JobOperation `json:"requested_operations,omitempty"`
-	Reason              string                `json:"reason,omitempty"`
-	RiskTier            string                `json:"risk_tier,omitempty"`
-	RequestedBy         string                `json:"requested_by,omitempty"`
-	ReviewedBy          string                `json:"reviewed_by,omitempty"`
-	RequestedAt         string                `json:"requested_at,omitempty"`
-	ReviewedAt          string                `json:"reviewed_at,omitempty"`
+	ApprovalID          string               `json:"approval_id"`
+	JobID               string               `json:"job_id"`
+	PlanID              string               `json:"plan_id"`
+	Status              string               `json:"status"`
+	RequestedOperations []appv1.JobOperation `json:"requested_operations,omitempty"`
+	Reason              string               `json:"reason,omitempty"`
+	RiskTier            string               `json:"risk_tier,omitempty"`
+	RequestedBy         string               `json:"requested_by,omitempty"`
+	ReviewedBy          string               `json:"reviewed_by,omitempty"`
+	RequestedAt         string               `json:"requested_at,omitempty"`
+	ReviewedAt          string               `json:"reviewed_at,omitempty"`
 }
 
 type ExecutePlanRequest struct {
@@ -238,12 +238,12 @@ func DefaultJobCapability(jobID, workspaceID, documentID string, createdAt time.
 		JobID:              jobID,
 		WorkspaceID:        workspaceID,
 		AllowedDocumentIDs: []string{documentID},
-		AllowedOperations: []treev1.JobOperation{
-			treev1.JobOperation_JOB_OPERATION_READ_TREE,
-			treev1.JobOperation_JOB_OPERATION_READ_DOCUMENT,
-			treev1.JobOperation_JOB_OPERATION_CREATE_ITEM,
-			treev1.JobOperation_JOB_OPERATION_UPDATE_ITEM,
-			treev1.JobOperation_JOB_OPERATION_INVOKE_LLM,
+		AllowedOperations: []appv1.JobOperation{
+			appv1.JobOperation_JOB_OPERATION_READ_TREE,
+			appv1.JobOperation_JOB_OPERATION_READ_DOCUMENT,
+			appv1.JobOperation_JOB_OPERATION_CREATE_ITEM,
+			appv1.JobOperation_JOB_OPERATION_UPDATE_ITEM,
+			appv1.JobOperation_JOB_OPERATION_INVOKE_LLM,
 		},
 		MaxLLMCalls:      128,
 		MaxToolRuns:      0,

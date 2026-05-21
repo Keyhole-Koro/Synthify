@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package synthify.executor.v1;
+
+option go_package = "github.com/synthify/backend/internal/gen/synthify/executor/v1;executorv1";
+
+// ExecutorService runs LLM-generated transform code in an isolated Cloud Run
+// service. It has no DB / GCS / Secret access. Data is exchanged via worker-signed,
+// time-limited GCS URLs (input GET-only, output PUT-only) so the executor never
+// holds storage credentials. See docs/improvements/dynamic-tool-synthesis.md.
+service ExecutorService {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+}
+
+enum TransformLanguage {
+  TRANSFORM_LANGUAGE_UNSPECIFIED = 0;
+  TRANSFORM_LANGUAGE_PYTHON = 1;
+  TRANSFORM_LANGUAGE_STARLARK = 2;
+}
+
+// ExecuteStatus is the outcome of one transform execution. The worker maps each
+// status to a fixed LLM-facing message so failures do not trigger blind retries
+// (see "失敗の返し方と eval ゲート" in the design doc).
+enum ExecuteStatus {
+  EXECUTE_STATUS_UNSPECIFIED = 0;
+  EXECUTE_STATUS_OK = 1;
+
+  // Pre-execution checks (code never runs).
+  // SYNTAX_ERROR: code failed to parse, detected as the byproduct of AST-based
+  // static analysis (a parseable AST == valid syntax). The worker re-runs the
+  // LLM once to fix it. ANALYZER_REJECTED: parses fine but contains a
+  // disallowed operation. (see "失敗の返し方と eval ゲート" in the design doc)
+  EXECUTE_STATUS_SYNTAX_ERROR = 2;
+  EXECUTE_STATUS_ANALYZER_REJECTED = 3;
+
+  // Execution outcomes.
+  EXECUTE_STATUS_TIMEOUT = 4;
+  EXECUTE_STATUS_OOM = 5;
+  EXECUTE_STATUS_NONZERO_EXIT = 6;
+
+  // Output handling.
+  EXECUTE_STATUS_OUTPUT_TOO_LARGE = 7;
+  EXECUTE_STATUS_OUTPUT_MISSING = 8;
+}
+
+// RiskTier mirrors the existing tier model (util.NormalizeRiskTier). The
+// executor's bundled static analyzer returns floor_tier; the worker computes
+// the effective tier as max(floor_tier, declared_tier).
+enum RiskTier {
+  RISK_TIER_UNSPECIFIED = 0;
+  RISK_TIER_1 = 1;
+  RISK_TIER_2 = 2;
+  RISK_TIER_3 = 3;
+}
+
+message ExecuteQuota {
+  int64 timeout_ms = 1;
+  int64 max_memory_mb = 2;
+  int64 max_output_bytes = 3;
+}
+
+message ExecuteRequest {
+  TransformLanguage language = 1;
+  // Tool body. Ephemeral: freshly generated. Promoted: dynamic_tools.code.
+  string code = 2;
+  // Worker-signed GCS GET URL (read-only, time-limited). Executor reads input here.
+  string input_url = 3;
+  // Worker-signed GCS PUT URL (write-only, time-limited). Executor writes result here.
+  string output_url = 4;
+  ExecuteQuota quota = 5;
+}
+
+message ExecuteResponse {
+  ExecuteStatus status = 1;
+  // Failure diagnostics only. Small, so returned inline (truncated) rather than
+  // via GCS to avoid a second failure path on the failure path.
+  string stderr = 2;
+  int32 exit_code = 3;
+  int64 duration_ms = 4;
+  // Bytes the executor PUT to output_url. 0 / not-written => OUTPUT_MISSING.
+  int64 output_size = 5;
+  // Machine-derived lower bound from the bundled static analyzer.
+  RiskTier floor_tier = 6;
+}

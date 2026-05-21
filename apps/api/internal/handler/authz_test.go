@@ -7,9 +7,9 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 // assertConnectCode fails the test if err is nil or does not carry the expected connect code.
@@ -28,7 +28,7 @@ func setupItemFixturesInStore(t *testing.T, store *mock.Store, userID string) st
 	ctx := context.Background()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, userID)
 	doc, _, _ := store.CreateDocument(ctx, fixture.Workspace.WorkspaceID, userID, "f.pdf", "application/pdf", 100)
-	store.CreateProcessingJob(ctx, doc.DocumentID, fixture.Tree.TreeID, treev1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	store.CreateProcessingJob(ctx, doc.DocumentID, fixture.Tree.TreeID, appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	return fixture.Workspace.WorkspaceID
 }
 

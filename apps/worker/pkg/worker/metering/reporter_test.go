@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func TestConnectReporter_RecordUsage_ForwardsUsageEventFields(t *testing.T) {
@@ -40,46 +40,46 @@ func TestConnectReporter_RecordUsage_ForwardsUsageEventFields(t *testing.T) {
 }
 
 type billingClientStub struct {
-	recordUsageReq *connect.Request[treev1.RecordUsageRequest]
+	recordUsageReq *connect.Request[appv1.RecordUsageRequest]
 }
 
-func (c *billingClientStub) GetBillingAccount(context.Context, *connect.Request[treev1.GetBillingAccountRequest]) (*connect.Response[treev1.GetBillingAccountResponse], error) {
-	return connect.NewResponse(&treev1.GetBillingAccountResponse{}), nil
+func (c *billingClientStub) GetBillingAccount(context.Context, *connect.Request[appv1.GetBillingAccountRequest]) (*connect.Response[appv1.GetBillingAccountResponse], error) {
+	return connect.NewResponse(&appv1.GetBillingAccountResponse{}), nil
 }
 
-func (c *billingClientStub) CreateCheckoutSession(context.Context, *connect.Request[treev1.CreateCheckoutSessionRequest]) (*connect.Response[treev1.CreateCheckoutSessionResponse], error) {
-	return connect.NewResponse(&treev1.CreateCheckoutSessionResponse{}), nil
+func (c *billingClientStub) CreateCheckoutSession(context.Context, *connect.Request[appv1.CreateCheckoutSessionRequest]) (*connect.Response[appv1.CreateCheckoutSessionResponse], error) {
+	return connect.NewResponse(&appv1.CreateCheckoutSessionResponse{}), nil
 }
 
-func (c *billingClientStub) CreatePortalSession(context.Context, *connect.Request[treev1.CreatePortalSessionRequest]) (*connect.Response[treev1.CreatePortalSessionResponse], error) {
-	return connect.NewResponse(&treev1.CreatePortalSessionResponse{}), nil
+func (c *billingClientStub) CreatePortalSession(context.Context, *connect.Request[appv1.CreatePortalSessionRequest]) (*connect.Response[appv1.CreatePortalSessionResponse], error) {
+	return connect.NewResponse(&appv1.CreatePortalSessionResponse{}), nil
 }
 
-func (c *billingClientStub) GetUsage(context.Context, *connect.Request[treev1.GetUsageRequest]) (*connect.Response[treev1.GetUsageResponse], error) {
-	return connect.NewResponse(&treev1.GetUsageResponse{}), nil
+func (c *billingClientStub) GetUsage(context.Context, *connect.Request[appv1.GetUsageRequest]) (*connect.Response[appv1.GetUsageResponse], error) {
+	return connect.NewResponse(&appv1.GetUsageResponse{}), nil
 }
 
-func (c *billingClientStub) RecordUsage(ctx context.Context, req *connect.Request[treev1.RecordUsageRequest]) (*connect.Response[treev1.RecordUsageResponse], error) {
+func (c *billingClientStub) RecordUsage(ctx context.Context, req *connect.Request[appv1.RecordUsageRequest]) (*connect.Response[appv1.RecordUsageResponse], error) {
 	c.recordUsageReq = req
-	return connect.NewResponse(&treev1.RecordUsageResponse{}), nil
+	return connect.NewResponse(&appv1.RecordUsageResponse{}), nil
 }
 
-func (c *billingClientStub) UpdateBudget(context.Context, *connect.Request[treev1.UpdateBudgetRequest]) (*connect.Response[treev1.UpdateBudgetResponse], error) {
-	return connect.NewResponse(&treev1.UpdateBudgetResponse{}), nil
+func (c *billingClientStub) UpdateBudget(context.Context, *connect.Request[appv1.UpdateBudgetRequest]) (*connect.Response[appv1.UpdateBudgetResponse], error) {
+	return connect.NewResponse(&appv1.UpdateBudgetResponse{}), nil
 }
 
-func (c *billingClientStub) ListInvoices(context.Context, *connect.Request[treev1.ListInvoicesRequest]) (*connect.Response[treev1.ListInvoicesResponse], error) {
-	return connect.NewResponse(&treev1.ListInvoicesResponse{}), nil
+func (c *billingClientStub) ListInvoices(context.Context, *connect.Request[appv1.ListInvoicesRequest]) (*connect.Response[appv1.ListInvoicesResponse], error) {
+	return connect.NewResponse(&appv1.ListInvoicesResponse{}), nil
 }
 
-func (c *billingClientStub) ListPaymentMethods(context.Context, *connect.Request[treev1.ListPaymentMethodsRequest]) (*connect.Response[treev1.ListPaymentMethodsResponse], error) {
-	return connect.NewResponse(&treev1.ListPaymentMethodsResponse{}), nil
+func (c *billingClientStub) ListPaymentMethods(context.Context, *connect.Request[appv1.ListPaymentMethodsRequest]) (*connect.Response[appv1.ListPaymentMethodsResponse], error) {
+	return connect.NewResponse(&appv1.ListPaymentMethodsResponse{}), nil
 }
 
-func (c *billingClientStub) GrantCredit(context.Context, *connect.Request[treev1.GrantCreditRequest]) (*connect.Response[treev1.GrantCreditResponse], error) {
-	return connect.NewResponse(&treev1.GrantCreditResponse{}), nil
+func (c *billingClientStub) GrantCredit(context.Context, *connect.Request[appv1.GrantCreditRequest]) (*connect.Response[appv1.GrantCreditResponse], error) {
+	return connect.NewResponse(&appv1.GrantCreditResponse{}), nil
 }
 
-func (c *billingClientStub) GetCreditBalance(context.Context, *connect.Request[treev1.GetCreditBalanceRequest]) (*connect.Response[treev1.GetCreditBalanceResponse], error) {
-	return connect.NewResponse(&treev1.GetCreditBalanceResponse{}), nil
+func (c *billingClientStub) GetCreditBalance(context.Context, *connect.Request[appv1.GetCreditBalanceRequest]) (*connect.Response[appv1.GetCreditBalanceResponse], error) {
+	return connect.NewResponse(&appv1.GetCreditBalanceResponse{}), nil
 }

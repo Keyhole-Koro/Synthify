@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type WorkspaceFixture struct {
@@ -54,7 +54,7 @@ func CreateWorkspaceWithDocumentFixture(t testing.TB, ctx context.Context, store
 	return fixture
 }
 
-func CreateWorkspaceWithProcessingJobFixture(t testing.TB, ctx context.Context, store *Store, userID string, jobType treev1.JobType) WorkspaceFixture {
+func CreateWorkspaceWithProcessingJobFixture(t testing.TB, ctx context.Context, store *Store, userID string, jobType appv1.JobType) WorkspaceFixture {
 	t.Helper()
 
 	fixture := CreateWorkspaceWithTreeFixture(t, ctx, store, userID)

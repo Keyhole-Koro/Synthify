@@ -1,7 +1,7 @@
 package domain
 
 import (
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type Tree struct {
@@ -13,20 +13,20 @@ type Tree struct {
 }
 
 type Item struct {
-	ItemID            string                     `json:"id"`
-	WorkspaceID       string                     `json:"workspace_id"`
-	Title             string                     `json:"title"`
-	Level             int                        `json:"level,omitempty"`
-	Description       string                     `json:"description"`
-	Content           string                     `json:"content,omitempty"`
-	OverrideCSS       string                     `json:"override_css,omitempty"`
-	CreatedBy         string                     `json:"created_by,omitempty"`
-	GovernanceState   treev1.ItemGovernanceState `json:"governance_state,omitempty"`
-	LastMutationJobID string                     `json:"last_mutation_job_id,omitempty"`
-	CreatedAt         string                     `json:"created_at"`
-	ParentID          string                     `json:"parent_id,omitempty"`
-	ChildIDs          []string                   `json:"child_ids,omitempty"`
-	Scope             treev1.TreeProjectionScope `json:"scope,omitempty"`
+	ItemID            string                    `json:"id"`
+	WorkspaceID       string                    `json:"workspace_id"`
+	Title             string                    `json:"title"`
+	Level             int                       `json:"level,omitempty"`
+	Description       string                    `json:"description"`
+	Content           string                    `json:"content,omitempty"`
+	OverrideCSS       string                    `json:"override_css,omitempty"`
+	CreatedBy         string                    `json:"created_by,omitempty"`
+	GovernanceState   appv1.ItemGovernanceState `json:"governance_state,omitempty"`
+	LastMutationJobID string                    `json:"last_mutation_job_id,omitempty"`
+	CreatedAt         string                    `json:"created_at"`
+	ParentID          string                    `json:"parent_id,omitempty"`
+	ChildIDs          []string                  `json:"child_ids,omitempty"`
+	Scope             appv1.TreeProjectionScope `json:"scope,omitempty"`
 }
 
 type ItemSource struct {
@@ -44,11 +44,11 @@ type ItemEvidence struct {
 
 // TreeItem is the item representation returned by the API.
 type TreeItem struct {
-	ID          string                     `json:"id"`
-	Scope       treev1.TreeProjectionScope `json:"scope"`
-	Title       string                     `json:"title"`
-	Description string                     `json:"description"`
-	Content     string                     `json:"content,omitempty"`
+	ID          string                    `json:"id"`
+	Scope       appv1.TreeProjectionScope `json:"scope"`
+	Title       string                    `json:"title"`
+	Description string                    `json:"description"`
+	Content     string                    `json:"content,omitempty"`
 }
 
 type GeneratedTreeItem struct {

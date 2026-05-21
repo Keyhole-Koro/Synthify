@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createCheckoutSession, createPortalSession, type BillingCurrency } from '@/features/billing/api';
 import { type Workspace } from '@/features/workspaces/api';
-import { WorkspacePlan } from '@synthify/proto-ts/gen/synthify/tree/v1/workspace_pb';
+import { WorkspacePlan } from '@synthify/proto-ts/gen/synthify/app/v1/workspace_pb';
 
 interface WorkspaceBillingPanelProps {
   workspace: Workspace;

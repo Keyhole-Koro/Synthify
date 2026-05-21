@@ -35,7 +35,7 @@ type JobCapability struct {
     WorkspaceID        string
     AllowedDocumentIDs []string
     AllowedItemIDs     []string
-    AllowedOperations  []treev1.JobOperation
+    AllowedOperations  []appv1.JobOperation
     MaxLLMCalls        int
     MaxToolRuns        int
     MaxItemCreations   int

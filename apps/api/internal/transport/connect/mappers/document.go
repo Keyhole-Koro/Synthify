@@ -2,14 +2,14 @@ package mappers
 
 import (
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-func ToProtoDocument(doc *domain.Document, latestJob *domain.DocumentProcessingJob) *treev1.Document {
+func ToProtoDocument(doc *domain.Document, latestJob *domain.DocumentProcessingJob) *appv1.Document {
 	if doc == nil {
 		return nil
 	}
-	return &treev1.Document{
+	return &appv1.Document{
 		DocumentId:  doc.DocumentID,
 		WorkspaceId: doc.WorkspaceID,
 		UploadedBy:  doc.UploadedBy,

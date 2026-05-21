@@ -6,10 +6,10 @@ import (
 
 	connect "connectrpc.com/connect"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
-	"github.com/synthify/backend/internal/gen/synthify/tree/v1/treev1connect"
+	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	"github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
 )
 
 // NewConnectReporter returns an llm.UsageReporter that ships usage events to
@@ -28,17 +28,17 @@ func NewConnectReporter(apiBaseURL, serviceToken string, opts ...connect.ClientO
 	if apiBaseURL == "" || serviceToken == "" {
 		return noopReporter{}
 	}
-	client := treev1connect.NewBillingServiceClient(http.DefaultClient, apiBaseURL, opts...)
+	client := appv1connect.NewBillingServiceClient(http.DefaultClient, apiBaseURL, opts...)
 	return &connectReporter{client: client, token: serviceToken}
 }
 
 type connectReporter struct {
-	client treev1connect.BillingServiceClient
+	client appv1connect.BillingServiceClient
 	token  string
 }
 
 func (r *connectReporter) RecordUsage(ctx context.Context, ev domain.UsageEvent) error {
-	req := connect.NewRequest(&treev1.RecordUsageRequest{
+	req := connect.NewRequest(&appv1.RecordUsageRequest{
 		AccountId:    ev.AccountID,
 		WorkspaceId:  ev.WorkspaceID,
 		JobId:        ev.JobID,

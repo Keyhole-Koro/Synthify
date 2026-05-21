@@ -8,12 +8,12 @@ import (
 	"net/http"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/service"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/service"
 	"github.com/synthify/backend/apps/api/internal/transport/connect"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	"github.com/synthify/backend/internal/platform/applog"
 )
 
 type BillingHandler struct {
@@ -53,7 +53,7 @@ func NewBillingWebhookHTTPHandler(svc service.BillingUsecase, logger applog.Logg
 	}
 }
 
-func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Request[treev1.GetBillingAccountRequest]) (*connect.Response[treev1.GetBillingAccountResponse], error) {
+func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Request[appv1.GetBillingAccountRequest]) (*connect.Response[appv1.GetBillingAccountResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -66,7 +66,7 @@ func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Req
 		return nil, connectutil.ToError(err)
 	}
 	creditBalance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
-	return connect.NewResponse(&treev1.GetBillingAccountResponse{
+	return connect.NewResponse(&appv1.GetBillingAccountResponse{
 		AccountId:              account.AccountID,
 		Plan:                   account.Plan,
 		BillingStatus:          account.BillingStatus,
@@ -100,7 +100,7 @@ func abs64(n int64) int64 {
 	return n
 }
 
-func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect.Request[treev1.CreateCheckoutSessionRequest]) (*connect.Response[treev1.CreateCheckoutSessionResponse], error) {
+func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect.Request[appv1.CreateCheckoutSessionRequest]) (*connect.Response[appv1.CreateCheckoutSessionResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -112,12 +112,12 @@ func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&treev1.CreateCheckoutSessionResponse{
+	return connect.NewResponse(&appv1.CreateCheckoutSessionResponse{
 		CheckoutUrl: session.URL,
 	}), nil
 }
 
-func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.Request[treev1.CreatePortalSessionRequest]) (*connect.Response[treev1.CreatePortalSessionResponse], error) {
+func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.Request[appv1.CreatePortalSessionRequest]) (*connect.Response[appv1.CreatePortalSessionResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -129,7 +129,7 @@ func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.R
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&treev1.CreatePortalSessionResponse{
+	return connect.NewResponse(&appv1.CreatePortalSessionResponse{
 		PortalUrl: session.URL,
 	}), nil
 }
@@ -138,7 +138,7 @@ func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.R
 // Usage-Based Billing handlers
 // =========================================================
 
-func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[treev1.GetUsageRequest]) (*connect.Response[treev1.GetUsageResponse], error) {
+func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv1.GetUsageRequest]) (*connect.Response[appv1.GetUsageResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -150,7 +150,7 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[tree
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	resp := &treev1.GetUsageResponse{
+	resp := &appv1.GetUsageResponse{
 		AccountId:   report.AccountID,
 		PeriodStart: report.PeriodStart,
 		PeriodEnd:   report.PeriodEnd,
@@ -158,7 +158,7 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[tree
 		Currency:    report.Currency,
 	}
 	for _, m := range report.ByModel {
-		resp.ByModel = append(resp.ByModel, &treev1.ModelUsage{
+		resp.ByModel = append(resp.ByModel, &appv1.ModelUsage{
 			Model:        m.Model,
 			InputTokens:  m.InputTokens,
 			OutputTokens: m.OutputTokens,
@@ -169,7 +169,7 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[tree
 		})
 	}
 	for _, d := range report.ByDay {
-		resp.ByDay = append(resp.ByDay, &treev1.DailyUsage{
+		resp.ByDay = append(resp.ByDay, &appv1.DailyUsage{
 			Date:      d.Date,
 			TotalCost: d.TotalCost,
 		})
@@ -177,7 +177,7 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[tree
 	return connect.NewResponse(resp), nil
 }
 
-func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[treev1.RecordUsageRequest]) (*connect.Response[treev1.RecordUsageResponse], error) {
+func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[appv1.RecordUsageRequest]) (*connect.Response[appv1.RecordUsageResponse], error) {
 	// 内部 RPC: worker -> API のサービストークン認証のみ受け付ける。
 	// SYNTHIFY_INTERNAL_SERVICE_TOKEN が未設定の環境では middleware が token を要求しない
 	// (= service call を立てない) ので、すべての RecordUsage は拒否される。
@@ -200,14 +200,14 @@ func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[t
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&treev1.RecordUsageResponse{
+	return connect.NewResponse(&appv1.RecordUsageResponse{
 		EventId:        result.EventID,
 		Cost:           result.Cost,
 		BudgetExceeded: result.BudgetExceeded,
 	}), nil
 }
 
-func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[treev1.UpdateBudgetRequest]) (*connect.Response[treev1.UpdateBudgetResponse], error) {
+func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[appv1.UpdateBudgetRequest]) (*connect.Response[appv1.UpdateBudgetResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -219,10 +219,10 @@ func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	return connect.NewResponse(&treev1.UpdateBudgetResponse{BudgetLimit: limit}), nil
+	return connect.NewResponse(&appv1.UpdateBudgetResponse{BudgetLimit: limit}), nil
 }
 
-func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[treev1.ListInvoicesRequest]) (*connect.Response[treev1.ListInvoicesResponse], error) {
+func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[appv1.ListInvoicesRequest]) (*connect.Response[appv1.ListInvoicesResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -234,12 +234,12 @@ func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	resp := &treev1.ListInvoicesResponse{
+	resp := &appv1.ListInvoicesResponse{
 		UpcomingAmount:    list.UpcomingAmount,
 		UpcomingPeriodEnd: list.UpcomingPeriodEnd,
 	}
 	for _, inv := range list.Invoices {
-		resp.Invoices = append(resp.Invoices, &treev1.Invoice{
+		resp.Invoices = append(resp.Invoices, &appv1.Invoice{
 			InvoiceId:        inv.InvoiceID,
 			Amount:           inv.Amount,
 			Currency:         inv.Currency,
@@ -255,7 +255,7 @@ func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[
 	return connect.NewResponse(resp), nil
 }
 
-func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[treev1.GrantCreditRequest]) (*connect.Response[treev1.GrantCreditResponse], error) {
+func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[appv1.GrantCreditRequest]) (*connect.Response[appv1.GrantCreditResponse], error) {
 	if req.Msg.GetAccountId() == "" || req.Msg.GetAmountMinor() <= 0 {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id and amount_minor > 0 are required"))
 	}
@@ -274,7 +274,7 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[t
 		return nil, connectutil.ToError(err)
 	}
 	balance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), user.ID)
-	return connect.NewResponse(&treev1.GrantCreditResponse{
+	return connect.NewResponse(&appv1.GrantCreditResponse{
 		CreditId:      grant.CreditID,
 		AccountId:     grant.AccountID,
 		AmountMinor:   grant.AmountMinor,
@@ -282,7 +282,7 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[t
 	}), nil
 }
 
-func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Request[treev1.GetCreditBalanceRequest]) (*connect.Response[treev1.GetCreditBalanceResponse], error) {
+func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Request[appv1.GetCreditBalanceRequest]) (*connect.Response[appv1.GetCreditBalanceResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -296,13 +296,13 @@ func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Requ
 	}
 	account, _ := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), user.ID)
 	stopped := account != nil && account.Plan == string(domain.BillingPlanFree) && balance <= 0
-	return connect.NewResponse(&treev1.GetCreditBalanceResponse{
+	return connect.NewResponse(&appv1.GetCreditBalanceResponse{
 		CreditBalance: minorToDecimal(balance),
 		CreditStopped: stopped,
 	}), nil
 }
 
-func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Request[treev1.ListPaymentMethodsRequest]) (*connect.Response[treev1.ListPaymentMethodsResponse], error) {
+func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Request[appv1.ListPaymentMethodsRequest]) (*connect.Response[appv1.ListPaymentMethodsResponse], error) {
 	if req.Msg.GetAccountId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
 	}
@@ -314,9 +314,9 @@ func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, connectutil.ToError(err)
 	}
-	resp := &treev1.ListPaymentMethodsResponse{}
+	resp := &appv1.ListPaymentMethodsResponse{}
 	for _, pm := range methods {
-		resp.PaymentMethods = append(resp.PaymentMethods, &treev1.PaymentMethod{
+		resp.PaymentMethods = append(resp.PaymentMethods, &appv1.PaymentMethod{
 			PaymentMethodId: pm.PaymentMethodID,
 			Brand:           pm.Brand,
 			Last4:           pm.Last4,

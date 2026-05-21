@@ -1,7 +1,7 @@
 package domain
 
 import (
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type JobLog struct {
@@ -39,10 +39,10 @@ const (
 )
 
 type JobLogJob struct {
-	JobID     string                   `json:"job_id"`
-	Status    treev1.JobLifecycleState `json:"status"`
-	CreatedAt string                   `json:"created_at"`
-	Logs      []*JobLog                `json:"logs"`
+	JobID     string                  `json:"job_id"`
+	Status    appv1.JobLifecycleState `json:"status"`
+	CreatedAt string                  `json:"created_at"`
+	Logs      []*JobLog               `json:"logs"`
 }
 
 type JobLogGroup struct {

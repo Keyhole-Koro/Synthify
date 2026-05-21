@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error) {
@@ -74,7 +74,7 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 }
 
 func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
-	if !s.canMutateTree(capability, treev1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
+	if !s.canMutateTree(capability, appv1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
 		return nil
 	}
 	if capability.MaxItemCreations > 0 && s.countJobMutations(ctx, jobID, "item") >= capability.MaxItemCreations {
@@ -92,7 +92,7 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 		Content:           summaryHTML,
 		OverrideCSS:       overrideCSS,
 		CreatedBy:         createdBy,
-		GovernanceState:   treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED,
+		GovernanceState:   appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED,
 		LastMutationJobID: jobID,
 		CreatedAt:         createdAt.Format(time.RFC3339),
 	}
@@ -157,7 +157,7 @@ func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID
 }
 
 func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error {
-	if capability == nil || !capability.Allows(treev1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
+	if capability == nil || !capability.Allows(appv1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
 		return fmt.Errorf("mutation not allowed by capability or expired")
 	}
 
@@ -241,7 +241,7 @@ func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasIte
 	return nil
 }
 
-func (s *Store) canMutateTree(capability *domain.JobCapability, op treev1.JobOperation, workspaceID, documentID string) bool {
+func (s *Store) canMutateTree(capability *domain.JobCapability, op appv1.JobOperation, workspaceID, documentID string) bool {
 	if capability == nil || capability.IsExpired(nowTime()) {
 		return false
 	}
@@ -308,7 +308,7 @@ func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
-		Scope:           treev1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
 	}
 }
 
@@ -325,7 +325,7 @@ func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
-		Scope:           treev1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
 	}
 }
 
@@ -342,21 +342,21 @@ func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
-		Scope:           treev1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
 	}
 }
 
-func parseGovernanceState(s string) treev1.ItemGovernanceState {
+func parseGovernanceState(s string) appv1.ItemGovernanceState {
 	switch s {
 	case "system_generated":
-		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED
 	case "pending_review":
-		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_PENDING_REVIEW
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_PENDING_REVIEW
 	case "human_curated":
-		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED
 	case "locked":
-		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED
 	default:
-		return treev1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_UNSPECIFIED
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_UNSPECIFIED
 	}
 }

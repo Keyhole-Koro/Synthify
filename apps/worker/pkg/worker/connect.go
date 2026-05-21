@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
+	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
+	"github.com/synthify/backend/internal/platform/applog"
 )
 
 type ConnectHandler struct {
@@ -35,7 +35,7 @@ func NewConnectHandler(processor interface {
 	}
 }
 
-func (h *ConnectHandler) GenerateExecutionPlan(ctx context.Context, req *connect.Request[treev1.GenerateExecutionPlanRequest]) (*connect.Response[treev1.GenerateExecutionPlanResponse], error) {
+func (h *ConnectHandler) GenerateExecutionPlan(ctx context.Context, req *connect.Request[workerv1.GenerateExecutionPlanRequest]) (*connect.Response[workerv1.GenerateExecutionPlanResponse], error) {
 	if req.Msg.GetJobId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("job_id is required"))
 	}
@@ -52,7 +52,7 @@ func (h *ConnectHandler) GenerateExecutionPlan(ctx context.Context, req *connect
 	if err != nil {
 		return nil, connect.NewError(connect.CodeNotFound, err)
 	}
-	return connect.NewResponse(&treev1.GenerateExecutionPlanResponse{
+	return connect.NewResponse(&workerv1.GenerateExecutionPlanResponse{
 		PlanId:   plan.PlanID,
 		JobId:    plan.JobID,
 		Status:   plan.Status,
@@ -61,7 +61,7 @@ func (h *ConnectHandler) GenerateExecutionPlan(ctx context.Context, req *connect
 	}), nil
 }
 
-func (h *ConnectHandler) ExecuteApprovedPlan(ctx context.Context, req *connect.Request[treev1.ExecuteApprovedPlanRequest]) (*connect.Response[treev1.ExecuteApprovedPlanResponse], error) {
+func (h *ConnectHandler) ExecuteApprovedPlan(ctx context.Context, req *connect.Request[workerv1.ExecuteApprovedPlanRequest]) (*connect.Response[workerv1.ExecuteApprovedPlanResponse], error) {
 	dispatchReq := ExecutePlanRequest{
 		JobID:       req.Msg.GetJobId(),
 		JobType:     req.Msg.GetJobType(),
@@ -82,10 +82,10 @@ func (h *ConnectHandler) ExecuteApprovedPlan(ctx context.Context, req *connect.R
 		}
 		return nil, connect.NewError(connect.CodeInternal, err)
 	}
-	return connect.NewResponse(&treev1.ExecuteApprovedPlanResponse{Status: "ok"}), nil
+	return connect.NewResponse(&workerv1.ExecuteApprovedPlanResponse{Status: "ok"}), nil
 }
 
-func (h *ConnectHandler) EvaluateJobArtifact(ctx context.Context, req *connect.Request[treev1.EvaluateJobArtifactRequest]) (*connect.Response[treev1.EvaluateJobArtifactResponse], error) {
+func (h *ConnectHandler) EvaluateJobArtifact(ctx context.Context, req *connect.Request[workerv1.EvaluateJobArtifactRequest]) (*connect.Response[workerv1.EvaluateJobArtifactResponse], error) {
 	if req.Msg.GetJobId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("job_id is required"))
 	}
@@ -106,7 +106,7 @@ func (h *ConnectHandler) EvaluateJobArtifact(ctx context.Context, req *connect.R
 		}
 	}
 
-	return connect.NewResponse(&treev1.EvaluateJobArtifactResponse{
+	return connect.NewResponse(&workerv1.EvaluateJobArtifactResponse{
 		Passed:        result.Passed,
 		Status:        result.Status,
 		Summary:       result.Summary,

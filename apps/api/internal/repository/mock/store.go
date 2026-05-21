@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
-	treev1 "github.com/synthify/backend/internal/gen/synthify/tree/v1"
-	"github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	"github.com/synthify/backend/internal/platform/job/log"
 )
 
 type Store struct {
@@ -653,7 +653,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return nil
 }
 
-func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType treev1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jobSeq++
@@ -667,7 +667,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 		DocumentID:  docID,
 		WorkspaceID: workspaceID,
 		JobType:     jobType,
-		Status:      treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+		Status:      appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
 		CreatedAt:   createdAt,
 		UpdatedAt:   createdAt,
 	}
@@ -748,19 +748,19 @@ func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJo
 			{
 				JobID:      "job-audit-demo-1",
 				DocumentID: "annual_report_2024.pdf",
-				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
+				Status:     appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
 				CreatedAt:  now.Add(-1 * time.Hour).Format(time.RFC3339),
 			},
 			{
 				JobID:      "job-audit-demo-2",
 				DocumentID: "technical_spec_v2.docx",
-				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
+				Status:     appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
 				CreatedAt:  now.Add(-30 * time.Minute).Format(time.RFC3339),
 			},
 			{
 				JobID:      "job-audit-demo-3",
 				DocumentID: "contract_legal_v1.pdf",
-				Status:     treev1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED,
+				Status:     appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED,
 				CreatedAt:  now.Add(-2 * time.Hour).Format(time.RFC3339),
 			},
 		}, nil
