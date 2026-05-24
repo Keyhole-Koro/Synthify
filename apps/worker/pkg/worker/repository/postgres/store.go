@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/stdlib"
-	"github.com/newrelic/go-agent/v3/integrations/nrpgx5"
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/oklog/ulid/v2"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/platform/applog"
+	"github.com/synthify/backend/internal/platform/database"
+	"github.com/synthify/backend/internal/platform/util"
 )
 
 type Store struct {
@@ -28,7 +26,7 @@ func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.Docume
 		app = nrApp[0]
 	}
 
-	db, err := openDB(dsn, app)
+	db, err := database.OpenDB(dsn, app)
 	if err != nil {
 		return nil, err
 	}
@@ -47,24 +45,12 @@ func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.Docume
 	}, nil
 }
 
-func openDB(dsn string, nrApp *newrelic.Application) (*sql.DB, error) {
-	cfg, err := pgx.ParseConfig(dsn)
-	if err != nil {
-		return nil, err
-	}
-	if nrApp != nil {
-		cfg.Tracer = nrpgx5.NewTracer()
-	}
-	return stdlib.OpenDB(*cfg), nil
-}
-
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
 func (s *Store) CheckReadiness(ctx context.Context) error {
-	var one int
-	return s.db.QueryRowContext(ctx, "SELECT 1").Scan(&one)
+	return database.CheckReadiness(ctx, s.db)
 }
 
 func (s *Store) q() *sqlcgen.Queries {
@@ -75,9 +61,9 @@ func (s *Store) q() *sqlcgen.Queries {
 }
 
 func newID() string {
-	return ulid.Make().String()
+	return util.NewULID()
 }
 
 func nowTime() time.Time {
-	return time.Now().UTC()
+	return util.NowUTC()
 }
