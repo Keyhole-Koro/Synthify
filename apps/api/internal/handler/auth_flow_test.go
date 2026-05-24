@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/middleware"
-	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
@@ -90,6 +89,20 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp)
 		assert.Equal(t, "owner", resp.Msg.GetDocument().GetUploadedBy())
+	})
+
+	t.Run("legacy upload url endpoint is closed", func(t *testing.T) {
+		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+
+		resp, err := handler.GetUploadURL(authedCtx, connect.NewRequest(&appv1.GetUploadURLRequest{
+			WorkspaceId: fixture.Workspace.WorkspaceID,
+			Filename:    "legacy.pdf",
+			MimeType:    "application/pdf",
+			FileSize:    42,
+		}))
+
+		assert.Nil(t, resp)
+		assertConnectCode(t, err, connect.CodeUnimplemented)
 	})
 }
 
@@ -225,19 +238,8 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 	sourceURL := func(workspaceID, documentID string) string {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
-	uploadURLIssuer := testUploadURLIssuer{}
 	svc := service.NewDocumentService(store, store, store, store, store, sourceURL, nil, nil, nil, nil)
-	return NewDocumentHandler(svc, store, uploadURLIssuer)
-}
-
-type testUploadURLIssuer struct{}
-
-func (testUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, workspaceID, objectName, contentType string) (repository.DocumentUploadTarget, error) {
-	return repository.DocumentUploadTarget{
-		URL:         "https://upload.example/" + workspaceID + "/" + objectName,
-		Method:      "PUT",
-		ContentType: contentType,
-	}, nil
+	return NewDocumentHandler(svc, store)
 }
 
 func newTestItemHandler(store *mock.Store) *ItemHandler {

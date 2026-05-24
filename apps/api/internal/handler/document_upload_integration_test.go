@@ -45,7 +45,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	store.SetUploadURLIssuer(uploadURLIssuer)
 
 	svc := service.NewDocumentService(store, store, store, store, store, nil, nil, nil, nil, nil)
-	handler := NewDocumentHandler(svc, store, uploadURLIssuer)
+	handler := NewDocumentHandler(svc, store)
 
 	authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
 

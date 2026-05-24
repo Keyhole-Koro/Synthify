@@ -3,8 +3,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
@@ -14,20 +12,17 @@ import (
 )
 
 type DocumentHandler struct {
-	service         service.DocumentUsecase
-	jobs            repository.JobRepository
-	uploadURLIssuer repository.DocumentUploadURLIssuer
+	service service.DocumentUsecase
+	jobs    repository.JobRepository
 }
 
 func NewDocumentHandler(
 	svc service.DocumentUsecase,
 	jobRepo repository.JobRepository,
-	uploadURLIssuer repository.DocumentUploadURLIssuer,
 ) *DocumentHandler {
 	return &DocumentHandler{
-		service:         svc,
-		jobs:            jobRepo,
-		uploadURLIssuer: uploadURLIssuer,
+		service: svc,
+		jobs:    jobRepo,
 	}
 }
 
@@ -88,29 +83,10 @@ func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Reque
 }
 
 func (h *DocumentHandler) GetUploadURL(ctx context.Context, req *connect.Request[appv1.GetUploadURLRequest]) (*connect.Response[appv1.GetUploadURLResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetFilename() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and filename are required"))
-	}
 	if _, err := requireUserID(ctx); err != nil {
 		return nil, err
 	}
-	// GetUploadURL は upload token を発行するだけ。workspace 認可は意図的に省略する。
-	// 認可は実際に upload する CreateDocument 側で行う (現状の挙動を維持)。
-	// TODO: 一貫性を上げるなら WorkspaceUsecase.AuthorizeWorkspace を呼ぶ。
-	token := fmt.Sprintf("upload-%s", req.Msg.GetFilename())
-	uploadTarget, err := h.uploadURLIssuer.IssueDocumentUploadURL(ctx, req.Msg.GetWorkspaceId(), token+"/"+req.Msg.GetFilename(), req.Msg.GetMimeType())
-	if err != nil {
-		return nil, toError(err)
-	}
-	expiresAt := ""
-	if !uploadTarget.ExpiresAt.IsZero() {
-		expiresAt = uploadTarget.ExpiresAt.Format(time.RFC3339)
-	}
-	return connect.NewResponse(&appv1.GetUploadURLResponse{
-		UploadUrl:   uploadTarget.URL,
-		UploadToken: token,
-		ExpiresAt:   expiresAt,
-	}), nil
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("use CreateDocument to create an authorized upload reservation"))
 }
 
 func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Request[appv1.ConfirmUploadRequest]) (*connect.Response[appv1.ConfirmUploadResponse], error) {

@@ -52,7 +52,6 @@ func main() {
 	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, observability.ConnectClientOptions(nrApp)...)
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
-	uploadURLIssuer := bootstrap.NewDocumentUploadURLIssuer(cfg.GCSBucket, cfg.GCSUploadURLBase)
 
 	stripeProvider, err := stripe.NewProvider(stripe.Config{
 		SecretKey:        cfg.Stripe.SecretKey,
@@ -82,7 +81,7 @@ func main() {
 	userSvc := service.NewUserService(store, store, billingSvc, appLogger)
 	treeSvc := service.NewTreeService(store, store, appLogger)
 
-	documentHandler := handler.NewDocumentHandler(documentSvc, store, uploadURLIssuer)
+	documentHandler := handler.NewDocumentHandler(documentSvc, store)
 	treeHandler := handler.NewTreeHandler(treeSvc)
 	itemHandler := handler.NewItemHandler(itemSvc)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc)

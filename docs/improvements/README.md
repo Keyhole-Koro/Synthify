@@ -12,6 +12,7 @@
 ## P1 — 設計上の問題
 
 - [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: monitor (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
+- [security-hardening-audit.md](security-hardening-audit.md) — **High Priority**: upload URL 発行、Firestore rules、CORS、CI/IAM 権限のセキュリティ監査メモ
 - [remove-shared-package.md](remove-shared-package.md) — shared package 解体後の境界整理メモ
 - [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `monitor` の理想依存構成と段階的移行方針
 - [api-refactor-cleanup.md](api-refactor-cleanup.md) — API 層の仕様変更残骸、mapper 不整合、重複 dispatch、no-op RPC の整理
