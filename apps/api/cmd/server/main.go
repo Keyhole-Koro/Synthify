@@ -106,12 +106,13 @@ func main() {
 
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
-	// Outermost first: recover → log → CORS → auth → routes.
+	// Outermost first: recover → log → security headers → CORS → auth → routes.
 	// CORS must be outside of Auth to handle preflight (OPTIONS) requests
 	// without authentication.
 	var h http.Handler = mux
 	h = apimiddleware.WithAuth(cfg.FirebaseProjectID, appLogger, h)
 	h = apimiddleware.CORS(cfg.CORSAllowedOrigins, h)
+	h = apimiddleware.SecurityHeaders(h)
 	h = httpmiddleware.Logger(appLogger, h)
 	h = httpmiddleware.Recover(appLogger, h)
 
