@@ -8,20 +8,25 @@ interface DefaultOpenStateOptions {
   workspaces: Workspace[];
 }
 
-const synthifyDefaultChildren = [
+const aboutDefaultChildren = [
+  'synthify:about:promise',
+  'synthify:about:fit',
   'synthify:overview',
   'synthify:documents',
   'synthify:worker',
   'synthify:tree',
-  'synthify:collaboration',
+  'synthify:operations',
 ];
 
 function synthifyExpansionMap(extraRootChildren: string[]): ExpansionMap {
   const map: ExpansionMap = new Map();
-  map.set(rootPaper.id, { openChildIds: [authPaper.id, ...synthifyDefaultChildren, ...extraRootChildren] });
-  map.set('synthify:overview', { openChildIds: ['synthify:overview:problem', 'synthify:overview:workflow'] });
-  map.set('synthify:worker', { openChildIds: ['synthify:worker:tools', 'synthify:worker:lifecycle'] });
-  map.set('synthify:tree', { openChildIds: ['synthify:tree:item', 'synthify:tree:links'] });
+  map.set(rootPaper.id, { openChildIds: [authPaper.id, 'synthify:about', ...extraRootChildren] });
+  map.set('synthify:about', { openChildIds: aboutDefaultChildren });
+  map.set('synthify:overview', { openChildIds: ['synthify:overview:workflow', 'synthify:overview:reading'] });
+  map.set('synthify:documents', { openChildIds: ['synthify:documents:intake', 'synthify:documents:chunks'] });
+  map.set('synthify:worker', { openChildIds: ['synthify:worker:pipeline', 'synthify:worker:lifecycle'] });
+  map.set('synthify:tree', { openChildIds: ['synthify:tree:item', 'synthify:tree:sources', 'synthify:tree:links'] });
+  map.set('synthify:operations', { openChildIds: ['synthify:operations:workspace', 'synthify:operations:observability'] });
   return map;
 }
 

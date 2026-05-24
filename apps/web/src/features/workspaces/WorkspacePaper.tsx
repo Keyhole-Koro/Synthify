@@ -20,7 +20,6 @@ interface WorkspacePaperProps {
 }
 
 export function WorkspacePaper({
-  workspace,
   workspaceId,
   workspaceName,
   hasTree,
