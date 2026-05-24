@@ -7,7 +7,6 @@ import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
-import { WorkspaceBillingPanel } from './components/WorkspaceBillingPanel';
 import { type Workspace } from '@/features/workspaces/api';
 
 interface WorkspacePaperProps {
@@ -137,7 +136,6 @@ export function WorkspacePaper({
 
           {/* Upload zone / add button */}
           <div className={!isPopulated ? 'flex flex-1 flex-col justify-center' : ''}>
-            <WorkspaceBillingPanel workspace={workspace} />
 
             <WorkspaceDropzone
               isTreeMissing={isTreeMissing}
