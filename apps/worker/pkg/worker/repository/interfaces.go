@@ -66,7 +66,7 @@ type DocumentRepository interface {
 	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
 	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
-	CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob
+	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error

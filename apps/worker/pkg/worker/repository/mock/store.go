@@ -653,7 +653,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return nil
 }
 
-func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jobSeq++
@@ -668,6 +668,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 		WorkspaceID: workspaceID,
 		JobType:     jobType,
 		Status:      appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+		RequestedBy: requestedBy,
 		CreatedAt:   createdAt,
 		UpdatedAt:   createdAt,
 	}

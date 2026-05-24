@@ -79,7 +79,7 @@ type JobRepository interface {
 	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error
 	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error
 	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error)
-	CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob
+	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error

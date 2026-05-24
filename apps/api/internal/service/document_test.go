@@ -103,6 +103,7 @@ func TestStartProcessingConfirmsUploadedObjectSize(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, job)
 	assert.Equal(t, ws.WorkspaceID, job.WorkspaceID)
+	assert.Equal(t, "owner", job.RequestedBy)
 	updated, err := store.GetAccount(ctx, account.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, int64(128), updated.StorageUsedBytes)

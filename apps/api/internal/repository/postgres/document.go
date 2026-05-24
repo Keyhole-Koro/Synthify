@@ -681,7 +681,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return tx.Commit()
 }
 
-func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID string, jobType appv1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob {
 	createdAt := nowTime()
 	jobID := newID()
 	doc, err := s.GetDocument(ctx, docID)
@@ -727,6 +727,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 		WorkspaceID: doc.WorkspaceID,
 		JobType:     strconv.Itoa(int(jobType)),
 		Status:      strconv.Itoa(int(appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
+		RequestedBy: requestedBy,
 		CreatedAt:   createdAt,
 	}); err != nil {
 		return nil
@@ -742,6 +743,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID stri
 		WorkspaceID: doc.WorkspaceID,
 		JobType:     jobType,
 		Status:      appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+		RequestedBy: requestedBy,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 		UpdatedAt:   createdAt.Format(time.RFC3339),
 	}
@@ -984,6 +986,7 @@ func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 		PlanStatus:       row.PlanStatus,
 		EvaluationStatus: row.EvaluationStatus,
 		ErrorMessage:     row.ErrorMessage,
+		RequestedBy:      row.RequestedBy,
 		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339),
 	}

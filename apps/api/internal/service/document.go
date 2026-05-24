@@ -163,7 +163,7 @@ func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userI
 	if forceReprocess {
 		jobType = appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT
 	}
-	return s.startProcessingJob(ctx, doc, jobType, false)
+	return s.startProcessingJob(ctx, doc, userID, jobType, false)
 }
 
 func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error) {
@@ -171,10 +171,10 @@ func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, user
 	if err != nil {
 		return nil, err
 	}
-	return s.startProcessingJob(ctx, doc, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
+	return s.startProcessingJob(ctx, doc, userID, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
 }
 
-func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Document, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
+func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Document, requestedBy string, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
 	wsID := doc.WorkspaceID
 	documentID := doc.DocumentID
 	if err := s.confirmUploadedObject(ctx, doc); err != nil {
@@ -193,7 +193,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 	if err != nil {
 		return nil, err
 	}
-	job := s.jobs.CreateProcessingJob(ctx, documentID, wsID, jobType)
+	job := s.jobs.CreateProcessingJob(ctx, documentID, wsID, requestedBy, jobType)
 	if job == nil {
 		return nil, domain.ErrNotFound
 	}
