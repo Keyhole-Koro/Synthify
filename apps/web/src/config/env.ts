@@ -31,12 +31,18 @@ const rawEnv = rawEnvSchema.parse({
   NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
 });
 
+function normalizeBaseUrl(url: string): string {
+  // Remove trailing slashes and /api suffix if present
+  return url.replace(/\/+$/, '').replace(/\/api$/, '');
+}
+
 export const env = {
   nodeEnv: rawEnv.NODE_ENV,
-  apiBaseUrl:
+  apiBaseUrl: normalizeBaseUrl(
     typeof window === 'undefined'
       ? (rawEnv.INTERNAL_API_BASE_URL ?? rawEnv.NEXT_PUBLIC_API_BASE_URL)
-      : rawEnv.NEXT_PUBLIC_API_BASE_URL,
+      : rawEnv.NEXT_PUBLIC_API_BASE_URL
+  ),
   firebase: {
     apiKey: rawEnv.NEXT_PUBLIC_FIREBASE_API_KEY,
     authDomain: rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
