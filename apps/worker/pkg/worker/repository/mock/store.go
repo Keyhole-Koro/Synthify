@@ -1360,6 +1360,12 @@ func (s *Store) ListCreditGrants(_ context.Context, accountID string, limit int)
 
 // Test helpers
 
+func (s *Store) SeedCapability(c domain.JobCapability) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.capabilities[c.JobID] = &c
+}
+
 func (s *Store) SeedPricing(p domain.ModelPricing) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

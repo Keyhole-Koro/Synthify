@@ -53,13 +53,16 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 			return nil, core.Usage{}, fmt.Errorf("job capability not found: %s (%w)", args.JobID, err)
 		}
 
+		// Phase 1: Sort items topologically to ensure parents are created before children
+		sortedItems := sortItemsTopologically(args.Items)
+
 		itemIDs := make(map[string]string, len(args.Items))
 		rootID, err := b.Repo.GetWorkspaceRootItemID(ctx, args.WorkspaceID)
 		if err != nil {
 			rootID = ""
 		}
 		created := 0
-		for _, item := range args.Items {
+		for _, item := range sortedItems {
 			parentID := rootID
 			if mapped := itemIDs[item.ParentLocalID]; mapped != "" {
 				parentID = mapped
@@ -94,6 +97,38 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 			}
 			created++
 		}
+
+		// Phase 2: Rewrite HTML references from local IDs to persisted ULIDs
+		for _, item := range sortedItems {
+			persistedID := itemIDs[item.LocalID]
+			content := item.Content
+			if !strings.Contains(content, "data-paper-id=") {
+				continue
+			}
+
+			rewritten := content
+			changed := false
+			for localID, realID := range itemIDs {
+				// Match both double and single quotes
+				searchDQ := fmt.Sprintf("data-paper-id=\"%s\"", localID)
+				replaceDQ := fmt.Sprintf("data-paper-id=\"%s\"", realID)
+				if strings.Contains(rewritten, searchDQ) {
+					rewritten = strings.ReplaceAll(rewritten, searchDQ, replaceDQ)
+					changed = true
+				}
+				searchSQ := fmt.Sprintf("data-paper-id='%s'", localID)
+				replaceSQ := fmt.Sprintf("data-paper-id='%s'", realID)
+				if strings.Contains(rewritten, searchSQ) {
+					rewritten = strings.ReplaceAll(rewritten, searchSQ, replaceSQ)
+					changed = true
+				}
+			}
+
+			if changed {
+				_ = b.Repo.UpdateItemSummaryHTMLWithCapability(ctx, capability, args.JobID, persistedID, rewritten)
+			}
+		}
+
 		out, err := json.Marshal(PersistenceResult{Success: true, Message: fmt.Sprintf("Successfully persisted %d items", created)})
 		return out, core.Usage{}, err
 	}
@@ -103,4 +138,63 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 		IOSchema:    schema,
 		Run:         run,
 	}, nil
+}
+
+func sortItemsTopologically(items []PersistenceItem) []PersistenceItem {
+	itemMap := make(map[string]PersistenceItem)
+	inDegree := make(map[string]int)
+	children := make(map[string][]string)
+
+	allLocalIDs := make(map[string]bool)
+	for _, item := range items {
+		itemMap[item.LocalID] = item
+		allLocalIDs[item.LocalID] = true
+	}
+
+	for _, item := range items {
+		pID := item.ParentLocalID
+		if pID != "" && allLocalIDs[pID] {
+			inDegree[item.LocalID]++
+			children[pID] = append(children[pID], item.LocalID)
+		}
+	}
+
+	var queue []string
+	for _, item := range items {
+		if inDegree[item.LocalID] == 0 {
+			queue = append(queue, item.LocalID)
+		}
+	}
+
+	var result []PersistenceItem
+	visited := make(map[string]bool)
+
+	for len(queue) > 0 {
+		currID := queue[0]
+		queue = queue[1:]
+
+		if visited[currID] {
+			continue
+		}
+		visited[currID] = true
+		result = append(result, itemMap[currID])
+
+		for _, childID := range children[currID] {
+			inDegree[childID]--
+			if inDegree[childID] == 0 {
+				queue = append(queue, childID)
+			}
+		}
+	}
+
+	// Handle cycles or missing parents by adding remaining items to keep them in the tree
+	if len(result) < len(items) {
+		for _, item := range items {
+			if !visited[item.LocalID] {
+				result = append(result, item)
+			}
+		}
+	}
+
+	return result
 }

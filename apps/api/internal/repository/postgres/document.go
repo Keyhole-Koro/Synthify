@@ -868,7 +868,7 @@ func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunk
 
 	for _, chunk := range chunks {
 		if err := qtx.CreateDocumentChunk(ctx, sqlcgen.CreateDocumentChunkParams{
-			ChunkID:    newID(),
+			ChunkID:    chunk.ChunkID,
 			DocumentID: documentID,
 			FileID:     sql.NullString{String: chunk.FileID, Valid: chunk.FileID != ""},
 			Heading:    chunk.Heading,
