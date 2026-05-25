@@ -135,6 +135,20 @@ jobs:
             exit 1
           fi
 
+      - name: Verify required environment variables
+        env:
+          STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
+          STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
+        run: |
+          missing=()
+          if [ -z "${STRIPE_PRO_PRICE_ID_JPY}" ] && [ -z "${STRIPE_PRO_PRICE_ID_USD}" ]; then
+            missing+=(STRIPE_PRO_PRICE_ID_JPY/STRIPE_PRO_PRICE_ID_USD)
+          fi
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Refusing to deploy: missing required GitHub Environment variable(s): ${missing[*]}"
+            exit 1
+          fi
+
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
 
@@ -176,6 +190,8 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
+          STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
+          STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
         run: |
           args=(
             -auto-approve
@@ -184,6 +200,8 @@ jobs:
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
             -var="readiness_api_key=${READINESS_API_KEY}"
+            -var="stripe_pro_price_id_jpy=${STRIPE_PRO_PRICE_ID_JPY}"
+            -var="stripe_pro_price_id_usd=${STRIPE_PRO_PRICE_ID_USD}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
@@ -195,6 +213,8 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
+          STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
+          STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
         run: |
           API_URI="$(terraform output -raw api_uri)"
           args=(
@@ -205,6 +225,8 @@ jobs:
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
             -var="api_base_url=${API_URI}"
             -var="readiness_api_key=${READINESS_API_KEY}"
+            -var="stripe_pro_price_id_jpy=${STRIPE_PRO_PRICE_ID_JPY}"
+            -var="stripe_pro_price_id_usd=${STRIPE_PRO_PRICE_ID_USD}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
