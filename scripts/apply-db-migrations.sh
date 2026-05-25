@@ -60,8 +60,15 @@ fi
 # CockroachDB does not implement. Switch the scheme to cockroachdb:// so
 # migrate picks its CockroachDB-aware driver (no advisory lock required).
 # psql still needs the plain postgres:// form, so keep both.
-PSQL_DSN="$DATABASE_DSN"
 MIGRATE_DSN="$(echo "$DATABASE_DSN" | sed -E 's#^postgres(ql)?://#cockroachdb://#')"
+
+# psql on a stock GitHub runner has no ~/.postgresql/root.crt, so an
+# sslmode=verify-full DSN fails connect with the system trust store unset
+# in libpq's PG_SYSCONFDIR. Probes run in a sub-shell that swallows errors,
+# which would silently disable baseline detection. Downgrade to require for
+# the probe path only — it still encrypts, just skips cert verification, and
+# this script only reads schema_migrations/accounts metadata.
+PSQL_DSN="$(echo "$DATABASE_DSN" | sed -E 's#sslmode=[^&]*#sslmode=require#')"
 
 cd "$(dirname "$0")/.."
 
@@ -80,12 +87,23 @@ fi
 # migrate stores versions as plain integers (1, 2, ...) not zero-padded.
 HEAD_VERSION="$((10#$HEAD_VERSION))"
 
+# Fail loudly if psql cannot reach the database at all. The probes below
+# swallow per-query errors so they degrade to "table missing" gracefully,
+# but a connection failure must not be masked the same way — that path
+# led to baseline/dirty detection being silently skipped on stage.
+if ! psql "$PSQL_DSN" -At -c "SELECT 1" >/dev/null 2>&1; then
+    echo "psql could not connect to the database — schema probes will not work." >&2
+    echo "Re-run with sslmode/sslrootcert that the runner's libpq accepts." >&2
+    exit 1
+fi
+
 probe() {
     psql "$PSQL_DSN" -At -c "$1" 2>/dev/null || true
 }
 
 has_schema_migrations="$(probe "SELECT to_regclass('public.schema_migrations') IS NOT NULL")"
 has_accounts="$(probe "SELECT to_regclass('public.accounts') IS NOT NULL")"
+echo "Probe results: schema_migrations=${has_schema_migrations:-<empty>}, accounts=${has_accounts:-<empty>}"
 
 if [ "$has_schema_migrations" != "t" ] && [ "$has_accounts" = "t" ]; then
     echo "Existing schema detected without schema_migrations table — baselining to version $HEAD_VERSION."
