@@ -51,10 +51,17 @@ fi
 # CockroachDB Cloud presents a Let's Encrypt cert. CI runners have the system
 # trust store but no ~/.postgresql/root.crt, so a DSN that pins sslrootcert to
 # a file path would fail. Rewrite sslrootcert to "system" when present so
-# libpq (and migrate's pq driver) use the OS bundle.
+# libpq (and migrate's drivers) use the OS bundle.
 if echo "$DATABASE_DSN" | grep -q "sslrootcert="; then
     DATABASE_DSN="$(echo "$DATABASE_DSN" | sed -E 's#sslrootcert=[^&]*#sslrootcert=system#')"
 fi
+
+# golang-migrate's default postgres driver uses pg_advisory_lock(), which
+# CockroachDB does not implement. Switch the scheme to cockroachdb:// so
+# migrate picks its CockroachDB-aware driver (no advisory lock required).
+# psql still needs the plain postgres:// form, so keep both.
+PSQL_DSN="$DATABASE_DSN"
+MIGRATE_DSN="$(echo "$DATABASE_DSN" | sed -E 's#^postgres(ql)?://#cockroachdb://#')"
 
 cd "$(dirname "$0")/.."
 
@@ -74,7 +81,7 @@ fi
 HEAD_VERSION="$((10#$HEAD_VERSION))"
 
 probe() {
-    psql "$DATABASE_DSN" -At -c "$1" 2>/dev/null || true
+    psql "$PSQL_DSN" -At -c "$1" 2>/dev/null || true
 }
 
 has_schema_migrations="$(probe "SELECT to_regclass('public.schema_migrations') IS NOT NULL")"
@@ -82,11 +89,11 @@ has_accounts="$(probe "SELECT to_regclass('public.accounts') IS NOT NULL")"
 
 if [ "$has_schema_migrations" != "t" ] && [ "$has_accounts" = "t" ]; then
     echo "Existing schema detected without schema_migrations table — baselining to version $HEAD_VERSION."
-    migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_DSN" force "$HEAD_VERSION"
+    migrate -path "$MIGRATIONS_DIR" -database "$MIGRATE_DSN" force "$HEAD_VERSION"
 fi
 
 echo "Running migrate up..."
-migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_DSN" up
+migrate -path "$MIGRATIONS_DIR" -database "$MIGRATE_DSN" up
 
 echo "Current migration state:"
-migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_DSN" version
+migrate -path "$MIGRATIONS_DIR" -database "$MIGRATE_DSN" version
