@@ -36,12 +36,34 @@ function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '').replace(/\/api$/, '');
 }
 
+function isLocalHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+}
+
+function browserReachableUrl(url: string): string {
+  if (typeof window === 'undefined') return url;
+
+  const parsed = new URL(url);
+  if (isLocalHost(parsed.hostname) && window.location.hostname !== '0.0.0.0') {
+    parsed.hostname = window.location.hostname;
+  }
+  return parsed.toString().replace(/\/+$/, '');
+}
+
+function browserReachableHost(host: string): string {
+  if (typeof window === 'undefined') return host;
+  if (isLocalHost(host) && window.location.hostname !== '0.0.0.0') {
+    return window.location.hostname;
+  }
+  return host;
+}
+
 export const env = {
   nodeEnv: rawEnv.NODE_ENV,
   apiBaseUrl: normalizeBaseUrl(
     typeof window === 'undefined'
       ? (rawEnv.INTERNAL_API_BASE_URL ?? rawEnv.NEXT_PUBLIC_API_BASE_URL)
-      : rawEnv.NEXT_PUBLIC_API_BASE_URL
+      : browserReachableUrl(rawEnv.NEXT_PUBLIC_API_BASE_URL)
   ),
   firebase: {
     apiKey: rawEnv.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -50,8 +72,12 @@ export const env = {
     storageBucket: rawEnv.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
     messagingSenderId: rawEnv.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
     appId: rawEnv.NEXT_PUBLIC_FIREBASE_APP_ID,
-    authEmulatorUrl: rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL,
-    firestoreEmulatorHost: rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST,
+    authEmulatorUrl: rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL
+      ? browserReachableUrl(rawEnv.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL)
+      : undefined,
+    firestoreEmulatorHost: rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST
+      ? browserReachableHost(rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST)
+      : undefined,
     firestoreEmulatorPort: rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
   },
 } as const;
