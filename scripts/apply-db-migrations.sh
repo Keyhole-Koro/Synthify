@@ -92,6 +92,23 @@ if [ "$has_schema_migrations" != "t" ] && [ "$has_accounts" = "t" ]; then
     migrate -path "$MIGRATIONS_DIR" -database "$MIGRATE_DSN" force "$HEAD_VERSION"
 fi
 
+# If a previous run failed mid-migration, schema_migrations.dirty=true and
+# migrate refuses to continue. Roll the marker back to the last successfully
+# applied version and let `up` retry. We treat the version *before* the
+# dirty one as "successfully applied" because the failed migration is
+# expected to be rerun once the underlying SQL is fixed.
+if [ "$has_schema_migrations" = "t" ]; then
+    dirty_row="$(probe "SELECT version || '|' || dirty FROM schema_migrations LIMIT 1")"
+    dirty_version="${dirty_row%%|*}"
+    dirty_flag="${dirty_row##*|}"
+    if [ "$dirty_flag" = "t" ] && [ -n "$dirty_version" ]; then
+        prev=$((dirty_version - 1))
+        if [ "$prev" -lt 0 ]; then prev=0; fi
+        echo "schema_migrations is dirty at version $dirty_version — forcing back to $prev so up can retry."
+        migrate -path "$MIGRATIONS_DIR" -database "$MIGRATE_DSN" force "$prev"
+    fi
+fi
+
 echo "Running migrate up..."
 migrate -path "$MIGRATIONS_DIR" -database "$MIGRATE_DSN" up
 

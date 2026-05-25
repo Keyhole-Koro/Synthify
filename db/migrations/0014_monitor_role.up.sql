@@ -15,11 +15,14 @@ GRANT SELECT ON job_logs TO monitor;
 GRANT SELECT ON workspaces TO monitor;
 GRANT SELECT ON documents TO monitor;
 
--- write は明示的に拒否
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON document_processing_jobs FROM monitor;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON job_logs FROM monitor;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON workspaces FROM monitor;
-REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON documents FROM monitor;
+-- write は明示的に拒否。
+-- CockroachDB は TRUNCATE を独立した privilege として扱わない (DELETE 権限
+-- に含まれる) ため列挙しない。INSERT/UPDATE/DELETE を REVOKE すれば
+-- 実質 TRUNCATE も封じられる。
+REVOKE INSERT, UPDATE, DELETE ON document_processing_jobs FROM monitor;
+REVOKE INSERT, UPDATE, DELETE ON job_logs FROM monitor;
+REVOKE INSERT, UPDATE, DELETE ON workspaces FROM monitor;
+REVOKE INSERT, UPDATE, DELETE ON documents FROM monitor;
 
 -- センシティブカラムを含むテーブルは view 経由で公開する。
 -- v_job_logs: job_logs から直接公開してよい列をフィルタする (現状は全列)
