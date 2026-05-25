@@ -15,12 +15,6 @@ on:
     branches:
       - stage
       - prod
-    paths:
-      - apps/web/**
-      - internal/platform/**
-      - scripts/smoke-test.sh
-      - firebase.json
-      - .github/workflows/deploy-frontend.yml
 
 concurrency:
   group: deploy-frontend-${{ github.event.inputs.environment || github.ref_name }}

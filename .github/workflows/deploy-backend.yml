@@ -15,16 +15,6 @@ on:
     branches:
       - stage
       - prod
-    paths:
-      - apps/api/**
-      - apps/worker/**
-      - apps/eval/**
-      - internal/platform/**
-      - go.mod
-      - go.sum
-      - terraform/**
-      - scripts/smoke-test.sh
-      - .github/workflows/deploy-backend.yml
 
 concurrency:
   group: deploy-backend-${{ github.event.inputs.environment || github.ref_name }}
