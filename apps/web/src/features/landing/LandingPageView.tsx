@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import type { CSSProperties } from 'react';
-import { ROOT_ID } from '@/features/paperMap/staticPapers';
+import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
 
 const PaperCanvas = dynamic(

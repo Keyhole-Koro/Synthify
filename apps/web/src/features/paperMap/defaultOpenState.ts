@@ -1,7 +1,10 @@
 import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-paper';
 import type { AuthUser } from '@/features/auth/session';
 import type { Workspace } from '@/features/workspaces/api';
-import { authPaper, rootPaper, workspacesPaper } from '@/features/paperMap/staticPapers';
+
+export const ROOT_ID = 'root';
+export const AUTH_ID = 'auth';
+export const WORKSPACES_ID = 'workspaces';
 
 interface DefaultOpenStateOptions {
   user: AuthUser | null;
@@ -20,7 +23,7 @@ const aboutDefaultChildren = [
 
 function synthifyExpansionMap(extraRootChildren: string[]): ExpansionMap {
   const map: ExpansionMap = new Map();
-  map.set(rootPaper.id, { openChildIds: [authPaper.id, 'synthify:about', ...extraRootChildren] });
+  map.set(ROOT_ID, { openChildIds: [AUTH_ID, 'synthify:about', ...extraRootChildren] });
   map.set('synthify:about', { openChildIds: aboutDefaultChildren });
   map.set('synthify:overview', { openChildIds: ['synthify:overview:workflow', 'synthify:overview:reading'] });
   map.set('synthify:documents', { openChildIds: ['synthify:documents:intake', 'synthify:documents:chunks'] });
@@ -32,14 +35,14 @@ function synthifyExpansionMap(extraRootChildren: string[]): ExpansionMap {
 
 export function computeDefaultOpenState(opts: DefaultOpenStateOptions): DefaultOpenState {
   if (opts.user) {
-    const map = synthifyExpansionMap([workspacesPaper.id]);
+    const map = synthifyExpansionMap([WORKSPACES_ID]);
     const hasWorkspaces = opts.workspaces.length > 0;
     return {
       expansionMap: map,
-      focusedNodeId: hasWorkspaces ? workspacesPaper.id : authPaper.id,
+      focusedNodeId: hasWorkspaces ? WORKSPACES_ID : AUTH_ID,
     };
   }
 
   const map = synthifyExpansionMap([]);
-  return { expansionMap: map, focusedNodeId: authPaper.id };
+  return { expansionMap: map, focusedNodeId: AUTH_ID };
 }

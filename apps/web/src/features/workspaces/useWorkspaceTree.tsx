@@ -9,7 +9,7 @@ import { getTree, getSubtree, type ApiItem, type SubtreeItem } from '@/features/
 import { create } from '@bufbuild/protobuf';
 import { SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import { createDocument, startProcessing, uploadFile } from '@/features/documents/api';
-import { ROOT_ID } from '@/features/paperMap/staticPapers';
+import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
 
 export function useWorkspaceTree(
@@ -57,8 +57,8 @@ export function useWorkspaceTree(
     revealNewDocumentRoots = false,
   ) {
     let map = expansionMapRef.current;
-    map = openChild(ROOT_ID, 'workspaces', map);
-    map = openChild('workspaces', workspaceId, map);
+    map = openChild(ROOT_ID, WORKSPACES_ID, map);
+    map = openChild(WORKSPACES_ID, workspaceId, map);
 
     const allTreeItemIds = new Set(workspaceTreeItemsRef.current.get(workspaceId)?.keys() ?? []);
     const currentWorkspaceOpenIds = (map.get(workspaceId)?.openChildIds ?? []).filter((id) => allTreeItemIds.has(id));
@@ -99,7 +99,7 @@ export function useWorkspaceTree(
       title: workspaceName,
       description: 'ドキュメントと知識構造',
       hue: 200,
-      parentId: 'workspaces',
+      parentId: WORKSPACES_ID,
       childIds: childPapers.map((p) => p.id),
       content: (
         <WorkspacePaper
@@ -245,9 +245,9 @@ export function useWorkspaceTree(
     }
 
     const rootOpenIds = expansionMap.get(ROOT_ID)?.openChildIds ?? [];
-    if (!rootOpenIds.includes('workspaces')) return;
+    if (!rootOpenIds.includes(WORKSPACES_ID)) return;
 
-    const workspacesOpenIds = expansionMap.get('workspaces')?.openChildIds ?? [];
+    const workspacesOpenIds = expansionMap.get(WORKSPACES_ID)?.openChildIds ?? [];
     for (const workspaceId of workspacesOpenIds) {
       if (!initializedWorkspacesRef.current.has(workspaceId)) {
         void handleOpenWorkspace(workspaceId);

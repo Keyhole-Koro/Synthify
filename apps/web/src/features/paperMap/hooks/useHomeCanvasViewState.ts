@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import type { ExpansionMap, PaperId } from '@keyhole-koro/paper-in-paper';
-import { ROOT_ID } from '@/features/paperMap/staticPapers';
+import { AUTH_ID, ROOT_ID } from '@/features/paperMap/defaultOpenState';
 
 // Root children that should NOT trigger the fullscreen canvas on their own.
 // `auth` is the login/profile pane — surfacing the brand header & hero copy
 // while it's the only thing open is intentional (it's part of the landing).
-const FULLSCREEN_EXCLUDED_ROOT_CHILDREN: ReadonlySet<PaperId> = new Set(['auth']);
+const FULLSCREEN_EXCLUDED_ROOT_CHILDREN: ReadonlySet<PaperId> = new Set([AUTH_ID]);
 
 export function useHomeCanvasViewState(
   expansionMap: ExpansionMap,

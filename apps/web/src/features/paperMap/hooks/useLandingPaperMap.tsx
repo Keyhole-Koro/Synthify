@@ -12,6 +12,7 @@ import { InvoicePaper } from '@/features/billing/InvoicePaper';
 import { AuthUser } from '@/features/auth/session';
 import { Workspace } from '@/features/workspaces/api';
 import { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
+import { AUTH_ID, ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 
 interface UseLandingPaperMapProps {
   user: AuthUser | null;
@@ -26,7 +27,6 @@ interface UseLandingPaperMapProps {
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
 }
 
-const ROOT_ID = 'root';
 const ABOUT_CHILD_IDS = [
   'synthify:about:promise',
   'synthify:about:fit',
@@ -293,9 +293,9 @@ function NodePreview() {
 
 function buildIntroCards(user: AuthUser | null, hasBilling: boolean) {
   return [
-    { id: 'auth', title: user ? 'アカウント' : 'ログイン', body: user ? '利用中のユーザーとセッション' : 'Google アカウントで開始', hue: CATEGORY_HUES.auth },
+    { id: AUTH_ID, title: user ? 'アカウント' : 'ログイン', body: user ? '利用中のユーザーとセッション' : 'Google アカウントで開始', hue: CATEGORY_HUES.auth },
     { id: 'synthify:about', title: 'Synthifyについて', body: '価値、全体像、入力、処理、知識ツリー', hue: CATEGORY_HUES.about },
-    ...(user ? [{ id: 'workspaces', title: 'ワークスペース', body: '資料と知識ツリーの管理', hue: CATEGORY_HUES.workspaces }] : []),
+    ...(user ? [{ id: WORKSPACES_ID, title: 'ワークスペース', body: '資料と知識ツリーの管理', hue: CATEGORY_HUES.workspaces }] : []),
     ...(hasBilling ? [{ id: 'billing', title: 'プラン・課金', body: '予算、使用量、支払い', hue: CATEGORY_HUES.billing }] : []),
   ];
 }
@@ -689,9 +689,9 @@ export function useLandingPaperMap({
     const map = new Map<string, Paper>();
     const hasBilling = user != null && workspaces.length > 0;
     const rootChildIds = [
-      'auth',
+      AUTH_ID,
       'synthify:about',
-      ...(user ? ['workspaces'] : []),
+      ...(user ? [WORKSPACES_ID] : []),
       ...(hasBilling ? ['billing'] : []),
     ];
 
@@ -719,18 +719,18 @@ export function useLandingPaperMap({
           if (!focusedNodeId) return false;
           let cursor: string | null = focusedNodeId;
           while (cursor) {
-            if (cursor === 'workspaces') return true;
+            if (cursor === WORKSPACES_ID) return true;
             cursor = pm.get(cursor)?.parentId ?? null;
           }
           return false;
         })();
 
-        if (openChildIds.includes('workspaces')) {
+        if (openChildIds.includes(WORKSPACES_ID)) {
           const contentShare = 0.06;
           const workspacesShare = focusInWorkspaces ? 0.88 : 0.76;
-          const others = openChildIds.filter((id) => id !== 'workspaces');
+          const others = openChildIds.filter((id) => id !== WORKSPACES_ID);
           const evenOther = others.length > 0 ? (1 - workspacesShare - contentShare) / others.length : 0;
-          const childShares: Record<string, number> = { workspaces: workspacesShare };
+          const childShares: Record<string, number> = { [WORKSPACES_ID]: workspacesShare };
           for (const id of others) childShares[id] = evenOther;
           return { contentShare, childShares };
         }
@@ -745,8 +745,8 @@ export function useLandingPaperMap({
 
     addProductPapers(map);
 
-    map.set('auth', {
-      id: 'auth',
+    map.set(AUTH_ID, {
+      id: AUTH_ID,
       title: user ? 'アカウント' : 'ログイン',
       description: user ? '現在のセッションとプロフィール' : 'Synthify をはじめる',
       hue: CATEGORY_HUES.auth,
@@ -763,8 +763,8 @@ export function useLandingPaperMap({
     });
 
     if (user) {
-      map.set('workspaces', {
-        id: 'workspaces',
+      map.set(WORKSPACES_ID, {
+        id: WORKSPACES_ID,
         title: 'ワークスペース',
         description: '資料と知識ツリーの一覧',
         hue: CATEGORY_HUES.workspaces,
