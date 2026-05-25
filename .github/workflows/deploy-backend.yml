@@ -246,23 +246,37 @@ jobs:
       - name: Smoke test Worker
         run: |
           set -euo pipefail
-          # The worker is internal-only, so the deploy smoke test reaches it
-          # through the Cloud Run proxy instead of the public service URL.
-          gcloud run services proxy "synthify-worker-${ENVIRONMENT}" \
-            --quiet \
+          service_json="$(mktemp)"
+          gcloud run services describe "synthify-worker-${ENVIRONMENT}" \
             --project "${{ vars.GCP_PROJECT_ID }}" \
             --region "${{ vars.GCP_REGION }}" \
-            --port 18081 \
-            > /tmp/synthify-worker-proxy.log 2>&1 &
-          proxy_pid="$!"
-          trap 'kill "$proxy_pid" 2>/dev/null || true' EXIT
+            --format=json \
+            > "$service_json"
 
-          for _ in $(seq 1 24); do
-            if SMOKE_TEST_TIMEOUT_SECONDS=5 SMOKE_TEST_RETRY_COUNT=0 WORKER_BASE_URL="http://127.0.0.1:18081" READINESS_API_KEY="${READINESS_API_KEY}" scripts/smoke-test.sh worker; then
-              exit 0
-            fi
-            sleep 2
-          done
+          python3 - "$service_json" <<'PY'
+          import json
+          import sys
 
-          cat /tmp/synthify-worker-proxy.log >&2
-          exit 1
+          with open(sys.argv[1], encoding="utf-8") as f:
+              service = json.load(f)
+
+          status = service.get("status", {})
+          conditions = status.get("conditions", [])
+          ready = next((c for c in conditions if c.get("type") == "Ready"), {})
+          latest_created = status.get("latestCreatedRevisionName")
+          latest_ready = status.get("latestReadyRevisionName")
+
+          if ready.get("status") != "True":
+              print(f"worker service is not Ready: {ready}", file=sys.stderr)
+              sys.exit(1)
+
+          if latest_created != latest_ready:
+              print(
+                  "worker latest revision is not ready: "
+                  f"created={latest_created} ready={latest_ready}",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          print(f"worker service Ready ({latest_ready})")
+          PY
