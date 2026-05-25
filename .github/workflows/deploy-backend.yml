@@ -149,6 +149,25 @@ jobs:
             exit 1
           fi
 
+      # Run db/migrations/*.up.sql before Cloud Run sees new code, so handlers
+      # that depend on a new column/table never start against an old schema.
+      # Forward-only; the schema_migrations table records what is applied.
+      # Demo data (db/seed/) is intentionally excluded so real environments
+      # never get seeded.
+      - name: Install golang-migrate
+        run: |
+          set -euo pipefail
+          MIGRATE_VERSION=v4.18.1
+          curl -fsSL "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_VERSION}/migrate.linux-amd64.tar.gz" \
+            | tar -xz -C /tmp migrate
+          sudo install -m 0755 /tmp/migrate /usr/local/bin/migrate
+          migrate -version
+
+      - name: Apply DB migrations
+        env:
+          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+        run: bash scripts/apply-db-migrations.sh
+
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
 

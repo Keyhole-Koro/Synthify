@@ -1,0 +1,3 @@
+-- No automatic rollback. Migrations are forward-only by convention.
+-- If a rollback is needed, write the DROP/REVERT statements here in a follow-up
+-- migration rather than mutating this file in place.

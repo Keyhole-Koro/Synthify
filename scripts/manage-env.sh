@@ -126,7 +126,12 @@ case $COMMAND in
         ;;
 
     reset-db)
-        log "WARNING: This will DROP ALL DATA in the $ENVIRONMENT database and rebuild it from db/init/."
+        if [ "$ENVIRONMENT" = "prod" ]; then
+            warn "Production database reset is disabled. Refusing to continue."
+            exit 1
+        fi
+
+        log "WARNING: This will DROP ALL DATA in the $ENVIRONMENT database and rebuild it from db/migrations/."
         read -p "Type the environment name ('$ENVIRONMENT') to confirm: " -r
         echo
         if [[ "$REPLY" != "$ENVIRONMENT" ]]; then
@@ -158,13 +163,13 @@ CREATE SCHEMA public;
 DROP ROLE IF EXISTS monitor;
 SQL
 
-        log "Applying init scripts from db/init/ in alphabetical order..."
-        for f in $(ls db/init/*.sql | sort); do
+        log "Applying migrations from db/migrations/ in version order..."
+        for f in $(ls db/migrations/*.up.sql | sort); do
             log "  -> $f"
             psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 -f "$f"
         done
 
-        success "$ENVIRONMENT database reset and rebuilt from db/init/."
+        success "$ENVIRONMENT database reset and rebuilt from db/migrations/."
         ;;
 
     *)

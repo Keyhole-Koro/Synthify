@@ -1,0 +1,92 @@
+#!/bin/bash
+# Apply db/migrations/*.up.sql to the target environment's database using
+# golang-migrate. Forward-only: each numbered migration runs at most once and
+# is recorded in the schema_migrations table.
+#
+# Seed data lives in db/seed/seed.sql and is intentionally not run here —
+# real environments must never receive demo accounts/workspaces/documents.
+#
+# Baselining existing databases:
+#   stage and prod were originally populated by raw psql against db/init/*.sql,
+#   so they hold the schema but have no schema_migrations row. On the first
+#   run after the cutover this script detects that state (accounts table
+#   exists, schema_migrations does not) and stamps the database with the
+#   current head via `migrate force` before running `up`. After that the
+#   normal up-only flow takes over.
+#
+# Usage:
+#   PROJECT_ID=synthify-491705 bash scripts/apply-db-init.sh
+#
+# Requires:
+#   - gcloud authenticated with access to secret synthify-database-dsn
+#   - migrate CLI on PATH (https://github.com/golang-migrate/migrate)
+#   - psql on PATH (only used for the baseline detection probe)
+set -euo pipefail
+
+PROJECT_ID="${PROJECT_ID:-}"
+if [ -z "$PROJECT_ID" ]; then
+    echo "PROJECT_ID is required (the GCP project hosting synthify-database-dsn)" >&2
+    exit 1
+fi
+
+for bin in migrate psql gcloud; do
+    if ! command -v "$bin" >/dev/null 2>&1; then
+        echo "required binary '$bin' not found on PATH" >&2
+        exit 1
+    fi
+done
+
+DB_SECRET="synthify-database-dsn"
+
+echo "Fetching $DB_SECRET from project $PROJECT_ID..."
+DATABASE_DSN="$(gcloud secrets versions access latest \
+    --secret="$DB_SECRET" \
+    --project="$PROJECT_ID")"
+
+if [ -z "$DATABASE_DSN" ] || [ "$DATABASE_DSN" = "placeholder-change-me" ]; then
+    echo "Secret $DB_SECRET has no valid connection string (got placeholder or empty)." >&2
+    exit 1
+fi
+
+# CockroachDB Cloud presents a Let's Encrypt cert. CI runners have the system
+# trust store but no ~/.postgresql/root.crt, so a DSN that pins sslrootcert to
+# a file path would fail. Rewrite sslrootcert to "system" when present so
+# libpq (and migrate's pq driver) use the OS bundle.
+if echo "$DATABASE_DSN" | grep -q "sslrootcert="; then
+    DATABASE_DSN="$(echo "$DATABASE_DSN" | sed -E 's#sslrootcert=[^&]*#sslrootcert=system#')"
+fi
+
+cd "$(dirname "$0")/.."
+
+MIGRATIONS_DIR="db/migrations"
+if [ ! -d "$MIGRATIONS_DIR" ]; then
+    echo "$MIGRATIONS_DIR not found" >&2
+    exit 1
+fi
+
+# Highest numbered up-migration = head version we baseline existing dbs to.
+HEAD_VERSION="$(ls "$MIGRATIONS_DIR" | grep -oE '^[0-9]+' | sort -n | tail -1)"
+if [ -z "$HEAD_VERSION" ]; then
+    echo "no migrations found in $MIGRATIONS_DIR" >&2
+    exit 1
+fi
+# migrate stores versions as plain integers (1, 2, ...) not zero-padded.
+HEAD_VERSION="$((10#$HEAD_VERSION))"
+
+probe() {
+    psql "$DATABASE_DSN" -At -c "$1" 2>/dev/null || true
+}
+
+has_schema_migrations="$(probe "SELECT to_regclass('public.schema_migrations') IS NOT NULL")"
+has_accounts="$(probe "SELECT to_regclass('public.accounts') IS NOT NULL")"
+
+if [ "$has_schema_migrations" != "t" ] && [ "$has_accounts" = "t" ]; then
+    echo "Existing schema detected without schema_migrations table — baselining to version $HEAD_VERSION."
+    migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_DSN" force "$HEAD_VERSION"
+fi
+
+echo "Running migrate up..."
+migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_DSN" up
+
+echo "Current migration state:"
+migrate -path "$MIGRATIONS_DIR" -database "$DATABASE_DSN" version

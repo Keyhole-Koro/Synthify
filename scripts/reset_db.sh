@@ -22,4 +22,4 @@ fi
 echo "🚀 Starting postgres and running initialization..."
 docker compose up -d postgres-init
 
-echo "✅ Database reset complete! The init scripts (db/init/*.sql) are running in the background."
+echo "✅ Database reset complete! Migrations (db/migrations/*.up.sql) and seed (db/seed/*.sql) are running in the background."
