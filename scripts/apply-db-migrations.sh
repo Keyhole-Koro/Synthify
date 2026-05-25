@@ -116,10 +116,9 @@ fi
 # dirty one as "successfully applied" because the failed migration is
 # expected to be rerun once the underlying SQL is fixed.
 if [ "$has_schema_migrations" = "t" ]; then
-    dirty_row="$(probe "SELECT version || '|' || dirty FROM schema_migrations LIMIT 1")"
-    dirty_version="${dirty_row%%|*}"
-    dirty_flag="${dirty_row##*|}"
-    if [ "$dirty_flag" = "t" ] && [ -n "$dirty_version" ]; then
+    dirty_version="$(probe "SELECT version::text FROM schema_migrations WHERE dirty = true LIMIT 1")"
+    echo "Dirty probe: version='${dirty_version:-<none>}'"
+    if [ -n "$dirty_version" ]; then
         prev=$((dirty_version - 1))
         if [ "$prev" -lt 0 ]; then prev=0; fi
         echo "schema_migrations is dirty at version $dirty_version — forcing back to $prev so up can retry."
