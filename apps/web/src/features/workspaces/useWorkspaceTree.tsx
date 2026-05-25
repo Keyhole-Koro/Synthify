@@ -274,7 +274,7 @@ export function useWorkspaceTree(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getWorkspaceName, handleUploadWorkspaceFile]);
 
-  function resetTree() {
+  const resetTree = useCallback(() => {
     itemWorkspaceRef.current.clear();
     itemHasChildrenRef.current.clear();
     workspaceRootItemRef.current.clear();
@@ -286,7 +286,7 @@ export function useWorkspaceTree(
     prevExpansionRef.current = new Map();
     initializedWorkspacesRef.current.clear();
     clearWorkspacePapers();
-  }
+  }, [clearWorkspacePapers]);
 
   return {
     handleOpenWorkspace,
