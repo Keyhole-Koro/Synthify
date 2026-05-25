@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -21,9 +22,8 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
-	"github.com/synthify/backend/internal/platform/applog"
-	"github.com/synthify/backend/internal/platform/job/log"
-	"github.com/synthify/backend/internal/platform/job/status"
+	joblog "github.com/synthify/backend/internal/platform/job/log"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 	"google.golang.org/adk/model"
 	"google.golang.org/api/idtoken"
 )
@@ -48,7 +48,7 @@ type Worker struct {
 	repo         Repository
 	lifecycle    *joblifecycle.Service
 	status       jobstatus.Notifier
-	logger       applog.Logger
+	logger       *slog.Logger
 }
 
 type ExecutePlanRequest = domain.ExecutePlanRequest
@@ -63,10 +63,7 @@ func (d dynamicSource) ResolveActive(ctx context.Context, workspaceID string) ([
 	return d.repo.ResolveActiveTools(ctx, workspaceID)
 }
 
-func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger applog.Logger) (*Worker, error) {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger *slog.Logger) (*Worker, error) {
 	usage := base.NewUsageLimiter(treeRepo, logger)
 	b := &base.Context{
 		Repo:     treeRepo,
@@ -186,13 +183,10 @@ func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jo
 type Planner struct {
 	repo   Repository
 	llm    model.LLM
-	logger applog.Logger
+	logger *slog.Logger
 }
 
-func NewPlanner(repo Repository, llm model.LLM, logger applog.Logger) *Planner {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewPlanner(repo Repository, llm model.LLM, logger *slog.Logger) *Planner {
 	return &Planner{repo: repo, llm: llm, logger: logger}
 }
 
@@ -205,7 +199,7 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 	}
 	signals, err := p.repo.GetJobPlanningSignals(ctx, req.DocumentID, req.WorkspaceID, req.TreeID)
 	if err != nil {
-		p.logger.Error(ctx, "planner.get_signals_failed", err, map[string]any{"doc_id": req.DocumentID})
+		p.logger.Error("planner.get_signals_failed", "error", err.Error(), "doc_id", req.DocumentID)
 	}
 	payload := map[string]any{
 		"steps": []map[string]any{
@@ -241,13 +235,10 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 type JobEvaluator struct {
 	agent  *agents.Evaluator
 	repo   Repository
-	logger applog.Logger
+	logger *slog.Logger
 }
 
-func NewJobEvaluator(repo Repository, llmClient llm.Client, logger applog.Logger) *JobEvaluator {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewJobEvaluator(repo Repository, llmClient llm.Client, logger *slog.Logger) *JobEvaluator {
 	return &JobEvaluator{repo: repo, agent: agents.NewEvaluator(llmClient), logger: logger}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 
 	connect "connectrpc.com/connect"
@@ -12,7 +13,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 type BillingHandler struct {
@@ -23,10 +23,7 @@ func NewBillingHandler(svc service.BillingUsecase) *BillingHandler {
 	return &BillingHandler{service: svc}
 }
 
-func NewBillingWebhookHTTPHandler(svc service.BillingUsecase, logger applog.Logger) http.HandlerFunc {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewBillingWebhookHTTPHandler(svc service.BillingUsecase, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)
@@ -35,7 +32,7 @@ func NewBillingWebhookHTTPHandler(svc service.BillingUsecase, logger applog.Logg
 		}
 		payload, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 		if err != nil {
-			logger.Warn(r.Context(), "billing.webhook.read_failed", err, map[string]any{"path": r.URL.Path})
+			logger.Warn("billing.webhook.read_failed", "error", err.Error(), "path", r.URL.Path)
 			http.Error(w, "invalid payload", http.StatusBadRequest)
 			return
 		}

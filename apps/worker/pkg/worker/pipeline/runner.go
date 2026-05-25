@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
@@ -21,13 +21,10 @@ type PipelineRunner struct {
 	stages   []Stage
 	jobRepo  JobRepository
 	notifier jobstatus.Notifier
-	logger   applog.Logger
+	logger   *slog.Logger
 }
 
-func NewRunner(jobRepo JobRepository, notifier jobstatus.Notifier, logger applog.Logger, stages ...Stage) *PipelineRunner {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewRunner(jobRepo JobRepository, notifier jobstatus.Notifier, logger *slog.Logger, stages ...Stage) *PipelineRunner {
 	return &PipelineRunner{stages: stages, jobRepo: jobRepo, notifier: notifier, logger: logger}
 }
 
@@ -59,17 +56,17 @@ func (r *PipelineRunner) Run(ctx context.Context, pctx *PipelineContext) error {
 }
 
 func (r *PipelineRunner) logStageError(ctx context.Context, pctx *PipelineContext, stage StageName, err error) {
-	fields := map[string]any{
-		"job_id":       pctx.JobID,
-		"workspace_id": pctx.WorkspaceID,
-		"document_id":  pctx.DocumentID,
-		"stage":        string(stage),
+	attrs := []any{
+		"error", err.Error(),
+		"job_id", pctx.JobID,
+		"workspace_id", pctx.WorkspaceID,
+		"document_id", pctx.DocumentID,
+		"stage", string(stage),
 	}
-	switch {
-	case errors.Is(err, domain.ErrCritical):
-		fields["severity"] = "CRITICAL"
-		r.logger.Error(ctx, "pipeline.stage.critical", err, fields)
-	default:
-		r.logger.Error(ctx, "pipeline.stage.failed", err, fields)
+	if errors.Is(err, domain.ErrCritical) {
+		attrs = append(attrs, "severity", "CRITICAL")
+		r.logger.Error("pipeline.stage.critical", attrs...)
+		return
 	}
+	r.logger.Error("pipeline.stage.failed", attrs...)
 }

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sync"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	"github.com/synthify/backend/internal/platform/job/log"
+	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
 type sessionIDContext interface {
@@ -28,16 +28,13 @@ type usageCounters struct {
 // UsageLimiter tracks per-job worker resource usage and enforces JobCapability limits.
 type UsageLimiter struct {
 	repo   Repository
-	logger applog.Logger
+	logger *slog.Logger
 
 	mu   sync.Mutex
 	jobs map[string]*usageCounters
 }
 
-func NewUsageLimiter(repo Repository, logger applog.Logger) *UsageLimiter {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewUsageLimiter(repo Repository, logger *slog.Logger) *UsageLimiter {
 	return &UsageLimiter{
 		repo:   repo,
 		logger: logger,
@@ -139,7 +136,7 @@ func (l *UsageLimiter) increment(ctx context.Context, llmCalls, toolRuns, itemCr
 
 func (l *UsageLimiter) reportExceeded(ctx context.Context, jobID, resource string, count, max int) error {
 	err := fmt.Errorf("job %s exceeded %s limit: %d > %d", jobID, resource, count, max)
-	l.logger.Error(ctx, "usage.limit_exceeded", err, map[string]any{"job_id": jobID, "resource": resource, "count": count, "limit": max})
+	l.logger.Error("usage.limit_exceeded", "error", err.Error(), "job_id", jobID, "resource", resource, "count", count, "limit", max)
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:   jobID,
 		Level:   joblog.ERROR,

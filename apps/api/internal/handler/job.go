@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	connect "connectrpc.com/connect"
@@ -12,8 +13,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
-	"github.com/synthify/backend/internal/platform/applog"
-	"github.com/synthify/backend/internal/platform/job/log"
+	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
 type JobHandler struct {
@@ -32,11 +32,8 @@ func NewJobHandler(
 	lifecycleRepo joblifecycle.Repository,
 	workspaceRepo repository.WorkspaceRepository,
 	documentRepo repository.DocumentRepository,
-	logger applog.Logger,
+	logger *slog.Logger,
 ) *JobHandler {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
 	return &JobHandler{
 		jobs:       jobRepo,
 		approvals:  approvalRepo,

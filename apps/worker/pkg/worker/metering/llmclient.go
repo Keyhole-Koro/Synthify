@@ -3,15 +3,15 @@ package metering
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	connect "connectrpc.com/connect"
 	"github.com/oklog/ulid/v2"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
@@ -27,23 +27,19 @@ import (
 type LLMClient struct {
 	inner    llm.Client
 	reporter llm.UsageReporter
-	logger   applog.Logger
+	logger   *slog.Logger
 }
 
-// NewLLMClient returns a metering wrapper. reporter and logger may be nil:
-// passing nil reporter degrades the wrapper to a pass-through; nil logger
-// uses the no-op applog.
-func NewLLMClient(inner llm.Client, reporter llm.UsageReporter, logger applog.Logger) *LLMClient {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+// NewLLMClient returns a metering wrapper. reporter may be nil — passing nil
+// reporter degrades the wrapper to a pass-through.
+func NewLLMClient(inner llm.Client, reporter llm.UsageReporter, logger *slog.Logger) *LLMClient {
 	return &LLMClient{inner: inner, reporter: reporter, logger: logger}
 }
 
 // NewWrappedClient returns a client wrapped with a Connect-based metering reporter.
 // It uses the APIBaseURL and InternalServiceToken from the worker config to
 // ship usage events. If inner is nil, it returns nil.
-func NewWrappedClient(inner llm.Client, cfg config.Worker, logger applog.Logger, opts ...connect.ClientOption) llm.Client {
+func NewWrappedClient(inner llm.Client, cfg config.Worker, logger *slog.Logger, opts ...connect.ClientOption) llm.Client {
 	if inner == nil {
 		return nil
 	}
@@ -76,11 +72,11 @@ func (c *LLMClient) report(ctx context.Context, usage llm.Usage) {
 	}
 	tag, ok := TagFromContext(ctx)
 	if !ok {
-		c.logger.Warn(ctx, "metering.tag_missing", nil, map[string]any{
-			"model":         usage.Model,
-			"input_tokens":  usage.InputTokens,
-			"output_tokens": usage.OutputTokens,
-		})
+		c.logger.Warn("metering.tag_missing",
+			"model", usage.Model,
+			"input_tokens", usage.InputTokens,
+			"output_tokens", usage.OutputTokens,
+		)
 		return
 	}
 	event := domain.UsageEvent{
@@ -94,11 +90,12 @@ func (c *LLMClient) report(ctx context.Context, usage llm.Usage) {
 		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
 	if err := c.reporter.RecordUsage(ctx, event); err != nil {
-		c.logger.Warn(ctx, "metering.record_usage_failed", err, map[string]any{
-			"event_id":   event.EventID,
-			"account_id": event.AccountID,
-			"job_id":     event.JobID,
-		})
+		c.logger.Warn("metering.record_usage_failed",
+			"error", err.Error(),
+			"event_id", event.EventID,
+			"account_id", event.AccountID,
+			"job_id", event.JobID,
+		)
 		if jl := joblog.FromContext(ctx); jl != nil {
 			jl.Log(ctx, joblog.Event{
 				JobID:       tag.JobID,

@@ -61,16 +61,16 @@ func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 				return nil, nil
 			}
 			if envelope.SchemaVersion != currentCheckpointVersion {
-				o.base.Logger.Warn(ctx, "orchestrator.checkpoint_version_mismatch", nil, map[string]any{"stage": stage, "version": envelope.SchemaVersion, "expected": currentCheckpointVersion})
+				o.base.Logger.Warn("orchestrator.checkpoint_version_mismatch", "stage", stage, "version", envelope.SchemaVersion, "expected", currentCheckpointVersion)
 				_ = o.repo.UpsertStageRunning(ctx, jobID, stage)
 				return nil, nil
 			}
 			if o.base.Job != nil && envelope.DocumentID != o.base.Job.DocumentID {
-				o.base.Logger.Warn(ctx, "orchestrator.checkpoint_document_id_mismatch", nil, map[string]any{"stage": stage, "doc_id": envelope.DocumentID, "expected": o.base.Job.DocumentID})
+				o.base.Logger.Warn("orchestrator.checkpoint_document_id_mismatch", "stage", stage, "doc_id", envelope.DocumentID, "expected", o.base.Job.DocumentID)
 				_ = o.repo.UpsertStageRunning(ctx, jobID, stage)
 				return nil, nil
 			}
-			o.base.Logger.Info(ctx, "orchestrator.resuming_from_checkpoint", map[string]any{"stage": stage})
+			o.base.Logger.Info("orchestrator.resuming_from_checkpoint", "stage", stage)
 			return envelope.Outputs, nil
 		},
 	}
@@ -118,7 +118,7 @@ func (o *Orchestrator) afterToolCallbacks() []llmagent.AfterToolCallback {
 				if writeErr := o.fs.WriteCheckpoint(jobID, stage, envelope); writeErr == nil {
 					_ = o.repo.MarkStageSucceeded(ctx, jobID, stage, o.fs.CheckpointPath(jobID, stage))
 				} else {
-					o.base.Logger.Error(ctx, "orchestrator.write_checkpoint_failed", writeErr, map[string]any{"stage": stage})
+					o.base.Logger.Error("orchestrator.write_checkpoint_failed", "error", writeErr.Error(), "stage", stage)
 				}
 			} else if err != nil && stage != "" && jobID != "" && o.repo != nil {
 				_ = o.repo.MarkStageFailed(ctx, jobID, stage, err.Error())

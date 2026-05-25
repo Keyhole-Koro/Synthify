@@ -6,11 +6,13 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/config"
 	"github.com/synthify/backend/apps/api/internal/handler"
@@ -20,7 +22,6 @@ import (
 	apimiddleware "github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1connect "github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	"github.com/synthify/backend/internal/platform/observability"
 )
@@ -29,17 +30,16 @@ func main() {
 	ctx := context.Background()
 	cfg := config.LoadAPI()
 
-	slogLogger := applog.NewJSONSlogLogger(os.Stdout)
-	appLogger := applog.WrapSlogLogger(slogLogger)
+	appLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	// New Relic is optional: InitNewRelic returns (nil, nil) when no license
 	// key is configured, so the app runs fine without observability wired.
 	nrApp, err := observability.InitNewRelic(observability.Config{
 		AppName:    cfg.NewRelic.AppName,
 		LicenseKey: cfg.NewRelic.LicenseKey,
-	}, slogLogger)
+	}, appLogger)
 	if err != nil {
-		appLogger.Error(ctx, "api.newrelic_init_failed", err, nil)
+		appLogger.Error("api.newrelic_init_failed", "error", err.Error())
 	}
 
 	appCtx := bootstrap.Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, appLogger, nrApp)
@@ -91,6 +91,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	connectOptions := observability.ConnectHandlerOptions(nrApp)
+	// 内部エラー（DB エラー等）の本文をクライアントに晒さず、サーバ側ログに原因を残す。
+	connectOptions = append(connectOptions, connect.WithInterceptors(handler.MaskInternalErrors(appLogger)))
 	mux.Handle(appv1connect.NewDocumentServiceHandler(documentHandler, connectOptions...))
 	mux.Handle(appv1connect.NewTreeServiceHandler(treeHandler, connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(itemHandler, connectOptions...))
@@ -116,7 +118,7 @@ func main() {
 	h = httpmiddleware.Recover(appLogger, h)
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	appLogger.Info(ctx, "api.started", map[string]any{"addr": addr, "env": cfg.Env})
+	appLogger.Info("api.started", "addr", addr, "env", cfg.Env)
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Fatal(err)
 	}

@@ -103,27 +103,27 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		s.logger.Error(ctx, "repository.create_document_tx_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
+		s.logger.Error("repository.create_document_tx_failed", "error", err.Error(), "workspace_id", wsID, "filename", filename)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	defer tx.Rollback()
 
 	account, err := lockWorkspaceAccount(ctx, tx, wsID)
 	if err != nil {
-		s.logger.Error(ctx, "repository.create_document_account_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
+		s.logger.Error("repository.create_document_account_failed", "error", err.Error(), "workspace_id", wsID, "filename", filename)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if err := validateUploadSize(account, fileSize); err != nil {
-		s.logger.Warn(ctx, "repository.create_document_quota_rejected", err, map[string]any{"workspace_id": wsID, "filename": filename, "file_size": fileSize})
+		s.logger.Warn("repository.create_document_quota_rejected", "error", err.Error(), "workspace_id", wsID, "filename", filename, "file_size", fileSize)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	reserved, err := activeReservedBytes(ctx, tx, account.AccountID, createdAt)
 	if err != nil {
-		s.logger.Error(ctx, "repository.create_document_reservation_sum_failed", err, map[string]any{"account_id": account.AccountID})
+		s.logger.Error("repository.create_document_reservation_sum_failed", "error", err.Error(), "account_id", account.AccountID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if account.StorageUsedBytes+reserved+fileSize > account.StorageQuotaBytes {
-		s.logger.Warn(ctx, "repository.create_document_quota_rejected", domain.ErrStorageQuotaExceeded, map[string]any{"account_id": account.AccountID, "file_size": fileSize})
+		s.logger.Warn("repository.create_document_quota_rejected", "error", domain.ErrStorageQuotaExceeded.Error(), "account_id", account.AccountID, "file_size", fileSize)
 		return nil, repository.DocumentUploadTarget{}, domain.ErrStorageQuotaExceeded
 	}
 
@@ -137,7 +137,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		FileSize:    fileSize,
 		CreatedAt:   createdAt,
 	}); err != nil {
-		s.logger.Error(ctx, "repository.create_document_failed", err, map[string]any{"workspace_id": wsID, "filename": filename})
+		s.logger.Error("repository.create_document_failed", "error", err.Error(), "workspace_id", wsID, "filename", filename)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `
@@ -147,16 +147,16 @@ INSERT INTO upload_reservations (
 )
 VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 	`, reservationID, account.AccountID, wsID, docID, fileSize, expiresAt, createdAt); err != nil {
-		s.logger.Error(ctx, "repository.create_upload_reservation_failed", err, map[string]any{"workspace_id": wsID, "document_id": docID})
+		s.logger.Error("repository.create_upload_reservation_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType)
 	if err != nil {
-		s.logger.Error(ctx, "repository.issue_document_upload_url_failed", err, map[string]any{"workspace_id": wsID, "document_id": docID})
+		s.logger.Error("repository.issue_document_upload_url_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		s.logger.Error(ctx, "repository.create_document_commit_failed", err, map[string]any{"workspace_id": wsID, "document_id": docID})
+		s.logger.Error("repository.create_document_commit_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 

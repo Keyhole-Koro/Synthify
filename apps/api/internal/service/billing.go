@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
@@ -50,17 +50,14 @@ type billingService struct {
 	accounts repository.AccountRepository
 	usage    repository.UsageRepository
 	provider BillingProvider
-	logger   applog.Logger
+	logger   *slog.Logger
 	now      func() time.Time
 }
 
 // NewBillingService wires the billing usecase. usage may be nil during early local dev
 // (before the postgres-backed implementation lands); RecordUsage will then fall back
 // to a logging-only stub so the worker pipeline keeps running.
-func NewBillingService(accounts repository.AccountRepository, usage repository.UsageRepository, provider BillingProvider, logger applog.Logger) BillingUsecase {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewBillingService(accounts repository.AccountRepository, usage repository.UsageRepository, provider BillingProvider, logger *slog.Logger) BillingUsecase {
 	return &billingService{
 		accounts: accounts,
 		usage:    usage,
@@ -73,10 +70,10 @@ func NewBillingService(accounts repository.AccountRepository, usage repository.U
 func (s *billingService) GetBillingAccount(ctx context.Context, accountID, actorUserID string) (*domain.Account, error) {
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
-		s.logAuthorizeError(ctx, "billing.get_account.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logAuthorizeError(ctx, "billing.get_account.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	return account, nil
@@ -84,30 +81,32 @@ func (s *billingService) GetBillingAccount(ctx context.Context, accountID, actor
 
 func (s *billingService) CreateCheckoutSession(ctx context.Context, accountID, actorUserID string, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error) {
 	if err := plan.Validate(); err != nil {
-		s.logger.Warn(ctx, "billing.checkout_session.invalid_plan", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-			"plan":          plan,
-		})
+		s.logger.Warn("billing.checkout_session.invalid_plan",
+			"error", err.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+			"plan", plan,
+		)
 		return nil, err
 	}
 	if currency != "" {
 		if err := currency.Validate(); err != nil {
-			s.logger.Warn(ctx, "billing.checkout_session.invalid_currency", err, map[string]any{
-				"account_id":    accountID,
-				"actor_user_id": actorUserID,
-				"currency":      currency,
-			})
+			s.logger.Warn("billing.checkout_session.invalid_currency",
+				"error", err.Error(),
+				"account_id", accountID,
+				"actor_user_id", actorUserID,
+				"currency", currency,
+			)
 			return nil, err
 		}
 	}
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
-		s.logAuthorizeError(ctx, "billing.checkout_session.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-			"plan":          plan,
-		})
+		s.logAuthorizeError(ctx, "billing.checkout_session.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+			"plan", plan,
+		)
 		return nil, err
 	}
 	if s.provider == nil {
@@ -115,21 +114,23 @@ func (s *billingService) CreateCheckoutSession(ctx context.Context, accountID, a
 			"account_id": accountID,
 			"operation":  "create_checkout_session",
 		})
-		s.logger.Error(ctx, "billing.provider_not_configured", domain.ErrBillingProviderNotConfigured, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-			"operation":     "create_checkout_session",
-		})
+		s.logger.Error("billing.provider_not_configured",
+			"error", domain.ErrBillingProviderNotConfigured.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+			"operation", "create_checkout_session",
+		)
 		return nil, domain.ErrBillingProviderNotConfigured
 	}
 	if err := s.ensureProviderCustomer(ctx, account); err != nil {
 		s.noticeError(ctx, "billing.checkout_session.customer_failed", err, map[string]any{
 			"account_id": accountID,
 		})
-		s.logger.Error(ctx, "billing.checkout_session.customer_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logger.Error("billing.checkout_session.customer_failed",
+			"error", err.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	session, err := s.provider.CreateCheckoutSession(ctx, account, plan, currency)
@@ -139,30 +140,31 @@ func (s *billingService) CreateCheckoutSession(ctx context.Context, accountID, a
 			"plan":       string(plan),
 			"currency":   string(currency),
 		})
-		s.logger.Error(ctx, "billing.checkout_session.provider_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-			"plan":          plan,
-			"currency":      currency,
-		})
+		s.logger.Error("billing.checkout_session.provider_failed",
+			"error", err.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+			"plan", plan,
+			"currency", currency,
+		)
 		return nil, err
 	}
-	s.logger.Info(ctx, "billing.checkout_session.created", map[string]any{
-		"account_id":    accountID,
-		"actor_user_id": actorUserID,
-		"plan":          plan,
-		"currency":      currency,
-	})
+	s.logger.Info("billing.checkout_session.created",
+		"account_id", accountID,
+		"actor_user_id", actorUserID,
+		"plan", plan,
+		"currency", currency,
+	)
 	return session, nil
 }
 
 func (s *billingService) CreatePortalSession(ctx context.Context, accountID, actorUserID string) (*domain.BillingPortalSession, error) {
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
-		s.logAuthorizeError(ctx, "billing.portal_session.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logAuthorizeError(ctx, "billing.portal_session.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	if s.provider == nil {
@@ -170,21 +172,23 @@ func (s *billingService) CreatePortalSession(ctx context.Context, accountID, act
 			"account_id": accountID,
 			"operation":  "create_portal_session",
 		})
-		s.logger.Error(ctx, "billing.provider_not_configured", domain.ErrBillingProviderNotConfigured, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-			"operation":     "create_portal_session",
-		})
+		s.logger.Error("billing.provider_not_configured",
+			"error", domain.ErrBillingProviderNotConfigured.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+			"operation", "create_portal_session",
+		)
 		return nil, domain.ErrBillingProviderNotConfigured
 	}
 	if err := s.ensureProviderCustomer(ctx, account); err != nil {
 		s.noticeError(ctx, "billing.portal_session.customer_failed", err, map[string]any{
 			"account_id": accountID,
 		})
-		s.logger.Error(ctx, "billing.portal_session.customer_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logger.Error("billing.portal_session.customer_failed",
+			"error", err.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	session, err := s.provider.CreatePortalSession(ctx, account)
@@ -192,16 +196,17 @@ func (s *billingService) CreatePortalSession(ctx context.Context, accountID, act
 		s.noticeError(ctx, "billing.portal_session.provider_failed", err, map[string]any{
 			"account_id": accountID,
 		})
-		s.logger.Error(ctx, "billing.portal_session.provider_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logger.Error("billing.portal_session.provider_failed",
+			"error", err.Error(),
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
-	s.logger.Info(ctx, "billing.portal_session.created", map[string]any{
-		"account_id":    accountID,
-		"actor_user_id": actorUserID,
-	})
+	s.logger.Info("billing.portal_session.created",
+		"account_id", accountID,
+		"actor_user_id", actorUserID,
+	)
 	return session, nil
 }
 
@@ -210,25 +215,28 @@ func (s *billingService) HandleWebhook(ctx context.Context, payload []byte, sign
 		s.noticeError(ctx, "billing.provider_not_configured", domain.ErrBillingProviderNotConfigured, map[string]any{
 			"operation": "handle_webhook",
 		})
-		s.logger.Error(ctx, "billing.provider_not_configured", domain.ErrBillingProviderNotConfigured, map[string]any{
-			"operation": "handle_webhook",
-		})
+		s.logger.Error("billing.provider_not_configured",
+			"error", domain.ErrBillingProviderNotConfigured.Error(),
+			"operation", "handle_webhook",
+		)
 		return domain.ErrBillingProviderNotConfigured
 	}
 	event, err := s.provider.ParseWebhook(ctx, payload, signature)
 	if err != nil {
 		if errors.Is(err, domain.ErrBillingWebhookSignatureInvalid) {
-			s.logger.Warn(ctx, "billing.webhook.invalid_signature", err, map[string]any{
-				"payload_size": len(payload),
-			})
+			s.logger.Warn("billing.webhook.invalid_signature",
+				"error", err.Error(),
+				"payload_size", len(payload),
+			)
 			return err
 		}
 		s.noticeError(ctx, "billing.webhook.parse_failed", err, map[string]any{
 			"payload_size": len(payload),
 		})
-		s.logger.Error(ctx, "billing.webhook.parse_failed", err, map[string]any{
-			"payload_size": len(payload),
-		})
+		s.logger.Error("billing.webhook.parse_failed",
+			"error", err.Error(),
+			"payload_size", len(payload),
+		)
 		return err
 	}
 	applied, err := s.recordAndApplyWebhookEvent(ctx, event)
@@ -237,24 +245,25 @@ func (s *billingService) HandleWebhook(ctx context.Context, payload []byte, sign
 			"event_id":   event.EventID,
 			"event_type": event.EventType,
 		})
-		s.logger.Error(ctx, "billing.webhook.apply_failed", err, map[string]any{
-			"event_id":                 event.EventID,
-			"event_type":               event.EventType,
-			"account_id":               event.AccountID,
-			"external_customer_id":     event.ExternalCustomerID,
-			"external_subscription_id": event.ExternalSubscriptionID,
-		})
+		s.logger.Error("billing.webhook.apply_failed",
+			"error", err.Error(),
+			"event_id", event.EventID,
+			"event_type", event.EventType,
+			"account_id", event.AccountID,
+			"external_customer_id", event.ExternalCustomerID,
+			"external_subscription_id", event.ExternalSubscriptionID,
+		)
 		return err
 	}
-	s.logger.Info(ctx, "billing.webhook.parsed", map[string]any{
-		"payload_size":             len(payload),
-		"event_id":                 event.EventID,
-		"event_type":               event.EventType,
-		"account_id":               event.AccountID,
-		"external_customer_id":     event.ExternalCustomerID,
-		"external_subscription_id": event.ExternalSubscriptionID,
-		"applied":                  applied,
-	})
+	s.logger.Info("billing.webhook.parsed",
+		"payload_size", len(payload),
+		"event_id", event.EventID,
+		"event_type", event.EventType,
+		"account_id", event.AccountID,
+		"external_customer_id", event.ExternalCustomerID,
+		"external_subscription_id", event.ExternalSubscriptionID,
+		"applied", applied,
+	)
 	return err
 }
 
@@ -282,10 +291,10 @@ func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *
 		return false, err
 	}
 	if !recorded {
-		s.logger.Info(ctx, "billing.webhook.duplicate", map[string]any{
-			"event_id":   event.EventID,
-			"event_type": event.EventType,
-		})
+		s.logger.Info("billing.webhook.duplicate",
+			"event_id", event.EventID,
+			"event_type", event.EventType,
+		)
 		return false, nil
 	}
 	if event.Plan == "" && event.Status != domain.BillingStatusCheckoutPending {
@@ -351,12 +360,12 @@ func (s *billingService) ReconcileLinkedAccounts(ctx context.Context, apply bool
 	for _, account := range accounts {
 		diff, err := s.reconcileAccount(ctx, account, apply)
 		if err != nil {
-			s.logger.Error(ctx, "billing.reconciliation.account_failed", err, map[string]any{"account_id": account.AccountID})
+			s.logger.Error("billing.reconciliation.account_failed", "error", err.Error(), "account_id", account.AccountID)
 			return diffs, err
 		}
 		diffs = append(diffs, diff)
 	}
-	s.logger.Info(ctx, "billing.reconciliation.completed", map[string]any{"apply": apply, "count": len(diffs)})
+	s.logger.Info("billing.reconciliation.completed", "apply", apply, "count", len(diffs))
 	return diffs, nil
 }
 
@@ -377,24 +386,24 @@ func (s *billingService) reconcileAccount(ctx context.Context, account *domain.A
 		RemotePriceID:      remote.ExternalPriceID,
 	}
 	if !apply || (diff.LocalPlan == diff.RemotePlan && diff.LocalStatus == diff.RemoteStatus && diff.LocalSubscription == diff.RemoteSubscription && diff.LocalPriceID == diff.RemotePriceID) {
-		s.logger.Info(ctx, "billing.reconciliation.diff", map[string]any{
-			"account_id":          diff.AccountID,
-			"apply":               apply,
-			"local_plan":          diff.LocalPlan,
-			"remote_plan":         diff.RemotePlan,
-			"local_status":        diff.LocalStatus,
-			"remote_status":       diff.RemoteStatus,
-			"local_subscription":  diff.LocalSubscription,
-			"remote_subscription": diff.RemoteSubscription,
-			"local_price_id":      diff.LocalPriceID,
-			"remote_price_id":     diff.RemotePriceID,
-		})
+		s.logger.Info("billing.reconciliation.diff",
+			"account_id", diff.AccountID,
+			"apply", apply,
+			"local_plan", diff.LocalPlan,
+			"remote_plan", diff.RemotePlan,
+			"local_status", diff.LocalStatus,
+			"remote_status", diff.RemoteStatus,
+			"local_subscription", diff.LocalSubscription,
+			"remote_subscription", diff.RemoteSubscription,
+			"local_price_id", diff.LocalPriceID,
+			"remote_price_id", diff.RemotePriceID,
+		)
 		return diff, nil
 	}
 	if err := s.accounts.ApplyBillingEvent(ctx, remote); err != nil {
 		return diff, err
 	}
-	s.logger.Info(ctx, "billing.reconciliation.applied", map[string]any{"account_id": diff.AccountID})
+	s.logger.Info("billing.reconciliation.applied", "account_id", diff.AccountID)
 	return diff, nil
 }
 
@@ -420,12 +429,13 @@ func (s *billingService) noticeError(ctx context.Context, event string, err erro
 	txn.NoticeError(err)
 }
 
-func (s *billingService) logAuthorizeError(ctx context.Context, event string, err error, fields map[string]any) {
+func (s *billingService) logAuthorizeError(ctx context.Context, event string, err error, attrs ...any) {
+	attrs = append([]any{"error", err.Error()}, attrs...)
 	if errors.Is(err, domain.ErrNotFound) {
-		s.logger.Warn(ctx, event, err, fields)
+		s.logger.Warn(event, attrs...)
 		return
 	}
-	s.logger.Error(ctx, event, err, fields)
+	s.logger.Error(event, attrs...)
 }
 
 func shouldNoticeBillingError(err error) bool {
@@ -452,10 +462,10 @@ func shouldNoticeBillingError(err error) bool {
 
 func (s *billingService) GetUsage(ctx context.Context, accountID, actorUserID string, periodStart, periodEnd string) (*domain.UsageReport, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
-		s.logAuthorizeError(ctx, "billing.get_usage.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logAuthorizeError(ctx, "billing.get_usage.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	if s.usage == nil {
@@ -503,14 +513,14 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 	// When the usage repository is not wired (early dev), keep the legacy logging stub
 	// so the worker pipeline still flows; still attempt to push to Stripe meter.
 	if s.usage == nil {
-		s.logger.Info(ctx, "billing.record_usage.stub", map[string]any{
-			"account_id":    ev.AccountID,
-			"workspace_id":  ev.WorkspaceID,
-			"job_id":        ev.JobID,
-			"model":         ev.Model,
-			"input_tokens":  ev.InputTokens,
-			"output_tokens": ev.OutputTokens,
-		})
+		s.logger.Info("billing.record_usage.stub",
+			"account_id", ev.AccountID,
+			"workspace_id", ev.WorkspaceID,
+			"job_id", ev.JobID,
+			"model", ev.Model,
+			"input_tokens", ev.InputTokens,
+			"output_tokens", ev.OutputTokens,
+		)
 		s.reportStripeMeterPortion(ctx, ev, ev.InputTokens, ev.OutputTokens)
 		return &domain.UsageRecordResult{EventID: ev.EventID, Cost: "0.00"}, nil
 	}
@@ -526,12 +536,12 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 			currency = pricing.Currency
 		}
 	case errors.Is(err, domain.ErrNotFound):
-		s.logger.Warn(ctx, "billing.record_usage.no_pricing", nil, map[string]any{
-			"model":      ev.Model,
-			"account_id": ev.AccountID,
-		})
+		s.logger.Warn("billing.record_usage.no_pricing",
+			"model", ev.Model,
+			"account_id", ev.AccountID,
+		)
 	default:
-		s.logger.Error(ctx, "billing.record_usage.pricing_lookup_failed", err, map[string]any{"model": ev.Model})
+		s.logger.Error("billing.record_usage.pricing_lookup_failed", "error", err.Error(), "model", ev.Model)
 	}
 
 	ev.CostMinor = costMinor
@@ -550,7 +560,7 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 	if costMinor > 0 {
 		balance, balErr := s.usage.GetCreditBalance(ctx, ev.AccountID)
 		if balErr != nil {
-			s.logger.Warn(ctx, "billing.record_usage.balance_lookup_failed", balErr, map[string]any{"account_id": ev.AccountID})
+			s.logger.Warn("billing.record_usage.balance_lookup_failed", "error", balErr.Error(), "account_id", ev.AccountID)
 		}
 		account, accErr := s.accounts.GetAccount(ctx, ev.AccountID)
 		isFree := accErr == nil && account != nil && account.Plan == string(domain.BillingPlanFree)
@@ -589,19 +599,20 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 				GrantedAt:   s.now().UTC().Format("2006-01-02T15:04:05Z"),
 			}
 			if err := s.usage.GrantCredit(ctx, deduct); err != nil {
-				s.logger.Warn(ctx, "billing.record_usage.credit_deduct_failed", err, map[string]any{
-					"event_id":   ev.EventID,
-					"account_id": ev.AccountID,
-				})
+				s.logger.Warn("billing.record_usage.credit_deduct_failed",
+					"error", err.Error(),
+					"event_id", ev.EventID,
+					"account_id", ev.AccountID,
+				)
 			}
 		}
 		if creditStopped {
-			s.logger.Info(ctx, "billing.record_usage.credit_exhausted", map[string]any{
-				"account_id": ev.AccountID,
-				"event_id":   ev.EventID,
-				"balance":    balance,
-				"cost":       costMinor,
-			})
+			s.logger.Info("billing.record_usage.credit_exhausted",
+				"account_id", ev.AccountID,
+				"event_id", ev.EventID,
+				"balance", balance,
+				"cost", costMinor,
+			)
 		}
 	}
 
@@ -613,7 +624,7 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 	date := s.now().UTC().Format("2006-01-02")
 	_, exceeded, err := s.usage.RecordUsageAccounting(ctx, ev, date)
 	if err != nil {
-		s.logger.Error(ctx, "billing.record_usage.accounting_failed", err, map[string]any{"event_id": ev.EventID, "account_id": ev.AccountID})
+		s.logger.Error("billing.record_usage.accounting_failed", "error", err.Error(), "event_id", ev.EventID, "account_id", ev.AccountID)
 		return nil, err
 	}
 
@@ -661,10 +672,11 @@ func (s *billingService) reportStripeMeterPortion(ctx context.Context, ev *domai
 		return
 	}
 	if err := s.provider.ReportTokenUsage(ctx, account, ev.EventID, inputTokens, outputTokens); err != nil {
-		s.logger.Warn(ctx, "billing.record_usage.meter_event_failed", err, map[string]any{
-			"account_id": ev.AccountID,
-			"event_id":   ev.EventID,
-		})
+		s.logger.Warn("billing.record_usage.meter_event_failed",
+			"error", err.Error(),
+			"account_id", ev.AccountID,
+			"event_id", ev.EventID,
+		)
 	}
 }
 
@@ -736,10 +748,10 @@ func parseMinor(value string, currency string) (int64, error) {
 func (s *billingService) UpdateBudget(ctx context.Context, accountID, actorUserID string, budgetLimit string) (string, error) {
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
-		s.logAuthorizeError(ctx, "billing.update_budget.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logAuthorizeError(ctx, "billing.update_budget.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return "", err
 	}
 	currency := account.BillingCurrency
@@ -761,10 +773,10 @@ func (s *billingService) UpdateBudget(ctx context.Context, accountID, actorUserI
 
 func (s *billingService) ListInvoices(ctx context.Context, accountID, actorUserID string, limit int) (*domain.InvoiceList, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
-		s.logAuthorizeError(ctx, "billing.list_invoices.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logAuthorizeError(ctx, "billing.list_invoices.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	if s.usage == nil {
@@ -775,10 +787,10 @@ func (s *billingService) ListInvoices(ctx context.Context, accountID, actorUserI
 
 func (s *billingService) ListPaymentMethods(ctx context.Context, accountID, actorUserID string) ([]*domain.PaymentMethod, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
-		s.logAuthorizeError(ctx, "billing.list_payment_methods.authorize_failed", err, map[string]any{
-			"account_id":    accountID,
-			"actor_user_id": actorUserID,
-		})
+		s.logAuthorizeError(ctx, "billing.list_payment_methods.authorize_failed", err,
+			"account_id", accountID,
+			"actor_user_id", actorUserID,
+		)
 		return nil, err
 	}
 	if s.usage == nil {
@@ -808,15 +820,16 @@ func (s *billingService) GrantFreeSignupCredit(ctx context.Context, accountID st
 		GrantedAt:   s.now().UTC().Format("2006-01-02T15:04:05Z"),
 	}
 	if err := s.usage.GrantCredit(ctx, grant); err != nil {
-		s.logger.Warn(ctx, "billing.grant_free_signup_credit.failed", err, map[string]any{
-			"account_id": accountID,
-		})
+		s.logger.Warn("billing.grant_free_signup_credit.failed",
+			"error", err.Error(),
+			"account_id", accountID,
+		)
 		return err
 	}
-	s.logger.Info(ctx, "billing.grant_free_signup_credit.ok", map[string]any{
-		"account_id":   accountID,
-		"amount_minor": domain.FreeSignupCreditMinor,
-	})
+	s.logger.Info("billing.grant_free_signup_credit.ok",
+		"account_id", accountID,
+		"amount_minor", domain.FreeSignupCreditMinor,
+	)
 	return nil
 }
 

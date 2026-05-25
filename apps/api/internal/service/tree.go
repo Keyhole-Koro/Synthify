@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 const defaultSubtreeMaxDepth = 3
@@ -22,13 +22,10 @@ type TreeUsecase interface {
 type TreeService struct {
 	tree       repository.TreeRepository
 	workspaces repository.WorkspaceRepository
-	logger     applog.Logger
+	logger     *slog.Logger
 }
 
-func NewTreeService(tree repository.TreeRepository, workspaces repository.WorkspaceRepository, logger applog.Logger) *TreeService {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewTreeService(tree repository.TreeRepository, workspaces repository.WorkspaceRepository, logger *slog.Logger) *TreeService {
 	return &TreeService{tree: tree, workspaces: workspaces, logger: logger}
 }
 

@@ -2,11 +2,11 @@ package base
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
@@ -34,7 +34,7 @@ func (r capRepo) GetJobCapability(ctx context.Context, jobID string) (*domain.Jo
 
 func newLimiterWithCap(t *testing.T, cap *domain.JobCapability) (*UsageLimiter, context.Context) {
 	t.Helper()
-	l := NewUsageLimiter(capRepo{cap: cap}, applog.NoopLogger{})
+	l := NewUsageLimiter(capRepo{cap: cap}, slog.New(slog.DiscardHandler))
 	ctx := jobCtx{Context: context.Background(), jobID: cap.JobID}
 	l.BeginJob(ctx, cap.JobID)
 	return l, ctx

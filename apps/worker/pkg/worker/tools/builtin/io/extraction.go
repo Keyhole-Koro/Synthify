@@ -95,7 +95,7 @@ func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (E
 	if b.FS != nil {
 		destPath = filepath.Join(b.FS.DocPath(wsID, docID), source.Filename)
 		if err := os.WriteFile(destPath, source.Content, 0644); err != nil {
-			b.Logger.Error(ctx, "extraction.save_single_file_failed", err, map[string]any{"filename": source.Filename})
+			b.Logger.Error("extraction.save_single_file_failed", "error", err.Error(), "filename", source.Filename)
 		}
 	}
 
@@ -104,7 +104,7 @@ func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (E
 		var err error
 		fileRecord, err = b.Repo.CreateDocumentFile(ctx, source.DocumentID, source.Filename, source.MimeType, int64(len(source.Content)))
 		if err != nil {
-			b.Logger.Error(ctx, "extraction.create_db_record_failed", err, map[string]any{"filename": source.Filename})
+			b.Logger.Error("extraction.create_db_record_failed", "error", err.Error(), "filename", source.Filename)
 		}
 	}
 
@@ -197,26 +197,26 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 
 		// Create parent dirs
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
-			b.Logger.Error(ctx, "extraction.create_parent_dir_failed", err, map[string]any{"path": relPath})
+			b.Logger.Error("extraction.create_parent_dir_failed", "error", err.Error(), "path", relPath)
 			continue
 		}
 
 		// Extract file
 		rc, err := f.Open()
 		if err != nil {
-			b.Logger.Error(ctx, "extraction.open_zip_file_failed", err, map[string]any{"path": relPath})
+			b.Logger.Error("extraction.open_zip_file_failed", "error", err.Error(), "path", relPath)
 			continue
 		}
 
 		content, err := io.ReadAll(rc)
 		rc.Close()
 		if err != nil {
-			b.Logger.Error(ctx, "extraction.read_zip_file_failed", err, map[string]any{"path": relPath})
+			b.Logger.Error("extraction.read_zip_file_failed", "error", err.Error(), "path", relPath)
 			continue
 		}
 
 		if err := os.WriteFile(destPath, content, 0644); err != nil {
-			b.Logger.Error(ctx, "extraction.write_extracted_file_failed", err, map[string]any{"path": relPath})
+			b.Logger.Error("extraction.write_extracted_file_failed", "error", err.Error(), "path", relPath)
 			continue
 		}
 
@@ -229,7 +229,7 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 			var err error
 			fileRecord, err = b.Repo.CreateDocumentFile(ctx, source.DocumentID, relPath, mimeType, int64(len(content)))
 			if err != nil {
-				b.Logger.Error(ctx, "extraction.create_db_record_failed", err, map[string]any{"path": relPath})
+				b.Logger.Error("extraction.create_db_record_failed", "error", err.Error(), "path", relPath)
 			}
 		}
 

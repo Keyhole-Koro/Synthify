@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
-	"github.com/synthify/backend/internal/platform/applog"
-	"github.com/synthify/backend/internal/platform/job/log"
-	"github.com/synthify/backend/internal/platform/job/status"
+	joblog "github.com/synthify/backend/internal/platform/job/log"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 type WorkerDispatcher interface {
@@ -46,7 +46,7 @@ type DocumentService struct {
 	dispatcher       WorkerDispatcher
 	lifecycle        *joblifecycle.Service
 	notifier         jobstatus.Notifier
-	logger           applog.Logger
+	logger           *slog.Logger
 }
 
 func NewDocumentService(
@@ -59,11 +59,8 @@ func NewDocumentService(
 	objectMetadata ObjectMetadataFetcher,
 	dispatcher WorkerDispatcher,
 	notifier jobstatus.Notifier,
-	logger applog.Logger,
+	logger *slog.Logger,
 ) *DocumentService {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
 	return &DocumentService{
 		repo:             repo,
 		jobs:             jobs,
@@ -134,11 +131,11 @@ func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID, userID 
 func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
 	expired, err := s.repo.ExpireUploadReservations(ctx, now)
 	if err != nil {
-		s.logger.Error(ctx, "document.upload_reservations.expire_failed", err, map[string]any{})
+		s.logger.Error("document.upload_reservations.expire_failed", "error", err.Error())
 		return 0, err
 	}
 	if expired > 0 {
-		s.logger.Info(ctx, "document.upload_reservations.expired", map[string]any{"count": expired})
+		s.logger.Info("document.upload_reservations.expired", "count", expired)
 	}
 	return expired, nil
 }

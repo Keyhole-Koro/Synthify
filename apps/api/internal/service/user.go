@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 // UserUsecase は handler が依存する UserService の API 表面。
@@ -19,14 +19,11 @@ type UserService struct {
 	users    repository.UserRepository
 	accounts repository.AccountRepository
 	billing  BillingUsecase
-	logger   applog.Logger
+	logger   *slog.Logger
 	now      func() time.Time
 }
 
-func NewUserService(users repository.UserRepository, accounts repository.AccountRepository, billing BillingUsecase, logger applog.Logger) *UserService {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewUserService(users repository.UserRepository, accounts repository.AccountRepository, billing BillingUsecase, logger *slog.Logger) *UserService {
 	return &UserService{
 		users:    users,
 		accounts: accounts,
@@ -125,9 +122,10 @@ func (s *UserService) grantSignupCreditIfFirstTime(ctx context.Context, userID, 
 		return
 	}
 	if err := s.billing.GrantFreeSignupCredit(ctx, accountID); err != nil {
-		s.logger.Error(ctx, "user.sign_in.grant_credit_failed", err, map[string]any{
-			"user_id":    userID,
-			"account_id": accountID,
-		})
+		s.logger.Error("user.sign_in.grant_credit_failed",
+			"error", err.Error(),
+			"user_id", userID,
+			"account_id", accountID,
+		)
 	}
 }

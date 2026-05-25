@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
@@ -21,13 +21,10 @@ type ItemService struct {
 	repo       repository.ItemRepository
 	tree       repository.TreeRepository
 	workspaces repository.WorkspaceRepository
-	logger     applog.Logger
+	logger     *slog.Logger
 }
 
-func NewItemService(repo repository.ItemRepository, tree repository.TreeRepository, workspaces repository.WorkspaceRepository, logger applog.Logger) *ItemService {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewItemService(repo repository.ItemRepository, tree repository.TreeRepository, workspaces repository.WorkspaceRepository, logger *slog.Logger) *ItemService {
 	return &ItemService{repo: repo, tree: tree, workspaces: workspaces, logger: logger}
 }
 

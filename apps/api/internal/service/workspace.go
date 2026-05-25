@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
 
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
@@ -21,13 +21,10 @@ type WorkspaceUsecase interface {
 type WorkspaceService struct {
 	accounts   repository.AccountRepository
 	workspaces repository.WorkspaceRepository
-	logger     applog.Logger
+	logger     *slog.Logger
 }
 
-func NewWorkspaceService(accounts repository.AccountRepository, workspaces repository.WorkspaceRepository, logger applog.Logger) *WorkspaceService {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func NewWorkspaceService(accounts repository.AccountRepository, workspaces repository.WorkspaceRepository, logger *slog.Logger) *WorkspaceService {
 	return &WorkspaceService{accounts: accounts, workspaces: workspaces, logger: logger}
 }
 

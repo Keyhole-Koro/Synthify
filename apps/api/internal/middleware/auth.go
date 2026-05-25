@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
 	firebaseauth "firebase.google.com/go/v4/auth"
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 type contextKey string
@@ -55,10 +55,7 @@ func ContextWithAdmin(ctx context.Context, user AuthUser) context.Context {
 	return context.WithValue(ctx, adminUserContextKey, true)
 }
 
-func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Handler {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func WithAuth(projectID string, logger *slog.Logger, next http.Handler) http.Handler {
 	client, err := newFirebaseAuthClient(projectID)
 	if err != nil {
 		panic(err)
@@ -93,7 +90,7 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 					next.ServeHTTP(w, r.WithContext(ctx))
 					return
 				}
-				logger.Warn(r.Context(), "auth.service_token_mismatch", nil, map[string]any{"path": r.URL.Path})
+				logger.Warn("auth.service_token_mismatch", "path", r.URL.Path)
 				http.Error(w, "invalid service token", http.StatusUnauthorized)
 				return
 			}
@@ -102,14 +99,14 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 		authHeader := r.Header.Get("Authorization")
 		token := bearerToken(authHeader)
 		if token == "" {
-			logger.Warn(r.Context(), "auth.missing_token", nil, map[string]any{"path": r.URL.Path})
+			logger.Warn("auth.missing_token", "path", r.URL.Path)
 			http.Error(w, "missing bearer token", http.StatusUnauthorized)
 			return
 		}
 
 		idToken, err := client.VerifyIDToken(r.Context(), token)
 		if err != nil {
-			logger.Warn(r.Context(), "auth.verify_failed", err, map[string]any{"path": r.URL.Path})
+			logger.Warn("auth.verify_failed", "error", err.Error(), "path", r.URL.Path)
 			http.Error(w, "invalid bearer token", http.StatusUnauthorized)
 			return
 		}
@@ -118,10 +115,10 @@ func WithAuth(projectID string, logger applog.Logger, next http.Handler) http.Ha
 
 		// Enforce the access allowlist when configured.
 		if len(allowedEmails) > 0 && !allowedEmails[lowerTrim(email)] {
-			logger.Warn(r.Context(), "auth.email_not_allowed", nil, map[string]any{
-				"path":  r.URL.Path,
-				"email": email,
-			})
+			logger.Warn("auth.email_not_allowed",
+				"path", r.URL.Path,
+				"email", email,
+			)
 			http.Error(w, "access restricted to allowed users", http.StatusForbidden)
 			return
 		}

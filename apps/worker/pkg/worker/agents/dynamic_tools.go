@@ -17,7 +17,7 @@ func (o *Orchestrator) resolveDynamicTools(ctx context.Context, workspaceID stri
 	rows, err := o.dynamicSource.ResolveActive(ctx, workspaceID)
 	if err != nil {
 		if o.base != nil && o.base.Logger != nil {
-			o.base.Logger.Warn(ctx, "orchestrator.resolve_dynamic_tools_failed", err, map[string]any{"workspace_id": workspaceID})
+			o.base.Logger.Warn("orchestrator.resolve_dynamic_tools_failed", "error", err.Error(), "workspace_id", workspaceID)
 		}
 		return nil
 	}
@@ -27,7 +27,7 @@ func (o *Orchestrator) resolveDynamicTools(ctx context.Context, workspaceID stri
 		t, err := dynamictool.FromDomain(dt, o.dynamicEngine)
 		if err != nil {
 			if o.base != nil && o.base.Logger != nil {
-				o.base.Logger.Warn(ctx, "orchestrator.dynamic_tool_build_failed", err, map[string]any{"workspace_id": workspaceID, "tool": dt.Name})
+				o.base.Logger.Warn("orchestrator.dynamic_tool_build_failed", "error", err.Error(), "workspace_id", workspaceID, "tool", dt.Name)
 			}
 			continue
 		}

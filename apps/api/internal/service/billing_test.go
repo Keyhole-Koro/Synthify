@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +18,7 @@ func TestCreateCheckoutSession_InvalidPlan_WarnsAndReturnsError(t *testing.T) {
 	store := mock.NewStore()
 	logger := &billingTestLogger{}
 	provider := &billingTestProvider{}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	session, err := svc.CreateCheckoutSession(ctx, "acc-1", "user-1", domain.BillingPlan("enterprise"), "")
 
@@ -36,7 +38,7 @@ func TestCreateCheckoutSession_OtherUser_DeniedAndReturnsNotFound(t *testing.T) 
 	provider := &billingTestProvider{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	session, err := svc.CreateCheckoutSession(ctx, account.AccountID, "stranger", domain.BillingPlanUsageBased, "")
 
@@ -54,7 +56,7 @@ func TestCreateCheckoutSession_InvalidCurrency_WarnsAndReturnsError(t *testing.T
 	store := mock.NewStore()
 	logger := &billingTestLogger{}
 	provider := &billingTestProvider{}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	session, err := svc.CreateCheckoutSession(ctx, "acc-1", "user-1", domain.BillingPlanUsageBased, domain.BillingCurrency("eur"))
 
@@ -74,7 +76,7 @@ func TestCreateCheckoutSession_ProviderNotConfigured_LogsError(t *testing.T) {
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
 
-	svc := NewBillingService(store, store, nil, logger)
+	svc := NewBillingService(store, store, nil, logger.asLogger())
 	session, err := svc.CreateCheckoutSession(ctx, account.AccountID, "owner", domain.BillingPlanUsageBased, "")
 
 	require.Error(t, err)
@@ -99,7 +101,7 @@ func TestCreateCheckoutSession_Success_LogsInfo(t *testing.T) {
 			return &domain.BillingCheckoutSession{URL: "https://checkout.example/session"}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	session, err := svc.CreateCheckoutSession(ctx, account.AccountID, "owner", domain.BillingPlanUsageBased, "")
 
@@ -119,7 +121,7 @@ func TestCreatePortalSession_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
 	provider := &billingTestProvider{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	session, err := svc.CreatePortalSession(ctx, account.AccountID, "stranger")
 
@@ -144,7 +146,7 @@ func TestCreatePortalSession_Success_UsesAuthorizedAccount(t *testing.T) {
 			return &domain.BillingPortalSession{URL: "https://billing.example/portal"}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	session, err := svc.CreatePortalSession(ctx, account.AccountID, "owner")
 
@@ -165,7 +167,7 @@ func TestHandleWebhook_InvalidSignature_Warns(t *testing.T) {
 			return nil, domain.ErrBillingWebhookSignatureInvalid
 		},
 	}
-	svc := NewBillingService(mock.NewStore(), mock.NewStore(), provider, logger)
+	svc := NewBillingService(mock.NewStore(), mock.NewStore(), provider, logger.asLogger())
 
 	err := svc.HandleWebhook(ctx, []byte(`{}`), "sig")
 
@@ -185,7 +187,7 @@ func TestHandleWebhook_Success_LogsInfo(t *testing.T) {
 			return &domain.ProviderWebhookEvent{EventID: "evt_1", EventType: "checkout.session.completed"}, nil
 		},
 	}
-	svc := NewBillingService(mock.NewStore(), mock.NewStore(), provider, logger)
+	svc := NewBillingService(mock.NewStore(), mock.NewStore(), provider, logger.asLogger())
 
 	err := svc.HandleWebhook(ctx, []byte(`{}`), "sig")
 
@@ -215,7 +217,7 @@ func TestHandleWebhook_CheckoutCompletedMarksPending(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
 
@@ -246,7 +248,7 @@ func TestHandleWebhook_DuplicateEventNoop(t *testing.T) {
 			}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger())
 
 	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
 	account.Plan = string(domain.BillingPlanFree)
@@ -275,7 +277,7 @@ func TestHandleWebhook_OrderingInvoiceAndSubscriptionConverges(t *testing.T) {
 				return ev, nil
 			},
 		}
-		svc := NewBillingService(store, store, provider, &billingTestLogger{})
+		svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger())
 		for range events {
 			require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
 		}
@@ -308,7 +310,7 @@ func TestHandleWebhook_PaymentFailureKeepsEntitlementAndMarksPastDue(t *testing.
 			return &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_failed", EventType: "invoice.payment_failed", AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusPastDue}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger())
 
 	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
 
@@ -332,7 +334,7 @@ func TestHandleWebhook_SubscriptionDeletedReturnsFree(t *testing.T) {
 			return &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_deleted", EventType: "customer.subscription.deleted", AccountID: account.AccountID, ExternalCustomerID: "cus_1", Plan: domain.BillingPlanFree, Status: domain.BillingStatusFree}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger())
 
 	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
 
@@ -355,7 +357,7 @@ func TestHandleWebhook_UnknownPriceIDIgnored(t *testing.T) {
 			return &domain.ProviderWebhookEvent{Provider: "stripe", EventID: "evt_unknown_price", EventType: "customer.subscription.updated", AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Status: domain.BillingStatusActive, ExternalPriceID: "price_unknown"}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{})
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger())
 
 	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
 
@@ -376,7 +378,7 @@ func TestReconcileAccount_DryRunDoesNotMutate(t *testing.T) {
 			return &domain.ProviderWebhookEvent{AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{}).(*billingService)
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger()).(*billingService)
 
 	diff, err := svc.ReconcileAccount(ctx, account.AccountID, false)
 
@@ -398,7 +400,7 @@ func TestReconcileAccount_ApplyMutates(t *testing.T) {
 			return &domain.ProviderWebhookEvent{AccountID: account.AccountID, ExternalCustomerID: "cus_1", ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{}).(*billingService)
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger()).(*billingService)
 
 	_, err = svc.ReconcileAccount(ctx, account.AccountID, true)
 
@@ -423,7 +425,7 @@ func TestReconcileLinkedAccountsListsStripeCustomers(t *testing.T) {
 			return &domain.ProviderWebhookEvent{AccountID: account.AccountID, ExternalCustomerID: account.StripeCustomerID, ExternalSubscriptionID: "sub_1", Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive, ExternalPriceID: "price_1"}, nil
 		},
 	}
-	svc := NewBillingService(store, store, provider, &billingTestLogger{}).(BillingReconciler)
+	svc := NewBillingService(store, store, provider, (&billingTestLogger{}).asLogger()).(BillingReconciler)
 
 	diffs, err := svc.ReconcileLinkedAccounts(ctx, true, 100)
 
@@ -449,7 +451,7 @@ func TestGetUsage_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	report, err := svc.GetUsage(ctx, account.AccountID, "stranger", "", "")
 
@@ -485,7 +487,7 @@ func TestGetUsage_Success_ReturnsUsageReport(t *testing.T) {
 	require.NoError(t, err)
 	err = store.UpsertDailyUsage(ctx, account.AccountID, "2026-05-14", "gemini-3-flash-preview", 1_000_000, 500_000, 1050, 1)
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	report, err := svc.GetUsage(ctx, account.AccountID, "owner", "2026-05-01T00:00:00Z", "2026-05-31T23:59:59Z")
 
@@ -508,7 +510,7 @@ func TestRecordUsage_MissingFields_ReturnsUsageEventInvalid(t *testing.T) {
 	// DB 層の制約エラーに落ちる前に service 境界で入力不備として扱うためのテスト。
 	ctx := context.Background()
 	logger := &billingTestLogger{}
-	svc := NewBillingService(mock.NewStore(), mock.NewStore(), &billingTestProvider{}, logger)
+	svc := NewBillingService(mock.NewStore(), mock.NewStore(), &billingTestProvider{}, logger.asLogger())
 
 	cases := []*domain.UsageEvent{
 		nil,
@@ -541,7 +543,7 @@ func TestRecordUsage_ComputesCostFromPricing_PersistsEventAndRollup(t *testing.T
 		Currency:                 "usd",
 	})
 	provider := &billingTestProvider{}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 	// usage_based プランの顧客として扱う（クレジット使い切り後は Stripe meter 経路に流れる）
 	account.Plan = string(domain.BillingPlanUsageBased)
 	account.StripeCustomerID = "cus_test"
@@ -587,7 +589,7 @@ func TestRecordUsage_UnknownModel_CostZeroButStillPersisted(t *testing.T) {
 	store := mock.NewStore()
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	ev := &domain.UsageEvent{
 		EventID:      "evt-unknown",
@@ -621,7 +623,7 @@ func TestRecordUsage_TogglesBudgetExceededOnFirstCross(t *testing.T) {
 		OutputCostPerMTokenMinor: 0,
 		Currency:                 "usd",
 	})
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 	err = svc.GrantFreeSignupCredit(ctx, account.AccountID)
 	require.NoError(t, err)
 
@@ -645,7 +647,7 @@ func TestRecordUsage_NilUsageRepo_FallsBackToLoggingStub(t *testing.T) {
 	// この stub 経路でもログが出るため、無言で捨てられないことも見ている。
 	ctx := context.Background()
 	logger := &billingTestLogger{}
-	svc := NewBillingService(mock.NewStore(), nil, &billingTestProvider{}, logger)
+	svc := NewBillingService(mock.NewStore(), nil, &billingTestProvider{}, logger.asLogger())
 
 	result, err := svc.RecordUsage(ctx, &domain.UsageEvent{
 		EventID: "evt-x", AccountID: "acc", Model: "any", InputTokens: 1, OutputTokens: 1,
@@ -678,7 +680,7 @@ func TestRecordUsage_StripeMeterFailureWarnsButKeepsAccounting(t *testing.T) {
 			return errors.New("stripe unavailable")
 		},
 	}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	result, err := svc.RecordUsage(ctx, &domain.UsageEvent{
 		EventID: "evt-meter-failed", AccountID: account.AccountID, Model: "test-model", InputTokens: 10,
@@ -710,7 +712,7 @@ func TestRecordUsage_CreditCoversFullCost_NoStripeMeter(t *testing.T) {
 		Currency:                 "usd",
 	})
 	provider := &billingTestProvider{}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 	require.NoError(t, svc.GrantFreeSignupCredit(ctx, account.AccountID)) // +100
 
 	result, err := svc.RecordUsage(ctx, &domain.UsageEvent{
@@ -744,7 +746,7 @@ func TestRecordUsage_MixedPaymentSplitsTokensProportionally(t *testing.T) {
 		Currency:                 "usd",
 	})
 	provider := &billingTestProvider{}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 	require.NoError(t, svc.GrantFreeSignupCredit(ctx, account.AccountID)) // +100
 
 	// cost = 250, balance = 100 → credit 100, stripe 150
@@ -779,7 +781,7 @@ func TestRecordUsage_FreePlanWithoutCredit_StopsWithoutStripe(t *testing.T) {
 		Currency:                 "usd",
 	})
 	provider := &billingTestProvider{}
-	svc := NewBillingService(store, store, provider, logger)
+	svc := NewBillingService(store, store, provider, logger.asLogger())
 
 	result, err := svc.RecordUsage(ctx, &domain.UsageEvent{
 		EventID: "evt-stop", AccountID: account.AccountID, Model: "test-model", InputTokens: 10,
@@ -799,7 +801,7 @@ func TestUpdateBudget_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	limit, err := svc.UpdateBudget(ctx, account.AccountID, "stranger", "50.00")
 
@@ -817,7 +819,7 @@ func TestUpdateBudget_Success_PersistsLimit(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	limit, err := svc.UpdateBudget(ctx, account.AccountID, "owner", "50.00")
 
@@ -835,7 +837,7 @@ func TestListInvoices_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	list, err := svc.ListInvoices(ctx, account.AccountID, "stranger", 10)
 
@@ -853,7 +855,7 @@ func TestListInvoices_Success_ReturnsEmptyList(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	list, err := svc.ListInvoices(ctx, account.AccountID, "owner", 10)
 
@@ -870,7 +872,7 @@ func TestListPaymentMethods_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	methods, err := svc.ListPaymentMethods(ctx, account.AccountID, "stranger")
 
@@ -888,7 +890,7 @@ func TestListPaymentMethods_Success_ReturnsEmptyList(t *testing.T) {
 	logger := &billingTestLogger{}
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
-	svc := NewBillingService(store, store, &billingTestProvider{}, logger)
+	svc := NewBillingService(store, store, &billingTestProvider{}, logger.asLogger())
 
 	methods, err := svc.ListPaymentMethods(ctx, account.AccountID, "owner")
 
@@ -959,6 +961,9 @@ func (p *billingTestProvider) FetchBillingState(ctx context.Context, account *do
 	return p.fetchBillingStateFn(ctx, account)
 }
 
+// billingTestLogger は slog.Handler を実装し、各 RPC ハンドラから出るログイベントを
+// テストから検証しやすい形 (level / event / fields) でキャプチャする。
+// テストでは `slog.New(l)` 経由で *slog.Logger を組み立てて NewBillingService に渡す。
 type billingTestLogger struct {
 	entries []billingLogEntry
 }
@@ -970,39 +975,31 @@ type billingLogEntry struct {
 	fields map[string]any
 }
 
-func (l *billingTestLogger) Info(ctx context.Context, event string, fields map[string]any) {
-	l.entries = append(l.entries, billingLogEntry{
-		level:  "info",
-		event:  event,
-		fields: cloneFields(fields),
-	})
-}
+func (l *billingTestLogger) Enabled(ctx context.Context, level slog.Level) bool { return true }
 
-func (l *billingTestLogger) Warn(ctx context.Context, event string, err error, fields map[string]any) {
-	l.entries = append(l.entries, billingLogEntry{
-		level:  "warn",
-		event:  event,
-		err:    err,
-		fields: cloneFields(fields),
-	})
-}
-
-func (l *billingTestLogger) Error(ctx context.Context, event string, err error, fields map[string]any) {
-	l.entries = append(l.entries, billingLogEntry{
-		level:  "error",
-		event:  event,
-		err:    err,
-		fields: cloneFields(fields),
-	})
-}
-
-func cloneFields(fields map[string]any) map[string]any {
-	if len(fields) == 0 {
-		return nil
+func (l *billingTestLogger) Handle(ctx context.Context, r slog.Record) error {
+	entry := billingLogEntry{
+		level:  strings.ToLower(r.Level.String()),
+		event:  r.Message,
+		fields: map[string]any{},
 	}
-	cloned := make(map[string]any, len(fields))
-	for key, value := range fields {
-		cloned[key] = value
+	r.Attrs(func(a slog.Attr) bool {
+		if a.Key == "error" {
+			entry.err = errors.New(a.Value.String())
+			return true
+		}
+		entry.fields[a.Key] = a.Value.Any()
+		return true
+	})
+	if len(entry.fields) == 0 {
+		entry.fields = nil
 	}
-	return cloned
+	l.entries = append(l.entries, entry)
+	return nil
 }
+
+func (l *billingTestLogger) WithAttrs(attrs []slog.Attr) slog.Handler { return l }
+func (l *billingTestLogger) WithGroup(name string) slog.Handler       { return l }
+
+// asLogger は billingTestLogger を *slog.Logger としてサービスに渡せる形に変換する。
+func (l *billingTestLogger) asLogger() *slog.Logger { return slog.New(l) }

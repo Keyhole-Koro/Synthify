@@ -26,7 +26,7 @@ func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1
 	// 将来 ID トークンの name クレームから引くなら middleware で AuthUser に詰めること。
 	result, err := h.service.SignInUser(ctx, user.ID, user.Email, "")
 	if err != nil {
-		return nil, err
+		return nil, toError(err)
 	}
 
 	return connect.NewResponse(&appv1.SignInUserResponse{

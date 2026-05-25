@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -12,13 +13,17 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+func discardLogger() *slog.Logger {
+	return slog.New(slog.DiscardHandler)
+}
+
 func TestCreateDocumentRejectsOversizedFile(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	account, err := store.GetOrCreateAccount(ctx, "owner")
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, discardLogger())
 
 	doc, uploadURL, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "huge.pdf", "application/pdf", account.MaxFileSizeBytes+1)
 
@@ -36,7 +41,7 @@ func TestCreateDocumentReservesQuotaUntilConfirmation(t *testing.T) {
 	account.StorageQuotaBytes = 200
 	account.MaxFileSizeBytes = 200
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, discardLogger())
 
 	first, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "first.pdf", "application/pdf", 150)
 	require.NoError(t, err)
@@ -56,7 +61,7 @@ func TestCreateDocumentAllowsExactQuotaLimit(t *testing.T) {
 	account.StorageQuotaBytes = 128
 	account.MaxFileSizeBytes = 128
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, discardLogger())
 
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "exact.pdf", "application/pdf", 128)
 
@@ -72,7 +77,7 @@ func TestExpireUploadReservationsReleasesReservedQuota(t *testing.T) {
 	account.StorageQuotaBytes = 200
 	account.MaxFileSizeBytes = 200
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, nil, nil, nil, discardLogger())
 
 	expired, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "expired.pdf", "application/pdf", 150)
 	require.NoError(t, err)
@@ -94,7 +99,7 @@ func TestStartProcessingConfirmsUploadedObjectSize(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 128}
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, discardLogger())
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
@@ -116,7 +121,7 @@ func TestStartProcessingRejectsSizeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 256}
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, discardLogger())
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
@@ -137,7 +142,7 @@ func TestConfirmUploadConfirmsUploadedObjectSize(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 128}
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, discardLogger())
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
@@ -157,7 +162,7 @@ func TestConfirmUploadRejectsSizeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 256}
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, discardLogger())
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 
@@ -178,7 +183,7 @@ func TestStartProcessingRespectsForceReprocess(t *testing.T) {
 	require.NoError(t, err)
 	ws := store.CreateWorkspace(ctx, account.AccountID, "docs")
 	metadata := &fakeObjectMetadata{size: 128}
-	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, nil)
+	svc := NewDocumentService(store, store, store, store, store, documentSourceURL, metadata, nil, nil, discardLogger())
 	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
 	require.NoError(t, err)
 

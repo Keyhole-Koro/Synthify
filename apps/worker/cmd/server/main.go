@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -19,9 +20,8 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
-	"github.com/synthify/backend/internal/platform/job/log"
+	joblog "github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/observability"
 )
 
@@ -30,15 +30,14 @@ func main() {
 	cfg := config.LoadWorker()
 
 	fs := storage.NewFileSystem(cfg.GCSFuseMountPath)
-	slogLogger := applog.NewJSONSlogLogger(os.Stdout)
-	appLogger := applog.WrapSlogLogger(slogLogger)
+	appLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	nrApp, err := observability.InitNewRelic(observability.Config{
 		AppName:    cfg.NewRelic.AppName,
 		LicenseKey: cfg.NewRelic.LicenseKey,
-	}, slogLogger)
+	}, appLogger)
 	if err != nil {
-		appLogger.Error(ctx, "worker.newrelic_init_failed", err, nil)
+		appLogger.Error("worker.newrelic_init_failed", "error", err.Error())
 	}
 
 	appCtx := bootstrap.Bootstrap(ctx, cfg.FirebaseProjectID, appLogger, nrApp)
@@ -64,7 +63,7 @@ func main() {
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
-	appLogger.Info(ctx, "worker.started", map[string]any{"addr": addr})
+	appLogger.Info("worker.started", "addr", addr)
 	h := httpmiddleware.Recover(appLogger, httpmiddleware.Logger(appLogger, withJobLogger(jobLogger, mux)))
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Fatal(err)

@@ -2,25 +2,22 @@ package httpmiddleware
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	"runtime/debug"
-
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 // Recover catches panics, logs the stack trace, and returns 500.
-func Recover(logger applog.Logger, next http.Handler) http.Handler {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func Recover(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				logger.Error(r.Context(), "panic.recovered", fmt.Errorf("panic: %v", rec), map[string]any{
-					"stack":  string(debug.Stack()),
-					"path":   r.URL.Path,
-					"method": r.Method,
-				})
+				logger.Error("panic.recovered",
+					"error", fmt.Sprintf("panic: %v", rec),
+					"stack", string(debug.Stack()),
+					"path", r.URL.Path,
+					"method", r.Method,
+				)
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 			}
 		}()

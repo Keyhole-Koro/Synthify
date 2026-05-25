@@ -3,6 +3,7 @@ package base
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 
 	pgvector "github.com/pgvector/pgvector-go"
@@ -10,7 +11,6 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 // LLMClient is the interface for structured and text generation used by process tools.
@@ -50,7 +50,7 @@ type Context struct {
 	Embedder Embedder
 	LLM      LLMClient
 	FS       *storage.FileSystem
-	Logger   applog.Logger
+	Logger   *slog.Logger
 	Usage    *UsageLimiter
 	Memories []PromptMemory
 	Job      *JobContext

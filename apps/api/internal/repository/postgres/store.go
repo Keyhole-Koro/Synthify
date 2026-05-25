@@ -3,12 +3,12 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/internal/platform/database"
 	"github.com/synthify/backend/internal/platform/util"
 )
@@ -17,10 +17,10 @@ type Store struct {
 	db              *sql.DB
 	queries         *sqlcgen.Queries
 	uploadURLIssuer repository.DocumentUploadURLIssuer
-	logger          applog.Logger
+	logger          *slog.Logger
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger applog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
+func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
 	var app *newrelic.Application
 	if len(nrApp) > 0 {
 		app = nrApp[0]
@@ -33,9 +33,6 @@ func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.Docume
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
-	}
-	if logger == nil {
-		logger = applog.NoopLogger{}
 	}
 	return &Store{
 		db:              db,

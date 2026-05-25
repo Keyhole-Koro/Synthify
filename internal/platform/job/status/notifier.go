@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
+	"log/slog"
+
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
-	"github.com/synthify/backend/internal/platform/applog"
 )
 
 type Payload struct {
@@ -39,27 +40,24 @@ func (noopNotifier) Completed(context.Context, Payload) error      { return nil 
 
 type firestoreNotifier struct {
 	client *firestore.Client
-	logger applog.Logger
+	logger *slog.Logger
 }
 
-func NewNotifier(ctx context.Context, projectID string, logger applog.Logger) Notifier {
+func NewNotifier(ctx context.Context, projectID string, logger *slog.Logger) Notifier {
 	if projectID == "" {
 		return noopNotifier{}
-	}
-	if logger == nil {
-		logger = applog.NoopLogger{}
 	}
 	initCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	app, err := firebase.NewApp(initCtx, &firebase.Config{ProjectID: projectID})
 	if err != nil {
-		logger.Error(ctx, "jobstatus.firebase_init_failed", err, map[string]any{"project_id": projectID})
+		logger.Error("jobstatus.firebase_init_failed", "error", err.Error(), "project_id", projectID)
 		return noopNotifier{}
 	}
 	client, err := app.Firestore(initCtx)
 	if err != nil {
-		logger.Error(ctx, "jobstatus.firestore_init_failed", err, map[string]any{"project_id": projectID})
+		logger.Error("jobstatus.firestore_init_failed", "error", err.Error(), "project_id", projectID)
 		return noopNotifier{}
 	}
 	return &firestoreNotifier{client: client, logger: logger}
@@ -143,7 +141,7 @@ func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields m
 	}
 	_, err := n.client.Collection("workspaces").Doc(payload.WorkspaceID).Collection("jobs").Doc(payload.JobID).Set(ctx, doc, firestore.MergeAll)
 	if err != nil {
-		n.logger.Error(ctx, "jobstatus.firestore_write_failed", err, map[string]any{"job_id": payload.JobID})
+		n.logger.Error("jobstatus.firestore_write_failed", "error", err.Error(), "job_id", payload.JobID)
 		return err
 	}
 	return nil

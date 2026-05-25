@@ -2,8 +2,8 @@ package llm
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"google.golang.org/adk/model"
@@ -13,9 +13,9 @@ import (
 
 // Init initializes the LLM clients (both ADK and custom Gemini client) based on the config.
 // If the LLM config is disabled (missing API key), it returns nil for both clients.
-func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger applog.Logger) (model.LLM, *GeminiClient) {
+func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *slog.Logger) (model.LLM, *GeminiClient) {
 	if !cfg.Enabled() {
-		logger.Info(ctx, "worker.gemini_disabled", map[string]any{"reason": "no api key"})
+		logger.Info("worker.gemini_disabled", "reason", "no api key")
 		return nil, nil
 	}
 
@@ -26,12 +26,12 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger ap
 		Backend: genai.BackendGeminiAPI,
 	})
 	if adkErr != nil {
-		logger.Error(ctx, "worker.adk_model_init_failed", adkErr, map[string]any{"model": cfg.GeminiModel})
+		logger.Error("worker.adk_model_init_failed", "error", adkErr.Error(), "model", cfg.GeminiModel)
 	}
 
 	embedder, err := NewGeminiClient(ctx, cfg, fs)
 	if err != nil {
-		logger.Error(ctx, "worker.gemini_client_init_failed", err, map[string]any{"model": cfg.GeminiModel})
+		logger.Error("worker.gemini_client_init_failed", "error", err.Error(), "model", cfg.GeminiModel)
 	}
 
 	return adkModel, embedder

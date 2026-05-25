@@ -2,10 +2,10 @@ package joblifecycle
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/synthify/backend/internal/platform/applog"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	"github.com/synthify/backend/internal/platform/job/status"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 type Repository interface {
@@ -20,13 +20,10 @@ type Repository interface {
 type Service struct {
 	repo     Repository
 	notifier jobstatus.Notifier
-	logger   applog.Logger
+	logger   *slog.Logger
 }
 
-func New(repo Repository, notifier jobstatus.Notifier, logger applog.Logger) *Service {
-	if logger == nil {
-		logger = applog.NoopLogger{}
-	}
+func New(repo Repository, notifier jobstatus.Notifier, logger *slog.Logger) *Service {
 	return &Service{repo: repo, notifier: notifier, logger: logger}
 }
 
@@ -35,7 +32,7 @@ func (s *Service) NotifyQueued(ctx context.Context, payload jobstatus.Payload) {
 		return
 	}
 	if err := s.notifier.Queued(ctx, payload); err != nil {
-		s.logger.Error(ctx, "jobstatus.notify_queued_failed", err, map[string]any{"job_id": payload.JobID})
+		s.logger.Error("jobstatus.notify_queued_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 }
 
@@ -59,20 +56,20 @@ func (s *Service) MarkRunning(ctx context.Context, payload jobstatus.Payload) er
 		return nil
 	}
 	if err := s.notifier.Running(ctx, payload); err != nil {
-		s.logger.Error(ctx, "jobstatus.notify_running_failed", err, map[string]any{"job_id": payload.JobID})
+		s.logger.Error("jobstatus.notify_running_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 	return nil
 }
 
 func (s *Service) TryFail(ctx context.Context, payload jobstatus.Payload, errorMessage string) {
 	if err := s.repo.FailProcessingJob(ctx, payload.JobID, errorMessage); err != nil {
-		s.logger.Error(ctx, "repository.mark_job_failed_failed", err, map[string]any{"job_id": payload.JobID})
+		s.logger.Error("repository.mark_job_failed_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 	if s.notifier == nil {
 		return
 	}
 	if err := s.notifier.Failed(ctx, payload, errorMessage); err != nil {
-		s.logger.Error(ctx, "jobstatus.notify_failure_failed", err, map[string]any{"job_id": payload.JobID})
+		s.logger.Error("jobstatus.notify_failure_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 }
 
@@ -84,7 +81,7 @@ func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload) error
 		return nil
 	}
 	if err := s.notifier.Completed(ctx, payload); err != nil {
-		s.logger.Error(ctx, "jobstatus.notify_completion_failed", err, map[string]any{"job_id": payload.JobID})
+		s.logger.Error("jobstatus.notify_completion_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 	return nil
 }
