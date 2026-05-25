@@ -37,8 +37,14 @@ locals {
   # so concatenation below is predictable.
   web_base_url = trimsuffix(var.web_base_url, "/")
 
+  default_cors_allowed_origins = join(",", distinct([
+    local.web_base_url,
+    "https://${var.project_id}.web.app",
+    "https://${var.project_id}.firebaseapp.com",
+  ]))
+
   cors_allowed_origins = (
-    var.cors_allowed_origins != "" ? var.cors_allowed_origins : local.web_base_url
+    var.cors_allowed_origins != "" ? var.cors_allowed_origins : local.default_cors_allowed_origins
   )
 
   billing_success_url = (

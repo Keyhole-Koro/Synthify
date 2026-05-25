@@ -19,6 +19,7 @@ on:
       - apps/web/**
       - internal/platform/**
       - scripts/smoke-test.sh
+      - firebase.json
       - .github/workflows/deploy-frontend.yml
 
 concurrency:

@@ -51,7 +51,7 @@ variable "firebase_project_id" {
 }
 
 variable "cors_allowed_origins" {
-  description = "Empty => web_base_url."
+  description = "Empty => web_base_url plus Firebase Hosting default domains."
   type        = string
   default     = ""
 }
