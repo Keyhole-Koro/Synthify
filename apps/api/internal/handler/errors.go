@@ -22,6 +22,12 @@ func toError(err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, domain.ErrForbidden):
 		return connect.NewError(connect.CodePermissionDenied, err)
+	case errors.Is(err, domain.ErrConflict):
+		return connect.NewError(connect.CodeAlreadyExists, err)
+	case errors.Is(err, domain.ErrInvariantViolation):
+		// Internal に落とすが、wrapped error の元メッセージはサーバーログに残し、
+		// クライアントには汎用 Internal だけ見せる (handler 側のレスポンスマスキング前提)。
+		return connect.NewError(connect.CodeInternal, err)
 	case errors.Is(err, domain.ErrBillingPlanInvalid):
 		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, domain.ErrBillingCurrencyUnsupported):
