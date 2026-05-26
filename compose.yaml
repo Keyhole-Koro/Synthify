@@ -216,7 +216,10 @@ services:
 
   postgres:
     image: cockroachdb/cockroach:latest-v24.2
-    command: start-single-node --insecure
+    # WSL2 のクロックドリフトで HLC が "remote wall time too far ahead" を
+    # 出して migration が中断する事故が頻発するため、シングルノードの
+    # ローカル開発では max-offset を広めに取って許容する。本番は触らない。
+    command: start-single-node --insecure --max-offset=5s
     ports:
       - "${POSTGRES_PORT:-5432}:26257"
       - "${POSTGRES_ADMIN_PORT:-8082}:8080"
@@ -240,15 +243,18 @@ services:
     entrypoint: ["sh", "-c"]
     command: >
       "
-        cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} -e \"CREATE USER IF NOT EXISTS synthify; CREATE DATABASE IF NOT EXISTS synthify; GRANT ALL ON DATABASE synthify TO synthify;\" &&
+        set -e;
+        cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} -e \"CREATE USER IF NOT EXISTS synthify; CREATE DATABASE IF NOT EXISTS synthify; GRANT ALL ON DATABASE synthify TO synthify;\";
         for f in /migrations/*.up.sql; do
-          echo \"Applying migration \$$f...\"
-          cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} --user=synthify --database=synthify < \"\$$f\"
-        done &&
+          echo \"Applying migration \$$f...\";
+          cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} --user=root --database=synthify < \"\$$f\";
+        done;
+        echo \"Granting synthify access to migrated objects...\";
+        cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} --database=synthify -e \"GRANT ALL ON SCHEMA public TO synthify; GRANT ALL ON ALL TABLES IN SCHEMA public TO synthify; GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO synthify;\";
         for f in /seed/*.sql; do
-          [ -f \"\$$f\" ] || continue
-          echo \"Loading seed \$$f...\"
-          cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} --user=synthify --database=synthify < \"\$$f\"
+          [ -f \"\$$f\" ] || continue;
+          echo \"Loading seed \$$f...\";
+          cockroach sql --insecure --host=127.0.0.1:${POSTGRES_PORT:-5432} --user=synthify --database=synthify < \"\$$f\";
         done
       "
 

@@ -7,6 +7,8 @@
 -- 本番では SQL 適用後に `ALTER ROLE monitor WITH PASSWORD '...'` で更新する想定
 -- ロールはスキーマ外のクラスタレベルオブジェクトのため、DROP SCHEMA では
 -- 消えない。reset-db 等での再実行に耐えるよう IF NOT EXISTS で冪等化する。
+-- CockroachDB では CREATE ROLE に admin 権限が必要なので、migration は
+-- admin DSN (CD の synthify-database-dsn / ローカルの root ユーザ) で流す。
 CREATE ROLE IF NOT EXISTS monitor LOGIN;
 
 -- monitor が参照するテーブル
