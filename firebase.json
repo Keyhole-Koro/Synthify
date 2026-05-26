@@ -51,7 +51,7 @@
           },
           {
             "key": "Content-Security-Policy-Report-Only",
-            "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.run.app https://synthify.keyhole.work https://stage.synthify.keyhole.work; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'"
+            "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; frame-src 'self' https://synthify-491705.firebaseapp.com https://synthify-stage-491705.firebaseapp.com; connect-src 'self' https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://*.run.app https://synthify.keyhole.work https://stage.synthify.keyhole.work; img-src 'self' data: blob: https://*.googleusercontent.com; font-src 'self' data: https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com"
           }
         ]
       }
