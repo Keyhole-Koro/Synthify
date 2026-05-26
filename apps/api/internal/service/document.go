@@ -41,6 +41,7 @@ type DocumentService struct {
 	jobs             repository.JobRepository
 	workspaces       repository.WorkspaceRepository
 	tree             repository.TreeRepository
+	transactor       repository.Transactor
 	sourceURLBuilder repository.DocumentSourceURLBuilder
 	objectMetadata   ObjectMetadataFetcher
 	dispatcher       WorkerDispatcher
@@ -55,6 +56,7 @@ func NewDocumentService(
 	lifecycleRepo joblifecycle.Repository,
 	workspaces repository.WorkspaceRepository,
 	tree repository.TreeRepository,
+	transactor repository.Transactor,
 	sourceURLBuilder repository.DocumentSourceURLBuilder,
 	objectMetadata ObjectMetadataFetcher,
 	dispatcher WorkerDispatcher,
@@ -66,6 +68,7 @@ func NewDocumentService(
 		jobs:             jobs,
 		workspaces:       workspaces,
 		tree:             tree,
+		transactor:       transactor,
 		sourceURLBuilder: sourceURLBuilder,
 		objectMetadata:   objectMetadata,
 		dispatcher:       dispatcher,
@@ -190,9 +193,18 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 	if err != nil {
 		return nil, err
 	}
-	job := s.jobs.CreateProcessingJob(ctx, documentID, wsID, requestedBy, jobType)
-	if job == nil {
-		return nil, domain.ErrNotFound
+	// job_capabilities + processing_jobs を 1 tx で挿入。
+	// 旧実装は repo 内で tx を張りつつ全エラーを nil 化していたため、
+	// service には ErrNotFound として漏れ、原因不明の not_found が
+	// クライアントに返っていた。tx 境界を service に上げ、
+	// 本来のエラーを伝播する。
+	var job *domain.DocumentProcessingJob
+	if err := s.transactor.WithTx(ctx, func(repos repository.Repositories) error {
+		var createErr error
+		job, createErr = repos.CreateProcessingJob(ctx, documentID, wsID, requestedBy, jobType)
+		return createErr
+	}); err != nil {
+		return nil, fmt.Errorf("create processing job: %w", err)
 	}
 	payload := documentJobPayload(job, documentID, wsID, tree.TreeID)
 	s.lifecycle.NotifyQueued(ctx, payload)

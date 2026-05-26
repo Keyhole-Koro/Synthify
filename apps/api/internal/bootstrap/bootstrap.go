@@ -50,6 +50,7 @@ type Store interface {
 	repository.CheckpointRepository
 	repository.JobLogWriter
 	repository.DynamicToolRepository
+	repository.Transactor
 }
 
 func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp *newrelic.Application) Store {

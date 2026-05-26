@@ -85,7 +85,10 @@ type DocumentRepository interface {
 	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
 	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
-	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob
+	// CreateProcessingJob は job_capabilities と processing_jobs を 1 ペアで作成する。
+	// 内部で tx を張らないため、複数 sqlc 呼び出しの atomic 性が必要な場合は
+	// 呼び出し側を Transactor.WithTx で包むこと。
+	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error)
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error

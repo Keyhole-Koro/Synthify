@@ -74,7 +74,7 @@ func main() {
 	billingSvc := service.NewBillingService(store, store, stripeProvider, appLogger)
 
 	documentSvc := service.NewDocumentService(
-		store, store, store, store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
+		store, store, store, store, store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger,
 	)
 	itemSvc := service.NewItemService(store, store, store, appLogger)
 	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)

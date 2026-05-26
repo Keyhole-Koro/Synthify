@@ -107,7 +107,10 @@ type JobRepository interface {
 	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error
 	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error
 	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error)
-	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob
+	// CreateProcessingJob は job_capabilities と processing_jobs を 1 ペアで作成する。
+	// 内部で tx を張らないため、複数 sqlc 呼び出しの atomic 性が必要な場合は
+	// 呼び出し側を Transactor.WithTx で包むこと (service 層の責務)。
+	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error)
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error

@@ -721,7 +721,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return nil
 }
 
-func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob {
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jobSeq++
@@ -741,7 +741,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		UpdatedAt:   createdAt,
 	}
 	s.jobs[j.JobID] = j
-	return j
+	return j, nil
 }
 
 func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error        { return nil }

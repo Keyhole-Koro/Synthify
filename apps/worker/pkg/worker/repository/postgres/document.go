@@ -681,32 +681,29 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return tx.Commit()
 }
 
-func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) *domain.DocumentProcessingJob {
+// CreateProcessingJob は job_capabilities と processing_jobs に 1 件ずつ
+// 挿入する。atomic 性は呼び出し側 (Transactor.WithTx) の責務。
+// Store 自身は tx を開始しない: tx スコープ内で呼ばれていれば q() が
+// tx-bound queries を返すのでそのまま乗る。
+func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error) {
 	createdAt := nowTime()
 	jobID := newID()
 	doc, err := s.GetDocument(ctx, docID)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("get document: %w", err)
 	}
 
 	capability := domain.DefaultJobCapability(jobID, doc.WorkspaceID, docID, createdAt)
 	allowedDocumentIDsJSON, err := json.Marshal(capability.AllowedDocumentIDs)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("marshal allowed document ids: %w", err)
 	}
 	allowedItemIDsJSON, err := json.Marshal(capability.AllowedItemIDs)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("marshal allowed item ids: %w", err)
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil
-	}
-	defer tx.Rollback()
-	qtx := s.q().WithTx(tx)
-
-	if err := qtx.CreateJobCapability(ctx, sqlcgen.CreateJobCapabilityParams{
+	if err := s.q().CreateJobCapability(ctx, sqlcgen.CreateJobCapabilityParams{
 		CapabilityID:           capability.CapabilityID,
 		JobID:                  jobID,
 		WorkspaceID:            doc.WorkspaceID,
@@ -718,10 +715,10 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		ExpiresAt:              createdAt.Add(24 * time.Hour),
 		CreatedAt:              createdAt,
 	}); err != nil {
-		return nil
+		return nil, fmt.Errorf("create job capability: %w", err)
 	}
 
-	if err := qtx.CreateProcessingJob(ctx, sqlcgen.CreateProcessingJobParams{
+	if err := s.q().CreateProcessingJob(ctx, sqlcgen.CreateProcessingJobParams{
 		JobID:       jobID,
 		DocumentID:  docID,
 		WorkspaceID: doc.WorkspaceID,
@@ -730,11 +727,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		RequestedBy: requestedBy,
 		CreatedAt:   createdAt,
 	}); err != nil {
-		return nil
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil
+		return nil, fmt.Errorf("create processing job: %w", err)
 	}
 
 	return &domain.DocumentProcessingJob{
@@ -746,7 +739,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		RequestedBy: requestedBy,
 		CreatedAt:   createdAt.Format(time.RFC3339),
 		UpdatedAt:   createdAt.Format(time.RFC3339),
-	}
+	}, nil
 }
 
 func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error {
