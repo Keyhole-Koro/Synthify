@@ -20,13 +20,19 @@ export function useWorkspaceTree(
   setWorkspacePapers: (workspaceId: string, papers: Paper[]) => void,
   clearWorkspacePapers: () => void,
   workspaces: Workspace[],
+  onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>,
+  onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void>,
 ) {
   const expansionMapRef = useRef<ExpansionMap>(expansionMap);
+  const workspacesRef = useRef<Workspace[]>(workspaces);
 
-  // keep ref in sync so async callbacks always see latest value
+  // keep refs in sync so async callbacks always see latest value
   useEffect(() => {
     expansionMapRef.current = expansionMap;
   }, [expansionMap]);
+  useEffect(() => {
+    workspacesRef.current = workspaces;
+  }, [workspaces]);
 
   const itemWorkspaceRef = useRef<Map<string, string>>(new Map());
   const itemHasChildrenRef = useRef<Map<string, boolean>>(new Map());
@@ -38,6 +44,15 @@ export function useWorkspaceTree(
   const fullyLoadedWorkspacesRef = useRef<Set<string>>(new Set());
   const prevExpansionRef = useRef<ExpansionMap>(new Map());
   const initializedWorkspacesRef = useRef<Set<string>>(new Set());
+  const newlyCreatedWorkspacesRef = useRef<Map<string, Workspace>>(new Map());
+
+  // Clean up newlyCreatedWorkspacesRef when they appear in the official workspaces list
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    for (const ws of workspaces) {
+      newlyCreatedWorkspacesRef.current.delete(ws.workspaceId);
+    }
+  }, [workspaces]);
 
   function setOpenChildren(parentId: string, childIds: string[], base: ExpansionMap): ExpansionMap {
     const next = new Map(base);
@@ -89,11 +104,12 @@ export function useWorkspaceTree(
     workspaceId: string,
     childPapers: { id: string }[],
   ): Paper => {
-    const workspaceName = getWorkspaceName(workspaceId);
-    const workspace = workspaces.find((candidate) => candidate.workspaceId === workspaceId);
+    const workspace = workspacesRef.current.find((candidate) => candidate.workspaceId === workspaceId) ||
+                      newlyCreatedWorkspacesRef.current.get(workspaceId);
     if (!workspace) {
       throw new Error(`workspace not found: ${workspaceId}`);
     }
+    const workspaceName = workspace.name || getWorkspaceName(workspaceId);
     return {
       id: workspaceId,
       title: workspaceName,
@@ -109,12 +125,14 @@ export function useWorkspaceTree(
           hasTree={childPapers.length > 0}
           childItems={childPapers}
           onUploadFile={(file) => handleUploadWorkspaceFile(workspaceId, file)}
+          onRenameWorkspace={(name) => onRenameWorkspace(workspaceId, name)}
+          onSuggestedWorkspaceName={(name) => onSuggestedWorkspaceName(workspaceId, name)}
           onProcessingComplete={() => refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true })}
         />
       ),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getWorkspaceName, handleUploadWorkspaceFile, workspaces]);
+  }, [getWorkspaceName, handleUploadWorkspaceFile, onRenameWorkspace, onSuggestedWorkspaceName]);
 
   function runProjectWorkspacePapers(workspaceId: string, workspaceRootItemId: string): Paper[] {
     const treeItems = workspaceTreeItemsRef.current.get(workspaceId) ?? new Map();
@@ -256,7 +274,10 @@ export function useWorkspaceTree(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaces]);
 
-  const handleOpenWorkspace = useCallback(async (workspaceId: string) => {
+  const handleOpenWorkspace = useCallback(async (workspaceId: string, overrideWorkspace?: Workspace) => {
+    if (overrideWorkspace) {
+      newlyCreatedWorkspacesRef.current.set(workspaceId, overrideWorkspace);
+    }
     const knownRootId = workspaceRootItemRef.current.get(workspaceId);
     if (knownRootId) {
       if (!loadedSubtreeItemsRef.current.has(knownRootId)) {
@@ -272,7 +293,7 @@ export function useWorkspaceTree(
     onFocusedNodeIdChange(workspaceId);
     await refreshWorkspaceTree(workspaceId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getWorkspaceName, handleUploadWorkspaceFile]);
+  }, [buildWsPaper, onFocusedNodeIdChange, refreshWorkspaceTree]);
 
   const resetTree = useCallback(() => {
     itemWorkspaceRef.current.clear();
@@ -290,7 +311,9 @@ export function useWorkspaceTree(
 
   return {
     handleOpenWorkspace,
+    refreshWorkspaceTree,
     resetTree,
     buildWsPaper,
+    uploadWorkspaceFile: handleUploadWorkspaceFile,
   };
 }

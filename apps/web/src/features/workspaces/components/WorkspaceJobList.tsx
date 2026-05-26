@@ -1,8 +1,8 @@
 import React from 'react';
-import type { JobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
 
 interface WorkspaceJobListProps {
-  workspaceJobs: JobStatus[];
+  workspaceJobs: FirestoreJobStatus[];
   workspaceJobsError: string | null;
 }
 

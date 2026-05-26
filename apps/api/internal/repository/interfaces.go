@@ -47,6 +47,7 @@ type WorkspaceRepository interface {
 	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error)
 	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool
 	CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace
+	UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error)
 }
 
 // DocumentRepository は document/file 自体のメタデータ操作を扱う。

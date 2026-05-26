@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { JobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
 
 export function useWorkspaceJobStatuses(workspaceId: string, maxItems = 6) {
-  const [jobs, setJobs] = useState<JobStatus[]>([]);
+  const [jobs, setJobs] = useState<FirestoreJobStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,7 +21,7 @@ export function useWorkspaceJobStatuses(workspaceId: string, maxItems = 6) {
     return onSnapshot(
       jobsQuery,
       (snapshot) => {
-        const next = snapshot.docs.map((doc) => doc.data() as JobStatus);
+        const next = snapshot.docs.map((doc) => doc.data() as FirestoreJobStatus);
         setJobs(next);
         setError(null);
       },

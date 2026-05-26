@@ -42,6 +42,9 @@ const (
 	// WorkspaceServiceListWorkspacesProcedure is the fully-qualified name of the WorkspaceService's
 	// ListWorkspaces RPC.
 	WorkspaceServiceListWorkspacesProcedure = "/synthify.app.v1.WorkspaceService/ListWorkspaces"
+	// WorkspaceServiceUpdateWorkspaceProcedure is the fully-qualified name of the WorkspaceService's
+	// UpdateWorkspace RPC.
+	WorkspaceServiceUpdateWorkspaceProcedure = "/synthify.app.v1.WorkspaceService/UpdateWorkspace"
 	// WorkspaceServiceInviteMemberProcedure is the fully-qualified name of the WorkspaceService's
 	// InviteMember RPC.
 	WorkspaceServiceInviteMemberProcedure = "/synthify.app.v1.WorkspaceService/InviteMember"
@@ -61,6 +64,7 @@ type WorkspaceServiceClient interface {
 	CreateWorkspace(context.Context, *connect.Request[v1.CreateWorkspaceRequest]) (*connect.Response[v1.CreateWorkspaceResponse], error)
 	GetWorkspace(context.Context, *connect.Request[v1.GetWorkspaceRequest]) (*connect.Response[v1.GetWorkspaceResponse], error)
 	ListWorkspaces(context.Context, *connect.Request[v1.ListWorkspacesRequest]) (*connect.Response[v1.ListWorkspacesResponse], error)
+	UpdateWorkspace(context.Context, *connect.Request[v1.UpdateWorkspaceRequest]) (*connect.Response[v1.UpdateWorkspaceResponse], error)
 	InviteMember(context.Context, *connect.Request[v1.InviteMemberRequest]) (*connect.Response[v1.InviteMemberResponse], error)
 	UpdateMemberRole(context.Context, *connect.Request[v1.UpdateMemberRoleRequest]) (*connect.Response[v1.UpdateMemberRoleResponse], error)
 	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
@@ -96,6 +100,12 @@ func NewWorkspaceServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(workspaceServiceMethods.ByName("ListWorkspaces")),
 			connect.WithClientOptions(opts...),
 		),
+		updateWorkspace: connect.NewClient[v1.UpdateWorkspaceRequest, v1.UpdateWorkspaceResponse](
+			httpClient,
+			baseURL+WorkspaceServiceUpdateWorkspaceProcedure,
+			connect.WithSchema(workspaceServiceMethods.ByName("UpdateWorkspace")),
+			connect.WithClientOptions(opts...),
+		),
 		inviteMember: connect.NewClient[v1.InviteMemberRequest, v1.InviteMemberResponse](
 			httpClient,
 			baseURL+WorkspaceServiceInviteMemberProcedure,
@@ -128,6 +138,7 @@ type workspaceServiceClient struct {
 	createWorkspace   *connect.Client[v1.CreateWorkspaceRequest, v1.CreateWorkspaceResponse]
 	getWorkspace      *connect.Client[v1.GetWorkspaceRequest, v1.GetWorkspaceResponse]
 	listWorkspaces    *connect.Client[v1.ListWorkspacesRequest, v1.ListWorkspacesResponse]
+	updateWorkspace   *connect.Client[v1.UpdateWorkspaceRequest, v1.UpdateWorkspaceResponse]
 	inviteMember      *connect.Client[v1.InviteMemberRequest, v1.InviteMemberResponse]
 	updateMemberRole  *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
 	removeMember      *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
@@ -147,6 +158,11 @@ func (c *workspaceServiceClient) GetWorkspace(ctx context.Context, req *connect.
 // ListWorkspaces calls synthify.app.v1.WorkspaceService.ListWorkspaces.
 func (c *workspaceServiceClient) ListWorkspaces(ctx context.Context, req *connect.Request[v1.ListWorkspacesRequest]) (*connect.Response[v1.ListWorkspacesResponse], error) {
 	return c.listWorkspaces.CallUnary(ctx, req)
+}
+
+// UpdateWorkspace calls synthify.app.v1.WorkspaceService.UpdateWorkspace.
+func (c *workspaceServiceClient) UpdateWorkspace(ctx context.Context, req *connect.Request[v1.UpdateWorkspaceRequest]) (*connect.Response[v1.UpdateWorkspaceResponse], error) {
+	return c.updateWorkspace.CallUnary(ctx, req)
 }
 
 // InviteMember calls synthify.app.v1.WorkspaceService.InviteMember.
@@ -174,6 +190,7 @@ type WorkspaceServiceHandler interface {
 	CreateWorkspace(context.Context, *connect.Request[v1.CreateWorkspaceRequest]) (*connect.Response[v1.CreateWorkspaceResponse], error)
 	GetWorkspace(context.Context, *connect.Request[v1.GetWorkspaceRequest]) (*connect.Response[v1.GetWorkspaceResponse], error)
 	ListWorkspaces(context.Context, *connect.Request[v1.ListWorkspacesRequest]) (*connect.Response[v1.ListWorkspacesResponse], error)
+	UpdateWorkspace(context.Context, *connect.Request[v1.UpdateWorkspaceRequest]) (*connect.Response[v1.UpdateWorkspaceResponse], error)
 	InviteMember(context.Context, *connect.Request[v1.InviteMemberRequest]) (*connect.Response[v1.InviteMemberResponse], error)
 	UpdateMemberRole(context.Context, *connect.Request[v1.UpdateMemberRoleRequest]) (*connect.Response[v1.UpdateMemberRoleResponse], error)
 	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
@@ -203,6 +220,12 @@ func NewWorkspaceServiceHandler(svc WorkspaceServiceHandler, opts ...connect.Han
 		WorkspaceServiceListWorkspacesProcedure,
 		svc.ListWorkspaces,
 		connect.WithSchema(workspaceServiceMethods.ByName("ListWorkspaces")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceServiceUpdateWorkspaceHandler := connect.NewUnaryHandler(
+		WorkspaceServiceUpdateWorkspaceProcedure,
+		svc.UpdateWorkspace,
+		connect.WithSchema(workspaceServiceMethods.ByName("UpdateWorkspace")),
 		connect.WithHandlerOptions(opts...),
 	)
 	workspaceServiceInviteMemberHandler := connect.NewUnaryHandler(
@@ -237,6 +260,8 @@ func NewWorkspaceServiceHandler(svc WorkspaceServiceHandler, opts ...connect.Han
 			workspaceServiceGetWorkspaceHandler.ServeHTTP(w, r)
 		case WorkspaceServiceListWorkspacesProcedure:
 			workspaceServiceListWorkspacesHandler.ServeHTTP(w, r)
+		case WorkspaceServiceUpdateWorkspaceProcedure:
+			workspaceServiceUpdateWorkspaceHandler.ServeHTTP(w, r)
 		case WorkspaceServiceInviteMemberProcedure:
 			workspaceServiceInviteMemberHandler.ServeHTTP(w, r)
 		case WorkspaceServiceUpdateMemberRoleProcedure:
@@ -264,6 +289,10 @@ func (UnimplementedWorkspaceServiceHandler) GetWorkspace(context.Context, *conne
 
 func (UnimplementedWorkspaceServiceHandler) ListWorkspaces(context.Context, *connect.Request[v1.ListWorkspacesRequest]) (*connect.Response[v1.ListWorkspacesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.ListWorkspaces is not implemented"))
+}
+
+func (UnimplementedWorkspaceServiceHandler) UpdateWorkspace(context.Context, *connect.Request[v1.UpdateWorkspaceRequest]) (*connect.Response[v1.UpdateWorkspaceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.UpdateWorkspace is not implemented"))
 }
 
 func (UnimplementedWorkspaceServiceHandler) InviteMember(context.Context, *connect.Request[v1.InviteMemberRequest]) (*connect.Response[v1.InviteMemberResponse], error) {

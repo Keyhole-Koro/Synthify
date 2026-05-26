@@ -11,6 +11,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 // LLMClient is the interface for structured and text generation used by process tools.
@@ -52,6 +53,7 @@ type Context struct {
 	FS       *storage.FileSystem
 	Logger   *slog.Logger
 	Usage    *UsageLimiter
+	Status   jobstatus.Notifier
 	Memories []PromptMemory
 	Job      *JobContext
 }

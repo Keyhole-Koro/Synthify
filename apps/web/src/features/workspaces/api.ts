@@ -19,3 +19,8 @@ export async function createWorkspace(name: string) {
   const res = await client.createWorkspace({ name });
   return res.workspace!;
 }
+
+export async function updateWorkspace(workspaceId: string, name: string) {
+  const res = await client.updateWorkspace({ workspaceId, name });
+  return res.workspace!;
+}

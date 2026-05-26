@@ -16,6 +16,7 @@ type WorkspaceUsecase interface {
 	ListWorkspaces(ctx context.Context, userID string) []*domain.Workspace
 	GetWorkspace(ctx context.Context, id, userID string) (*domain.Workspace, error)
 	CreateWorkspace(ctx context.Context, name, userID string) (*domain.Workspace, error)
+	UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error)
 }
 
 type WorkspaceService struct {
@@ -51,6 +52,17 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, name, userID str
 	ws := s.workspaces.CreateWorkspace(ctx, account.AccountID, name)
 	if ws == nil {
 		return nil, errors.New("failed to create workspace")
+	}
+	return ws, nil
+}
+
+func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error) {
+	if !s.workspaces.IsWorkspaceAccessible(ctx, id, userID) {
+		return nil, domain.ErrForbidden
+	}
+	ws, err := s.workspaces.UpdateWorkspaceName(ctx, id, name)
+	if err != nil {
+		return nil, err
 	}
 	return ws, nil
 }

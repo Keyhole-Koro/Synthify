@@ -2,6 +2,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { AuthPaper } from '@/features/auth/AuthPaper';
 import { WorkspaceListContent } from '@/features/paperMap/WorkspaceListContent';
+import { RootUploadPaper } from '@/features/paperMap/components/RootUploadPaper';
 import { BillingSummary } from '@/features/billing/BillingSummary';
 import { CurrentPlanPaper } from '@/features/billing/CurrentPlanPaper';
 import { BudgetSettingsPaper } from '@/features/billing/BudgetSettingsPaper';
@@ -23,6 +24,9 @@ interface UseLandingPaperMapProps {
   handleGoogleSubmit: () => void;
   handleLogout: () => void;
   handleCreateWorkspace: (name: string) => Promise<void>;
+  handleRootUpload: (file: File) => Promise<{ workspaceId: string; workspaceName: string; jobId: string; documentId: string }>;
+  handleRootUploadComplete: (workspaceId: string) => Promise<void>;
+  handleSuggestedWorkspaceName: (workspaceId: string, name: string) => Promise<void>;
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
 }
@@ -678,6 +682,9 @@ export function useLandingPaperMap({
   handleGoogleSubmit,
   handleLogout,
   handleCreateWorkspace,
+  handleRootUpload,
+  handleRootUploadComplete,
+  handleSuggestedWorkspaceName,
   handleOpenWorkspace,
   buildWsPaper,
 }: UseLandingPaperMapProps) {
@@ -712,6 +719,14 @@ export function useLandingPaperMap({
               <PaperLinkCard key={card.id} id={card.id} title={card.title} body={card.body} hue={card.hue} />
             ))}
           </div>
+          {user && (
+            <RootUploadPaper
+              disabled={loading}
+              onUpload={handleRootUpload}
+              onProcessingComplete={handleRootUploadComplete}
+              onSuggestedWorkspaceName={handleSuggestedWorkspaceName}
+            />
+          )}
         </PaperSection>
       ),
       layout: ({ openChildIds, focusedNodeId, paperMap: pm }) => {
@@ -727,7 +742,7 @@ export function useLandingPaperMap({
 
         if (openChildIds.includes(WORKSPACES_ID)) {
           const contentShare = 0.06;
-          const workspacesShare = focusInWorkspaces ? 0.88 : 0.76;
+          const workspacesShare = focusInWorkspaces ? 0.64 : 0.52;
           const others = openChildIds.filter((id) => id !== WORKSPACES_ID);
           const evenOther = others.length > 0 ? (1 - workspacesShare - contentShare) / others.length : 0;
           const childShares: Record<string, number> = { [WORKSPACES_ID]: workspacesShare };
@@ -880,6 +895,7 @@ export function useLandingPaperMap({
   }, [
     user, workspaces, workspaceError, loading,
     handleGoogleSubmit, handleLogout, handleCreateWorkspace,
+    handleRootUpload, handleRootUploadComplete, handleSuggestedWorkspaceName,
     handleOpenWorkspace, buildWsPaper,
     workspacePaperGroups,
   ]);

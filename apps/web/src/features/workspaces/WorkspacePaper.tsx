@@ -16,6 +16,8 @@ interface WorkspacePaperProps {
   hasTree: boolean;
   childItems: { id: string }[];
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
+  onRenameWorkspace: (name: string) => Promise<Workspace>;
+  onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
   onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
 
@@ -25,9 +27,12 @@ export function WorkspacePaper({
   hasTree,
   childItems,
   onUploadFile,
+  onRenameWorkspace,
+  onSuggestedWorkspaceName,
   onProcessingComplete,
 }: WorkspacePaperProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const suggestedNameRef = useRef<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -35,6 +40,10 @@ export function WorkspacePaper({
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isPinned, setIsPinned] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState(workspaceName);
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const { status: jobStatus, error: jobStatusError } = useJobStatus(workspaceId, activeJobId);
   const { jobs: workspaceJobs, error: workspaceJobsError } = useWorkspaceJobStatuses(workspaceId);
 
@@ -43,6 +52,26 @@ export function WorkspacePaper({
   const isExpanded = !isPopulated || isHovered || isPinned;
   const isRunning = !!activeJobId && jobStatus?.status === 'running';
 
+  const commitName = useCallback(async () => {
+    const nextName = draftName.trim();
+    if (!nextName || nextName === workspaceName) {
+      setEditingName(false);
+      setDraftName(workspaceName);
+      return;
+    }
+    setSavingName(true);
+    setNameError(null);
+    try {
+      await onRenameWorkspace(nextName);
+      setEditingName(false);
+    } catch (err) {
+      console.error('Rename workspace failed:', err);
+      setNameError('名前の変更に失敗しました。');
+    } finally {
+      setSavingName(false);
+    }
+  }, [draftName, onRenameWorkspace, workspaceName]);
+
   const handleUpload = async (file: File) => {
     setUploading(true);
     setUploadMessage(null);
@@ -50,6 +79,7 @@ export function WorkspacePaper({
       const job = await onUploadFile(file);
       setActiveJobId(job.jobId);
       completedJobRef.current = null;
+      suggestedNameRef.current = null;
       setUploadMessage('アップロードしました。解析を開始します。');
     } catch (err) {
       console.error('Upload failed:', err);
@@ -61,12 +91,16 @@ export function WorkspacePaper({
 
   useEffect(() => {
     if (!jobStatus || !activeJobId) return;
+    if (jobStatus.suggestedWorkspaceName && suggestedNameRef.current !== jobStatus.suggestedWorkspaceName) {
+      suggestedNameRef.current = jobStatus.suggestedWorkspaceName;
+      void onSuggestedWorkspaceName(jobStatus.suggestedWorkspaceName);
+    }
     if (jobStatus.status !== 'succeeded') return;
     if (completedJobRef.current === activeJobId) return;
     completedJobRef.current = activeJobId;
     setUploadMessage('解析が完了しました。');
     void onProcessingComplete?.(activeJobId);
-  }, [activeJobId, jobStatus, onProcessingComplete]);
+  }, [activeJobId, jobStatus, onProcessingComplete, onSuggestedWorkspaceName]);
 
   const handleMouseEnter = useCallback(() => setIsHovered(true), []);
   const handleMouseLeave = useCallback(() => {
@@ -111,15 +145,31 @@ export function WorkspacePaper({
 
       {/* Compact header (populated mode only) */}
       {isPopulated && (
-        <WorkspaceHeader
-          workspaceName={workspaceName}
-          childItemsCount={childItems.length}
-          isRunning={isRunning}
-          jobProgress={jobStatus?.progress}
-          isJustCompleted={uploadMessage === '解析が完了しました。'}
-          isPinned={isPinned}
-          onTogglePinned={() => setIsPinned((p) => !p)}
-        />
+        <>
+          <WorkspaceHeader
+            workspaceName={workspaceName}
+            draftName={draftName}
+            editingName={editingName}
+            savingName={savingName}
+            childItemsCount={childItems.length}
+            isRunning={isRunning}
+            jobProgress={jobStatus?.progress}
+            isJustCompleted={uploadMessage === '解析が完了しました。'}
+            isPinned={isPinned}
+            onTogglePinned={() => setIsPinned((p) => !p)}
+            onStartRename={() => {
+              setDraftName(workspaceName);
+              setEditingName(true);
+            }}
+            onDraftNameChange={setDraftName}
+            onCommitName={commitName}
+            onCancelRename={() => {
+              setEditingName(false);
+              setDraftName(workspaceName);
+            }}
+          />
+          {nameError && <p className="-mt-2 px-5 pb-2 text-[11px] text-red-400">{nameError}</p>}
+        </>
       )}
 
       {/* Expanded content */}
@@ -129,7 +179,48 @@ export function WorkspacePaper({
           {!isPopulated && (
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-400/80">Workspace</p>
-              <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-stone-800">{workspaceName}</h2>
+              {editingName ? (
+                <form
+                  className="mt-1 flex items-center gap-2"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void commitName();
+                  }}
+                >
+                  <input
+                    value={draftName}
+                    maxLength={64}
+                    disabled={savingName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    onBlur={() => void commitName()}
+                    autoFocus
+                    className="min-w-0 flex-1 rounded-md border border-indigo-200 bg-white px-2 py-1 text-lg font-semibold tracking-tight text-stone-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:opacity-60"
+                  />
+                  <button
+                    type="button"
+                    disabled={savingName}
+                    onClick={() => {
+                      setEditingName(false);
+                      setDraftName(workspaceName);
+                    }}
+                    className="rounded-md border border-stone-200 px-2 py-1 text-[11px] text-stone-500 disabled:opacity-60"
+                  >
+                    取消
+                  </button>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftName(workspaceName);
+                    setEditingName(true);
+                  }}
+                  className="mt-0.5 block max-w-full truncate text-left text-lg font-semibold tracking-tight text-stone-800 hover:text-indigo-500"
+                >
+                  {workspaceName}
+                </button>
+              )}
+              {nameError && <p className="mt-1 text-[11px] text-red-400">{nameError}</p>}
             </div>
           )}
 

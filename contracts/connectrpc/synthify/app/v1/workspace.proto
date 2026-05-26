@@ -8,6 +8,7 @@ service WorkspaceService {
   rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
   rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse);
   rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  rpc UpdateWorkspace(UpdateWorkspaceRequest) returns (UpdateWorkspaceResponse);
   rpc InviteMember(InviteMemberRequest) returns (InviteMemberResponse);
   rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
   rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
@@ -69,6 +70,15 @@ message ListWorkspacesRequest {}
 
 message ListWorkspacesResponse {
   repeated Workspace workspaces = 1;
+}
+
+message UpdateWorkspaceRequest {
+  string workspace_id = 1;
+  string name = 2;
+}
+
+message UpdateWorkspaceResponse {
+  Workspace workspace = 1;
 }
 
 message InviteMemberRequest {

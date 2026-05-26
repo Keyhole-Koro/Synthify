@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 5173",
     "lint": "eslint .",
+    "generate:firestore-types": "node ../../scripts/generate-firestore-types.mjs",
     "seed:jobs": "node ./scripts/seed-firestore-jobs.mjs"
   },
   "dependencies": {

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"strings"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
@@ -49,18 +50,41 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 }
 
 func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[appv1.CreateWorkspaceRequest]) (*connect.Response[appv1.CreateWorkspaceResponse], error) {
-	if req.Msg.GetName() == "" {
+	name := strings.TrimSpace(req.Msg.GetName())
+	if name == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
 	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
 	}
-	ws, err := h.service.CreateWorkspace(ctx, req.Msg.GetName(), userID)
+	ws, err := h.service.CreateWorkspace(ctx, name, userID)
 	if err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.CreateWorkspaceResponse{
+		Workspace: toProtoWorkspace(ws),
+	}), nil
+}
+
+func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Request[appv1.UpdateWorkspaceRequest]) (*connect.Response[appv1.UpdateWorkspaceResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	name := strings.TrimSpace(req.Msg.GetName())
+	if name == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ws, err := h.service.UpdateWorkspace(ctx, workspaceID, name, userID)
+	if err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.UpdateWorkspaceResponse{
 		Workspace: toProtoWorkspace(ws),
 	}), nil
 }

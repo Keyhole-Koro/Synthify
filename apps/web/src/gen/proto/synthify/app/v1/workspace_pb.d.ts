@@ -209,6 +209,43 @@ export declare type ListWorkspacesResponse = Message<"synthify.app.v1.ListWorksp
 export declare const ListWorkspacesResponseSchema: GenMessage<ListWorkspacesResponse>;
 
 /**
+ * @generated from message synthify.app.v1.UpdateWorkspaceRequest
+ */
+export declare type UpdateWorkspaceRequest = Message<"synthify.app.v1.UpdateWorkspaceRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: string name = 2;
+   */
+  name: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.UpdateWorkspaceRequest.
+ * Use `create(UpdateWorkspaceRequestSchema)` to create a new message.
+ */
+export declare const UpdateWorkspaceRequestSchema: GenMessage<UpdateWorkspaceRequest>;
+
+/**
+ * @generated from message synthify.app.v1.UpdateWorkspaceResponse
+ */
+export declare type UpdateWorkspaceResponse = Message<"synthify.app.v1.UpdateWorkspaceResponse"> & {
+  /**
+   * @generated from field: synthify.app.v1.Workspace workspace = 1;
+   */
+  workspace?: Workspace;
+};
+
+/**
+ * Describes the message synthify.app.v1.UpdateWorkspaceResponse.
+ * Use `create(UpdateWorkspaceResponseSchema)` to create a new message.
+ */
+export declare const UpdateWorkspaceResponseSchema: GenMessage<UpdateWorkspaceResponse>;
+
+/**
  * @generated from message synthify.app.v1.InviteMemberRequest
  */
 export declare type InviteMemberRequest = Message<"synthify.app.v1.InviteMemberRequest"> & {
@@ -461,6 +498,14 @@ export declare const WorkspaceService: GenService<{
     methodKind: "unary";
     input: typeof ListWorkspacesRequestSchema;
     output: typeof ListWorkspacesResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.app.v1.WorkspaceService.UpdateWorkspace
+   */
+  updateWorkspace: {
+    methodKind: "unary";
+    input: typeof UpdateWorkspaceRequestSchema;
+    output: typeof UpdateWorkspaceResponseSchema;
   },
   /**
    * @generated from rpc synthify.app.v1.WorkspaceService.InviteMember

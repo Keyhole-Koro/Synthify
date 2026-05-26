@@ -3,26 +3,12 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import type { FirestoreJobStatus } from '@/features/jobs/firestoreJobStatus.generated';
 
-export type JobStatus = {
-  jobId: string;
-  jobType: string;
-  documentId: string;
-  workspaceId: string;
-  treeId: string;
-  status: 'queued' | 'running' | 'succeeded' | 'failed';
-  currentStage: string;
-  progress?: number;
-  message?: string;
-  errorMessage: string;
-  createdAt?: string;
-  startedAt?: string;
-  updatedAt: string;
-  completedAt?: string;
-};
+export type { FirestoreJobStatus } from '@/features/jobs/firestoreJobStatus.generated';
 
 export function useJobStatus(workspaceId: string, jobId: string | null) {
-  const [status, setStatus] = useState<JobStatus | null>(null);
+  const [status, setStatus] = useState<FirestoreJobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,7 +19,7 @@ export function useJobStatus(workspaceId: string, jobId: string | null) {
       ref,
       (snapshot) => {
         if (!snapshot.exists()) return;
-        setStatus(snapshot.data() as JobStatus);
+        setStatus(snapshot.data() as FirestoreJobStatus);
         setError(null);
       },
       (err) => {

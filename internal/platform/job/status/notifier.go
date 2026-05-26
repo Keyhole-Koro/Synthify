@@ -18,11 +18,60 @@ type Payload struct {
 	TreeID      string
 }
 
+type UpdateFields struct {
+	CurrentStage                 *string
+	Progress                     *int
+	Message                      *string
+	ErrorMessage                 *string
+	SuggestedWorkspaceName       *string
+	SuggestedWorkspaceNameSource *string
+	StartedAt                    *string
+	CompletedAt                  *string
+}
+
+func String(value string) *string {
+	return &value
+}
+
+func Int(value int) *int {
+	return &value
+}
+
+func (f UpdateFields) mapWithUpdatedAt() map[string]any {
+	fields := map[string]any{FirestoreJobStatusFieldUpdatedAt: nowRFC3339()}
+	if f.CurrentStage != nil {
+		fields[FirestoreJobStatusFieldCurrentStage] = *f.CurrentStage
+	}
+	if f.Progress != nil {
+		fields[FirestoreJobStatusFieldProgress] = *f.Progress
+	}
+	if f.Message != nil {
+		fields[FirestoreJobStatusFieldMessage] = *f.Message
+	}
+	if f.ErrorMessage != nil {
+		fields[FirestoreJobStatusFieldErrorMessage] = *f.ErrorMessage
+	}
+	if f.SuggestedWorkspaceName != nil {
+		fields[FirestoreJobStatusFieldSuggestedWorkspaceName] = *f.SuggestedWorkspaceName
+	}
+	if f.SuggestedWorkspaceNameSource != nil {
+		fields[FirestoreJobStatusFieldSuggestedWorkspaceNameSource] = *f.SuggestedWorkspaceNameSource
+	}
+	if f.StartedAt != nil {
+		fields[FirestoreJobStatusFieldStartedAt] = *f.StartedAt
+	}
+	if f.CompletedAt != nil {
+		fields[FirestoreJobStatusFieldCompletedAt] = *f.CompletedAt
+	}
+	return fields
+}
+
 type Notifier interface {
 	Queued(ctx context.Context, payload Payload) error
 	Running(ctx context.Context, payload Payload) error
 	Stage(ctx context.Context, payload Payload, stage string) error
 	StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string) error
+	UpdateFields(ctx context.Context, workspaceID, jobID string, fields UpdateFields) error
 	Failed(ctx context.Context, payload Payload, errorMessage string) error
 	Completed(ctx context.Context, payload Payload) error
 }
@@ -35,8 +84,9 @@ func (noopNotifier) Stage(context.Context, Payload, string) error { return nil }
 func (noopNotifier) StageProgress(context.Context, Payload, string, int, string) error {
 	return nil
 }
-func (noopNotifier) Failed(context.Context, Payload, string) error { return nil }
-func (noopNotifier) Completed(context.Context, Payload) error      { return nil }
+func (noopNotifier) UpdateFields(context.Context, string, string, UpdateFields) error { return nil }
+func (noopNotifier) Failed(context.Context, Payload, string) error                    { return nil }
+func (noopNotifier) Completed(context.Context, Payload) error                         { return nil }
 
 type firestoreNotifier struct {
 	client *firestore.Client
@@ -65,24 +115,24 @@ func NewNotifier(ctx context.Context, projectID string, logger *slog.Logger) Not
 
 func (n *firestoreNotifier) Queued(ctx context.Context, payload Payload) error {
 	return n.write(ctx, payload, map[string]any{
-		"status":       "queued",
-		"currentStage": "",
-		"progress":     0,
-		"message":      "Queued",
-		"errorMessage": "",
-		"createdAt":    nowRFC3339(),
-		"updatedAt":    nowRFC3339(),
+		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateQueued),
+		FirestoreJobStatusFieldCurrentStage: "",
+		FirestoreJobStatusFieldProgress:     0,
+		FirestoreJobStatusFieldMessage:      "Queued",
+		FirestoreJobStatusFieldErrorMessage: "",
+		FirestoreJobStatusFieldCreatedAt:    nowRFC3339(),
+		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
 	})
 }
 
 func (n *firestoreNotifier) Running(ctx context.Context, payload Payload) error {
 	return n.write(ctx, payload, map[string]any{
-		"status":       "running",
-		"progress":     5,
-		"message":      "Processing started",
-		"errorMessage": "",
-		"startedAt":    nowRFC3339(),
-		"updatedAt":    nowRFC3339(),
+		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateRunning),
+		FirestoreJobStatusFieldProgress:     5,
+		FirestoreJobStatusFieldMessage:      "Processing started",
+		FirestoreJobStatusFieldErrorMessage: "",
+		FirestoreJobStatusFieldStartedAt:    nowRFC3339(),
+		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
 	})
 }
 
@@ -92,52 +142,72 @@ func (n *firestoreNotifier) Stage(ctx context.Context, payload Payload, stage st
 
 func (n *firestoreNotifier) StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string) error {
 	fields := map[string]any{
-		"status":       "running",
-		"currentStage": stage,
-		"updatedAt":    nowRFC3339(),
+		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateRunning),
+		FirestoreJobStatusFieldCurrentStage: stage,
+		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
 	}
 	if progress >= 0 {
-		fields["progress"] = progress
+		fields[FirestoreJobStatusFieldProgress] = progress
 	}
 	if message != "" {
-		fields["message"] = message
+		fields[FirestoreJobStatusFieldMessage] = message
 	}
 	return n.write(ctx, payload, fields)
 }
 
 func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMessage string) error {
 	return n.write(ctx, payload, map[string]any{
-		"status":       "failed",
-		"currentStage": "",
-		"message":      "Failed",
-		"errorMessage": errorMessage,
-		"updatedAt":    nowRFC3339(),
-		"completedAt":  nowRFC3339(),
+		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateFailed),
+		FirestoreJobStatusFieldCurrentStage: "",
+		FirestoreJobStatusFieldMessage:      "Failed",
+		FirestoreJobStatusFieldErrorMessage: errorMessage,
+		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
+		FirestoreJobStatusFieldCompletedAt:  nowRFC3339(),
 	})
+}
+
+func (n *firestoreNotifier) UpdateFields(ctx context.Context, workspaceID, jobID string, fields UpdateFields) error {
+	if workspaceID == "" || jobID == "" {
+		return nil
+	}
+	doc := fields.mapWithUpdatedAt()
+	if len(doc) == 1 {
+		return nil
+	}
+	_, err := n.client.Collection("workspaces").Doc(workspaceID).Collection("jobs").Doc(jobID).Set(ctx, doc, firestore.MergeAll)
+	if err != nil {
+		n.logger.Error("jobstatus.firestore_patch_failed", "error", err.Error(), "job_id", jobID)
+		return err
+	}
+	return nil
 }
 
 func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) error {
 	return n.write(ctx, payload, map[string]any{
-		"status":       "succeeded",
-		"currentStage": "",
-		"progress":     100,
-		"message":      "Completed",
-		"errorMessage": "",
-		"updatedAt":    nowRFC3339(),
-		"completedAt":  nowRFC3339(),
+		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateSucceeded),
+		FirestoreJobStatusFieldCurrentStage: "",
+		FirestoreJobStatusFieldProgress:     100,
+		FirestoreJobStatusFieldMessage:      "Completed",
+		FirestoreJobStatusFieldErrorMessage: "",
+		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
+		FirestoreJobStatusFieldCompletedAt:  nowRFC3339(),
 	})
 }
 
 func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields map[string]any) error {
 	doc := map[string]any{
-		"jobId":       payload.JobID,
-		"jobType":     payload.JobType,
-		"documentId":  payload.DocumentID,
-		"workspaceId": payload.WorkspaceID,
-		"treeId":      payload.TreeID,
+		FirestoreJobStatusFieldJobID:       payload.JobID,
+		FirestoreJobStatusFieldJobType:     payload.JobType,
+		FirestoreJobStatusFieldDocumentID:  payload.DocumentID,
+		FirestoreJobStatusFieldWorkspaceID: payload.WorkspaceID,
+		FirestoreJobStatusFieldTreeID:      payload.TreeID,
 	}
 	for key, value := range fields {
 		doc[key] = value
+	}
+	if err := validateFirestoreJobStatus(doc); err != nil {
+		n.logger.Error("jobstatus.firestore_schema_validation_failed", "error", err.Error(), "job_id", payload.JobID)
+		return err
 	}
 	_, err := n.client.Collection("workspaces").Doc(payload.WorkspaceID).Collection("jobs").Doc(payload.JobID).Set(ctx, doc, firestore.MergeAll)
 	if err != nil {

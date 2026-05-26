@@ -320,3 +320,23 @@ func (q *Queries) ListWorkspacesByUser(ctx context.Context, userID string) ([]Li
 	}
 	return items, nil
 }
+
+const updateWorkspaceName = `-- name: UpdateWorkspaceName :execrows
+UPDATE workspaces
+SET name = $2, updated_at = $3
+WHERE workspace_id = $1
+`
+
+type UpdateWorkspaceNameParams struct {
+	WorkspaceID string
+	Name        string
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNameParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateWorkspaceName, arg.WorkspaceID, arg.Name, arg.UpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}

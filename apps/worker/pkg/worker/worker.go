@@ -72,6 +72,7 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 		Usage:    usage,
 		FS:       fs,
 		Logger:   logger,
+		Status:   notifier,
 	}
 	// dynamic tool wiring: repo doubles as the DB-backed source; the engine
 	// matches the Starlark runtime that create_transform already uses (Phase 1

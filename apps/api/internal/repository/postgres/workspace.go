@@ -439,6 +439,21 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *do
 	return ws
 }
 
+func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error) {
+	affected, err := s.q().UpdateWorkspaceName(ctx, sqlcgen.UpdateWorkspaceNameParams{
+		WorkspaceID: workspaceID,
+		Name:        name,
+		UpdatedAt:   nowTime(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, domain.ErrNotFound
+	}
+	return s.GetWorkspace(ctx, workspaceID)
+}
+
 func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspaceID string) (string, error) {
 	row, err := s.q().GetTreeRoot(ctx, workspaceID)
 	if err != nil {

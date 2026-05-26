@@ -11,6 +11,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/memory"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 type BriefArgs struct {
@@ -34,6 +35,15 @@ func NewBriefTool(b *base.Context, mem *memory.Brief) (core.Tool, error) {
 		brief, gerr := generateBrief(ctx, b.LLM, args.Outline)
 		if gerr != nil {
 			brief = fallbackBrief(args.Outline)
+		}
+		if b.Status != nil && b.Job != nil {
+			title := suggestedWorkspaceName(brief)
+			if title != "" {
+				_ = b.Status.UpdateFields(ctx, b.Job.WorkspaceID, b.Job.JobID, jobstatus.UpdateFields{
+					SuggestedWorkspaceName:       jobstatus.String(title),
+					SuggestedWorkspaceNameSource: jobstatus.String(string(jobstatus.FirestoreJobStatusSuggestedWorkspaceNameSourceBriefTopic)),
+				})
+			}
 		}
 		mem.Set(brief)
 		out, mErr := json.Marshal(BriefResult{Brief: brief})
@@ -81,6 +91,18 @@ Rules:
 	}
 	brief.Outline = append([]string(nil), outline...)
 	return brief, nil
+}
+
+func suggestedWorkspaceName(brief domain.DocumentBrief) string {
+	title := strings.TrimSpace(brief.Topic)
+	if title == "" && len(brief.Outline) > 0 {
+		title = strings.TrimSpace(brief.Outline[0])
+	}
+	title = strings.Join(strings.Fields(title), " ")
+	if len([]rune(title)) > 64 {
+		title = string([]rune(title)[:64])
+	}
+	return title
 }
 
 func fallbackBrief(outline []string) domain.DocumentBrief {

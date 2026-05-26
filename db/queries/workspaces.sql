@@ -62,3 +62,8 @@ SELECT EXISTS(
 -- name: CreateWorkspace :exec
 INSERT INTO workspaces (workspace_id, account_id, name, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $4);
+
+-- name: UpdateWorkspaceName :execrows
+UPDATE workspaces
+SET name = $2, updated_at = $3
+WHERE workspace_id = $1;

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { type Workspace } from '@/features/workspaces/api';
 import { WorkspaceItemList } from './components/WorkspaceItemList';
 import { CreateWorkspaceForm } from './components/CreateWorkspaceForm';
@@ -14,26 +14,14 @@ interface Props {
 }
 
 export function WorkspaceListContent({ workspaces, loading, error, onOpenWorkspace, onCreateWorkspace, onLogout }: Props) {
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (showCreateForm) setTimeout(() => inputRef.current?.focus(), 0);
-  }, [showCreateForm]);
 
   function stop(e: React.PointerEvent) { e.stopPropagation(); }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const name = newName.trim();
-    if (!name) return;
+  async function handleCreate() {
     setCreating(true);
     try {
-      await onCreateWorkspace(name);
-      setShowCreateForm(false);
-      setNewName('');
+      await onCreateWorkspace('新規ワークスペース');
     } finally {
       setCreating(false);
     }
@@ -51,14 +39,9 @@ export function WorkspaceListContent({ workspaces, loading, error, onOpenWorkspa
       />
 
       <CreateWorkspaceForm
-        showCreateForm={showCreateForm}
-        newName={newName}
         creating={creating}
         loading={loading}
-        inputRef={inputRef}
-        onSubmit={handleSubmit}
-        onToggleForm={setShowCreateForm}
-        onNameChange={setNewName}
+        onCreate={handleCreate}
       />
 
       {/* Logout */}
