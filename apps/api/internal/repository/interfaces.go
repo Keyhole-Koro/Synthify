@@ -20,6 +20,33 @@ type DocumentUploadURLIssuer interface {
 	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (DocumentUploadTarget, error)
 }
 
+// Repositories は単一 unit-of-work 内で利用可能な全リポジトリの集合体。
+// 個別の repo interface を埋め込むことで、tx スコープ内のクロスリポジトリ
+// 操作 (例: JobCapability + ProcessingJob を同一 tx で挿入) を表現する。
+// postgres / mock Store のどちらもこの interface を満たす。
+type Repositories interface {
+	AccountRepository
+	UserRepository
+	WorkspaceRepository
+	DocumentRepository
+	DocumentChunkRepository
+	JobRepository
+	JobApprovalRepository
+	JobLogRepository
+	TreeRepository
+	ItemRepository
+	UsageRepository
+	CheckpointRepository
+	DynamicToolRepository
+}
+
+// Transactor は service 層から tx 境界を制御するためのインターフェース。
+// fn が nil を返せば commit、エラーを返せば rollback される。
+// 渡される Repositories は tx スコープに束縛されている。
+type Transactor interface {
+	WithTx(ctx context.Context, fn func(Repositories) error) error
+}
+
 type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 
 type AccountRepository interface {

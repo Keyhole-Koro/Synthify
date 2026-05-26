@@ -13,11 +13,19 @@ import (
 	"github.com/synthify/backend/internal/platform/util"
 )
 
+// Compile-time check: *Store satisfies both the unit-of-work boundary
+// (Transactor) and the bundle of all repositories (Repositories).
+var (
+	_ repository.Transactor   = (*Store)(nil)
+	_ repository.Repositories = (*Store)(nil)
+)
+
 type Store struct {
 	db              *sql.DB
 	queries         *sqlcgen.Queries
 	uploadURLIssuer repository.DocumentUploadURLIssuer
 	logger          *slog.Logger
+	inTx            bool
 }
 
 func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
@@ -43,7 +51,10 @@ func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.Docume
 }
 
 func (s *Store) Close() error {
-	return s.db.Close()
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
 }
 
 func (s *Store) CheckReadiness(ctx context.Context) error {
@@ -55,6 +66,42 @@ func (s *Store) q() *sqlcgen.Queries {
 		s.queries = sqlcgen.New(s.db)
 	}
 	return s.queries
+}
+
+// WithTx は callback を単一 SQL transaction の中で実行する。
+// callback には tx スコープに束縛された Repositories (Store のクローン) が
+// 渡される。fn が nil を返せば commit、err を返せば rollback。
+//
+// 入れ子の WithTx はサポートしない (inTx=true で呼ぶと panic)。
+func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) error) error {
+	if s.inTx {
+		panic("postgres.Store.WithTx: nested transactions are not supported")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	txStore := &Store{
+		db:              s.db,
+		queries:         s.queries.WithTx(tx),
+		uploadURLIssuer: s.uploadURLIssuer,
+		logger:          s.logger,
+		inTx:            true,
+	}
+	if err := fn(txStore); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 func newID() string {

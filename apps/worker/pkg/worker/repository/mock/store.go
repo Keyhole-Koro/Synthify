@@ -13,6 +13,13 @@ import (
 	"github.com/synthify/backend/internal/platform/job/log"
 )
 
+// Compile-time check: mock Store satisfies the same interfaces as the
+// postgres Store, including the unit-of-work boundary.
+var (
+	_ repository.Transactor   = (*Store)(nil)
+	_ repository.Repositories = (*Store)(nil)
+)
+
 type Store struct {
 	mu              sync.RWMutex
 	accounts        map[string]*domain.Account
@@ -81,6 +88,13 @@ func (s *Store) SetUploadURLIssuer(issuer repository.DocumentUploadURLIssuer) {
 
 func (s *Store) CheckReadiness(context.Context) error {
 	return nil
+}
+
+// WithTx は mock では実 tx を持たないため、callback をそのまま *Store で実行する。
+// callback が error を返した場合の rollback は行えないため、state を巻き戻したい
+// テストでは Store を作り直すこと。
+func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) error) error {
+	return fn(s)
 }
 
 // AccountRepository

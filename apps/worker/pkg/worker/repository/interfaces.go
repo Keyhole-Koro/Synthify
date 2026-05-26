@@ -22,6 +22,25 @@ type DocumentUploadURLIssuer interface {
 
 type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 
+// Repositories は単一 unit-of-work 内で利用可能な全リポジトリの集合体。
+// postgres / mock Store の双方が実装する。
+type Repositories interface {
+	AccountRepository
+	WorkspaceRepository
+	DocumentRepository
+	TreeRepository
+	ItemRepository
+	UsageRepository
+	CheckpointRepository
+	DynamicToolRepository
+	JobLogWriter
+}
+
+// Transactor は service / worker 層から tx 境界を制御するためのインターフェース。
+type Transactor interface {
+	WithTx(ctx context.Context, fn func(Repositories) error) error
+}
+
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
