@@ -71,7 +71,7 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 			if title == "" {
 				title = item.LocalID
 			}
-			createdItem := b.Repo.CreateStructuredItemWithCapability(
+			createdItem, err := b.Repo.CreateStructuredItemWithCapability(
 				ctx,
 				capability,
 				args.JobID,
@@ -86,8 +86,8 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 				parentID,
 				item.SourceChunkIDs,
 			)
-			if createdItem == nil {
-				return nil, core.Usage{}, fmt.Errorf("failed to create item %q", title)
+			if err != nil {
+				return nil, core.Usage{}, fmt.Errorf("create item %q: %w", title, err)
 			}
 			itemIDs[item.LocalID] = createdItem.ItemID
 			for _, chunkID := range item.SourceChunkIDs {

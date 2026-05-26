@@ -37,7 +37,11 @@ func authorizeWorkspace(ctx context.Context, repo repository.WorkspaceRepository
 	if err != nil {
 		return err
 	}
-	if !repo.IsWorkspaceAccessible(ctx, workspaceID, userID) {
+	ok, err := repo.IsWorkspaceAccessible(ctx, workspaceID, userID)
+	if err != nil {
+		return toError(err)
+	}
+	if !ok {
 		return connect.NewError(connect.CodePermissionDenied, errors.New("workspace access denied"))
 	}
 	return nil

@@ -29,7 +29,11 @@ func NewItemService(repo repository.ItemRepository, tree repository.TreeReposito
 }
 
 func (s *ItemService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
-	if !s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID) {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return domain.ErrForbidden
 	}
 	return nil
@@ -57,11 +61,7 @@ func (s *ItemService) CreateItem(ctx context.Context, workspaceID, label, descri
 	if _, err := s.tree.GetOrCreateTree(ctx, workspaceID); err != nil {
 		return nil, err
 	}
-	item := s.repo.CreateItem(ctx, workspaceID, label, description, parentID, userID)
-	if item == nil {
-		return nil, domain.ErrNotFound
-	}
-	return item, nil
+	return s.repo.CreateItem(ctx, workspaceID, label, description, parentID, userID)
 }
 
 func (s *ItemService) ApproveAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error {

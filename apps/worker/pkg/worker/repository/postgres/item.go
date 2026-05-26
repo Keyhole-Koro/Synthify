@@ -23,11 +23,13 @@ func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error
 	return toItemFromGetRow(row), nil
 }
 
-func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item {
+func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) (*domain.Item, error) {
 	return s.createStructuredItemDirect(ctx, workspaceID, label, 0, description, "", createdBy, parentID)
 }
 
-func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string) *domain.Item {
+// createStructuredItemDirect は items テーブルに 1 行挿入する。
+// atomic 性が必要なら呼び出し側を Transactor.WithTx で包むこと。
+func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string) (*domain.Item, error) {
 	createdAt := nowTime()
 	item := &domain.Item{
 		ItemID:      newID(),
@@ -41,13 +43,7 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 		CreatedAt:   createdAt.Format(time.RFC3339),
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil
-	}
-	defer tx.Rollback()
-
-	if err := s.q().WithTx(tx).CreateItem(ctx, sqlcgen.CreateItemParams{
+	if err := s.q().CreateItem(ctx, sqlcgen.CreateItemParams{
 		ID:          item.ItemID,
 		WorkspaceID: workspaceID,
 		ParentID: sql.NullString{
@@ -61,24 +57,25 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 		CreatedBy:   item.CreatedBy,
 		CreatedAt:   createdAt,
 	}); err != nil {
-		return nil
+		return nil, fmt.Errorf("create item: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return nil
-	}
+	// updated_at の touch は best-effort。失敗しても item 作成自体は成功扱い。
 	_ = s.q().UpdateTreeTimestamp(ctx, sqlcgen.UpdateTreeTimestampParams{
 		ID:        item.ItemID,
 		UpdatedAt: nowTime(),
 	})
-	return item
+	return item, nil
 }
 
-func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+// CreateStructuredItemWithCapability は capability 検証 + item 挿入 + mutation log を行う。
+// capability 違反は domain.ErrForbidden を返す。atomic 性が必要なら呼び出し側を
+// Transactor.WithTx で包むこと。
+func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error) {
 	if !s.canMutateTree(capability, appv1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
-		return nil
+		return nil, fmt.Errorf("capability denies item creation: %w", domain.ErrForbidden)
 	}
 	if capability.MaxItemCreations > 0 && s.countJobMutations(ctx, jobID, "item") >= capability.MaxItemCreations {
-		return nil
+		return nil, fmt.Errorf("max item creations reached for job: %w", domain.ErrForbidden)
 	}
 
 	createdAt := nowTime()
@@ -97,14 +94,7 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 		CreatedAt:         createdAt.Format(time.RFC3339),
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil
-	}
-	defer tx.Rollback()
-
-	qtx := s.q().WithTx(tx)
-	if err := qtx.CreateStructuredItem(ctx, sqlcgen.CreateStructuredItemParams{
+	if err := s.q().CreateStructuredItem(ctx, sqlcgen.CreateStructuredItemParams{
 		ID:          item.ItemID,
 		WorkspaceID: workspaceID,
 		ParentID: sql.NullString{
@@ -121,9 +111,9 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 		LastMutationJobID: item.LastMutationJobID,
 		CreatedAt:         createdAt,
 	}); err != nil {
-		return nil
+		return nil, fmt.Errorf("create structured item: %w", err)
 	}
-	if err := s.logMutationTx(ctx, tx, &domain.JobMutationLog{
+	if err := s.logMutation(ctx, &domain.JobMutationLog{
 		MutationID:     newID(),
 		JobID:          jobID,
 		CapabilityID:   capability.CapabilityID,
@@ -137,12 +127,9 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 		ProvenanceJSON: mustJSON(map[string]any{"document_id": documentID, "source_chunk_ids": sourceChunkIDs}),
 		CreatedAt:      createdAt.Format(time.RFC3339),
 	}); err != nil {
-		return nil
+		return nil, fmt.Errorf("log mutation: %w", err)
 	}
-	if err := tx.Commit(); err != nil {
-		return nil
-	}
-	return item
+	return item, nil
 }
 
 func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
@@ -265,12 +252,22 @@ func (s *Store) countJobMutations(ctx context.Context, jobID, targetType string)
 	return int(count)
 }
 
+// logMutation は mutation_logs に 1 行追記する。Store が Transactor.WithTx 経由で
+// tx-bound されていれば、その tx の queries が使われる。
+func (s *Store) logMutation(ctx context.Context, entry *domain.JobMutationLog) error {
+	return s.logMutationParams(ctx, s.q(), entry)
+}
+
 func (s *Store) logMutationTx(ctx context.Context, tx *sql.Tx, entry *domain.JobMutationLog) error {
+	return s.logMutationParams(ctx, s.q().WithTx(tx), entry)
+}
+
+func (s *Store) logMutationParams(ctx context.Context, q *sqlcgen.Queries, entry *domain.JobMutationLog) error {
 	createdAt, err := time.Parse(time.RFC3339, entry.CreatedAt)
 	if err != nil {
 		createdAt = nowTime()
 	}
-	return s.q().WithTx(tx).InsertJobMutationLog(ctx, sqlcgen.InsertJobMutationLogParams{
+	return q.InsertJobMutationLog(ctx, sqlcgen.InsertJobMutationLogParams{
 		MutationID:     entry.MutationID,
 		JobID:          entry.JobID,
 		PlanID:         entry.PlanID,

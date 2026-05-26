@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCreateWorkspace_DBError_ReturnsNil(t *testing.T) {
+func TestCreateWorkspace_DBError_ReturnsError(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err, "sqlmock.New")
 	defer db.Close()
@@ -17,8 +17,9 @@ func TestCreateWorkspace_DBError_ReturnsNil(t *testing.T) {
 	store := &Store{db: db}
 
 	// No expectations set → any query returns an error.
-	ws := store.CreateWorkspace(context.Background(), "acc_1", "Test Workspace")
-	assert.Nil(t, ws, "expected nil on DB error, got workspace")
+	ws, err := store.CreateWorkspace(context.Background(), "acc_1", "Test Workspace")
+	assert.Error(t, err, "expected error on DB error, got nil")
+	assert.Nil(t, ws, "expected nil workspace on DB error")
 }
 
 func TestGetWorkspace_DBError_ReturnsError(t *testing.T) {
@@ -32,12 +33,14 @@ func TestGetWorkspace_DBError_ReturnsError(t *testing.T) {
 	assert.Error(t, err, "expected error on DB error, got nil")
 }
 
-func TestIsWorkspaceAccessible_DBError_ReturnsFalse(t *testing.T) {
+func TestIsWorkspaceAccessible_DBError_ReturnsError(t *testing.T) {
 	db, _, err := sqlmock.New()
 	require.NoError(t, err, "sqlmock.New")
 	defer db.Close()
 
 	store := &Store{db: db}
 
-	assert.False(t, store.IsWorkspaceAccessible(context.Background(), "ws_1", "user_1"), "expected false on DB error, got true")
+	ok, err := store.IsWorkspaceAccessible(context.Background(), "ws_1", "user_1")
+	assert.Error(t, err, "expected error on DB error, got nil")
+	assert.False(t, ok, "expected ok=false on DB error")
 }

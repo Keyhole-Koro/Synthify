@@ -44,7 +44,7 @@ type Transactor interface {
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
-	IsAccountAccessible(ctx context.Context, accountID, userID string) bool
+	IsAccountAccessible(ctx context.Context, accountID, userID string) (ok bool, err error)
 	SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error
 	ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error)
 	ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error
@@ -55,14 +55,17 @@ type AccountRepository interface {
 }
 
 type WorkspaceRepository interface {
-	ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace
+	ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error)
 	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error)
-	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool
-	CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace
+	// IsWorkspaceAccessible は DB エラーと「アクセス不可」を区別して返す。
+	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (ok bool, err error)
+	// CreateWorkspace は workspaces + tree root item を 1 ペアで作成する。
+	// atomic 性が必要なら呼び出し側を Transactor.WithTx で包むこと。
+	CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error)
 }
 
 type DocumentRepository interface {
-	ListDocuments(ctx context.Context, wsID string) []*domain.Document
+	ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error)
 	GetDocument(ctx context.Context, id string) (*domain.Document, error)
 	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
 	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
@@ -111,8 +114,11 @@ type TreeRepository interface {
 
 type ItemRepository interface {
 	GetItem(ctx context.Context, itemID string) (*domain.Item, error)
-	CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item
-	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item
+	CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) (*domain.Item, error)
+	// CreateStructuredItemWithCapability は capability の検証 + item 挿入 +
+	// mutation log を行う。capability 違反 (op 不許可、ws 不一致、上限超過、expired) は
+	// domain.ErrForbidden を返す。atomic 性が必要なら Transactor.WithTx で包むこと。
+	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error)
 	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error

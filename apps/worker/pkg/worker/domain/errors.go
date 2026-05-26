@@ -4,6 +4,7 @@ import "errors"
 
 var (
 	ErrNotFound             = errors.New("not found")
+	ErrForbidden            = errors.New("forbidden")           // 権限・capability 違反
 	ErrConflict             = errors.New("conflict")            // unique / FK 違反など、リクエスト自体は妥当だが現在の状態と衝突
 	ErrInvariantViolation   = errors.New("invariant violation") // 想定外の内部不整合 (バグ相当)
 	ErrApprovalRequired     = errors.New("job execution plan requires approval")

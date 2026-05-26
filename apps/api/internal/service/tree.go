@@ -30,7 +30,11 @@ func NewTreeService(tree repository.TreeRepository, workspaces repository.Worksp
 }
 
 func (s *TreeService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
-	if !s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID) {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return domain.ErrForbidden
 	}
 	return nil

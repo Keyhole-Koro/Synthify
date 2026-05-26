@@ -102,12 +102,15 @@ WHERE account_id = $1
 	return account, nil
 }
 
-func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) bool {
+func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
 	accessible, err := s.q().IsAccountAccessible(ctx, sqlcgen.IsAccountAccessibleParams{
 		AccountID: accountID,
 		UserID:    userID,
 	})
-	return err == nil && accessible
+	if err != nil {
+		return false, fmt.Errorf("query account accessibility: %w", err)
+	}
+	return accessible, nil
 }
 
 func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error {
@@ -335,7 +338,7 @@ WHERE `
 	return nil
 }
 
-func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
+func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT w.workspace_id, w.account_id, w.name, w.created_at,
        a.plan, a.storage_used_bytes, a.storage_quota_bytes, a.max_file_size_bytes,
@@ -347,19 +350,22 @@ WHERE au.user_id = $1
 ORDER BY w.created_at DESC
 `, userID)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("query workspaces: %w", err)
 	}
 	defer rows.Close()
 	var workspaces []*domain.Workspace
 	for rows.Next() {
 		ws, err := scanWorkspace(rows)
 		if err != nil {
-			return nil
+			return nil, fmt.Errorf("scan workspace: %w", err)
 		}
 		ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, ws.WorkspaceID)
 		workspaces = append(workspaces, ws)
 	}
-	return workspaces
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workspaces: %w", err)
+	}
+	return workspaces, nil
 }
 
 func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
@@ -382,34 +388,34 @@ WHERE w.workspace_id = $1
 	return ws, nil
 }
 
-func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
+func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (bool, error) {
 	accessible, err := s.q().IsWorkspaceAccessible(ctx, sqlcgen.IsWorkspaceAccessibleParams{
 		WorkspaceID: wsID,
 		UserID:      userID,
 	})
-	return err == nil && accessible
+	if err != nil {
+		return false, fmt.Errorf("query workspace accessibility: %w", err)
+	}
+	return accessible, nil
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace {
+// CreateWorkspace は workspaces 行と tree root item を 1 ペアで作成する。
+// 内部で tx を張らないため、atomic 性が必要なら呼び出し側を
+// Transactor.WithTx で包むこと。
+func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
 	createdAt := nowTime()
 	wsID := newID()
 	rootItemID := newID()
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil
-	}
-	defer tx.Rollback()
-	qtx := s.q().WithTx(tx)
 
-	if err := qtx.CreateWorkspace(ctx, sqlcgen.CreateWorkspaceParams{
+	if err := s.q().CreateWorkspace(ctx, sqlcgen.CreateWorkspaceParams{
 		WorkspaceID: wsID,
 		AccountID:   accountID,
 		Name:        name,
 		CreatedAt:   createdAt,
 	}); err != nil {
-		return nil
+		return nil, fmt.Errorf("create workspace: %w", err)
 	}
-	if err := qtx.CreateItem(ctx, sqlcgen.CreateItemParams{
+	if err := s.q().CreateItem(ctx, sqlcgen.CreateItemParams{
 		ID:          rootItemID,
 		WorkspaceID: wsID,
 		ParentID:    sql.NullString{},
@@ -420,23 +426,23 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *do
 		CreatedBy:   "system",
 		CreatedAt:   createdAt,
 	}); err != nil {
-		return nil
-	}
-	if err := tx.Commit(); err != nil {
-		return nil
+		return nil, fmt.Errorf("create workspace root item: %w", err)
 	}
 	ws, err := s.GetWorkspace(ctx, wsID)
 	if err != nil {
+		// 作成直後の読み戻しが失敗した場合は、書き込んだ値を組み立てて返す。
+		// FK 等の整合性は CreateItem の段階で確認済みなので、Internal にせず
+		// 組み立てた表現を返してフォールバック。
 		return &domain.Workspace{
 			WorkspaceID: wsID,
 			AccountID:   accountID,
 			Name:        name,
 			RootItemID:  rootItemID,
 			CreatedAt:   createdAt.Format(time.RFC3339),
-		}
+		}, nil
 	}
 	ws.RootItemID = rootItemID
-	return ws
+	return ws, nil
 }
 
 func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error) {

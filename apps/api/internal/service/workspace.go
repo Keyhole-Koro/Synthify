@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
@@ -13,7 +12,7 @@ import (
 // ListWorkspaces は PR 4 (認可 Service 移動) で handler の直接 repository call を
 // この interface 経由に切り替える前提でここに含める。
 type WorkspaceUsecase interface {
-	ListWorkspaces(ctx context.Context, userID string) []*domain.Workspace
+	ListWorkspaces(ctx context.Context, userID string) ([]*domain.Workspace, error)
 	GetWorkspace(ctx context.Context, id, userID string) (*domain.Workspace, error)
 	CreateWorkspace(ctx context.Context, name, userID string) (*domain.Workspace, error)
 	UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error)
@@ -29,12 +28,16 @@ func NewWorkspaceService(accounts repository.AccountRepository, workspaces repos
 	return &WorkspaceService{accounts: accounts, workspaces: workspaces, logger: logger}
 }
 
-func (s *WorkspaceService) ListWorkspaces(ctx context.Context, userID string) []*domain.Workspace {
+func (s *WorkspaceService) ListWorkspaces(ctx context.Context, userID string) ([]*domain.Workspace, error) {
 	return s.workspaces.ListWorkspacesByUser(ctx, userID)
 }
 
 func (s *WorkspaceService) GetWorkspace(ctx context.Context, id, userID string) (*domain.Workspace, error) {
-	if !s.workspaces.IsWorkspaceAccessible(ctx, id, userID) {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, domain.ErrForbidden
 	}
 	ws, err := s.workspaces.GetWorkspace(ctx, id)
@@ -49,15 +52,15 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, name, userID str
 	if err != nil {
 		return nil, err
 	}
-	ws := s.workspaces.CreateWorkspace(ctx, account.AccountID, name)
-	if ws == nil {
-		return nil, errors.New("failed to create workspace")
-	}
-	return ws, nil
+	return s.workspaces.CreateWorkspace(ctx, account.AccountID, name)
 }
 
 func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error) {
-	if !s.workspaces.IsWorkspaceAccessible(ctx, id, userID) {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, domain.ErrForbidden
 	}
 	ws, err := s.workspaces.UpdateWorkspaceName(ctx, id, name)

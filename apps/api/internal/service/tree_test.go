@@ -62,8 +62,8 @@ func TestTreeService_GetSubtree_ItemInOtherWorkspace_ReturnsForbidden(t *testing
 	store := mock.NewStore()
 	// "ws-owner" を作って owner がアクセスできるよう wsOwners に登録する
 	acct, _ := store.GetOrCreateAccount(ctx, "owner")
-	store.CreateWorkspace(ctx, acct.AccountID, "owner") // → ws-owner
-	store.CreateWorkspace(ctx, acct.AccountID, "stranger") // → ws-stranger (owner が membership 持つ)
+	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "owner")    // → ws-owner
+	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "stranger") // → ws-stranger (owner が membership 持つ)
 	_, err := store.GetOrCreateTree(ctx, "ws-owner")
 	require.NoError(t, err)
 	svc := NewTreeService(store, store, nil)

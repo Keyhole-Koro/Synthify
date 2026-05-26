@@ -24,7 +24,10 @@ func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	workspaces := h.service.ListWorkspaces(ctx, userID)
+	workspaces, err := h.service.ListWorkspaces(ctx, userID)
+	if err != nil {
+		return nil, toError(err)
+	}
 	res := connect.NewResponse(&appv1.ListWorkspacesResponse{})
 	for _, workspace := range workspaces {
 		res.Msg.Workspaces = append(res.Msg.Workspaces, toProtoWorkspace(workspace))

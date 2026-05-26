@@ -40,10 +40,11 @@ func TestGetItem_OtherWorkspaceID_ReturnsForbidden(t *testing.T) {
 	svc := NewItemService(repo, repo, repo, nil)
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
 	// item を作って別 workspaceID を query で渡す
-	item := repo.CreateItem(ctx, fixture.Workspace.WorkspaceID, "x", "", "", "owner")
+	item, err := repo.CreateItem(ctx, fixture.Workspace.WorkspaceID, "x", "", "", "owner")
+	require.NoError(t, err)
 	require.NotNil(t, item)
 
-	_, err := svc.GetItem(ctx, item.ItemID, "ws-bogus", "owner")
+	_, err = svc.GetItem(ctx, item.ItemID, "ws-bogus", "owner")
 	require.Error(t, err)
 	// 'owner' は ws-bogus の member ではないので Forbidden が先に出る
 	assert.ErrorIs(t, err, domain.ErrForbidden)

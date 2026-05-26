@@ -16,16 +16,16 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Document {
+func (s *Store) ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error) {
 	rows, err := s.q().ListDocuments(ctx, wsID)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("list documents: %w", err)
 	}
 	docs := make([]*domain.Document, 0, len(rows))
 	for _, row := range rows {
 		docs = append(docs, toDocument(row))
 	}
-	return docs
+	return docs, nil
 }
 
 func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, error) {

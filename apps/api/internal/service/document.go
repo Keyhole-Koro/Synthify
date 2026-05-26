@@ -80,7 +80,11 @@ func NewDocumentService(
 
 // authorizeWorkspace は userID が workspace にアクセスできるかチェックする。
 func (s *DocumentService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
-	if !s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID) {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return domain.ErrForbidden
 	}
 	return nil
@@ -106,7 +110,7 @@ func (s *DocumentService) ListDocuments(ctx context.Context, workspaceID, userID
 	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
-	return s.repo.ListDocuments(ctx, workspaceID), nil
+	return s.repo.ListDocuments(ctx, workspaceID)
 }
 
 func (s *DocumentService) GetDocument(ctx context.Context, documentID, userID string) (*domain.Document, error) {

@@ -17,14 +17,18 @@ func TestIsWorkspaceAccessible_Owner_ReturnsTrue(t *testing.T) {
 	store := NewStore()
 	ws := CreateUserWorkspaceFixture(t, ctx, store, "owner").Workspace
 
-	assert.True(t, store.IsWorkspaceAccessible(ctx, ws.WorkspaceID, "owner"), "owner should have access to their workspace")
+	ok, err := store.IsWorkspaceAccessible(ctx, ws.WorkspaceID, "owner")
+	require.NoError(t, err)
+	assert.True(t, ok, "owner should have access to their workspace")
 }
 
 func TestIsWorkspaceAccessible_Stranger_ReturnsFalse(t *testing.T) {
 	store := NewStore()
 	ws := CreateUserWorkspaceFixture(t, ctx, store, "owner").Workspace
 
-	assert.False(t, store.IsWorkspaceAccessible(ctx, ws.WorkspaceID, "stranger"), "stranger should not have access")
+	ok, err := store.IsWorkspaceAccessible(ctx, ws.WorkspaceID, "stranger")
+	require.NoError(t, err)
+	assert.False(t, ok, "stranger should not have access")
 }
 
 // ── ApproveAlias / RejectAlias ────────────────────────────────────────────────
@@ -35,8 +39,8 @@ func TestApproveAlias_RecordsAlias(t *testing.T) {
 	ws := fixture.Workspace
 
 	// Add seed items
-	store.CreateItem(ctx, ws.WorkspaceID, "root", "root desc", "", "system")
-	store.CreateItem(ctx, ws.WorkspaceID, "child", "child desc", "item-root", "system")
+	_, _ = store.CreateItem(ctx, ws.WorkspaceID, "root", "root desc", "", "system")
+	_, _ = store.CreateItem(ctx, ws.WorkspaceID, "child", "child desc", "item-root", "system")
 
 	err := store.ApproveAlias(ctx, ws.WorkspaceID, "item-root", "item-child")
 	require.NoError(t, err, "ApproveAlias")
@@ -81,9 +85,9 @@ func TestGetJobPlanningSignals_CountsProvenanceAndAliases(t *testing.T) {
 func TestFindPaths_FindsConnectedPath(t *testing.T) {
 	wsID := "ws1"
 	store := NewStore()
-	store.CreateItem(ctx, wsID, "n1", "", "", "u1")
-	store.CreateItem(ctx, wsID, "n2", "", "item-n1", "u1")
-	store.CreateItem(ctx, wsID, "n3", "", "item-n2", "u1")
+	_, _ = store.CreateItem(ctx, wsID, "n1", "", "", "u1")
+	_, _ = store.CreateItem(ctx, wsID, "n2", "", "item-n1", "u1")
+	_, _ = store.CreateItem(ctx, wsID, "n3", "", "item-n2", "u1")
 
 	items, paths, err := store.FindPaths(ctx, wsID, "item-n3", "item-n1", 4, 3)
 	require.NoError(t, err, "FindPaths")
@@ -94,8 +98,8 @@ func TestFindPaths_FindsConnectedPath(t *testing.T) {
 func TestFindPaths_NoPathExists_ReturnsEmptyPaths(t *testing.T) {
 	wsID := "ws1"
 	store := NewStore()
-	store.CreateItem(ctx, wsID, "n1", "", "", "u1")
-	store.CreateItem(ctx, wsID, "n3", "", "", "u1")
+	_, _ = store.CreateItem(ctx, wsID, "n1", "", "", "u1")
+	_, _ = store.CreateItem(ctx, wsID, "n3", "", "", "u1")
 
 	_, paths, err := store.FindPaths(ctx, wsID, "item-n3", "item-n1", 4, 3)
 	require.NoError(t, err, "FindPaths")

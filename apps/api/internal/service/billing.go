@@ -408,7 +408,11 @@ func (s *billingService) reconcileAccount(ctx context.Context, account *domain.A
 }
 
 func (s *billingService) authorizeAccount(ctx context.Context, accountID, userID string) (*domain.Account, error) {
-	if !s.accounts.IsAccountAccessible(ctx, accountID, userID) {
+	ok, err := s.accounts.IsAccountAccessible(ctx, accountID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
 		return nil, domain.ErrNotFound
 	}
 	return s.accounts.GetAccount(ctx, accountID)

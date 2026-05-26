@@ -24,7 +24,8 @@ func CreateUserWorkspaceFixture(t testing.TB, ctx context.Context, store *Store,
 	acct, err := store.GetOrCreateAccount(ctx, userID)
 	require.NoError(t, err, "GetOrCreateAccount")
 
-	ws := store.CreateWorkspace(ctx, acct.AccountID, "test-workspace")
+	ws, err := store.CreateWorkspace(ctx, acct.AccountID, "test-workspace")
+	require.NoError(t, err, "CreateWorkspace failed")
 	require.NotNil(t, ws, "CreateWorkspace returned nil")
 
 	return WorkspaceFixture{

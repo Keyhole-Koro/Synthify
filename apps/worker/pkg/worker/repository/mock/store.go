@@ -130,17 +130,17 @@ func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, err
 	return nil, domain.ErrNotFound
 }
 
-func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) bool {
+func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if accountID == "" || userID == "" {
-		return false
+		return false, nil
 	}
 	account, ok := s.accounts[accountID]
 	if !ok {
-		return false
+		return false, nil
 	}
-	return account.AccountID == userID
+	return account.AccountID == userID, nil
 }
 
 func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error {
@@ -296,7 +296,7 @@ func applyMockBillingPlan(account *domain.Account, stripeCustomerID, stripeSubsc
 }
 
 // WorkspaceRepository
-func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*domain.Workspace {
+func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var res []*domain.Workspace
@@ -309,7 +309,7 @@ func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) []*doma
 			res = append(res, s.workspaceWithAccount(w))
 		}
 	}
-	return res
+	return res, nil
 }
 
 func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
@@ -322,11 +322,11 @@ func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace,
 	return s.workspaceWithAccount(w), nil
 }
 
-func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) bool {
+func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if wsID == "" || userID == "" {
-		return false
+		return false, nil
 	}
 	owner := s.wsOwners[wsID]
 	if owner == "" {
@@ -334,10 +334,10 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 			owner = ws.AccountID
 		}
 	}
-	return owner != "" && owner == userID
+	return owner != "" && owner == userID, nil
 }
 
-func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *domain.Workspace {
+func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	account := s.accounts[accountID]
@@ -357,7 +357,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) *do
 	}
 	s.workspaces[w.WorkspaceID] = w
 	s.wsOwners[w.WorkspaceID] = accountID
-	return w
+	return w, nil
 }
 
 func (s *Store) workspaceWithAccount(w *domain.Workspace) *domain.Workspace {
@@ -377,7 +377,7 @@ func (s *Store) workspaceWithAccount(w *domain.Workspace) *domain.Workspace {
 }
 
 // DocumentRepository
-func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Document {
+func (s *Store) ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var res []*domain.Document
@@ -386,7 +386,7 @@ func (s *Store) ListDocuments(ctx context.Context, wsID string) []*domain.Docume
 			res = append(res, d)
 		}
 	}
-	return res
+	return res, nil
 }
 
 func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, error) {
@@ -1164,7 +1164,7 @@ func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error
 	return nil, domain.ErrNotFound
 }
 
-func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) *domain.Item {
+func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) (*domain.Item, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.items[workspaceID]; !ok {
@@ -1180,10 +1180,10 @@ func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 	}
 	s.items[workspaceID][n.ItemID] = n
-	return n
+	return n, nil
 }
 
-func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) *domain.Item {
+func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error) {
 	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
 }
 
