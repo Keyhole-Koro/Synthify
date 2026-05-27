@@ -18,8 +18,4 @@ if (env.firebase.firestoreEmulatorHost && env.firebase.firestoreEmulatorPort) {
   connectFirestoreEmulator(db, env.firebase.firestoreEmulatorHost, env.firebase.firestoreEmulatorPort);
 }
 
-if (typeof window !== 'undefined') {
-  (window as unknown as { __firebase: unknown }).__firebase = { app, auth, db };
-}
-
 export { app, auth, db };
