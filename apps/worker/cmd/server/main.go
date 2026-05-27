@@ -48,7 +48,7 @@ func main() {
 	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger)
 	llmClient := metering.NewWrappedClient(embedder, cfg, appLogger, observability.ConnectClientOptions(nrApp)...)
 
-	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, fs, appLogger)
+	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, fs, appLogger, nrApp)
 	if err != nil {
 		log.Fatal(err)
 	}

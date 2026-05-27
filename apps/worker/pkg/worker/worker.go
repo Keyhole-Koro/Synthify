@@ -10,6 +10,7 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/agents"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/job/lifecycle"
@@ -63,7 +64,7 @@ func (d dynamicSource) ResolveActive(ctx context.Context, workspaceID string) ([
 	return d.repo.ResolveActiveTools(ctx, workspaceID)
 }
 
-func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger *slog.Logger) (*Worker, error) {
+func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger *slog.Logger, nrApp ...*newrelic.Application) (*Worker, error) {
 	usage := base.NewUsageLimiter(treeRepo, logger)
 	b := &base.Context{
 		Repo:     treeRepo,
@@ -88,7 +89,7 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 	return &Worker{
 		orchestrator: orch,
 		repo:         repo,
-		lifecycle:    joblifecycle.New(repo, notifier, logger),
+		lifecycle:    joblifecycle.New(repo, notifier, logger, nrApp...),
 		status:       notifier,
 		logger:       logger,
 	}, nil
@@ -178,7 +179,7 @@ func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jo
 		Message:     fmt.Sprintf("Agent execution failed: %v", cause),
 		Detail:      map[string]any{"error": cause.Error()},
 	})
-	w.lifecycle.TryFail(ctx, payload, cause.Error())
+	w.lifecycle.TryFail(ctx, payload, cause)
 }
 
 type Planner struct {
