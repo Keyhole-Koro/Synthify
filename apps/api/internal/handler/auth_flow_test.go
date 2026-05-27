@@ -7,7 +7,7 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
@@ -27,7 +27,7 @@ func TestWorkspaceHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("get rejects another user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "stranger", Email: "stranger@example.com"})
 
 		resp, err := handler.GetWorkspace(authedCtx, connect.NewRequest(&appv1.GetWorkspaceRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -38,7 +38,7 @@ func TestWorkspaceHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("get allows owner", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 		resp, err := handler.GetWorkspace(authedCtx, connect.NewRequest(&appv1.GetWorkspaceRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -66,7 +66,7 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("get rejects another user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "stranger", Email: "stranger@example.com"})
 
 		resp, err := handler.GetDocument(authedCtx, connect.NewRequest(&appv1.GetDocumentRequest{
 			DocumentId: fixture.Document.DocumentID,
@@ -77,7 +77,7 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("create uses authenticated user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 		resp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -92,7 +92,7 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("legacy upload url endpoint is closed", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 		resp, err := handler.GetUploadURL(authedCtx, connect.NewRequest(&appv1.GetUploadURLRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -122,7 +122,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("get tree rejects another user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "stranger", Email: "stranger@example.com"})
 
 		resp, err := handler.GetTree(authedCtx, connect.NewRequest(&appv1.GetTreeRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -133,7 +133,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("get tree allows owner", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 		resp, err := handler.GetTree(authedCtx, connect.NewRequest(&appv1.GetTreeRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -162,7 +162,7 @@ func TestItemHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("create rejects another user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "stranger", Email: "stranger@example.com"})
 
 		resp, err := handler.CreateItem(authedCtx, connect.NewRequest(&appv1.CreateItemRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -174,7 +174,7 @@ func TestItemHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("create records owner as creator", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 		resp, err := handler.CreateItem(authedCtx, connect.NewRequest(&appv1.CreateItemRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
@@ -205,7 +205,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("status rejects another user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "stranger", Email: "stranger@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "stranger", Email: "stranger@example.com"})
 
 		resp, err := handler.GetJobStatus(authedCtx, connect.NewRequest(&appv1.GetJobStatusRequest{
 			JobId: fixture.Job.JobID,
@@ -216,7 +216,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 	})
 
 	t.Run("approval request uses authenticated user", func(t *testing.T) {
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 		resp, err := handler.RequestJobApproval(authedCtx, connect.NewRequest(&appv1.RequestJobApprovalRequest{
 			JobId:  fixture.Job.JobID,

@@ -2,7 +2,13 @@ package middleware
 
 import (
 	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 )
 
 func TestBearerToken(t *testing.T) {
@@ -28,91 +34,135 @@ func TestBearerToken(t *testing.T) {
 	}
 }
 
-func TestParseEmailSet(t *testing.T) {
-	tests := []struct {
-		name string
-		csv  string
-		want map[string]bool
-	}{
-		{"empty", "", map[string]bool{}},
-		{"single", "a@x.com", map[string]bool{"a@x.com": true}},
-		{"trims and lowercases", " A@X.com , b@y.com ", map[string]bool{"a@x.com": true, "b@y.com": true}},
-		{"skips blanks", "a@x.com,,  ,b@y.com", map[string]bool{"a@x.com": true, "b@y.com": true}},
+func TestWithAuth_ExemptPathSkipsAuthenticator(t *testing.T) {
+	authenticator := &fakeAuthenticator{}
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	WithAuth(authenticator, slog.Default(), next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
 	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got := parseEmailSet(tc.csv)
-			if len(got) != len(tc.want) {
-				t.Fatalf("parseEmailSet(%q) size = %d, want %d (%v)", tc.csv, len(got), len(tc.want), got)
-			}
-			for k := range tc.want {
-				if !got[k] {
-					t.Errorf("parseEmailSet(%q) missing %q", tc.csv, k)
-				}
-			}
-		})
+	if !called {
+		t.Fatal("next handler was not called")
+	}
+	if authenticator.bearerCalls != 0 || authenticator.serviceCalls != 0 {
+		t.Fatalf("authenticator called: bearer=%d service=%d", authenticator.bearerCalls, authenticator.serviceCalls)
 	}
 }
 
-// Mirrors the allowlist gate in WithAuth: empty set => allow anyone;
-// non-empty => only listed emails (case-insensitive) pass.
-func TestAllowlistGate(t *testing.T) {
-	allowed := func(set map[string]bool, email string) bool {
-		return len(set) == 0 || set[lowerTrim(email)]
-	}
-	locked := parseEmailSet("korokororin47@gmail.com")
-	open := parseEmailSet("")
+func TestWithAuth_BearerTokenUsesBearerAuthenticator(t *testing.T) {
+	want := apiauth.Principal{Kind: apiauth.PrincipalKindUser, SubjectID: "u1", Email: "u@example.com"}
+	authenticator := &fakeAuthenticator{bearerPrincipal: want}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, ok := apiauth.PrincipalFromContext(r.Context())
+		if !ok || got != want {
+			t.Fatalf("principal = %+v ok=%v, want %+v", got, ok, want)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 
-	cases := []struct {
-		name  string
-		set   map[string]bool
-		email string
-		want  bool
-	}{
-		{"open set allows anyone", open, "stranger@example.com", true},
-		{"locked allows the listed email", locked, "korokororin47@gmail.com", true},
-		{"locked allows case/space variant", locked, "  Korokororin47@Gmail.com ", true},
-		{"locked rejects other email", locked, "intruder@example.com", false},
-		{"locked rejects empty email", locked, "", false},
+	req := httptest.NewRequest(http.MethodGet, "/rpc", nil)
+	req.Header.Set("Authorization", "Bearer token-1")
+	rec := httptest.NewRecorder()
+	WithAuth(authenticator, slog.Default(), next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := allowed(tc.set, tc.email); got != tc.want {
-				t.Errorf("allowed(%q) = %v, want %v", tc.email, got, tc.want)
-			}
-		})
+	if authenticator.gotBearer != "token-1" || authenticator.serviceCalls != 0 {
+		t.Fatalf("got bearer=%q serviceCalls=%d", authenticator.gotBearer, authenticator.serviceCalls)
 	}
 }
 
-func TestCurrentUser_WithUser_ReturnsUser(t *testing.T) {
-	want := AuthUser{ID: "user_123", Email: "test@example.com"}
-	ctx := context.WithValue(context.Background(), authUserContextKey, want)
+func TestWithAuth_ServiceTokenUsesServiceAuthenticator(t *testing.T) {
+	want := apiauth.Principal{Kind: apiauth.PrincipalKindService, SubjectID: apiauth.InternalServiceSubjectID}
+	authenticator := &fakeAuthenticator{servicePrincipal: want}
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got, ok := apiauth.PrincipalFromContext(r.Context())
+		if !ok || got != want {
+			t.Fatalf("principal = %+v ok=%v, want %+v", got, ok, want)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
 
-	got, ok := CurrentUser(ctx)
-	if !ok {
-		t.Fatal("CurrentUser: ok=false, want true")
+	req := httptest.NewRequest(http.MethodGet, "/rpc", nil)
+	req.Header.Set("X-Synthify-Service-Token", "svc-token")
+	rec := httptest.NewRecorder()
+	WithAuth(authenticator, slog.Default(), next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
 	}
-	if got.ID != want.ID || got.Email != want.Email {
-		t.Errorf("CurrentUser = %+v, want %+v", got, want)
+	if authenticator.gotService != "svc-token" || authenticator.bearerCalls != 0 {
+		t.Fatalf("got service=%q bearerCalls=%d", authenticator.gotService, authenticator.bearerCalls)
 	}
 }
 
-func TestCurrentUser_NoUser_ReturnsFalse(t *testing.T) {
-	_, ok := CurrentUser(context.Background())
-	if ok {
-		t.Fatal("CurrentUser: ok=true, want false")
+func TestWithAuth_MissingTokenReturnsUnauthorized(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/rpc", nil)
+	rec := httptest.NewRecorder()
+	WithAuth(&fakeAuthenticator{}, slog.Default(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not be called")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 }
 
-func TestContextWithUser_RoundTrip(t *testing.T) {
-	want := AuthUser{ID: "u42", Email: "u@example.com"}
-	ctx := ContextWithUser(context.Background(), want)
+func TestWithAuth_PermissionDeniedReturnsForbidden(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/rpc", nil)
+	req.Header.Set("Authorization", "Bearer token-1")
+	rec := httptest.NewRecorder()
+	WithAuth(&fakeAuthenticator{bearerErr: apiauth.ErrPermissionDenied}, slog.Default(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not be called")
+	})).ServeHTTP(rec, req)
 
-	got, ok := CurrentUser(ctx)
-	if !ok {
-		t.Fatal("CurrentUser after ContextWithUser: ok=false")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
 	}
-	if got != want {
-		t.Errorf("got %+v, want %+v", got, want)
+}
+
+type fakeAuthenticator struct {
+	bearerPrincipal  apiauth.Principal
+	servicePrincipal apiauth.Principal
+	bearerErr        error
+	serviceErr       error
+	bearerCalls      int
+	serviceCalls     int
+	gotBearer        string
+	gotService       string
+}
+
+func (f *fakeAuthenticator) AuthenticateBearer(ctx context.Context, token string) (apiauth.Principal, error) {
+	_ = ctx
+	f.bearerCalls++
+	f.gotBearer = token
+	if f.bearerErr != nil {
+		return apiauth.Principal{}, f.bearerErr
 	}
+	if f.bearerPrincipal == (apiauth.Principal{}) {
+		return apiauth.Principal{}, errors.New("missing bearer principal")
+	}
+	return f.bearerPrincipal, nil
+}
+
+func (f *fakeAuthenticator) AuthenticateServiceToken(ctx context.Context, token string) (apiauth.Principal, error) {
+	_ = ctx
+	f.serviceCalls++
+	f.gotService = token
+	if f.serviceErr != nil {
+		return apiauth.Principal{}, f.serviceErr
+	}
+	if f.servicePrincipal == (apiauth.Principal{}) {
+		return apiauth.Principal{}, errors.New("missing service principal")
+	}
+	return f.servicePrincipal, nil
 }

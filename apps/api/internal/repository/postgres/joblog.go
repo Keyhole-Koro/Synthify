@@ -1,3 +1,7 @@
+// Package note: ListJobLogs / SearchJobLogs / ListRelatedJobLogs はクエリの
+// WHERE / ORDER / pagination が呼び出し時パラメータで動的に組み立てられるため、
+// sqlc 化せず生 SQL のまま残している (sqlc は静的 SQL のみ対応)。
+// Insert 系などの静的クエリは sqlc 経由 (InsertJobLog) に揃えている。
 package postgres
 
 import (
@@ -10,6 +14,7 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/job/log"
 )
@@ -31,13 +36,20 @@ func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {
 	if err != nil {
 		detailJSON = []byte("{}")
 	}
-
-	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO job_logs (id, job_id, workspace_id, document_id, created_at, level, event, message, detail_json)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		newID(), e.JobID, e.WorkspaceID, e.DocumentID, nowTime(),
-		string(e.Level), e.Event, e.Message, string(detailJSON))
-	return err
+	if err := s.q().InsertJobLog(ctx, sqlcgen.InsertJobLogParams{
+		ID:          newID(),
+		JobID:       e.JobID,
+		WorkspaceID: e.WorkspaceID,
+		DocumentID:  e.DocumentID,
+		CreatedAt:   nowTime(),
+		Level:       string(e.Level),
+		Event:       e.Event,
+		Message:     e.Message,
+		DetailJson:  json.RawMessage(detailJSON),
+	}); err != nil {
+		return fmt.Errorf("insert job log: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, error) {

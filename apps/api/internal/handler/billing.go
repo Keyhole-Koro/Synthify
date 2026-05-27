@@ -10,7 +10,6 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
@@ -175,10 +174,10 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv
 
 func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[appv1.RecordUsageRequest]) (*connect.Response[appv1.RecordUsageResponse], error) {
 	// 内部 RPC: worker -> API のサービストークン認証のみ受け付ける。
-	// SYNTHIFY_INTERNAL_SERVICE_TOKEN が未設定の環境では middleware が token を要求しない
-	// (= service call を立てない) ので、すべての RecordUsage は拒否される。
-	if !middleware.IsServiceCall(ctx) {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("service token required"))
+	// SYNTHIFY_INTERNAL_SERVICE_TOKEN が未設定の環境では service principal が立たないので、
+	// すべての RecordUsage は拒否される。
+	if _, err := requireServicePrincipal(ctx); err != nil {
+		return nil, err
 	}
 	if req.Msg.GetAccountId() == "" || req.Msg.GetModel() == "" || req.Msg.GetEventId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("event_id, account_id, and model are required"))
@@ -259,8 +258,8 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[a
 	if err != nil {
 		return nil, err
 	}
-	if !middleware.IsAdmin(ctx) {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
+	if _, err := requireAdminPrincipal(ctx); err != nil {
+		return nil, err
 	}
 	grant, err := h.service.GrantCredit(ctx, userID, req.Msg.GetAccountId(), req.Msg.GetAmountMinor(), req.Msg.GetNote())
 	if err != nil {

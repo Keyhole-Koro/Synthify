@@ -103,3 +103,91 @@ SELECT payment_method_id, brand, last4, exp_month, exp_year, is_default
 FROM payment_methods
 WHERE account_id = $1
 ORDER BY is_default DESC, created_at DESC;
+
+-- name: ApplyBillingPlan :execrows
+-- plan に応じた quota / 上限を一括で反映する。
+-- stripe_customer_id は空文字なら既存値を保持 (CASE)。
+UPDATE accounts
+SET plan = @plan::text,
+    storage_quota_bytes = @storage_quota_bytes::bigint,
+    max_file_size_bytes = @max_file_size_bytes::bigint,
+    max_uploads_per_5h = @max_uploads_per_5h::int,
+    max_uploads_per_1week = @max_uploads_per_1week::int,
+    stripe_customer_id = CASE WHEN @stripe_customer_id::text = '' THEN stripe_customer_id ELSE @stripe_customer_id::text END,
+    stripe_subscription_id = @stripe_subscription_id::text,
+    billing_status = CASE WHEN @plan::text = 'free' THEN 'free' ELSE 'active' END,
+    billing_updated_at = @now::timestamptz,
+    updated_at = @now::timestamptz
+WHERE account_id = @account_id;
+
+-- name: ApplyBillingPlanByStripeCustomerID :execrows
+UPDATE accounts
+SET plan = @plan::text,
+    storage_quota_bytes = @storage_quota_bytes::bigint,
+    max_file_size_bytes = @max_file_size_bytes::bigint,
+    max_uploads_per_5h = @max_uploads_per_5h::int,
+    max_uploads_per_1week = @max_uploads_per_1week::int,
+    stripe_subscription_id = @stripe_subscription_id::text,
+    billing_status = CASE WHEN @plan::text = 'free' THEN 'free' ELSE 'active' END,
+    billing_updated_at = @now::timestamptz,
+    updated_at = @now::timestamptz
+WHERE stripe_customer_id = @stripe_customer_id;
+
+-- name: RecordBillingWebhookEvent :execrows
+-- 重複 (provider, event_id) を ON CONFLICT で吸収。
+-- 戻り値の rows_affected で「新規受信か既受信か」を判定する。
+INSERT INTO billing_events (
+  provider, event_id, event_type, received_at, processing_status,
+  account_id, stripe_customer_id, stripe_subscription_id
+) VALUES ($1, $2, $3, $4, 'received', $5, $6, $7)
+ON CONFLICT (provider, event_id) DO NOTHING;
+
+-- name: MarkBillingWebhookEventProcessed :exec
+UPDATE billing_events
+SET processing_status = $3, error_message = $4, processed_at = $5
+WHERE provider = $1 AND event_id = $2;
+
+-- name: ApplyBillingEventByAccount :execrows
+-- ApplyBillingEvent の account_id 経路。
+-- 空文字パラメータは既存値を保持する CASE で表現する。
+-- plan が '' なら plan / quota 関連は据え置き。
+-- stripe_subscription_id は plan!='free' の場合のみ「空なら据え置き」。
+UPDATE accounts
+SET plan = CASE WHEN @plan::text = '' THEN plan ELSE @plan::text END,
+    storage_quota_bytes = CASE WHEN @plan::text = '' THEN storage_quota_bytes ELSE @storage_quota_bytes::bigint END,
+    max_file_size_bytes = CASE WHEN @plan::text = '' THEN max_file_size_bytes ELSE @max_file_size_bytes::bigint END,
+    max_uploads_per_5h = CASE WHEN @plan::text = '' THEN max_uploads_per_5h ELSE @max_uploads_per_5h::int END,
+    max_uploads_per_1week = CASE WHEN @plan::text = '' THEN max_uploads_per_1week ELSE @max_uploads_per_1week::int END,
+    stripe_customer_id = CASE WHEN @stripe_customer_id::text = '' THEN stripe_customer_id ELSE @stripe_customer_id::text END,
+    stripe_subscription_id = CASE WHEN @stripe_subscription_id::text = '' AND @plan::text <> 'free' THEN stripe_subscription_id ELSE @stripe_subscription_id::text END,
+    billing_status = @billing_status,
+    stripe_price_id = @stripe_price_id,
+    billing_currency = @billing_currency,
+    billing_amount_minor = @billing_amount_minor,
+    billing_interval = @billing_interval,
+    current_period_end = @current_period_end,
+    cancel_at_period_end = @cancel_at_period_end,
+    billing_updated_at = @now::timestamptz,
+    updated_at = @now::timestamptz
+WHERE account_id = @account_id;
+
+-- name: ApplyBillingEventByStripeCustomer :execrows
+-- ApplyBillingEvent の stripe_customer_id 経路。account_id が未設定の webhook で使う。
+UPDATE accounts
+SET plan = CASE WHEN @plan::text = '' THEN plan ELSE @plan::text END,
+    storage_quota_bytes = CASE WHEN @plan::text = '' THEN storage_quota_bytes ELSE @storage_quota_bytes::bigint END,
+    max_file_size_bytes = CASE WHEN @plan::text = '' THEN max_file_size_bytes ELSE @max_file_size_bytes::bigint END,
+    max_uploads_per_5h = CASE WHEN @plan::text = '' THEN max_uploads_per_5h ELSE @max_uploads_per_5h::int END,
+    max_uploads_per_1week = CASE WHEN @plan::text = '' THEN max_uploads_per_1week ELSE @max_uploads_per_1week::int END,
+    stripe_customer_id = CASE WHEN @stripe_customer_id_passthru::text = '' THEN stripe_customer_id ELSE @stripe_customer_id_passthru::text END,
+    stripe_subscription_id = CASE WHEN @stripe_subscription_id::text = '' AND @plan::text <> 'free' THEN stripe_subscription_id ELSE @stripe_subscription_id::text END,
+    billing_status = @billing_status,
+    stripe_price_id = @stripe_price_id,
+    billing_currency = @billing_currency,
+    billing_amount_minor = @billing_amount_minor,
+    billing_interval = @billing_interval,
+    current_period_end = @current_period_end,
+    cancel_at_period_end = @cancel_at_period_end,
+    billing_updated_at = @now::timestamptz,
+    updated_at = @now::timestamptz
+WHERE stripe_customer_id = @stripe_customer_id_match;

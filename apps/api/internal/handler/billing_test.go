@@ -11,8 +11,8 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/middleware"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -35,7 +35,7 @@ func TestBillingHandler_CreateCheckoutSession_UsesAuthenticatedUser(t *testing.T
 		createCheckoutSession: &domain.BillingCheckoutSession{URL: "https://checkout.example/session"},
 	}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 	resp, err := h.CreateCheckoutSession(ctx, connect.NewRequest(&appv1.CreateCheckoutSessionRequest{
 		AccountId: "owner",
@@ -70,7 +70,7 @@ func TestBillingHandler_CreatePortalSession_UsesAuthenticatedUser(t *testing.T) 
 		createPortalSession: &domain.BillingPortalSession{URL: "https://billing.example/portal"},
 	}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 	resp, err := h.CreatePortalSession(ctx, connect.NewRequest(&appv1.CreatePortalSessionRequest{
 		AccountId: "owner",
@@ -108,7 +108,7 @@ func TestBillingHandler_GetUsage_Unauthenticated_ReturnsUnauthenticated(t *testi
 func TestBillingHandler_GetUsage_AuthenticatedUser_CallsService(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "o@example.com"})
 
 	resp, err := h.GetUsage(ctx, connect.NewRequest(&appv1.GetUsageRequest{AccountId: "owner"}))
 
@@ -129,7 +129,7 @@ func TestBillingHandler_UpdateBudget_Unauthenticated_ReturnsUnauthenticated(t *t
 func TestBillingHandler_UpdateBudget_AuthenticatedUser_CallsService(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "o@example.com"})
 
 	resp, err := h.UpdateBudget(ctx, connect.NewRequest(&appv1.UpdateBudgetRequest{AccountId: "owner", BudgetLimit: "50"}))
 
@@ -150,7 +150,7 @@ func TestBillingHandler_ListInvoices_Unauthenticated_ReturnsUnauthenticated(t *t
 func TestBillingHandler_ListInvoices_AuthenticatedUser_CallsService(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "o@example.com"})
 
 	resp, err := h.ListInvoices(ctx, connect.NewRequest(&appv1.ListInvoicesRequest{AccountId: "owner", Limit: 10}))
 
@@ -171,7 +171,7 @@ func TestBillingHandler_ListPaymentMethods_Unauthenticated_ReturnsUnauthenticate
 func TestBillingHandler_ListPaymentMethods_AuthenticatedUser_CallsService(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "o@example.com"})
 
 	resp, err := h.ListPaymentMethods(ctx, connect.NewRequest(&appv1.ListPaymentMethodsRequest{AccountId: "owner"}))
 
@@ -181,8 +181,8 @@ func TestBillingHandler_ListPaymentMethods_AuthenticatedUser_CallsService(t *tes
 }
 
 // RecordUsage は worker -> API の内部 RPC。
-// middleware が service token を検証して ContextWithServiceCall を立てた場合のみ通る。
-func TestBillingHandler_RecordUsage_NoServiceToken_ReturnsPermissionDenied(t *testing.T) {
+// middleware が service token を検証して service principal を立てた場合のみ通る。
+func TestBillingHandler_RecordUsage_NoServiceToken_ReturnsUnauthenticated(t *testing.T) {
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
 
@@ -192,7 +192,7 @@ func TestBillingHandler_RecordUsage_NoServiceToken_ReturnsPermissionDenied(t *te
 	}))
 
 	assert.Nil(t, resp)
-	assertConnectCode(t, err, connect.CodePermissionDenied)
+	assertConnectCode(t, err, connect.CodeUnauthenticated)
 	assert.Zero(t, svc.recordUsageCalls)
 }
 
@@ -200,7 +200,7 @@ func TestBillingHandler_RecordUsage_AuthenticatedUserAlone_StillDenied(t *testin
 	// 通常ユーザーの認証だけでは RecordUsage は呼べない。
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "owner", Email: "o@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "o@example.com"})
 
 	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
 		AccountId: "owner",
@@ -217,7 +217,7 @@ func TestBillingHandler_RecordUsage_ServiceToken_CallsService(t *testing.T) {
 	// 特に event_id は DB の冪等性キーなので、handler 境界で落とさないことを守る。
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithServiceCall(context.Background())
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindService, SubjectID: auth.InternalServiceSubjectID})
 
 	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
 		EventId:      "evt-usage-1",
@@ -248,7 +248,7 @@ func TestBillingHandler_RecordUsage_ServiceTokenMissingEventID_ReturnsInvalidArg
 	// これにより DB 永続化直前で失敗するのではなく、handler 境界で入力不備として扱える。
 	svc := &billingHandlerTestUsecase{}
 	h := NewBillingHandler(svc)
-	ctx := middleware.ContextWithServiceCall(context.Background())
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindService, SubjectID: auth.InternalServiceSubjectID})
 
 	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
 		AccountId: "owner",

@@ -5,28 +5,28 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/middleware"
+	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
 // requireUserID は認証済みユーザーの ID を返す。未認証なら Unauthenticated を返す。
 // ID 以外を必要としない handler はこちらを使う (大半のケース)。
 func requireUserID(ctx context.Context) (string, error) {
-	user, ok := middleware.CurrentUser(ctx)
-	if !ok || user.ID == "" {
-		return "", connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
-	}
-	return user.ID, nil
+	return apiauth.RequireUserID(ctx)
 }
 
-// requireAuthUser は AuthUser 全体 (ID + Email) を必要とする handler 用。
+// requireUserPrincipal は Principal 全体 (SubjectID + Email) を必要とする handler 用。
 // 現状は SyncUser のみが利用する。
-func requireAuthUser(ctx context.Context) (middleware.AuthUser, error) {
-	user, ok := middleware.CurrentUser(ctx)
-	if !ok || user.ID == "" {
-		return middleware.AuthUser{}, connect.NewError(connect.CodeUnauthenticated, errors.New("authentication required"))
-	}
-	return user, nil
+func requireUserPrincipal(ctx context.Context) (apiauth.Principal, error) {
+	return apiauth.RequireUserPrincipal(ctx)
+}
+
+func requireServicePrincipal(ctx context.Context) (apiauth.Principal, error) {
+	return apiauth.RequireServicePrincipal(ctx)
+}
+
+func requireAdminPrincipal(ctx context.Context) (apiauth.Principal, error) {
+	return apiauth.RequireAdminPrincipal(ctx)
 }
 
 // authorizeWorkspace / authorizeDocument は現状 job handler だけが残存利用している。

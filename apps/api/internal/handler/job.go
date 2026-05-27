@@ -10,7 +10,6 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
-	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
@@ -265,11 +264,8 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.L
 	// 全 workspace 横断のため admin 権限を要求。
 	// monitor など読み取り専用ツールは API を経由せず Postgres を直接参照する設計に
 	// 切り替えたため、anonymous バイパスは存在しない。
-	if _, err := requireUserID(ctx); err != nil {
+	if _, err := requireAdminPrincipal(ctx); err != nil {
 		return nil, err
-	}
-	if !middleware.IsAdmin(ctx) {
-		return nil, connect.NewError(connect.CodePermissionDenied, errors.New("admin role required"))
 	}
 	jobs, err := h.jobs.ListAllJobs(ctx)
 	if err != nil {

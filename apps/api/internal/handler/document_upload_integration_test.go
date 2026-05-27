@@ -11,8 +11,8 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
-	"github.com/synthify/backend/apps/api/internal/middleware"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
@@ -47,7 +47,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	svc := service.NewDocumentService(store, store, store, store, store, store, nil, nil, nil, nil, nil)
 	handler := NewDocumentHandler(svc, store)
 
-	authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: "owner", Email: "owner@example.com"})
+	authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 	t.Run("upload via issued URL using POST", func(t *testing.T) {
 		// 1. Get Upload URL

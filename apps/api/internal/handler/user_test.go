@@ -7,7 +7,7 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
@@ -30,7 +30,7 @@ func TestUserHandler_SignInUser(t *testing.T) {
 	t.Run("provisions authenticated user", func(t *testing.T) {
 		userID := "owner"
 		email := "owner@example.com"
-		authedCtx := middleware.ContextWithUser(ctx, middleware.AuthUser{ID: userID, Email: email})
+		authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: userID, Email: email})
 
 		resp, err := h.SignInUser(authedCtx, connect.NewRequest(&appv1.SignInUserRequest{}))
 

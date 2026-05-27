@@ -17,14 +17,12 @@ func NewUserHandler(svc service.UserUsecase) *UserHandler {
 }
 
 func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1.SignInUserRequest]) (*connect.Response[appv1.SignInUserResponse], error) {
-	user, err := requireAuthUser(ctx)
+	principal, err := requireUserPrincipal(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// displayName は Firebase 側のクレームに含まれていないため当面空のまま。
-	// 将来 ID トークンの name クレームから引くなら middleware で AuthUser に詰めること。
-	result, err := h.service.SignInUser(ctx, user.ID, user.Email, "")
+	result, err := h.service.SignInUser(ctx, principal.SubjectID, principal.Email, principal.DisplayName)
 	if err != nil {
 		return nil, toError(err)
 	}

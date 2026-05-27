@@ -9,7 +9,7 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
-	"github.com/synthify/backend/apps/api/internal/middleware"
+	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
@@ -177,7 +177,7 @@ func TestJobHandler_ListAllJobs_Unauthenticated(t *testing.T) {
 func TestJobHandler_ListAllJobs_NonAdminUser_ReturnsPermissionDenied(t *testing.T) {
 	store := mock.NewStore()
 	h := NewJobHandler(store, store, store, store, store, store, nil)
-	ctx := middleware.ContextWithUser(context.Background(), middleware.AuthUser{ID: "u1", Email: "u@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "u1", Email: "u@example.com"})
 	resp, err := h.ListAllJobs(ctx, connect.NewRequest(&appv1.ListAllJobsRequest{}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodePermissionDenied)
@@ -186,7 +186,7 @@ func TestJobHandler_ListAllJobs_NonAdminUser_ReturnsPermissionDenied(t *testing.
 func TestJobHandler_ListAllJobs_AdminUser_Allowed(t *testing.T) {
 	store := mock.NewStore()
 	h := NewJobHandler(store, store, store, store, store, store, nil)
-	ctx := middleware.ContextWithAdmin(context.Background(), middleware.AuthUser{ID: "admin", Email: "a@example.com"})
+	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "admin", Email: "a@example.com", Admin: true})
 	resp, err := h.ListAllJobs(ctx, connect.NewRequest(&appv1.ListAllJobsRequest{}))
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)

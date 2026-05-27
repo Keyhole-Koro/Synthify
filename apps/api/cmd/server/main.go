@@ -13,6 +13,7 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
+	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/config"
 	"github.com/synthify/backend/apps/api/internal/handler"
@@ -80,6 +81,15 @@ func main() {
 	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
 	userSvc := service.NewUserService(store, store, billingSvc, appLogger)
 	treeSvc := service.NewTreeService(store, store, appLogger)
+	authenticator, err := apiauth.NewFirebaseAuthenticator(apiauth.FirebaseAuthenticatorConfig{
+		ProjectID:        cfg.FirebaseProjectID,
+		ServiceToken:     cfg.Auth.ServiceToken,
+		AdminEmailsCSV:   cfg.Auth.AdminEmailsCSV,
+		AllowedEmailsCSV: cfg.Auth.AllowedEmailsCSV,
+	})
+	if err != nil {
+		log.Fatalf("authenticator init: %v", err)
+	}
 
 	documentHandler := handler.NewDocumentHandler(documentSvc, store)
 	treeHandler := handler.NewTreeHandler(treeSvc)
@@ -111,7 +121,7 @@ func main() {
 	// CORS must be outside of Auth to handle preflight (OPTIONS) requests
 	// without authentication.
 	var h http.Handler = mux
-	h = apimiddleware.WithAuth(cfg.FirebaseProjectID, appLogger, h)
+	h = apimiddleware.WithAuth(authenticator, appLogger, h)
 	h = apimiddleware.CORS(cfg.CORSAllowedOrigins, h)
 	h = apimiddleware.SecurityHeaders(h)
 	h = httpmiddleware.Logger(appLogger, h)

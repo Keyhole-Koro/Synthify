@@ -108,7 +108,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	}
 	defer tx.Rollback()
 
-	account, err := lockWorkspaceAccount(ctx, tx, wsID)
+	account, err := s.lockWorkspaceAccount(ctx, tx, wsID)
 	if err != nil {
 		s.logger.Error("repository.create_document_account_failed", "error", err.Error(), "workspace_id", wsID, "filename", filename)
 		return nil, repository.DocumentUploadTarget{}, err
@@ -117,7 +117,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		s.logger.Warn("repository.create_document_quota_rejected", "error", err.Error(), "workspace_id", wsID, "filename", filename, "file_size", fileSize)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
-	reserved, err := activeReservedBytes(ctx, tx, account.AccountID, createdAt)
+	reserved, err := s.activeReservedBytes(ctx, tx, account.AccountID, createdAt)
 	if err != nil {
 		s.logger.Error("repository.create_document_reservation_sum_failed", "error", err.Error(), "account_id", account.AccountID)
 		return nil, repository.DocumentUploadTarget{}, err
@@ -140,13 +140,15 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		s.logger.Error("repository.create_document_failed", "error", err.Error(), "workspace_id", wsID, "filename", filename)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO upload_reservations (
-  reservation_id, account_id, workspace_id, document_id, expected_size_bytes,
-  actual_size_bytes, status, expires_at, created_at
-)
-VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
-	`, reservationID, account.AccountID, wsID, docID, fileSize, expiresAt, createdAt); err != nil {
+	if err := s.q().WithTx(tx).CreateUploadReservation(ctx, sqlcgen.CreateUploadReservationParams{
+		ReservationID:     reservationID,
+		AccountID:         account.AccountID,
+		WorkspaceID:       wsID,
+		DocumentID:        docID,
+		ExpectedSizeBytes: fileSize,
+		ExpiresAt:         expiresAt,
+		CreatedAt:         createdAt,
+	}); err != nil {
 		s.logger.Error("repository.create_upload_reservation_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
@@ -178,134 +180,95 @@ func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, ac
 	}
 	defer tx.Rollback()
 
-	var accountID string
-	var expectedSize int64
-	var status string
-	var expiresAt time.Time
-	if err := tx.QueryRowContext(ctx, `
-SELECT account_id, expected_size_bytes, status, expires_at
-FROM upload_reservations
-WHERE document_id = $1
-FOR UPDATE
-`, documentID).Scan(&accountID, &expectedSize, &status, &expiresAt); err != nil {
-		if err == sql.ErrNoRows {
+	qtx := s.q().WithTx(tx)
+	reservation, err := qtx.LockUploadReservation(ctx, documentID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ErrUploadNotConfirmed
 		}
-		return err
+		return fmt.Errorf("lock upload reservation: %w", err)
 	}
-	if status == "confirmed" {
+	if reservation.Status == "confirmed" {
 		return nil
 	}
-	if status != "reserved" || nowTime().After(expiresAt) {
+	if reservation.Status != "reserved" || nowTime().After(reservation.ExpiresAt) {
 		return domain.ErrUploadNotConfirmed
 	}
-	if expectedSize != actualSize {
-		_, _ = tx.ExecContext(ctx, `
-UPDATE upload_reservations
-SET status = 'failed', actual_size_bytes = $2
-WHERE document_id = $1
-`, documentID, actualSize)
+	if reservation.ExpectedSizeBytes != actualSize {
+		_ = qtx.MarkUploadReservationFailed(ctx, sqlcgen.MarkUploadReservationFailedParams{
+			DocumentID:      documentID,
+			ActualSizeBytes: actualSize,
+		})
 		return domain.ErrUploadSizeMismatch
 	}
-	var storageUsed int64
-	var storageQuota int64
-	if err := tx.QueryRowContext(ctx, `
-SELECT storage_used_bytes, storage_quota_bytes
-FROM accounts
-WHERE account_id = $1
-FOR UPDATE
-`, accountID).Scan(&storageUsed, &storageQuota); err != nil {
-		if err == sql.ErrNoRows {
+	storage, err := qtx.LockAccountStorage(ctx, reservation.AccountID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return domain.ErrNotFound
 		}
-		return err
+		return fmt.Errorf("lock account storage: %w", err)
 	}
-	if storageUsed+actualSize > storageQuota {
+	if storage.StorageUsedBytes+actualSize > storage.StorageQuotaBytes {
 		return domain.ErrStorageQuotaExceeded
 	}
 	now := nowTime()
-	if _, err := tx.ExecContext(ctx, `
-UPDATE accounts
-SET storage_used_bytes = storage_used_bytes + $2,
-    updated_at = $3
-WHERE account_id = $1
-`, accountID, actualSize, now); err != nil {
-		return err
+	if err := qtx.IncrementAccountStorageUsed(ctx, sqlcgen.IncrementAccountStorageUsedParams{
+		AccountID:        reservation.AccountID,
+		StorageUsedBytes: actualSize,
+		UpdatedAt:        now,
+	}); err != nil {
+		return fmt.Errorf("increment account storage used: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `
-UPDATE upload_reservations
-SET status = 'confirmed',
-    actual_size_bytes = $2,
-    confirmed_at = $3
-WHERE document_id = $1
-`, documentID, actualSize, now); err != nil {
-		return err
+	if err := qtx.ConfirmUploadReservation(ctx, sqlcgen.ConfirmUploadReservationParams{
+		DocumentID:      documentID,
+		ActualSizeBytes: actualSize,
+		ConfirmedAt:     sql.NullTime{Time: now, Valid: true},
+	}); err != nil {
+		return fmt.Errorf("confirm upload reservation: %w", err)
 	}
 	return tx.Commit()
 }
 
 func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
-UPDATE upload_reservations
-SET status = 'expired'
-WHERE status = 'reserved' AND expires_at <= $1
-`, now)
+	rows, err := s.q().ExpireUploadReservations(ctx, now)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("expire upload reservations: %w", err)
 	}
-	return res.RowsAffected()
+	return rows, nil
 }
 
-func lockWorkspaceAccount(ctx context.Context, tx *sql.Tx, workspaceID string) (*domain.Account, error) {
-	var account domain.Account
-	var maxUploadsPer5h int32
-	var maxUploadsPerWeek int32
-	var createdAt time.Time
-	if err := tx.QueryRowContext(ctx, `
-SELECT a.account_id, a.name, a.plan, a.storage_quota_bytes, a.storage_used_bytes,
-       a.max_file_size_bytes, a.max_uploads_per_5h, a.max_uploads_per_1week,
-       a.stripe_customer_id, a.stripe_subscription_id, a.created_at
-FROM workspaces w
-JOIN accounts a ON a.account_id = w.account_id
-WHERE w.workspace_id = $1
-FOR UPDATE OF a
-`, workspaceID).Scan(
-		&account.AccountID,
-		&account.Name,
-		&account.Plan,
-		&account.StorageQuotaBytes,
-		&account.StorageUsedBytes,
-		&account.MaxFileSizeBytes,
-		&maxUploadsPer5h,
-		&maxUploadsPerWeek,
-		&account.StripeCustomerID,
-		&account.StripeSubscriptionID,
-		&createdAt,
-	); err != nil {
-		if err == sql.ErrNoRows {
+func (s *Store) lockWorkspaceAccount(ctx context.Context, tx *sql.Tx, workspaceID string) (*domain.Account, error) {
+	row, err := s.q().WithTx(tx).LockWorkspaceAccount(ctx, workspaceID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, domain.ErrNotFound
 		}
-		return nil, err
+		return nil, fmt.Errorf("lock workspace account: %w", err)
 	}
-	account.MaxUploadsPerFiveH = int64(maxUploadsPer5h)
-	account.MaxUploadsPerWeek = int64(maxUploadsPerWeek)
-	account.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-	return &account, nil
+	return &domain.Account{
+		AccountID:            row.AccountID,
+		Name:                 row.Name,
+		Plan:                 row.Plan,
+		StorageQuotaBytes:    row.StorageQuotaBytes,
+		StorageUsedBytes:     row.StorageUsedBytes,
+		MaxFileSizeBytes:     row.MaxFileSizeBytes,
+		MaxUploadsPerFiveH:   int64(row.MaxUploadsPer5h),
+		MaxUploadsPerWeek:    int64(row.MaxUploadsPer1week),
+		StripeCustomerID:     row.StripeCustomerID,
+		StripeSubscriptionID: row.StripeSubscriptionID,
+		CreatedAt:            row.CreatedAt.UTC().Format(time.RFC3339),
+	}, nil
 }
 
-func activeReservedBytes(ctx context.Context, tx *sql.Tx, accountID string, now time.Time) (int64, error) {
-	var reserved sql.NullInt64
-	if err := tx.QueryRowContext(ctx, `
-SELECT COALESCE(SUM(expected_size_bytes), 0)
-FROM upload_reservations
-WHERE account_id = $1 AND status = 'reserved' AND expires_at > $2
-`, accountID, now).Scan(&reserved); err != nil {
-		return 0, err
+func (s *Store) activeReservedBytes(ctx context.Context, tx *sql.Tx, accountID string, now time.Time) (int64, error) {
+	reserved, err := s.q().WithTx(tx).SumActiveReservedBytes(ctx, sqlcgen.SumActiveReservedBytesParams{
+		AccountID: accountID,
+		ExpiresAt: now,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("sum active reserved bytes: %w", err)
 	}
-	if !reserved.Valid {
-		return 0, nil
-	}
-	return reserved.Int64, nil
+	return reserved, nil
 }
 
 func validateUploadSize(account *domain.Account, fileSize int64) error {

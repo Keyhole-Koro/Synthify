@@ -7,8 +7,233 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
+
+const applyBillingEventByAccount = `-- name: ApplyBillingEventByAccount :execrows
+UPDATE accounts
+SET plan = CASE WHEN $1::text = '' THEN plan ELSE $1::text END,
+    storage_quota_bytes = CASE WHEN $1::text = '' THEN storage_quota_bytes ELSE $2::bigint END,
+    max_file_size_bytes = CASE WHEN $1::text = '' THEN max_file_size_bytes ELSE $3::bigint END,
+    max_uploads_per_5h = CASE WHEN $1::text = '' THEN max_uploads_per_5h ELSE $4::int END,
+    max_uploads_per_1week = CASE WHEN $1::text = '' THEN max_uploads_per_1week ELSE $5::int END,
+    stripe_customer_id = CASE WHEN $6::text = '' THEN stripe_customer_id ELSE $6::text END,
+    stripe_subscription_id = CASE WHEN $7::text = '' AND $1::text <> 'free' THEN stripe_subscription_id ELSE $7::text END,
+    billing_status = $8,
+    stripe_price_id = $9,
+    billing_currency = $10,
+    billing_amount_minor = $11,
+    billing_interval = $12,
+    current_period_end = $13,
+    cancel_at_period_end = $14,
+    billing_updated_at = $15::timestamptz,
+    updated_at = $15::timestamptz
+WHERE account_id = $16
+`
+
+type ApplyBillingEventByAccountParams struct {
+	Plan                 string
+	StorageQuotaBytes    int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	BillingStatus        string
+	StripePriceID        string
+	BillingCurrency      string
+	BillingAmountMinor   int64
+	BillingInterval      string
+	CurrentPeriodEnd     sql.NullTime
+	CancelAtPeriodEnd    bool
+	Now                  time.Time
+	AccountID            string
+}
+
+// ApplyBillingEvent の account_id 経路。
+// 空文字パラメータは既存値を保持する CASE で表現する。
+// plan が ” なら plan / quota 関連は据え置き。
+// stripe_subscription_id は plan!='free' の場合のみ「空なら据え置き」。
+func (q *Queries) ApplyBillingEventByAccount(ctx context.Context, arg ApplyBillingEventByAccountParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, applyBillingEventByAccount,
+		arg.Plan,
+		arg.StorageQuotaBytes,
+		arg.MaxFileSizeBytes,
+		arg.MaxUploadsPer5h,
+		arg.MaxUploadsPer1week,
+		arg.StripeCustomerID,
+		arg.StripeSubscriptionID,
+		arg.BillingStatus,
+		arg.StripePriceID,
+		arg.BillingCurrency,
+		arg.BillingAmountMinor,
+		arg.BillingInterval,
+		arg.CurrentPeriodEnd,
+		arg.CancelAtPeriodEnd,
+		arg.Now,
+		arg.AccountID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const applyBillingEventByStripeCustomer = `-- name: ApplyBillingEventByStripeCustomer :execrows
+UPDATE accounts
+SET plan = CASE WHEN $1::text = '' THEN plan ELSE $1::text END,
+    storage_quota_bytes = CASE WHEN $1::text = '' THEN storage_quota_bytes ELSE $2::bigint END,
+    max_file_size_bytes = CASE WHEN $1::text = '' THEN max_file_size_bytes ELSE $3::bigint END,
+    max_uploads_per_5h = CASE WHEN $1::text = '' THEN max_uploads_per_5h ELSE $4::int END,
+    max_uploads_per_1week = CASE WHEN $1::text = '' THEN max_uploads_per_1week ELSE $5::int END,
+    stripe_customer_id = CASE WHEN $6::text = '' THEN stripe_customer_id ELSE $6::text END,
+    stripe_subscription_id = CASE WHEN $7::text = '' AND $1::text <> 'free' THEN stripe_subscription_id ELSE $7::text END,
+    billing_status = $8,
+    stripe_price_id = $9,
+    billing_currency = $10,
+    billing_amount_minor = $11,
+    billing_interval = $12,
+    current_period_end = $13,
+    cancel_at_period_end = $14,
+    billing_updated_at = $15::timestamptz,
+    updated_at = $15::timestamptz
+WHERE stripe_customer_id = $16
+`
+
+type ApplyBillingEventByStripeCustomerParams struct {
+	Plan                     string
+	StorageQuotaBytes        int64
+	MaxFileSizeBytes         int64
+	MaxUploadsPer5h          int32
+	MaxUploadsPer1week       int32
+	StripeCustomerIDPassthru string
+	StripeSubscriptionID     string
+	BillingStatus            string
+	StripePriceID            string
+	BillingCurrency          string
+	BillingAmountMinor       int64
+	BillingInterval          string
+	CurrentPeriodEnd         sql.NullTime
+	CancelAtPeriodEnd        bool
+	Now                      time.Time
+	StripeCustomerIDMatch    string
+}
+
+// ApplyBillingEvent の stripe_customer_id 経路。account_id が未設定の webhook で使う。
+func (q *Queries) ApplyBillingEventByStripeCustomer(ctx context.Context, arg ApplyBillingEventByStripeCustomerParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, applyBillingEventByStripeCustomer,
+		arg.Plan,
+		arg.StorageQuotaBytes,
+		arg.MaxFileSizeBytes,
+		arg.MaxUploadsPer5h,
+		arg.MaxUploadsPer1week,
+		arg.StripeCustomerIDPassthru,
+		arg.StripeSubscriptionID,
+		arg.BillingStatus,
+		arg.StripePriceID,
+		arg.BillingCurrency,
+		arg.BillingAmountMinor,
+		arg.BillingInterval,
+		arg.CurrentPeriodEnd,
+		arg.CancelAtPeriodEnd,
+		arg.Now,
+		arg.StripeCustomerIDMatch,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const applyBillingPlan = `-- name: ApplyBillingPlan :execrows
+UPDATE accounts
+SET plan = $1::text,
+    storage_quota_bytes = $2::bigint,
+    max_file_size_bytes = $3::bigint,
+    max_uploads_per_5h = $4::int,
+    max_uploads_per_1week = $5::int,
+    stripe_customer_id = CASE WHEN $6::text = '' THEN stripe_customer_id ELSE $6::text END,
+    stripe_subscription_id = $7::text,
+    billing_status = CASE WHEN $1::text = 'free' THEN 'free' ELSE 'active' END,
+    billing_updated_at = $8::timestamptz,
+    updated_at = $8::timestamptz
+WHERE account_id = $9
+`
+
+type ApplyBillingPlanParams struct {
+	Plan                 string
+	StorageQuotaBytes    int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeCustomerID     string
+	StripeSubscriptionID string
+	Now                  time.Time
+	AccountID            string
+}
+
+// plan に応じた quota / 上限を一括で反映する。
+// stripe_customer_id は空文字なら既存値を保持 (CASE)。
+func (q *Queries) ApplyBillingPlan(ctx context.Context, arg ApplyBillingPlanParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, applyBillingPlan,
+		arg.Plan,
+		arg.StorageQuotaBytes,
+		arg.MaxFileSizeBytes,
+		arg.MaxUploadsPer5h,
+		arg.MaxUploadsPer1week,
+		arg.StripeCustomerID,
+		arg.StripeSubscriptionID,
+		arg.Now,
+		arg.AccountID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const applyBillingPlanByStripeCustomerID = `-- name: ApplyBillingPlanByStripeCustomerID :execrows
+UPDATE accounts
+SET plan = $1::text,
+    storage_quota_bytes = $2::bigint,
+    max_file_size_bytes = $3::bigint,
+    max_uploads_per_5h = $4::int,
+    max_uploads_per_1week = $5::int,
+    stripe_subscription_id = $6::text,
+    billing_status = CASE WHEN $1::text = 'free' THEN 'free' ELSE 'active' END,
+    billing_updated_at = $7::timestamptz,
+    updated_at = $7::timestamptz
+WHERE stripe_customer_id = $8
+`
+
+type ApplyBillingPlanByStripeCustomerIDParams struct {
+	Plan                 string
+	StorageQuotaBytes    int64
+	MaxFileSizeBytes     int64
+	MaxUploadsPer5h      int32
+	MaxUploadsPer1week   int32
+	StripeSubscriptionID string
+	Now                  time.Time
+	StripeCustomerID     string
+}
+
+func (q *Queries) ApplyBillingPlanByStripeCustomerID(ctx context.Context, arg ApplyBillingPlanByStripeCustomerIDParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, applyBillingPlanByStripeCustomerID,
+		arg.Plan,
+		arg.StorageQuotaBytes,
+		arg.MaxFileSizeBytes,
+		arg.MaxUploadsPer5h,
+		arg.MaxUploadsPer1week,
+		arg.StripeSubscriptionID,
+		arg.Now,
+		arg.StripeCustomerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
 
 const deductCredit = `-- name: DeductCredit :exec
 INSERT INTO account_credits
@@ -447,6 +672,67 @@ UPDATE accounts SET budget_exceeded = TRUE WHERE account_id = $1
 func (q *Queries) MarkAccountBudgetExceeded(ctx context.Context, accountID string) error {
 	_, err := q.db.ExecContext(ctx, markAccountBudgetExceeded, accountID)
 	return err
+}
+
+const markBillingWebhookEventProcessed = `-- name: MarkBillingWebhookEventProcessed :exec
+UPDATE billing_events
+SET processing_status = $3, error_message = $4, processed_at = $5
+WHERE provider = $1 AND event_id = $2
+`
+
+type MarkBillingWebhookEventProcessedParams struct {
+	Provider         string
+	EventID          string
+	ProcessingStatus string
+	ErrorMessage     string
+	ProcessedAt      sql.NullTime
+}
+
+func (q *Queries) MarkBillingWebhookEventProcessed(ctx context.Context, arg MarkBillingWebhookEventProcessedParams) error {
+	_, err := q.db.ExecContext(ctx, markBillingWebhookEventProcessed,
+		arg.Provider,
+		arg.EventID,
+		arg.ProcessingStatus,
+		arg.ErrorMessage,
+		arg.ProcessedAt,
+	)
+	return err
+}
+
+const recordBillingWebhookEvent = `-- name: RecordBillingWebhookEvent :execrows
+INSERT INTO billing_events (
+  provider, event_id, event_type, received_at, processing_status,
+  account_id, stripe_customer_id, stripe_subscription_id
+) VALUES ($1, $2, $3, $4, 'received', $5, $6, $7)
+ON CONFLICT (provider, event_id) DO NOTHING
+`
+
+type RecordBillingWebhookEventParams struct {
+	Provider             string
+	EventID              string
+	EventType            string
+	ReceivedAt           time.Time
+	AccountID            string
+	StripeCustomerID     string
+	StripeSubscriptionID string
+}
+
+// 重複 (provider, event_id) を ON CONFLICT で吸収。
+// 戻り値の rows_affected で「新規受信か既受信か」を判定する。
+func (q *Queries) RecordBillingWebhookEvent(ctx context.Context, arg RecordBillingWebhookEventParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, recordBillingWebhookEvent,
+		arg.Provider,
+		arg.EventID,
+		arg.EventType,
+		arg.ReceivedAt,
+		arg.AccountID,
+		arg.StripeCustomerID,
+		arg.StripeSubscriptionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const sumUsageCostByAccount = `-- name: SumUsageCostByAccount :one

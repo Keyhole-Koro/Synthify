@@ -18,9 +18,16 @@ type API struct {
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
+	Auth                     Auth
 	Stripe                   Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+}
+
+type Auth struct {
+	ServiceToken     string
+	AdminEmailsCSV   string
+	AllowedEmailsCSV string
 }
 
 type Stripe struct {
@@ -64,6 +71,11 @@ func LoadAPI() API {
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
+		Auth: Auth{
+			ServiceToken:     os.Getenv("SYNTHIFY_INTERNAL_SERVICE_TOKEN"),
+			AdminEmailsCSV:   os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"),
+			AllowedEmailsCSV: os.Getenv("SYNTHIFY_ALLOWED_USER_EMAILS"),
+		},
 		Stripe: Stripe{
 			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
 			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),

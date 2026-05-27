@@ -512,7 +512,7 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 	if ev == nil || ev.EventID == "" || ev.AccountID == "" || ev.Model == "" {
 		return nil, domain.ErrBillingUsageEventInvalid
 	}
-	// 認可は handler 側で middleware.IsServiceCall を要求済み (X-Synthify-Service-Token).
+	// 認可は handler 側で service principal を要求済み (X-Synthify-Service-Token).
 
 	// When the usage repository is not wired (early dev), keep the legacy logging stub
 	// so the worker pipeline still flows; still attempt to push to Stripe meter.
