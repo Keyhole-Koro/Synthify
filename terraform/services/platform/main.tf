@@ -156,6 +156,12 @@ resource "google_storage_bucket_iam_member" "api_uploads_writer" {
   member = "serviceAccount:${module.api_service_account.email}"
 }
 
+resource "google_storage_bucket_iam_member" "api_uploads_reader" {
+  bucket = module.uploads_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.api_service_account.email}"
+}
+
 # The worker mounts this bucket read-only via gcsfuse and reads uploaded
 # source files as local files. Without object-read access the mount exists
 # but every read fails, so this binding is required, not optional.
