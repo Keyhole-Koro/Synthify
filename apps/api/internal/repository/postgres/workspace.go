@@ -17,8 +17,8 @@ var defaultFreePlan = struct {
 	MaxUploadsPer5h   int64
 	MaxUploadsPerWeek int64
 }{
-	StorageQuotaBytes: 5 * 1 << 30, // 5GB
-	MaxFileSizeBytes:  100 << 20,   // 100MB
+	StorageQuotaBytes: 1 << 19,   // 0.5MB
+	MaxFileSizeBytes:  100 << 20, // 100MB
 	MaxUploadsPer5h:   20,
 	MaxUploadsPerWeek: 100,
 }
