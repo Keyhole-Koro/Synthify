@@ -20,3 +20,9 @@ variable "versioning" {
   type        = bool
   default     = true
 }
+
+variable "cors_origins" {
+  description = "Browser origins allowed to upload directly to this bucket via signed URLs."
+  type        = list(string)
+  default     = []
+}

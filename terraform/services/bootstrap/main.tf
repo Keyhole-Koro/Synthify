@@ -7,10 +7,11 @@
 module "platform" {
   source = "../platform"
 
-  project_id          = var.project_id
-  region              = var.region
-  environment         = var.environment
-  uploads_bucket_name = var.uploads_bucket_name
+  project_id                  = var.project_id
+  region                      = var.region
+  environment                 = var.environment
+  uploads_bucket_name         = var.uploads_bucket_name
+  uploads_bucket_cors_origins = var.uploads_bucket_cors_origins
 }
 
 # Signed upload URLs use IAM SignBlob when no private key is provided

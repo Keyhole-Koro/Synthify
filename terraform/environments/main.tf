@@ -6,13 +6,14 @@ provider "google" {
 module "bootstrap" {
   source = "../services/bootstrap"
 
-  project_id             = var.project_id
-  region                 = var.region
-  environment            = var.environment
-  uploads_bucket_name    = local.uploads_bucket_name
-  deployer_principal     = var.deployer_principal
-  deployer_project_roles = var.deployer_project_roles
-  gcs_upload_issuer      = var.gcs_upload_issuer
+  project_id                  = var.project_id
+  region                      = var.region
+  environment                 = var.environment
+  uploads_bucket_name         = local.uploads_bucket_name
+  uploads_bucket_cors_origins = local.cors_allowed_origin_list
+  deployer_principal          = var.deployer_principal
+  deployer_project_roles      = var.deployer_project_roles
+  gcs_upload_issuer           = var.gcs_upload_issuer
 }
 
 module "worker" {

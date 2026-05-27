@@ -47,6 +47,11 @@ locals {
     var.cors_allowed_origins != "" ? var.cors_allowed_origins : local.default_cors_allowed_origins
   )
 
+  cors_allowed_origin_list = distinct([
+    for origin in split(",", local.cors_allowed_origins) : trimspace(origin)
+    if trimspace(origin) != ""
+  ])
+
   billing_success_url = (
     var.billing_success_url != "" ? var.billing_success_url :
     "${local.web_base_url}/workspaces?billing=success"

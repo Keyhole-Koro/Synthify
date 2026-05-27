@@ -12,9 +12,10 @@ resource "google_project_service" "required" {
 module "uploads_bucket" {
   source = "../../modules/gcs_bucket"
 
-  project_id = var.project_id
-  name       = var.uploads_bucket_name
-  location   = var.region
+  project_id   = var.project_id
+  name         = var.uploads_bucket_name
+  location     = var.region
+  cors_origins = var.uploads_bucket_cors_origins
 
   depends_on = [google_project_service.required]
 }

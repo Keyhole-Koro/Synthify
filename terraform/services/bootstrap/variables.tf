@@ -14,6 +14,12 @@ variable "uploads_bucket_name" {
   type = string
 }
 
+variable "uploads_bucket_cors_origins" {
+  description = "Browser origins allowed to upload directly to the uploads bucket via signed URLs."
+  type        = list(string)
+  default     = []
+}
+
 # CI/WIF principal that runs terraform apply. Empty => skip the deployer
 # bindings (a human with broad IAM applying locally doesn't need them).
 variable "deployer_principal" {
