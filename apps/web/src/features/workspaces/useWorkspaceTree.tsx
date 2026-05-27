@@ -107,7 +107,20 @@ export function useWorkspaceTree(
     const workspace = workspacesRef.current.find((candidate) => candidate.workspaceId === workspaceId) ||
                       newlyCreatedWorkspacesRef.current.get(workspaceId);
     if (!workspace) {
-      throw new Error(`workspace not found: ${workspaceId}`);
+      return {
+        id: workspaceId,
+        title: '不明なワークスペース',
+        description: 'ワークスペースが見つかりません',
+        hue: 0,
+        parentId: WORKSPACES_ID,
+        childIds: [],
+        content: (
+          <div className="flex flex-col gap-2 p-4 text-center">
+            <p className="text-sm font-medium text-slate-500">ワークスペースが見つかりません。</p>
+            <p className="text-xs text-slate-400">削除されたか、アクセス権限がない可能性があります。</p>
+          </div>
+        ),
+      };
     }
     const workspaceName = workspace.name || getWorkspaceName(workspaceId);
     return {
@@ -265,8 +278,17 @@ export function useWorkspaceTree(
     const rootOpenIds = expansionMap.get(ROOT_ID)?.openChildIds ?? [];
     if (!rootOpenIds.includes(WORKSPACES_ID)) return;
 
+    const validWorkspaceIds = new Set([
+      ...workspaces.map((workspace) => workspace.workspaceId),
+      ...newlyCreatedWorkspacesRef.current.keys(),
+    ]);
     const workspacesOpenIds = expansionMap.get(WORKSPACES_ID)?.openChildIds ?? [];
-    for (const workspaceId of workspacesOpenIds) {
+    const validOpenWorkspaceIds = workspacesOpenIds.filter((workspaceId) => validWorkspaceIds.has(workspaceId));
+    if (validOpenWorkspaceIds.length !== workspacesOpenIds.length) {
+      onExpansionMapChange(setOpenChildren(WORKSPACES_ID, validOpenWorkspaceIds, expansionMap));
+    }
+
+    for (const workspaceId of validOpenWorkspaceIds) {
       if (!initializedWorkspacesRef.current.has(workspaceId)) {
         void handleOpenWorkspace(workspaceId);
       }

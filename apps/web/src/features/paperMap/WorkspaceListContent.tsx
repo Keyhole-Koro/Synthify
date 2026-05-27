@@ -3,17 +3,27 @@ import { type Workspace } from '@/features/workspaces/api';
 import { WorkspaceItemList } from './components/WorkspaceItemList';
 import { CreateWorkspaceForm } from './components/CreateWorkspaceForm';
 import { WorkspaceError } from './components/WorkspaceError';
+import { type AppError } from '@/lib/errors';
 
 interface Props {
   workspaces: Workspace[];
   loading: boolean;
-  error?: Error | null;
+  error?: AppError | null;
   onOpenWorkspace: (workspaceId: string) => void;
   onCreateWorkspace: (name: string) => Promise<void>;
+  onRetry: () => void;
   onLogout: () => void;
 }
 
-export function WorkspaceListContent({ workspaces, loading, error, onOpenWorkspace, onCreateWorkspace, onLogout }: Props) {
+export function WorkspaceListContent({
+  workspaces,
+  loading,
+  error,
+  onOpenWorkspace,
+  onCreateWorkspace,
+  onRetry,
+  onLogout,
+}: Props) {
   const [creating, setCreating] = useState(false);
 
   function stop(e: React.PointerEvent) { e.stopPropagation(); }
@@ -28,7 +38,7 @@ export function WorkspaceListContent({ workspaces, loading, error, onOpenWorkspa
   }
 
   if (error) {
-    return <WorkspaceError onLogout={onLogout} />;
+    return <WorkspaceError error={error} onRetry={onRetry} onLogout={onLogout} />;
   }
 
   return (

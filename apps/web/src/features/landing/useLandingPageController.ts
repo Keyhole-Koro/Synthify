@@ -19,8 +19,10 @@ export function useLandingPageController() {
     loading,
     workspaces,
     workspaceError,
+    authError,
     setWorkspaces,
     handleGoogleSubmit,
+    retryWorkspaces,
   } = useAuthState();
   const [canvasFullscreen, setCanvasFullscreen] = useState(false);
   const [workspacePaperGroups, setWorkspacePaperGroups] = useState<Map<string, Paper[]>>(new Map());
@@ -125,6 +127,7 @@ export function useLandingPageController() {
     loading,
     workspaces,
     workspaceError,
+    authError,
     workspacePaperGroups,
     handleGoogleSubmit,
     handleLogout,
@@ -134,6 +137,7 @@ export function useLandingPageController() {
     handleSuggestedWorkspaceName: handleAutoNameWorkspace,
     handleOpenWorkspace,
     buildWsPaper,
+    onRetryWorkspaces: retryWorkspaces,
   });
 
   return {

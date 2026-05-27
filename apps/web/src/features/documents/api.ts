@@ -2,6 +2,7 @@ import { createRPCClient } from '@/lib/connect';
 import { DocumentService } from '@/gen/proto/synthify/app/v1/document_pb';
 import type { Document } from '@/gen/proto/synthify/app/v1/document_pb';
 import type { Job } from '@/gen/proto/synthify/app/v1/job_pb';
+import { createAppError } from '@/lib/errors';
 
 export type { Document } from '@/gen/proto/synthify/app/v1/document_pb';
 export { DocumentLifecycleState } from '@/gen/proto/synthify/app/v1/document_pb';
@@ -61,12 +62,31 @@ export async function uploadFile(
   method = 'PUT',
   contentType = file.type || 'application/octet-stream',
 ): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method,
-    headers: { 'Content-Type': contentType },
-    body: file,
-  });
-  if (!res.ok) {
-    throw new Error(`Upload failed: ${res.status}`);
+  try {
+    const res = await fetch(uploadUrl, {
+      method,
+      headers: { 'Content-Type': contentType },
+      body: file,
+    });
+    if (!res.ok) {
+      throw createAppError({
+        kind: res.status === 413 ? 'validation' : res.status >= 500 ? 'server' : 'unknown',
+        message: `アップロードに失敗しました (Status: ${res.status})`,
+        retryable: res.status >= 500,
+        code: res.status === 413 ? 'FILE_TOO_LARGE' : 'UPLOAD_FAILED',
+        status: res.status,
+      });
+    }
+  } catch (err) {
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw createAppError({
+        kind: 'network',
+        message: 'アップロード中にネットワークエラーが発生しました。',
+        retryable: true,
+        code: 'NETWORK_ERROR',
+        cause: err,
+      });
+    }
+    throw err;
   }
 }

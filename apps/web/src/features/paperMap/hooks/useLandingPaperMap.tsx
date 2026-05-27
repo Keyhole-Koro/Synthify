@@ -15,11 +15,14 @@ import { Workspace } from '@/features/workspaces/api';
 import { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
 import { AUTH_ID, ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 
+import { type AppError } from '@/lib/errors';
+
 interface UseLandingPaperMapProps {
   user: AuthUser | null;
   loading: boolean;
   workspaces: Workspace[];
-  workspaceError: Error | null;
+  workspaceError: AppError | null;
+  authError: AppError | null;
   workspacePaperGroups: Map<string, Paper[]>;
   handleGoogleSubmit: () => void;
   handleLogout: () => void;
@@ -28,6 +31,7 @@ interface UseLandingPaperMapProps {
   handleRootUploadComplete: (workspaceId: string) => Promise<void>;
   handleSuggestedWorkspaceName: (workspaceId: string, name: string) => Promise<void>;
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
+  onRetryWorkspaces: () => void;
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
 }
 
@@ -678,6 +682,7 @@ export function useLandingPaperMap({
   loading,
   workspaces,
   workspaceError,
+  authError,
   workspacePaperGroups,
   handleGoogleSubmit,
   handleLogout,
@@ -686,6 +691,7 @@ export function useLandingPaperMap({
   handleRootUploadComplete,
   handleSuggestedWorkspaceName,
   handleOpenWorkspace,
+  onRetryWorkspaces,
   buildWsPaper,
 }: UseLandingPaperMapProps) {
   const paperMap = useMemo<PaperMap>(() => {
@@ -771,6 +777,7 @@ export function useLandingPaperMap({
         <AuthPaper
           user={user}
           loading={loading}
+          error={authError}
           onGoogleSubmit={handleGoogleSubmit}
           onLogout={handleLogout}
         />
@@ -792,6 +799,7 @@ export function useLandingPaperMap({
             error={workspaceError}
             onOpenWorkspace={handleOpenWorkspace}
             onCreateWorkspace={handleCreateWorkspace}
+            onRetry={onRetryWorkspaces}
             onLogout={handleLogout}
           />
         ),
@@ -893,10 +901,10 @@ export function useLandingPaperMap({
 
     return map;
   }, [
-    user, workspaces, workspaceError, loading,
+    user, workspaces, workspaceError, authError, loading,
     handleGoogleSubmit, handleLogout, handleCreateWorkspace,
     handleRootUpload, handleRootUploadComplete, handleSuggestedWorkspaceName,
-    handleOpenWorkspace, buildWsPaper,
+    handleOpenWorkspace, buildWsPaper, onRetryWorkspaces,
     workspacePaperGroups,
   ]);
 

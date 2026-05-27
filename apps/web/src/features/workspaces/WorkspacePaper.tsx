@@ -8,6 +8,8 @@ import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { type Workspace } from '@/features/workspaces/api';
+import { InlineError } from '@/components/error/InlineError';
+import { toAppError } from '@/lib/error_normalize';
 
 interface WorkspacePaperProps {
   workspace: Workspace;
@@ -66,7 +68,8 @@ export function WorkspacePaper({
       setEditingName(false);
     } catch (err) {
       console.error('Rename workspace failed:', err);
-      setNameError('名前の変更に失敗しました。');
+      const appErr = toAppError(err);
+      setNameError(appErr.message);
     } finally {
       setSavingName(false);
     }
@@ -83,7 +86,8 @@ export function WorkspacePaper({
       setUploadMessage('アップロードしました。解析を開始します。');
     } catch (err) {
       console.error('Upload failed:', err);
-      setUploadMessage('アップロードに失敗しました。時間をおいて再試行してください。');
+      const appErr = toAppError(err);
+      setUploadMessage(appErr.message);
     } finally {
       setUploading(false);
     }
@@ -168,7 +172,7 @@ export function WorkspacePaper({
               setDraftName(workspaceName);
             }}
           />
-          {nameError && <p className="-mt-2 px-5 pb-2 text-[11px] text-red-400">{nameError}</p>}
+          {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
         </>
       )}
 
@@ -220,7 +224,7 @@ export function WorkspacePaper({
                   {workspaceName}
                 </button>
               )}
-              {nameError && <p className="mt-1 text-[11px] text-red-400">{nameError}</p>}
+              {nameError && <InlineError message={nameError} className="mt-1" />}
             </div>
           )}
 
@@ -233,7 +237,7 @@ export function WorkspacePaper({
               uploading={uploading}
               activeJobId={activeJobId}
               isDragging={isDragging}
-              jobStatusMessage={jobStatusError ?? jobStatus?.message}
+              jobStatusMessage={jobStatusError?.message ?? jobStatus?.message}
               jobStatusProgress={jobStatus?.progress}
               jobStatusFailed={jobStatus?.status === 'failed'}
               onDragOver={handleDragOver}
@@ -243,18 +247,21 @@ export function WorkspacePaper({
             />
 
             {uploadMessage && (
-              <p className={[
-                'mt-2.5 text-center text-[11px]',
-                uploadMessage.includes('失敗') ? 'text-red-400' : 'text-indigo-500',
-              ].join(' ')}>
-                {uploadMessage}
-              </p>
+              <div className="mt-2.5 text-center">
+                {uploadMessage.includes('失敗') || uploadMessage.includes('エラー') ? (
+                  <InlineError message={uploadMessage} className="justify-center" />
+                ) : (
+                  <p className="text-[11px] text-indigo-500">
+                    {uploadMessage}
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Progress: populated mode only (empty mode shows it inline inside the drop zone) */}
             {isPopulated && (jobStatus || jobStatusError) && (
               <WorkspaceJobProgress
-                message={jobStatusError ?? jobStatus?.message}
+                message={jobStatusError?.message ?? jobStatus?.message}
                 progress={jobStatus?.progress}
                 isFailed={jobStatus?.status === 'failed'}
               />
@@ -262,7 +269,7 @@ export function WorkspacePaper({
 
             <WorkspaceJobList
               workspaceJobs={workspaceJobs}
-              workspaceJobsError={workspaceJobsError}
+              workspaceJobsError={workspaceJobsError?.message ?? null}
             />
           </div>
         </div>

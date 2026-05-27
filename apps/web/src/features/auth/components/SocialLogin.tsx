@@ -1,11 +1,14 @@
 import React from 'react';
+import { InlineError } from '@/components/error/InlineError';
+import { type AppError } from '@/lib/errors';
 
 interface SocialLoginProps {
   loading: boolean;
+  error?: AppError | null;
   onGoogleSubmit: () => void;
 }
 
-export function SocialLogin({ loading, onGoogleSubmit }: SocialLoginProps) {
+export function SocialLogin({ loading, error, onGoogleSubmit }: SocialLoginProps) {
   function stop(e: React.PointerEvent) { e.stopPropagation(); }
 
   return (
@@ -16,6 +19,13 @@ export function SocialLogin({ loading, onGoogleSubmit }: SocialLoginProps) {
         <span className="text-[10px] font-medium text-stone-300">または</span>
         <div className="h-px flex-1 bg-stone-100" />
       </div>
+
+      {error && (
+        <InlineError
+          message={error.message}
+          className="justify-center"
+        />
+      )}
 
       {/* Google */}
       <button

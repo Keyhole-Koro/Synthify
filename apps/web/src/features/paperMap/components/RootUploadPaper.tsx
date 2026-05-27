@@ -82,7 +82,7 @@ export function RootUploadPaper({
         uploading={uploading}
         activeJobId={activeJob?.jobId ?? null}
         isDragging={isDragging}
-        jobStatusMessage={jobStatusError ?? jobStatus?.message}
+        jobStatusMessage={jobStatusError?.message ?? jobStatus?.message}
         jobStatusProgress={jobStatus?.progress}
         jobStatusFailed={jobStatus?.status === 'failed'}
         onDragOver={(e) => {
