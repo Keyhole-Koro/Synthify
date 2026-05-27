@@ -7,7 +7,6 @@ package sqlcgen
 
 import (
 	"context"
-	"database/sql"
 	"time"
 )
 
@@ -57,10 +56,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 }
 
 const getAccount = `-- name: GetAccount :one
-SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
-       max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
-       billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
-       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes, max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id, created_at, updated_at
 FROM accounts
 WHERE account_id = $1
 `
@@ -76,15 +72,8 @@ type GetAccountRow struct {
 	MaxUploadsPer1week   int32
 	StripeCustomerID     string
 	StripeSubscriptionID string
-	BillingStatus        string
-	StripePriceID        string
-	BillingCurrency      string
-	BillingAmountMinor   int64
-	BillingInterval      string
-	CurrentPeriodEnd     sql.NullTime
-	CancelAtPeriodEnd    bool
-	BillingUpdatedAt     sql.NullTime
 	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 func (q *Queries) GetAccount(ctx context.Context, accountID string) (GetAccountRow, error) {
@@ -101,15 +90,8 @@ func (q *Queries) GetAccount(ctx context.Context, accountID string) (GetAccountR
 		&i.MaxUploadsPer1week,
 		&i.StripeCustomerID,
 		&i.StripeSubscriptionID,
-		&i.BillingStatus,
-		&i.StripePriceID,
-		&i.BillingCurrency,
-		&i.BillingAmountMinor,
-		&i.BillingInterval,
-		&i.CurrentPeriodEnd,
-		&i.CancelAtPeriodEnd,
-		&i.BillingUpdatedAt,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -257,49 +239,6 @@ func (q *Queries) GetWorkspace(ctx context.Context, workspaceID string) (GetWork
 	return i, err
 }
 
-const getWorkspaceWithAccount = `-- name: GetWorkspaceWithAccount :one
-SELECT w.workspace_id, w.account_id, w.name, w.created_at,
-       a.plan, a.storage_used_bytes, a.storage_quota_bytes, a.max_file_size_bytes,
-       a.max_uploads_per_5h, a.max_uploads_per_1week
-FROM workspaces w
-JOIN accounts a ON a.account_id = w.account_id
-WHERE w.workspace_id = $1
-`
-
-type GetWorkspaceWithAccountRow struct {
-	WorkspaceID        string
-	AccountID          string
-	Name               string
-	CreatedAt          time.Time
-	Plan               string
-	StorageUsedBytes   int64
-	StorageQuotaBytes  int64
-	MaxFileSizeBytes   int64
-	MaxUploadsPer5h    int32
-	MaxUploadsPer1week int32
-}
-
-// workspace と所属 account の plan/quota を 1 行で返す。
-// repo 層は account 情報を含む domain.Workspace を返す必要があるため
-// このバリエーションを使う。account 情報が要らない場合は GetWorkspace を使う。
-func (q *Queries) GetWorkspaceWithAccount(ctx context.Context, workspaceID string) (GetWorkspaceWithAccountRow, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceWithAccount, workspaceID)
-	var i GetWorkspaceWithAccountRow
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.AccountID,
-		&i.Name,
-		&i.CreatedAt,
-		&i.Plan,
-		&i.StorageUsedBytes,
-		&i.StorageQuotaBytes,
-		&i.MaxFileSizeBytes,
-		&i.MaxUploadsPer5h,
-		&i.MaxUploadsPer1week,
-	)
-	return i, err
-}
-
 const isAccountAccessible = `-- name: IsAccountAccessible :one
 SELECT EXISTS(
   SELECT 1 FROM account_users
@@ -337,82 +276,6 @@ func (q *Queries) IsWorkspaceAccessible(ctx context.Context, arg IsWorkspaceAcce
 	var accessible bool
 	err := row.Scan(&accessible)
 	return accessible, err
-}
-
-const listStripeLinkedAccounts = `-- name: ListStripeLinkedAccounts :many
-SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
-       max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
-       billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
-       current_period_end, cancel_at_period_end, billing_updated_at, created_at
-FROM accounts
-WHERE stripe_customer_id <> ''
-ORDER BY updated_at ASC
-LIMIT $1
-`
-
-type ListStripeLinkedAccountsRow struct {
-	AccountID            string
-	Name                 string
-	Plan                 string
-	StorageQuotaBytes    int64
-	StorageUsedBytes     int64
-	MaxFileSizeBytes     int64
-	MaxUploadsPer5h      int32
-	MaxUploadsPer1week   int32
-	StripeCustomerID     string
-	StripeSubscriptionID string
-	BillingStatus        string
-	StripePriceID        string
-	BillingCurrency      string
-	BillingAmountMinor   int64
-	BillingInterval      string
-	CurrentPeriodEnd     sql.NullTime
-	CancelAtPeriodEnd    bool
-	BillingUpdatedAt     sql.NullTime
-	CreatedAt            time.Time
-}
-
-func (q *Queries) ListStripeLinkedAccounts(ctx context.Context, limit int32) ([]ListStripeLinkedAccountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listStripeLinkedAccounts, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListStripeLinkedAccountsRow
-	for rows.Next() {
-		var i ListStripeLinkedAccountsRow
-		if err := rows.Scan(
-			&i.AccountID,
-			&i.Name,
-			&i.Plan,
-			&i.StorageQuotaBytes,
-			&i.StorageUsedBytes,
-			&i.MaxFileSizeBytes,
-			&i.MaxUploadsPer5h,
-			&i.MaxUploadsPer1week,
-			&i.StripeCustomerID,
-			&i.StripeSubscriptionID,
-			&i.BillingStatus,
-			&i.StripePriceID,
-			&i.BillingCurrency,
-			&i.BillingAmountMinor,
-			&i.BillingInterval,
-			&i.CurrentPeriodEnd,
-			&i.CancelAtPeriodEnd,
-			&i.BillingUpdatedAt,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listWorkspacesByUser = `-- name: ListWorkspacesByUser :many
@@ -456,130 +319,6 @@ func (q *Queries) ListWorkspacesByUser(ctx context.Context, userID string) ([]Li
 		return nil, err
 	}
 	return items, nil
-}
-
-const listWorkspacesByUserWithAccount = `-- name: ListWorkspacesByUserWithAccount :many
-SELECT w.workspace_id, w.account_id, w.name, w.created_at,
-       a.plan, a.storage_used_bytes, a.storage_quota_bytes, a.max_file_size_bytes,
-       a.max_uploads_per_5h, a.max_uploads_per_1week
-FROM workspaces w
-JOIN account_users au ON au.account_id = w.account_id
-JOIN accounts a ON a.account_id = w.account_id
-WHERE au.user_id = $1
-ORDER BY w.created_at DESC
-`
-
-type ListWorkspacesByUserWithAccountRow struct {
-	WorkspaceID        string
-	AccountID          string
-	Name               string
-	CreatedAt          time.Time
-	Plan               string
-	StorageUsedBytes   int64
-	StorageQuotaBytes  int64
-	MaxFileSizeBytes   int64
-	MaxUploadsPer5h    int32
-	MaxUploadsPer1week int32
-}
-
-func (q *Queries) ListWorkspacesByUserWithAccount(ctx context.Context, userID string) ([]ListWorkspacesByUserWithAccountRow, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkspacesByUserWithAccount, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListWorkspacesByUserWithAccountRow
-	for rows.Next() {
-		var i ListWorkspacesByUserWithAccountRow
-		if err := rows.Scan(
-			&i.WorkspaceID,
-			&i.AccountID,
-			&i.Name,
-			&i.CreatedAt,
-			&i.Plan,
-			&i.StorageUsedBytes,
-			&i.StorageQuotaBytes,
-			&i.MaxFileSizeBytes,
-			&i.MaxUploadsPer5h,
-			&i.MaxUploadsPer1week,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const lockWorkspaceAccount = `-- name: LockWorkspaceAccount :one
-SELECT a.account_id, a.name, a.plan, a.storage_quota_bytes, a.storage_used_bytes,
-       a.max_file_size_bytes, a.max_uploads_per_5h, a.max_uploads_per_1week,
-       a.stripe_customer_id, a.stripe_subscription_id, a.created_at
-FROM workspaces w
-JOIN accounts a ON a.account_id = w.account_id
-WHERE w.workspace_id = $1
-FOR UPDATE OF a
-`
-
-type LockWorkspaceAccountRow struct {
-	AccountID            string
-	Name                 string
-	Plan                 string
-	StorageQuotaBytes    int64
-	StorageUsedBytes     int64
-	MaxFileSizeBytes     int64
-	MaxUploadsPer5h      int32
-	MaxUploadsPer1week   int32
-	StripeCustomerID     string
-	StripeSubscriptionID string
-	CreatedAt            time.Time
-}
-
-// workspace から所属 account を取得しつつ accounts 行を FOR UPDATE で
-// ロックする。upload reservation 等で account 単位の整合性を保つ用途。
-// 呼び出し側は事前に tx を握り、q().WithTx(tx) 経由で呼ぶこと。
-func (q *Queries) LockWorkspaceAccount(ctx context.Context, workspaceID string) (LockWorkspaceAccountRow, error) {
-	row := q.db.QueryRowContext(ctx, lockWorkspaceAccount, workspaceID)
-	var i LockWorkspaceAccountRow
-	err := row.Scan(
-		&i.AccountID,
-		&i.Name,
-		&i.Plan,
-		&i.StorageQuotaBytes,
-		&i.StorageUsedBytes,
-		&i.MaxFileSizeBytes,
-		&i.MaxUploadsPer5h,
-		&i.MaxUploadsPer1week,
-		&i.StripeCustomerID,
-		&i.StripeSubscriptionID,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const setAccountStripeCustomerID = `-- name: SetAccountStripeCustomerID :execrows
-UPDATE accounts
-SET stripe_customer_id = $2, updated_at = $3
-WHERE account_id = $1
-`
-
-type SetAccountStripeCustomerIDParams struct {
-	AccountID        string
-	StripeCustomerID string
-	UpdatedAt        time.Time
-}
-
-func (q *Queries) SetAccountStripeCustomerID(ctx context.Context, arg SetAccountStripeCustomerIDParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, setAccountStripeCustomerID, arg.AccountID, arg.StripeCustomerID, arg.UpdatedAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :execrows

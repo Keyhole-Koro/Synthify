@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
@@ -86,38 +85,21 @@ func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Accou
 }
 
 func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Account, error) {
-	row, err := s.q().GetAccount(ctx, accountID)
+	account, err := s.scanAccount(ctx, `
+SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
+       max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
+       billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+FROM accounts
+WHERE account_id = $1
+`, accountID)
+	if err == sql.ErrNoRows {
+		return nil, domain.ErrNotFound
+	}
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrNotFound
-		}
-		return nil, fmt.Errorf("get account: %w", err)
+		return nil, err
 	}
-	return accountFromGetAccountRow(row), nil
-}
-
-func accountFromGetAccountRow(row sqlcgen.GetAccountRow) *domain.Account {
-	return &domain.Account{
-		AccountID:            row.AccountID,
-		Name:                 row.Name,
-		Plan:                 row.Plan,
-		StorageQuotaBytes:    row.StorageQuotaBytes,
-		StorageUsedBytes:     row.StorageUsedBytes,
-		MaxFileSizeBytes:     row.MaxFileSizeBytes,
-		MaxUploadsPerFiveH:   int64(row.MaxUploadsPer5h),
-		MaxUploadsPerWeek:    int64(row.MaxUploadsPer1week),
-		StripeCustomerID:     row.StripeCustomerID,
-		StripeSubscriptionID: row.StripeSubscriptionID,
-		BillingStatus:        row.BillingStatus,
-		StripePriceID:        row.StripePriceID,
-		BillingCurrency:      row.BillingCurrency,
-		BillingAmountMinor:   row.BillingAmountMinor,
-		BillingInterval:      row.BillingInterval,
-		CurrentPeriodEnd:     formatNullTime(row.CurrentPeriodEnd),
-		CancelAtPeriodEnd:    row.CancelAtPeriodEnd,
-		BillingUpdatedAt:     formatNullTime(row.BillingUpdatedAt),
-		CreatedAt:            row.CreatedAt.UTC().Format(time.RFC3339),
-	}
+	return account, nil
 }
 
 func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
@@ -132,13 +114,17 @@ func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID strin
 }
 
 func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error {
-	rows, err := s.q().SetAccountStripeCustomerID(ctx, sqlcgen.SetAccountStripeCustomerIDParams{
-		AccountID:        accountID,
-		StripeCustomerID: stripeCustomerID,
-		UpdatedAt:        nowTime(),
-	})
+	res, err := s.db.ExecContext(ctx, `
+UPDATE accounts
+SET stripe_customer_id = $2, updated_at = $3
+WHERE account_id = $1
+`, accountID, stripeCustomerID, nowTime())
 	if err != nil {
-		return fmt.Errorf("set account stripe customer id: %w", err)
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
 	}
 	if rows == 0 {
 		return domain.ErrNotFound
@@ -150,39 +136,32 @@ func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*dom
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := s.q().ListStripeLinkedAccounts(ctx, int32(limit))
+	rows, err := s.db.QueryContext(ctx, `
+SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
+       max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
+       billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+FROM accounts
+WHERE stripe_customer_id <> ''
+ORDER BY updated_at ASC
+LIMIT $1
+`, limit)
 	if err != nil {
-		return nil, fmt.Errorf("list stripe linked accounts: %w", err)
+		return nil, err
 	}
-	accounts := make([]*domain.Account, 0, len(rows))
-	for _, row := range rows {
-		accounts = append(accounts, accountFromStripeLinkedRow(row))
+	defer rows.Close()
+	accounts := make([]*domain.Account, 0, limit)
+	for rows.Next() {
+		account, err := scanAccountRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, account)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	return accounts, nil
-}
-
-func accountFromStripeLinkedRow(row sqlcgen.ListStripeLinkedAccountsRow) *domain.Account {
-	return &domain.Account{
-		AccountID:            row.AccountID,
-		Name:                 row.Name,
-		Plan:                 row.Plan,
-		StorageQuotaBytes:    row.StorageQuotaBytes,
-		StorageUsedBytes:     row.StorageUsedBytes,
-		MaxFileSizeBytes:     row.MaxFileSizeBytes,
-		MaxUploadsPerFiveH:   int64(row.MaxUploadsPer5h),
-		MaxUploadsPerWeek:    int64(row.MaxUploadsPer1week),
-		StripeCustomerID:     row.StripeCustomerID,
-		StripeSubscriptionID: row.StripeSubscriptionID,
-		BillingStatus:        row.BillingStatus,
-		StripePriceID:        row.StripePriceID,
-		BillingCurrency:      row.BillingCurrency,
-		BillingAmountMinor:   row.BillingAmountMinor,
-		BillingInterval:      row.BillingInterval,
-		CurrentPeriodEnd:     formatNullTime(row.CurrentPeriodEnd),
-		CancelAtPeriodEnd:    row.CancelAtPeriodEnd,
-		BillingUpdatedAt:     formatNullTime(row.BillingUpdatedAt),
-		CreatedAt:            row.CreatedAt.UTC().Format(time.RFC3339),
-	}
 }
 
 func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
@@ -190,19 +169,26 @@ func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerI
 	if err != nil {
 		return err
 	}
-	rows, err := s.q().ApplyBillingPlan(ctx, sqlcgen.ApplyBillingPlanParams{
-		AccountID:            accountID,
-		Plan:                 string(plan),
-		StorageQuotaBytes:    limits.StorageQuotaBytes,
-		MaxFileSizeBytes:     limits.MaxFileSizeBytes,
-		MaxUploadsPer5h:      int32(limits.MaxUploadsPer5h),
-		MaxUploadsPer1week:   int32(limits.MaxUploadsPerWeek),
-		StripeCustomerID:     stripeCustomerID,
-		StripeSubscriptionID: stripeSubscriptionID,
-		Now:                  nowTime(),
-	})
+	res, err := s.db.ExecContext(ctx, `
+UPDATE accounts
+SET plan = $2,
+    storage_quota_bytes = $3,
+    max_file_size_bytes = $4,
+    max_uploads_per_5h = $5,
+    max_uploads_per_1week = $6,
+    stripe_customer_id = CASE WHEN $7 = '' THEN stripe_customer_id ELSE $7 END,
+    stripe_subscription_id = $8,
+    billing_status = CASE WHEN $2 = 'free' THEN 'free' ELSE 'active' END,
+    billing_updated_at = $9,
+    updated_at = $9
+WHERE account_id = $1
+`, accountID, string(plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, stripeCustomerID, stripeSubscriptionID, nowTime())
 	if err != nil {
-		return fmt.Errorf("apply billing plan: %w", err)
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
 	}
 	if rows == 0 {
 		return domain.ErrNotFound
@@ -218,18 +204,25 @@ func (s *Store) ApplyBillingPlanByStripeCustomerID(ctx context.Context, stripeCu
 	if err != nil {
 		return err
 	}
-	rows, err := s.q().ApplyBillingPlanByStripeCustomerID(ctx, sqlcgen.ApplyBillingPlanByStripeCustomerIDParams{
-		StripeCustomerID:     stripeCustomerID,
-		Plan:                 string(plan),
-		StorageQuotaBytes:    limits.StorageQuotaBytes,
-		MaxFileSizeBytes:     limits.MaxFileSizeBytes,
-		MaxUploadsPer5h:      int32(limits.MaxUploadsPer5h),
-		MaxUploadsPer1week:   int32(limits.MaxUploadsPerWeek),
-		StripeSubscriptionID: stripeSubscriptionID,
-		Now:                  nowTime(),
-	})
+	res, err := s.db.ExecContext(ctx, `
+UPDATE accounts
+SET plan = $2,
+    storage_quota_bytes = $3,
+    max_file_size_bytes = $4,
+    max_uploads_per_5h = $5,
+    max_uploads_per_1week = $6,
+    stripe_subscription_id = $7,
+    billing_status = CASE WHEN $2 = 'free' THEN 'free' ELSE 'active' END,
+    billing_updated_at = $8,
+    updated_at = $8
+WHERE stripe_customer_id = $1
+`, stripeCustomerID, string(plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, stripeSubscriptionID, nowTime())
 	if err != nil {
-		return fmt.Errorf("apply billing plan by stripe customer id: %w", err)
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
 	}
 	if rows == 0 {
 		return domain.ErrNotFound
@@ -245,17 +238,20 @@ func (s *Store) RecordBillingWebhookEvent(ctx context.Context, event *domain.Pro
 	if provider == "" {
 		provider = "stripe"
 	}
-	rows, err := s.q().RecordBillingWebhookEvent(ctx, sqlcgen.RecordBillingWebhookEventParams{
-		Provider:             provider,
-		EventID:              event.EventID,
-		EventType:            event.EventType,
-		ReceivedAt:           nowTime(),
-		AccountID:            event.AccountID,
-		StripeCustomerID:     event.ExternalCustomerID,
-		StripeSubscriptionID: event.ExternalSubscriptionID,
-	})
+	res, err := s.db.ExecContext(ctx, `
+INSERT INTO billing_events (
+  provider, event_id, event_type, received_at, processing_status,
+  account_id, stripe_customer_id, stripe_subscription_id
+)
+VALUES ($1, $2, $3, $4, 'received', $5, $6, $7)
+ON CONFLICT (provider, event_id) DO NOTHING
+`, provider, event.EventID, event.EventType, nowTime(), event.AccountID, event.ExternalCustomerID, event.ExternalSubscriptionID)
 	if err != nil {
-		return false, fmt.Errorf("record billing webhook event: %w", err)
+		return false, err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, err
 	}
 	return rows > 0, nil
 }
@@ -267,16 +263,14 @@ func (s *Store) MarkBillingWebhookEventProcessed(ctx context.Context, provider, 
 	if provider == "" {
 		provider = "stripe"
 	}
-	if err := s.q().MarkBillingWebhookEventProcessed(ctx, sqlcgen.MarkBillingWebhookEventProcessedParams{
-		Provider:         provider,
-		EventID:          eventID,
-		ProcessingStatus: status,
-		ErrorMessage:     errorMessage,
-		ProcessedAt:      sql.NullTime{Time: nowTime(), Valid: true},
-	}); err != nil {
-		return fmt.Errorf("mark billing webhook event processed: %w", err)
-	}
-	return nil
+	_, err := s.db.ExecContext(ctx, `
+UPDATE billing_events
+SET processing_status = $3,
+    error_message = $4,
+    processed_at = $5
+WHERE provider = $1 AND event_id = $2
+`, provider, eventID, status, errorMessage, nowTime())
+	return err
 }
 
 func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error {
@@ -306,48 +300,37 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 		return err
 	}
 	now := nowTime()
-	var rows int64
+	query := `
+UPDATE accounts
+SET plan = CASE WHEN $3 = '' THEN plan ELSE $3 END,
+    storage_quota_bytes = CASE WHEN $3 = '' THEN storage_quota_bytes ELSE $4 END,
+    max_file_size_bytes = CASE WHEN $3 = '' THEN max_file_size_bytes ELSE $5 END,
+    max_uploads_per_5h = CASE WHEN $3 = '' THEN max_uploads_per_5h ELSE $6 END,
+    max_uploads_per_1week = CASE WHEN $3 = '' THEN max_uploads_per_1week ELSE $7 END,
+    stripe_customer_id = CASE WHEN $8 = '' THEN stripe_customer_id ELSE $8 END,
+    stripe_subscription_id = CASE WHEN $9 = '' AND $3 <> 'free' THEN stripe_subscription_id ELSE $9 END,
+    billing_status = $10,
+    stripe_price_id = $11,
+    billing_currency = $12,
+    billing_amount_minor = $13,
+    billing_interval = $14,
+    current_period_end = $15,
+    cancel_at_period_end = $16,
+    billing_updated_at = $17,
+    updated_at = $17
+WHERE `
+	var res sql.Result
 	if event.AccountID != "" {
-		rows, err = s.q().ApplyBillingEventByAccount(ctx, sqlcgen.ApplyBillingEventByAccountParams{
-			Plan:                 string(event.Plan),
-			StorageQuotaBytes:    limits.StorageQuotaBytes,
-			MaxFileSizeBytes:     limits.MaxFileSizeBytes,
-			MaxUploadsPer5h:      int32(limits.MaxUploadsPer5h),
-			MaxUploadsPer1week:   int32(limits.MaxUploadsPerWeek),
-			StripeCustomerID:     event.ExternalCustomerID,
-			StripeSubscriptionID: event.ExternalSubscriptionID,
-			BillingStatus:        status,
-			StripePriceID:        event.ExternalPriceID,
-			BillingCurrency:      string(event.Currency),
-			BillingAmountMinor:   event.AmountMinor,
-			BillingInterval:      string(event.Interval),
-			CurrentPeriodEnd:     periodEnd,
-			CancelAtPeriodEnd:    event.CancelAtPeriodEnd,
-			Now:                  now,
-			AccountID:            event.AccountID,
-		})
+		res, err = s.db.ExecContext(ctx, query+"account_id = $1", event.AccountID, "", string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now)
 	} else {
-		rows, err = s.q().ApplyBillingEventByStripeCustomer(ctx, sqlcgen.ApplyBillingEventByStripeCustomerParams{
-			Plan:                      string(event.Plan),
-			StorageQuotaBytes:         limits.StorageQuotaBytes,
-			MaxFileSizeBytes:          limits.MaxFileSizeBytes,
-			MaxUploadsPer5h:           int32(limits.MaxUploadsPer5h),
-			MaxUploadsPer1week:        int32(limits.MaxUploadsPerWeek),
-			StripeCustomerIDPassthru:  event.ExternalCustomerID,
-			StripeSubscriptionID:      event.ExternalSubscriptionID,
-			BillingStatus:             status,
-			StripePriceID:             event.ExternalPriceID,
-			BillingCurrency:           string(event.Currency),
-			BillingAmountMinor:        event.AmountMinor,
-			BillingInterval:           string(event.Interval),
-			CurrentPeriodEnd:          periodEnd,
-			CancelAtPeriodEnd:         event.CancelAtPeriodEnd,
-			Now:                       now,
-			StripeCustomerIDMatch:     event.ExternalCustomerID,
-		})
+		res, err = s.db.ExecContext(ctx, query+"stripe_customer_id = $2", "", event.ExternalCustomerID, string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now)
 	}
 	if err != nil {
-		return fmt.Errorf("apply billing event: %w", err)
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
 	}
 	if rows == 0 {
 		return domain.ErrNotFound
@@ -356,49 +339,50 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 }
 
 func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error) {
-	rows, err := s.q().ListWorkspacesByUserWithAccount(ctx, userID)
+	rows, err := s.db.QueryContext(ctx, `
+SELECT w.workspace_id, w.account_id, w.name, w.created_at,
+       a.plan, a.storage_used_bytes, a.storage_quota_bytes, a.max_file_size_bytes,
+       a.max_uploads_per_5h, a.max_uploads_per_1week
+FROM workspaces w
+JOIN account_users au ON au.account_id = w.account_id
+JOIN accounts a ON a.account_id = w.account_id
+WHERE au.user_id = $1
+ORDER BY w.created_at DESC
+`, userID)
 	if err != nil {
-		return nil, fmt.Errorf("list workspaces by user: %w", err)
+		return nil, fmt.Errorf("query workspaces: %w", err)
 	}
-	workspaces := make([]*domain.Workspace, 0, len(rows))
-	for _, row := range rows {
-		ws := &domain.Workspace{
-			WorkspaceID:        row.WorkspaceID,
-			AccountID:          row.AccountID,
-			Name:               row.Name,
-			Plan:               row.Plan,
-			StorageUsedBytes:   row.StorageUsedBytes,
-			StorageQuotaBytes:  row.StorageQuotaBytes,
-			MaxFileSizeBytes:   row.MaxFileSizeBytes,
-			MaxUploadsPerFiveH: int64(row.MaxUploadsPer5h),
-			MaxUploadsPerWeek:  int64(row.MaxUploadsPer1week),
-			CreatedAt:          row.CreatedAt.UTC().Format(time.RFC3339),
+	defer rows.Close()
+	var workspaces []*domain.Workspace
+	for rows.Next() {
+		ws, err := scanWorkspace(rows)
+		if err != nil {
+			return nil, fmt.Errorf("scan workspace: %w", err)
 		}
 		ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, ws.WorkspaceID)
 		workspaces = append(workspaces, ws)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workspaces: %w", err)
 	}
 	return workspaces, nil
 }
 
 func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
-	row, err := s.q().GetWorkspaceWithAccount(ctx, id)
+	row := s.db.QueryRowContext(ctx, `
+SELECT w.workspace_id, w.account_id, w.name, w.created_at,
+       a.plan, a.storage_used_bytes, a.storage_quota_bytes, a.max_file_size_bytes,
+       a.max_uploads_per_5h, a.max_uploads_per_1week
+FROM workspaces w
+JOIN accounts a ON a.account_id = w.account_id
+WHERE w.workspace_id = $1
+`, id)
+	ws, err := scanWorkspace(row)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, domain.ErrNotFound
 		}
-		return nil, fmt.Errorf("get workspace: %w", err)
-	}
-	ws := &domain.Workspace{
-		WorkspaceID:        row.WorkspaceID,
-		AccountID:          row.AccountID,
-		Name:               row.Name,
-		Plan:               row.Plan,
-		StorageUsedBytes:   row.StorageUsedBytes,
-		StorageQuotaBytes:  row.StorageQuotaBytes,
-		MaxFileSizeBytes:   row.MaxFileSizeBytes,
-		MaxUploadsPerFiveH: int64(row.MaxUploadsPer5h),
-		MaxUploadsPerWeek:  int64(row.MaxUploadsPer1week),
-		CreatedAt:          row.CreatedAt.UTC().Format(time.RFC3339),
+		return nil, err
 	}
 	ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, id)
 	return ws, nil
@@ -512,6 +496,76 @@ func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
 	}
 }
 
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func (s *Store) scanAccount(ctx context.Context, query string, args ...any) (*domain.Account, error) {
+	return scanAccountRow(s.db.QueryRowContext(ctx, query, args...))
+}
+
+func scanAccountRow(row scanner) (*domain.Account, error) {
+	var account domain.Account
+	var maxUploadsPer5h int32
+	var maxUploadsPerWeek int32
+	var currentPeriodEnd sql.NullTime
+	var billingUpdatedAt sql.NullTime
+	var createdAt time.Time
+	if err := row.Scan(
+		&account.AccountID,
+		&account.Name,
+		&account.Plan,
+		&account.StorageQuotaBytes,
+		&account.StorageUsedBytes,
+		&account.MaxFileSizeBytes,
+		&maxUploadsPer5h,
+		&maxUploadsPerWeek,
+		&account.StripeCustomerID,
+		&account.StripeSubscriptionID,
+		&account.BillingStatus,
+		&account.StripePriceID,
+		&account.BillingCurrency,
+		&account.BillingAmountMinor,
+		&account.BillingInterval,
+		&currentPeriodEnd,
+		&account.CancelAtPeriodEnd,
+		&billingUpdatedAt,
+		&createdAt,
+	); err != nil {
+		return nil, err
+	}
+	account.MaxUploadsPerFiveH = int64(maxUploadsPer5h)
+	account.MaxUploadsPerWeek = int64(maxUploadsPerWeek)
+	account.CurrentPeriodEnd = formatNullTime(currentPeriodEnd)
+	account.BillingUpdatedAt = formatNullTime(billingUpdatedAt)
+	account.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	return &account, nil
+}
+
+func scanWorkspace(row scanner) (*domain.Workspace, error) {
+	var ws domain.Workspace
+	var createdAt time.Time
+	var maxUploadsPer5h int32
+	var maxUploadsPerWeek int32
+	if err := row.Scan(
+		&ws.WorkspaceID,
+		&ws.AccountID,
+		&ws.Name,
+		&createdAt,
+		&ws.Plan,
+		&ws.StorageUsedBytes,
+		&ws.StorageQuotaBytes,
+		&ws.MaxFileSizeBytes,
+		&maxUploadsPer5h,
+		&maxUploadsPerWeek,
+	); err != nil {
+		return nil, err
+	}
+	ws.MaxUploadsPerFiveH = int64(maxUploadsPer5h)
+	ws.MaxUploadsPerWeek = int64(maxUploadsPerWeek)
+	ws.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	return &ws, nil
+}
 
 func parseBillingTime(value string) (sql.NullTime, error) {
 	if value == "" {

@@ -8,7 +8,6 @@ package sqlcgen
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"time"
 )
 
@@ -59,25 +58,6 @@ func (q *Queries) CompleteProcessingJob(ctx context.Context, arg CompleteProcess
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const confirmUploadReservation = `-- name: ConfirmUploadReservation :exec
-UPDATE upload_reservations
-SET status = 'confirmed',
-    actual_size_bytes = $2,
-    confirmed_at = $3
-WHERE document_id = $1
-`
-
-type ConfirmUploadReservationParams struct {
-	DocumentID      string
-	ActualSizeBytes int64
-	ConfirmedAt     sql.NullTime
-}
-
-func (q *Queries) ConfirmUploadReservation(ctx context.Context, arg ConfirmUploadReservationParams) error {
-	_, err := q.db.ExecContext(ctx, confirmUploadReservation, arg.DocumentID, arg.ActualSizeBytes, arg.ConfirmedAt)
-	return err
 }
 
 const countApprovedAliases = `-- name: CountApprovedAliases :one
@@ -412,37 +392,6 @@ func (q *Queries) CreateProcessingJob(ctx context.Context, arg CreateProcessingJ
 	return err
 }
 
-const createUploadReservation = `-- name: CreateUploadReservation :exec
-INSERT INTO upload_reservations (
-  reservation_id, account_id, workspace_id, document_id, expected_size_bytes,
-  actual_size_bytes, status, expires_at, created_at
-)
-VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
-`
-
-type CreateUploadReservationParams struct {
-	ReservationID     string
-	AccountID         string
-	WorkspaceID       string
-	DocumentID        string
-	ExpectedSizeBytes int64
-	ExpiresAt         time.Time
-	CreatedAt         time.Time
-}
-
-func (q *Queries) CreateUploadReservation(ctx context.Context, arg CreateUploadReservationParams) error {
-	_, err := q.db.ExecContext(ctx, createUploadReservation,
-		arg.ReservationID,
-		arg.AccountID,
-		arg.WorkspaceID,
-		arg.DocumentID,
-		arg.ExpectedSizeBytes,
-		arg.ExpiresAt,
-		arg.CreatedAt,
-	)
-	return err
-}
-
 const deleteDocumentChunks = `-- name: DeleteDocumentChunks :exec
 DELETE FROM document_chunks
 WHERE document_id = $1
@@ -451,20 +400,6 @@ WHERE document_id = $1
 func (q *Queries) DeleteDocumentChunks(ctx context.Context, documentID string) error {
 	_, err := q.db.ExecContext(ctx, deleteDocumentChunks, documentID)
 	return err
-}
-
-const expireUploadReservations = `-- name: ExpireUploadReservations :execrows
-UPDATE upload_reservations
-SET status = 'expired'
-WHERE status = 'reserved' AND expires_at <= $1
-`
-
-func (q *Queries) ExpireUploadReservations(ctx context.Context, expiresAt time.Time) (int64, error) {
-	result, err := q.db.ExecContext(ctx, expireUploadReservations, expiresAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const failProcessingJob = `-- name: FailProcessingJob :execrows
@@ -670,59 +605,6 @@ func (q *Queries) GetProcessingJob(ctx context.Context, jobID string) (DocumentP
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const incrementAccountStorageUsed = `-- name: IncrementAccountStorageUsed :exec
-UPDATE accounts
-SET storage_used_bytes = storage_used_bytes + $2,
-    updated_at = $3
-WHERE account_id = $1
-`
-
-type IncrementAccountStorageUsedParams struct {
-	AccountID        string
-	StorageUsedBytes int64
-	UpdatedAt        time.Time
-}
-
-func (q *Queries) IncrementAccountStorageUsed(ctx context.Context, arg IncrementAccountStorageUsedParams) error {
-	_, err := q.db.ExecContext(ctx, incrementAccountStorageUsed, arg.AccountID, arg.StorageUsedBytes, arg.UpdatedAt)
-	return err
-}
-
-const insertJobLog = `-- name: InsertJobLog :exec
-INSERT INTO job_logs (id, job_id, workspace_id, document_id, created_at, level, event, message, detail_json)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-`
-
-type InsertJobLogParams struct {
-	ID          string
-	JobID       string
-	WorkspaceID string
-	DocumentID  string
-	CreatedAt   time.Time
-	Level       string
-	Event       string
-	Message     string
-	DetailJson  json.RawMessage
-}
-
-// job 実行ログの 1 行追記。
-// 検索系 (ListJobLogs / SearchJobLogs / ListRelatedJobLogs) は WHERE / ORDER
-// が動的に組み立てられるため sqlc 化せず生 SQL 側に残している。
-func (q *Queries) InsertJobLog(ctx context.Context, arg InsertJobLogParams) error {
-	_, err := q.db.ExecContext(ctx, insertJobLog,
-		arg.ID,
-		arg.JobID,
-		arg.WorkspaceID,
-		arg.DocumentID,
-		arg.CreatedAt,
-		arg.Level,
-		arg.Event,
-		arg.Message,
-		arg.DetailJson,
-	)
-	return err
 }
 
 const listAllJobs = `-- name: ListAllJobs :many
@@ -1023,54 +905,6 @@ func (q *Queries) ListJobStageCheckpoints(ctx context.Context, jobID string) ([]
 	return items, nil
 }
 
-const lockAccountStorage = `-- name: LockAccountStorage :one
-SELECT storage_used_bytes, storage_quota_bytes
-FROM accounts
-WHERE account_id = $1
-FOR UPDATE
-`
-
-type LockAccountStorageRow struct {
-	StorageUsedBytes  int64
-	StorageQuotaBytes int64
-}
-
-// ConfirmDocumentUpload で accounts 行を FOR UPDATE で取って quota チェック。
-func (q *Queries) LockAccountStorage(ctx context.Context, accountID string) (LockAccountStorageRow, error) {
-	row := q.db.QueryRowContext(ctx, lockAccountStorage, accountID)
-	var i LockAccountStorageRow
-	err := row.Scan(&i.StorageUsedBytes, &i.StorageQuotaBytes)
-	return i, err
-}
-
-const lockUploadReservation = `-- name: LockUploadReservation :one
-SELECT account_id, expected_size_bytes, status, expires_at
-FROM upload_reservations
-WHERE document_id = $1
-FOR UPDATE
-`
-
-type LockUploadReservationRow struct {
-	AccountID         string
-	ExpectedSizeBytes int64
-	Status            string
-	ExpiresAt         time.Time
-}
-
-// ConfirmDocumentUpload で reservation を FOR UPDATE で取る。
-// 同一 reservation の同時 confirm を直列化する。
-func (q *Queries) LockUploadReservation(ctx context.Context, documentID string) (LockUploadReservationRow, error) {
-	row := q.db.QueryRowContext(ctx, lockUploadReservation, documentID)
-	var i LockUploadReservationRow
-	err := row.Scan(
-		&i.AccountID,
-		&i.ExpectedSizeBytes,
-		&i.Status,
-		&i.ExpiresAt,
-	)
-	return i, err
-}
-
 const markProcessingJobRunning = `-- name: MarkProcessingJobRunning :execrows
 UPDATE document_processing_jobs
 SET status = 'running',
@@ -1091,22 +925,6 @@ func (q *Queries) MarkProcessingJobRunning(ctx context.Context, arg MarkProcessi
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const markUploadReservationFailed = `-- name: MarkUploadReservationFailed :exec
-UPDATE upload_reservations
-SET status = 'failed', actual_size_bytes = $2
-WHERE document_id = $1
-`
-
-type MarkUploadReservationFailedParams struct {
-	DocumentID      string
-	ActualSizeBytes int64
-}
-
-func (q *Queries) MarkUploadReservationFailed(ctx context.Context, arg MarkUploadReservationFailedParams) error {
-	_, err := q.db.ExecContext(ctx, markUploadReservationFailed, arg.DocumentID, arg.ActualSizeBytes)
-	return err
 }
 
 const rejectJobApproval = `-- name: RejectJobApproval :execrows
@@ -1206,26 +1024,6 @@ func (q *Queries) SearchWorkspaceDocumentChunksByVector(ctx context.Context, arg
 		return nil, err
 	}
 	return items, nil
-}
-
-const sumActiveReservedBytes = `-- name: SumActiveReservedBytes :one
-SELECT COALESCE(SUM(expected_size_bytes), 0)::bigint AS reserved_bytes
-FROM upload_reservations
-WHERE account_id = $1 AND status = 'reserved' AND expires_at > $2
-`
-
-type SumActiveReservedBytesParams struct {
-	AccountID string
-	ExpiresAt time.Time
-}
-
-// 期限内かつ未確定の reservation 合計サイズ。upload 開始時の
-// quota 計算に使う (確定済み storage_used_bytes との合算で見る)。
-func (q *Queries) SumActiveReservedBytes(ctx context.Context, arg SumActiveReservedBytesParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, sumActiveReservedBytes, arg.AccountID, arg.ExpiresAt)
-	var reserved_bytes int64
-	err := row.Scan(&reserved_bytes)
-	return reserved_bytes, err
 }
 
 const updateJobExecutionPlanStatus = `-- name: UpdateJobExecutionPlanStatus :execrows
