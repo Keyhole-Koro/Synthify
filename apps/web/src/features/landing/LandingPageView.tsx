@@ -1,9 +1,10 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
+import type { PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
 
 const PaperCanvas = dynamic(
   () => import('@keyhole-koro/paper-in-paper').then((mod) => mod.PaperCanvas),
@@ -91,6 +92,17 @@ function HeroCopy() {
 }
 
 export function LandingPageView({ controller }: { controller: LandingPageController }) {
+  const canvasRef = useRef<PaperCanvasHandle | null>(null);
+  const pendingRevealNodeId = controller.pendingRevealNodeId;
+  const clearPendingRevealNodeId = controller.clearPendingRevealNodeId;
+
+  useEffect(() => {
+    if (!pendingRevealNodeId || !canvasRef.current) return;
+    if (!canvasRef.current.getState().paperMap.has(pendingRevealNodeId)) return;
+    canvasRef.current.revealNode(pendingRevealNodeId);
+    clearPendingRevealNodeId();
+  }, [clearPendingRevealNodeId, pendingRevealNodeId, controller.paperMap]);
+
   if (!controller.isReady) return <LoadingScreen />;
 
   return (
@@ -109,6 +121,7 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
         style={getCanvasFrameStyle(controller.isFullscreen, controller.winSize)}
       >
         <PaperCanvas
+          ref={canvasRef}
           key={controller.canvasKey}
           paperMap={controller.paperMap}
           rootId={ROOT_ID}

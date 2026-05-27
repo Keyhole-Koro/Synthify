@@ -27,6 +27,7 @@ export function useLandingPageController() {
   } = useAuthState();
   const [canvasFullscreen, setCanvasFullscreen] = useState(false);
   const [workspacePaperGroups, setWorkspacePaperGroups] = useState<Map<string, Paper[]>>(new Map());
+  const [pendingRevealNodeId, setPendingRevealNodeId] = useState<string | null>(null);
   const { hasMounted, winSize } = useViewportSize();
 
   const {
@@ -57,6 +58,10 @@ export function useLandingPageController() {
 
   const clearWorkspacePapers = useCallback(() => {
     setWorkspacePaperGroups(new Map());
+  }, []);
+
+  const clearPendingRevealNodeId = useCallback(() => {
+    setPendingRevealNodeId(null);
   }, []);
 
   const applyWorkspaceUpdate = useCallback((workspace: Workspace) => {
@@ -123,12 +128,14 @@ export function useLandingPageController() {
     const ws = await createWorkspace(name);
     setWorkspaces((prev) => [ws, ...prev]);
     void handleOpenWorkspace(ws.workspaceId, ws);
+    setPendingRevealNodeId(ws.workspaceId);
   }, [handleOpenWorkspace, setWorkspaces]);
 
   const handleRootUpload = useCallback(async (file: File) => {
     const ws = await createWorkspace(NEW_WORKSPACE_NAME);
     setWorkspaces((prev) => [ws, ...prev]);
     await handleOpenWorkspace(ws.workspaceId, ws);
+    setPendingRevealNodeId(ws.workspaceId);
     injectWorkspaceRuntimeState(ws.workspaceId, { initialUploading: true, initialUploadMessage: null });
     void (async () => {
       try {
@@ -175,9 +182,11 @@ export function useLandingPageController() {
     defaultOpenState,
     expansionMap,
     focusedNodeId,
+    pendingRevealNodeId,
     setCanvasFullscreen,
     handleExpansionMapChange,
     handleFocusedNodeIdChange,
+    clearPendingRevealNodeId,
   };
 }
 
