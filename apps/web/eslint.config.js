@@ -34,7 +34,25 @@ export default tseslint.config(
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true, allowExportNames: ["metadata", "ROOT_ID", "STATIC_PAPERS"] }
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "firebase/firestore",
+              importNames: ["onSnapshot"],
+              message: "Use useAuthedDoc / useAuthedCollection from @/lib/firestore so listeners are gated on Firebase Auth."
+            }
+          ]
+        }
       ]
+    }
+  },
+  {
+    files: ["src/lib/firestore/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": "off"
     }
   }
 );
