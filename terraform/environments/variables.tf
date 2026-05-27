@@ -213,6 +213,7 @@ variable "deployer_project_roles" {
     "roles/cloudscheduler.admin",
     "roles/cloudtasks.admin",
     "roles/firebasehosting.admin",
+    "roles/firebaserules.admin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountTokenCreator",
     "roles/resourcemanager.projectIamAdmin",
