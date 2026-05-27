@@ -63,6 +63,11 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
 
+      - name: Deploy Firestore rules
+        run: |
+          bunx firebase-tools@13 deploy --only firestore:rules --non-interactive \
+            --project ${{ vars.GCP_PROJECT_ID }}
+
       - name: Deploy to Firebase Hosting
         run: |
           set -o pipefail
