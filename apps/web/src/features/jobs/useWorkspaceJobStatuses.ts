@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
 
 export function useWorkspaceJobStatuses(workspaceId: string, maxItems = 6) {
   const [jobs, setJobs] = useState<FirestoreJobStatus[]>([]);
-  const [authedUid, setAuthedUid] = useState<string | null>(auth.currentUser?.uid ?? null);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, (u) => setAuthedUid(u?.uid ?? null));
-  }, []);
-
-  useEffect(() => {
-    if (!workspaceId || !authedUid) return;
+    if (!workspaceId) return;
 
     const jobsQuery = query(
       collection(db, 'workspaces', workspaceId, 'jobs'),
@@ -30,10 +24,14 @@ export function useWorkspaceJobStatuses(workspaceId: string, maxItems = 6) {
         setJobs(next);
       },
       (err) => {
+        // Firestore onSnapshot は permission denied / 一時的なネットワーク断 /
+        // quota 超過などで発火するが、いずれもユーザー側で取れるアクションが
+        // ない (SDK が自動再接続する)。UI に出すと「sync error」が誤って
+        // 操作を促してしまうため、観測用に console にだけ残す。
         console.error('workspace job snapshot failed:', err);
       },
     );
-  }, [maxItems, workspaceId, authedUid]);
+  }, [maxItems, workspaceId]);
 
   return { jobs };
 }
