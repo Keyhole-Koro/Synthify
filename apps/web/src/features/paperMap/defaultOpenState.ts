@@ -23,7 +23,7 @@ const aboutDefaultChildren = [
 
 function synthifyExpansionMap(extraRootChildren: string[]): ExpansionMap {
   const map: ExpansionMap = new Map();
-  map.set(ROOT_ID, { openChildIds: [AUTH_ID, 'synthify:about', ...extraRootChildren] });
+  map.set(ROOT_ID, { openChildIds: [AUTH_ID, ...extraRootChildren] });
   map.set('synthify:about', { openChildIds: aboutDefaultChildren });
   map.set('synthify:overview', { openChildIds: ['synthify:overview:workflow', 'synthify:overview:reading'] });
   map.set('synthify:documents', { openChildIds: ['synthify:documents:intake', 'synthify:documents:chunks'] });
