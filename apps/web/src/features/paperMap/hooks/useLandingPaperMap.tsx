@@ -900,7 +900,7 @@ export function useLandingPaperMap({
     }
 
     return map;
-  ], [
+  }, [
     user, workspaces, workspaceError, authError, loading,
     handleGoogleSubmit, handleLogout, handleCreateWorkspace,
     handleRootUpload, handleRootUploadComplete, handleSuggestedWorkspaceName,
