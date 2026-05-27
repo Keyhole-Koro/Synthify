@@ -27,9 +27,7 @@ interface UseLandingPaperMapProps {
   handleGoogleSubmit: () => void;
   handleLogout: () => void;
   handleCreateWorkspace: (name: string) => Promise<void>;
-  handleRootUpload: (file: File) => Promise<{ workspaceId: string; workspaceName: string; jobId: string; documentId: string }>;
-  handleRootUploadComplete: (workspaceId: string) => Promise<void>;
-  handleSuggestedWorkspaceName: (workspaceId: string, name: string) => Promise<void>;
+  handleRootUpload: (file: File) => Promise<void>;
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
   onRetryWorkspaces: () => void;
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
@@ -688,8 +686,6 @@ export function useLandingPaperMap({
   handleLogout,
   handleCreateWorkspace,
   handleRootUpload,
-  handleRootUploadComplete,
-  handleSuggestedWorkspaceName,
   handleOpenWorkspace,
   onRetryWorkspaces,
   buildWsPaper,
@@ -729,8 +725,6 @@ export function useLandingPaperMap({
             <RootUploadPaper
               disabled={loading}
               onUpload={handleRootUpload}
-              onProcessingComplete={handleRootUploadComplete}
-              onSuggestedWorkspaceName={handleSuggestedWorkspaceName}
             />
           )}
         </PaperSection>
@@ -903,7 +897,7 @@ export function useLandingPaperMap({
   }, [
     user, workspaces, workspaceError, authError, loading,
     handleGoogleSubmit, handleLogout, handleCreateWorkspace,
-    handleRootUpload, handleRootUploadComplete, handleSuggestedWorkspaceName,
+    handleRootUpload,
     handleOpenWorkspace, buildWsPaper, onRetryWorkspaces,
     workspacePaperGroups,
   ]);

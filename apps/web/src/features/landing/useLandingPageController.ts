@@ -1,15 +1,16 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { useAuthState } from '@/features/auth/useAuthState';
 import { signOutSession } from '@/features/auth/session';
-import { createWorkspace, deleteWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
-import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
+import { createWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
+import { useWorkspaceTree, type WorkspacePaperRuntimeState } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
 import { usePersistentPaperOpenState } from '@/features/paperMap/hooks/usePersistentPaperOpenState';
 import { useViewportSize } from '@/features/landing/useViewportSize';
+import { toAppError } from '@/lib/error_normalize';
 
 const NEW_WORKSPACE_NAME = '新規ワークスペース';
 
@@ -78,7 +79,18 @@ export function useLandingPageController() {
     await handleRenameWorkspace(workspaceId, trimmed.slice(0, 64));
   }, [handleRenameWorkspace, workspaces]);
 
-  const { handleOpenWorkspace, refreshWorkspaceTree, resetTree, buildWsPaper, uploadWorkspaceFile } = useWorkspaceTree(
+  const workspacePaperRuntimeStateRef = useRef<Map<string, WorkspacePaperRuntimeState>>(new Map());
+  const getWorkspacePaperRuntimeState = useCallback((workspaceId: string): WorkspacePaperRuntimeState => {
+    return workspacePaperRuntimeStateRef.current.get(workspaceId) ?? {};
+  }, []);
+  const clearWorkspacePaperRuntimeState = useCallback((workspaceId: string) => {
+    if (!workspacePaperRuntimeStateRef.current.has(workspaceId)) return;
+    const nextRuntimeState = new Map(workspacePaperRuntimeStateRef.current);
+    nextRuntimeState.delete(workspaceId);
+    workspacePaperRuntimeStateRef.current = nextRuntimeState;
+  }, []);
+
+  const { handleOpenWorkspace, resetTree, buildWsPaper, rebuildWorkspacePaper, uploadWorkspaceFile } = useWorkspaceTree(
     getWorkspaceName,
     expansionMap,
     handleExpansionMapChange,
@@ -88,13 +100,21 @@ export function useLandingPageController() {
     workspaces,
     handleRenameWorkspace,
     handleAutoNameWorkspace,
+    getWorkspacePaperRuntimeState,
+    clearWorkspacePaperRuntimeState,
   );
 
   const { isFullscreen } = useHomeCanvasViewState(expansionMap, canvasFullscreen);
 
+  const injectWorkspaceRuntimeState = useCallback((workspaceId: string, state: WorkspacePaperRuntimeState) => {
+    workspacePaperRuntimeStateRef.current = new Map(workspacePaperRuntimeStateRef.current).set(workspaceId, state);
+    rebuildWorkspacePaper(workspaceId);
+  }, [rebuildWorkspacePaper]);
+
   const handleLogout = useCallback(async () => {
     const previousUser = user;
     await signOutSession();
+    workspacePaperRuntimeStateRef.current = new Map();
     resetTree();
     resetToLoggedOutDefaults(previousUser);
   }, [resetToLoggedOutDefaults, resetTree, user]);
@@ -109,18 +129,26 @@ export function useLandingPageController() {
     const ws = await createWorkspace(NEW_WORKSPACE_NAME);
     setWorkspaces((prev) => [ws, ...prev]);
     await handleOpenWorkspace(ws.workspaceId, ws);
-    const uploaded = await uploadWorkspaceFile(ws.workspaceId, file);
-    return {
-      workspaceId: ws.workspaceId,
-      workspaceName: ws.name,
-      jobId: uploaded.jobId,
-      documentId: uploaded.documentId,
-    };
-  }, [handleOpenWorkspace, setWorkspaces, uploadWorkspaceFile]);
-
-  const handleRootUploadComplete = useCallback(async (workspaceId: string) => {
-    await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
-  }, [refreshWorkspaceTree]);
+    injectWorkspaceRuntimeState(ws.workspaceId, { initialUploading: true, initialUploadMessage: null });
+    void (async () => {
+      try {
+        const uploaded = await uploadWorkspaceFile(ws.workspaceId, file);
+        injectWorkspaceRuntimeState(ws.workspaceId, {
+          initialActiveJobId: uploaded.jobId,
+          initialDocumentId: uploaded.documentId,
+          initialUploading: false,
+          initialUploadMessage: 'アップロードしました。解析を開始します。',
+        });
+      } catch (err) {
+        console.error('Root upload failed after workspace creation:', err);
+        const appError = toAppError(err);
+        injectWorkspaceRuntimeState(ws.workspaceId, {
+          initialUploading: false,
+          initialUploadMessage: `アップロードに失敗しました。${appError.message}`,
+        });
+      }
+    })();
+  }, [handleOpenWorkspace, injectWorkspaceRuntimeState, setWorkspaces, uploadWorkspaceFile]);
 
   const { paperMap } = useLandingPaperMap({
     user,
@@ -133,8 +161,6 @@ export function useLandingPageController() {
     handleLogout,
     handleCreateWorkspace,
     handleRootUpload,
-    handleRootUploadComplete,
-    handleSuggestedWorkspaceName: handleAutoNameWorkspace,
     handleOpenWorkspace,
     buildWsPaper,
     onRetryWorkspaces: retryWorkspaces,

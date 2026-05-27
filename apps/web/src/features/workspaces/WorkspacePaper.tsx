@@ -11,7 +11,14 @@ import { type Workspace } from '@/features/workspaces/api';
 import { InlineError } from '@/components/error/InlineError';
 import { toAppError } from '@/lib/error_normalize';
 
-interface WorkspacePaperProps {
+export interface WorkspacePaperRuntimeState {
+  initialActiveJobId?: string | null;
+  initialDocumentId?: string | null;
+  initialUploading?: boolean;
+  initialUploadMessage?: string | null;
+}
+
+interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   workspace: Workspace;
   workspaceId: string;
   workspaceName: string;
@@ -28,6 +35,9 @@ export function WorkspacePaper({
   workspaceName,
   hasTree,
   childItems,
+  initialActiveJobId,
+  initialUploading,
+  initialUploadMessage,
   onUploadFile,
   onRenameWorkspace,
   onSuggestedWorkspaceName,
@@ -35,9 +45,9 @@ export function WorkspacePaper({
 }: WorkspacePaperProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const suggestedNameRef = useRef<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(initialUploading === true);
+  const [uploadMessage, setUploadMessage] = useState<string | null>(initialUploadMessage ?? null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(initialActiveJobId ?? null);
   const completedJobRef = useRef<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);

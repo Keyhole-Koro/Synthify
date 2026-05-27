@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
 import { WorkspacePaper } from '@/features/workspaces/WorkspacePaper';
+import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
 import { findRootItemId } from '@/features/tree/buildTree';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { getTree, getSubtree, type ApiItem, type SubtreeItem } from '@/features/tree/api';
@@ -11,6 +12,8 @@ import { SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import { createDocument, startProcessing, uploadFile } from '@/features/documents/api';
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
+
+export type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
 
 export function useWorkspaceTree(
   getWorkspaceName: (id: string) => string,
@@ -22,6 +25,8 @@ export function useWorkspaceTree(
   workspaces: Workspace[],
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>,
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void>,
+  getWorkspacePaperRuntimeState: (workspaceId: string) => WorkspacePaperRuntimeState = () => ({}),
+  onWorkspaceRuntimeStateComplete: (workspaceId: string) => void = () => {},
 ) {
   const expansionMapRef = useRef<ExpansionMap>(expansionMap);
   const workspacesRef = useRef<Workspace[]>(workspaces);
@@ -123,6 +128,13 @@ export function useWorkspaceTree(
       };
     }
     const workspaceName = workspace.name || getWorkspaceName(workspaceId);
+    const runtimeState = getWorkspacePaperRuntimeState(workspaceId);
+    const runtimeKey = [
+      runtimeState.initialActiveJobId ?? '',
+      runtimeState.initialDocumentId ?? '',
+      runtimeState.initialUploading === true ? 'uploading' : '',
+      runtimeState.initialUploadMessage ?? '',
+    ].join(':');
     return {
       id: workspaceId,
       title: workspaceName,
@@ -132,20 +144,35 @@ export function useWorkspaceTree(
       childIds: childPapers.map((p) => p.id),
       content: (
         <WorkspacePaper
+          key={`${workspaceId}:${runtimeKey}`}
           workspace={workspace}
           workspaceId={workspaceId}
           workspaceName={workspaceName}
           hasTree={childPapers.length > 0}
           childItems={childPapers}
+          initialActiveJobId={runtimeState.initialActiveJobId ?? null}
+          initialDocumentId={runtimeState.initialDocumentId ?? null}
+          initialUploading={runtimeState.initialUploading}
+          initialUploadMessage={runtimeState.initialUploadMessage}
           onUploadFile={(file) => handleUploadWorkspaceFile(workspaceId, file)}
           onRenameWorkspace={(name) => onRenameWorkspace(workspaceId, name)}
           onSuggestedWorkspaceName={(name) => onSuggestedWorkspaceName(workspaceId, name)}
-          onProcessingComplete={() => refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true })}
+          onProcessingComplete={() => {
+            onWorkspaceRuntimeStateComplete(workspaceId);
+            return refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+          }}
         />
       ),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getWorkspaceName, handleUploadWorkspaceFile, onRenameWorkspace, onSuggestedWorkspaceName]);
+  }, [
+    getWorkspaceName,
+    getWorkspacePaperRuntimeState,
+    handleUploadWorkspaceFile,
+    onRenameWorkspace,
+    onSuggestedWorkspaceName,
+    onWorkspaceRuntimeStateComplete,
+  ]);
 
   function runProjectWorkspacePapers(workspaceId: string, workspaceRootItemId: string): Paper[] {
     const treeItems = workspaceTreeItemsRef.current.get(workspaceId) ?? new Map();
@@ -154,6 +181,14 @@ export function useWorkspaceTree(
     initializedWorkspacesRef.current.add(workspaceId);
     return projectWorkspacePapers(workspaceId, workspaceRootItemId, treeItems, documentRootIds, buildWsPaper);
   }
+
+  const rebuildWorkspacePaper = useCallback((workspaceId: string) => {
+    const rootItemId = workspaceRootItemRef.current.get(workspaceId);
+    const childPapers = rootItemId
+      ? (workspaceDocumentRootIdsRef.current.get(workspaceId) ?? []).map((id) => ({ id }))
+      : [];
+    setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, childPapers)]);
+  }, [buildWsPaper, setWorkspacePapers]);
 
   async function mergeTreeIntoWorkspace(workspaceId: string, workspaceRootItemId: string, items: SubtreeItem[]) {
     const workspaceItems = workspaceTreeItemsRef.current.get(workspaceId) ?? new Map<string, SubtreeItem>();
@@ -267,11 +302,7 @@ export function useWorkspaceTree(
 
     for (const { workspaceId } of workspaces) {
       if (initializedWorkspacesRef.current.has(workspaceId)) {
-        const rootItemId = workspaceRootItemRef.current.get(workspaceId);
-        const childPapers = rootItemId
-          ? (workspaceDocumentRootIdsRef.current.get(workspaceId) ?? []).map((id) => ({ id }))
-          : [];
-        setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, childPapers)]);
+        rebuildWorkspacePaper(workspaceId);
       }
     }
 
@@ -336,6 +367,7 @@ export function useWorkspaceTree(
     refreshWorkspaceTree,
     resetTree,
     buildWsPaper,
+    rebuildWorkspacePaper,
     uploadWorkspaceFile: handleUploadWorkspaceFile,
   };
 }
