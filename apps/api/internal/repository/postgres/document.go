@@ -415,8 +415,10 @@ func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.Job
 		return nil, fmt.Errorf("get capability: %w", err)
 	}
 	var allowedDocs, allowedItems []string
+	var allowedOperations []appv1.JobOperation
 	_ = json.Unmarshal([]byte(row.AllowedDocumentIdsJson), &allowedDocs)
 	_ = json.Unmarshal([]byte(row.AllowedItemIdsJson), &allowedItems)
+	_ = json.Unmarshal([]byte(row.AllowedOperationsJson), &allowedOperations)
 
 	return &domain.JobCapability{
 		CapabilityID:       row.CapabilityID,
@@ -427,6 +429,7 @@ func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.Job
 		MaxItemCreations:   int(row.MaxItemCreations),
 		AllowedDocumentIDs: allowedDocs,
 		AllowedItemIDs:     allowedItems,
+		AllowedOperations:  allowedOperations,
 		ExpiresAt:          row.ExpiresAt.UTC().Format(time.RFC3339),
 	}, nil
 }
@@ -702,6 +705,23 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 	if err != nil {
 		return nil, fmt.Errorf("marshal allowed item ids: %w", err)
 	}
+	allowedOperationsJSON, err := json.Marshal(capability.AllowedOperations)
+	if err != nil {
+		return nil, fmt.Errorf("marshal allowed operations: %w", err)
+	}
+
+	if err := s.q().CreateProcessingJob(ctx, sqlcgen.CreateProcessingJobParams{
+		JobID:        jobID,
+		DocumentID:   docID,
+		WorkspaceID:  doc.WorkspaceID,
+		JobType:      strconv.Itoa(int(jobType)),
+		Status:       strconv.Itoa(int(appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
+		RequestedBy:  requestedBy,
+		CapabilityID: capability.CapabilityID,
+		CreatedAt:    createdAt,
+	}); err != nil {
+		return nil, fmt.Errorf("create processing job: %w", err)
+	}
 
 	if err := s.q().CreateJobCapability(ctx, sqlcgen.CreateJobCapabilityParams{
 		CapabilityID:           capability.CapabilityID,
@@ -712,33 +732,23 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		MaxItemCreations:       int32(capability.MaxItemCreations),
 		AllowedDocumentIdsJson: string(allowedDocumentIDsJSON),
 		AllowedItemIdsJson:     string(allowedItemIDsJSON),
+		AllowedOperationsJson:  string(allowedOperationsJSON),
 		ExpiresAt:              createdAt.Add(24 * time.Hour),
 		CreatedAt:              createdAt,
 	}); err != nil {
 		return nil, fmt.Errorf("create job capability: %w", err)
 	}
 
-	if err := s.q().CreateProcessingJob(ctx, sqlcgen.CreateProcessingJobParams{
-		JobID:       jobID,
-		DocumentID:  docID,
-		WorkspaceID: doc.WorkspaceID,
-		JobType:     strconv.Itoa(int(jobType)),
-		Status:      strconv.Itoa(int(appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
-		RequestedBy: requestedBy,
-		CreatedAt:   createdAt,
-	}); err != nil {
-		return nil, fmt.Errorf("create processing job: %w", err)
-	}
-
 	return &domain.DocumentProcessingJob{
-		JobID:       jobID,
-		DocumentID:  docID,
-		WorkspaceID: doc.WorkspaceID,
-		JobType:     jobType,
-		Status:      appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
-		RequestedBy: requestedBy,
-		CreatedAt:   createdAt.Format(time.RFC3339),
-		UpdatedAt:   createdAt.Format(time.RFC3339),
+		JobID:        jobID,
+		DocumentID:   docID,
+		WorkspaceID:  doc.WorkspaceID,
+		JobType:      jobType,
+		Status:       appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+		RequestedBy:  requestedBy,
+		CapabilityID: capability.CapabilityID,
+		CreatedAt:    createdAt.Format(time.RFC3339),
+		UpdatedAt:    createdAt.Format(time.RFC3339),
 	}, nil
 }
 
@@ -973,13 +983,18 @@ func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 		JobID:            row.JobID,
 		DocumentID:       row.DocumentID,
 		WorkspaceID:      row.WorkspaceID,
+		CapabilityID:     row.CapabilityID,
 		ExecutionPlanID:  row.ExecutionPlanID,
 		JobType:          appv1.JobType(jobType),
 		Status:           appv1.JobLifecycleState(status),
+		CurrentStage:     row.CurrentStage,
 		PlanStatus:       row.PlanStatus,
 		EvaluationStatus: row.EvaluationStatus,
 		ErrorMessage:     row.ErrorMessage,
+		ParamsJSON:       row.ParamsJson,
 		RequestedBy:      row.RequestedBy,
+		RetryCount:       int(row.RetryCount),
+		BudgetJSON:       row.BudgetJson,
 		CreatedAt:        row.CreatedAt.UTC().Format(time.RFC3339),
 		UpdatedAt:        row.UpdatedAt.UTC().Format(time.RFC3339),
 	}
