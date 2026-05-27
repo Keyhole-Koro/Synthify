@@ -13,6 +13,7 @@ interface Props {
   onCreateWorkspace: (name: string) => Promise<void>;
   onRetry: () => void;
   onLogout: () => void;
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
 }
 
 export function WorkspaceListContent({
@@ -23,6 +24,7 @@ export function WorkspaceListContent({
   onCreateWorkspace,
   onRetry,
   onLogout,
+  onDeleteWorkspace,
 }: Props) {
   const [creating, setCreating] = useState(false);
 
@@ -46,6 +48,7 @@ export function WorkspaceListContent({
       <WorkspaceItemList
         workspaces={workspaces}
         onOpenWorkspace={onOpenWorkspace}
+        onDeleteWorkspace={onDeleteWorkspace}
       />
 
       <CreateWorkspaceForm

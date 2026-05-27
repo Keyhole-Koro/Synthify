@@ -24,3 +24,7 @@ export async function updateWorkspace(workspaceId: string, name: string) {
   const res = await client.updateWorkspace({ workspaceId, name });
   return res.workspace!;
 }
+
+export async function deleteWorkspace(workspaceId: string) {
+  await client.deleteWorkspace({ workspaceId });
+}

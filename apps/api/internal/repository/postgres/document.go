@@ -267,7 +267,7 @@ SELECT a.account_id, a.name, a.plan, a.storage_quota_bytes, a.storage_used_bytes
        a.stripe_customer_id, a.stripe_subscription_id, a.created_at
 FROM workspaces w
 JOIN accounts a ON a.account_id = w.account_id
-WHERE w.workspace_id = $1
+WHERE w.workspace_id = $1 AND w.deleted_at IS NULL
 FOR UPDATE OF a
 `, workspaceID).Scan(
 		&account.AccountID,

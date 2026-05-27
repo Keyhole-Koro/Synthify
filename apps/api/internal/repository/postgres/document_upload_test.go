@@ -202,7 +202,7 @@ func TestCreateDocument_HappyPath_IssuesURLAndCommits(t *testing.T) {
 
 	mock.ExpectBegin()
 	// lockWorkspaceAccount: 生 SQL with FOR UPDATE OF a
-	mock.ExpectQuery(regexp.QuoteMeta("FROM workspaces w\nJOIN accounts a ON a.account_id = w.account_id\nWHERE w.workspace_id = $1\nFOR UPDATE OF a")).
+	mock.ExpectQuery(regexp.QuoteMeta("FROM workspaces w\nJOIN accounts a ON a.account_id = w.account_id\nWHERE w.workspace_id = $1 AND w.deleted_at IS NULL\nFOR UPDATE OF a")).
 		WithArgs("ws_1").
 		WillReturnRows(lockWorkspaceAccountRows("acc_1", 100, 10000, 1024*1024))
 	// activeReservedBytes: SELECT COALESCE(SUM(...))

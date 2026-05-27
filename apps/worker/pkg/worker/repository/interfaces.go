@@ -62,6 +62,8 @@ type WorkspaceRepository interface {
 	// CreateWorkspace は workspaces + tree root item を 1 ペアで作成する。
 	// atomic 性が必要なら呼び出し側を Transactor.WithTx で包むこと。
 	CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error)
+	UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error)
+	DeleteWorkspace(ctx context.Context, workspaceID string) error
 }
 
 type DocumentRepository interface {

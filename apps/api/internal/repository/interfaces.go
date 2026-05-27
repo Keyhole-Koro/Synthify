@@ -81,6 +81,7 @@ type WorkspaceRepository interface {
 	// Transactor.WithTx で包むこと。
 	CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error)
 	UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error)
+	DeleteWorkspace(ctx context.Context, workspaceID string) error
 }
 
 // DocumentRepository は document/file 自体のメタデータ操作を扱う。

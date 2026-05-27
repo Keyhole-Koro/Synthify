@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateWorkspaceRequest, CreateWorkspaceResponse, GetWorkspaceRequest, GetWorkspaceResponse, InviteMemberRequest, InviteMemberResponse, ListWorkspacesRequest, ListWorkspacesResponse, RemoveMemberRequest, RemoveMemberResponse, TransferOwnershipRequest, TransferOwnershipResponse, UpdateMemberRoleRequest, UpdateMemberRoleResponse, UpdateWorkspaceRequest, UpdateWorkspaceResponse } from "./workspace_pb.js";
+import { CreateWorkspaceRequest, CreateWorkspaceResponse, DeleteWorkspaceRequest, DeleteWorkspaceResponse, GetWorkspaceRequest, GetWorkspaceResponse, InviteMemberRequest, InviteMemberResponse, ListWorkspacesRequest, ListWorkspacesResponse, RemoveMemberRequest, RemoveMemberResponse, TransferOwnershipRequest, TransferOwnershipResponse, UpdateMemberRoleRequest, UpdateMemberRoleResponse, UpdateWorkspaceRequest, UpdateWorkspaceResponse } from "./workspace_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -82,6 +82,15 @@ export declare const WorkspaceService: {
       readonly name: "TransferOwnership",
       readonly I: typeof TransferOwnershipRequest,
       readonly O: typeof TransferOwnershipResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.app.v1.WorkspaceService.DeleteWorkspace
+     */
+    readonly deleteWorkspace: {
+      readonly name: "DeleteWorkspace",
+      readonly I: typeof DeleteWorkspaceRequest,
+      readonly O: typeof DeleteWorkspaceResponse,
       readonly kind: MethodKind.Unary,
     },
   }

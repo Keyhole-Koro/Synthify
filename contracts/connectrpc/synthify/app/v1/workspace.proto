@@ -13,6 +13,7 @@ service WorkspaceService {
   rpc UpdateMemberRole(UpdateMemberRoleRequest) returns (UpdateMemberRoleResponse);
   rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
   rpc TransferOwnership(TransferOwnershipRequest) returns (TransferOwnershipResponse);
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
 }
 
 message Workspace {
@@ -119,3 +120,9 @@ message TransferOwnershipResponse {
   Workspace workspace = 1;
   repeated WorkspaceMember members = 2;
 }
+
+message DeleteWorkspaceRequest {
+  string workspace_id = 1;
+}
+
+message DeleteWorkspaceResponse {}

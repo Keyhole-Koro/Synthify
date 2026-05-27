@@ -12,6 +12,7 @@ sql:
       - "db/migrations/0009_credits.up.sql"
       - "db/migrations/0011_dynamic_tools.up.sql"
       - "db/migrations/0012_users.up.sql"
+      - "db/migrations/0015_workspace_soft_delete.up.sql"
     queries:
       - "db/queries"
     gen:
@@ -38,6 +39,7 @@ sql:
       - "db/migrations/0009_credits.up.sql"
       - "db/migrations/0011_dynamic_tools.up.sql"
       - "db/migrations/0012_users.up.sql"
+      - "db/migrations/0015_workspace_soft_delete.up.sql"
     queries:
       - "db/queries"
     gen:

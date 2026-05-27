@@ -22,6 +22,7 @@ export function useWorkspaceTree(
   workspaces: Workspace[],
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>,
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void>,
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>,
 ) {
   const expansionMapRef = useRef<ExpansionMap>(expansionMap);
   const workspacesRef = useRef<Workspace[]>(workspaces);
@@ -139,13 +140,14 @@ export function useWorkspaceTree(
           childItems={childPapers}
           onUploadFile={(file) => handleUploadWorkspaceFile(workspaceId, file)}
           onRenameWorkspace={(name) => onRenameWorkspace(workspaceId, name)}
+          onDeleteWorkspace={() => onDeleteWorkspace(workspaceId)}
           onSuggestedWorkspaceName={(name) => onSuggestedWorkspaceName(workspaceId, name)}
           onProcessingComplete={() => refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true })}
         />
       ),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getWorkspaceName, handleUploadWorkspaceFile, onRenameWorkspace, onSuggestedWorkspaceName]);
+  }, [getWorkspaceName, handleUploadWorkspaceFile, onRenameWorkspace, onDeleteWorkspace, onSuggestedWorkspaceName]);
 
   function runProjectWorkspacePapers(workspaceId: string, workspaceRootItemId: string): Paper[] {
     const treeItems = workspaceTreeItemsRef.current.get(workspaceId) ?? new Map();

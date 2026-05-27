@@ -3,22 +3,17 @@ import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
 
 interface WorkspaceJobListProps {
   workspaceJobs: FirestoreJobStatus[];
-  workspaceJobsError: string | null;
 }
 
-export function WorkspaceJobList({
-  workspaceJobs,
-  workspaceJobsError,
-}: WorkspaceJobListProps) {
-  if (workspaceJobs.length === 0 && !workspaceJobsError) {
+export function WorkspaceJobList({ workspaceJobs }: WorkspaceJobListProps) {
+  if (workspaceJobs.length === 0) {
     return null;
   }
 
   return (
     <div className="mt-4 rounded-xl border border-stone-200 bg-white/95 p-3 shadow-sm">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2">
         <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-stone-400">Recent Jobs</p>
-        {workspaceJobsError && <span className="text-[10px] text-red-400">sync error</span>}
       </div>
       <div className="space-y-2">
         {workspaceJobs.map((job) => (

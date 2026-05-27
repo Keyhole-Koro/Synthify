@@ -16,6 +16,7 @@ type WorkspaceUsecase interface {
 	GetWorkspace(ctx context.Context, id, userID string) (*domain.Workspace, error)
 	CreateWorkspace(ctx context.Context, name, userID string) (*domain.Workspace, error)
 	UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error)
+	DeleteWorkspace(ctx context.Context, id, userID string) error
 }
 
 type WorkspaceService struct {
@@ -68,4 +69,15 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, id, name, userID
 		return nil, err
 	}
 	return ws, nil
+}
+
+func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, id, userID string) error {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, id, userID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return domain.ErrForbidden
+	}
+	return s.workspaces.DeleteWorkspace(ctx, id)
 }

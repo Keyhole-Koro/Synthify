@@ -415,6 +415,34 @@ export declare type TransferOwnershipResponse = Message<"synthify.app.v1.Transfe
 export declare const TransferOwnershipResponseSchema: GenMessage<TransferOwnershipResponse>;
 
 /**
+ * @generated from message synthify.app.v1.DeleteWorkspaceRequest
+ */
+export declare type DeleteWorkspaceRequest = Message<"synthify.app.v1.DeleteWorkspaceRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.DeleteWorkspaceRequest.
+ * Use `create(DeleteWorkspaceRequestSchema)` to create a new message.
+ */
+export declare const DeleteWorkspaceRequestSchema: GenMessage<DeleteWorkspaceRequest>;
+
+/**
+ * @generated from message synthify.app.v1.DeleteWorkspaceResponse
+ */
+export declare type DeleteWorkspaceResponse = Message<"synthify.app.v1.DeleteWorkspaceResponse"> & {
+};
+
+/**
+ * Describes the message synthify.app.v1.DeleteWorkspaceResponse.
+ * Use `create(DeleteWorkspaceResponseSchema)` to create a new message.
+ */
+export declare const DeleteWorkspaceResponseSchema: GenMessage<DeleteWorkspaceResponse>;
+
+/**
  * @generated from enum synthify.app.v1.WorkspacePlan
  */
 export enum WorkspacePlan {
@@ -538,6 +566,14 @@ export declare const WorkspaceService: GenService<{
     methodKind: "unary";
     input: typeof TransferOwnershipRequestSchema;
     output: typeof TransferOwnershipResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.app.v1.WorkspaceService.DeleteWorkspace
+   */
+  deleteWorkspace: {
+    methodKind: "unary";
+    input: typeof DeleteWorkspaceRequestSchema;
+    output: typeof DeleteWorkspaceResponseSchema;
   },
 }>;
 

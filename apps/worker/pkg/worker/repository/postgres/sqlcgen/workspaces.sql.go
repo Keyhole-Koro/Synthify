@@ -7,6 +7,7 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -217,7 +218,7 @@ func (q *Queries) GetOrCreateAccount(ctx context.Context, arg GetOrCreateAccount
 const getWorkspace = `-- name: GetWorkspace :one
 SELECT workspace_id, account_id, name, created_at
 FROM workspaces
-WHERE workspace_id = $1
+WHERE workspace_id = $1 AND deleted_at IS NULL
 `
 
 type GetWorkspaceRow struct {
@@ -262,7 +263,7 @@ const isWorkspaceAccessible = `-- name: IsWorkspaceAccessible :one
 SELECT EXISTS(
   SELECT 1 FROM workspaces w
   JOIN account_users au ON au.account_id = w.account_id
-  WHERE w.workspace_id = $1 AND au.user_id = $2
+  WHERE w.workspace_id = $1 AND au.user_id = $2 AND w.deleted_at IS NULL
 )::bool AS accessible
 `
 
@@ -282,7 +283,7 @@ const listWorkspacesByUser = `-- name: ListWorkspacesByUser :many
 SELECT w.workspace_id, w.account_id, w.name, w.created_at
 FROM workspaces w
 JOIN account_users au ON au.account_id = w.account_id
-WHERE au.user_id = $1
+WHERE au.user_id = $1 AND w.deleted_at IS NULL
 ORDER BY w.created_at DESC
 `
 
@@ -319,6 +320,25 @@ func (q *Queries) ListWorkspacesByUser(ctx context.Context, userID string) ([]Li
 		return nil, err
 	}
 	return items, nil
+}
+
+const softDeleteWorkspace = `-- name: SoftDeleteWorkspace :execrows
+UPDATE workspaces
+SET deleted_at = $2, updated_at = $2
+WHERE workspace_id = $1
+`
+
+type SoftDeleteWorkspaceParams struct {
+	WorkspaceID string
+	DeletedAt   sql.NullTime
+}
+
+func (q *Queries) SoftDeleteWorkspace(ctx context.Context, arg SoftDeleteWorkspaceParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, softDeleteWorkspace, arg.WorkspaceID, arg.DeletedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :execrows

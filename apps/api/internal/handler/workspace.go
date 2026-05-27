@@ -92,6 +92,21 @@ func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Req
 	}), nil
 }
 
+func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Request[appv1.DeleteWorkspaceRequest]) (*connect.Response[appv1.DeleteWorkspaceResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.service.DeleteWorkspace(ctx, workspaceID, userID); err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.DeleteWorkspaceResponse{}), nil
+}
+
 func (h *WorkspaceHandler) InviteMember(_ context.Context, _ *connect.Request[appv1.InviteMemberRequest]) (*connect.Response[appv1.InviteMemberResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
 }

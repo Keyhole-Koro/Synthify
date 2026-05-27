@@ -10,11 +10,15 @@ interface WorkspaceHeaderProps {
   jobProgress?: number;
   isJustCompleted: boolean;
   isPinned: boolean;
+  isDeleting: boolean;
+  confirmDelete: boolean;
   onTogglePinned: () => void;
   onStartRename: () => void;
   onDraftNameChange: (name: string) => void;
   onCommitName: () => void;
   onCancelRename: () => void;
+  onDelete: () => void;
+  onCancelDelete: () => void;
 }
 
 export function WorkspaceHeader({
@@ -27,12 +31,20 @@ export function WorkspaceHeader({
   jobProgress,
   isJustCompleted,
   isPinned,
+  isDeleting,
+  confirmDelete,
   onTogglePinned,
   onStartRename,
   onDraftNameChange,
   onCommitName,
   onCancelRename,
+  onDelete,
+  onCancelDelete,
 }: WorkspaceHeaderProps) {
+  function stop(e: React.PointerEvent) {
+    e.stopPropagation();
+  }
+
   return (
     <div
       className="flex w-full items-center justify-between gap-3 px-5 pt-4 pb-3 text-left"
@@ -88,6 +100,37 @@ export function WorkspaceHeader({
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          onPointerDown={stop}
+          onPointerUp={stop}
+          onClick={onDelete}
+          disabled={isDeleting}
+          className={[
+            'flex h-7 px-2.5 items-center justify-center rounded-md border transition-all text-[11px] font-medium',
+            confirmDelete
+              ? 'border-red-300 bg-red-50 text-red-600'
+              : 'border-stone-200 bg-white text-stone-400 hover:border-red-200 hover:text-red-500',
+          ].join(' ')}
+          title="ワークスペースを削除"
+        >
+          {confirmDelete ? (isDeleting ? '削除中...' : '本当に削除？') : (
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          )}
+        </button>
+        {confirmDelete && !isDeleting && (
+          <button
+            type="button"
+            onPointerDown={stop}
+            onPointerUp={stop}
+            onClick={onCancelDelete}
+            className="text-[10px] font-medium text-stone-400 hover:text-stone-600"
+          >
+            取消
+          </button>
+        )}
         <button
           type="button"
           onClick={onTogglePinned}

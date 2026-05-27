@@ -346,7 +346,7 @@ SELECT w.workspace_id, w.account_id, w.name, w.created_at,
 FROM workspaces w
 JOIN account_users au ON au.account_id = w.account_id
 JOIN accounts a ON a.account_id = w.account_id
-WHERE au.user_id = $1
+WHERE au.user_id = $1 AND w.deleted_at IS NULL
 ORDER BY w.created_at DESC
 `, userID)
 	if err != nil {
@@ -375,7 +375,7 @@ SELECT w.workspace_id, w.account_id, w.name, w.created_at,
        a.max_uploads_per_5h, a.max_uploads_per_1week
 FROM workspaces w
 JOIN accounts a ON a.account_id = w.account_id
-WHERE w.workspace_id = $1
+WHERE w.workspace_id = $1 AND w.deleted_at IS NULL
 `, id)
 	ws, err := scanWorkspace(row)
 	if err != nil {
@@ -458,6 +458,20 @@ func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name strin
 		return nil, domain.ErrNotFound
 	}
 	return s.GetWorkspace(ctx, workspaceID)
+}
+
+func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
+	affected, err := s.q().SoftDeleteWorkspace(ctx, sqlcgen.SoftDeleteWorkspaceParams{
+		WorkspaceID: workspaceID,
+		DeletedAt:   sql.NullTime{Time: nowTime(), Valid: true},
+	})
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspaceID string) (string, error) {

@@ -44,19 +44,24 @@ ON CONFLICT (account_id, user_id) DO NOTHING;
 SELECT w.workspace_id, w.account_id, w.name, w.created_at
 FROM workspaces w
 JOIN account_users au ON au.account_id = w.account_id
-WHERE au.user_id = $1
+WHERE au.user_id = $1 AND w.deleted_at IS NULL
 ORDER BY w.created_at DESC;
 
 -- name: GetWorkspace :one
 SELECT workspace_id, account_id, name, created_at
 FROM workspaces
+WHERE workspace_id = $1 AND deleted_at IS NULL;
+
+-- name: SoftDeleteWorkspace :execrows
+UPDATE workspaces
+SET deleted_at = $2, updated_at = $2
 WHERE workspace_id = $1;
 
 -- name: IsWorkspaceAccessible :one
 SELECT EXISTS(
   SELECT 1 FROM workspaces w
   JOIN account_users au ON au.account_id = w.account_id
-  WHERE w.workspace_id = $1 AND au.user_id = $2
+  WHERE w.workspace_id = $1 AND au.user_id = $2 AND w.deleted_at IS NULL
 )::bool AS accessible;
 
 -- name: CreateWorkspace :exec
@@ -66,4 +71,4 @@ VALUES ($1, $2, $3, $4, $4);
 -- name: UpdateWorkspaceName :execrows
 UPDATE workspaces
 SET name = $2, updated_at = $3
-WHERE workspace_id = $1;
+WHERE workspace_id = $1 AND deleted_at IS NULL;

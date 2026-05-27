@@ -17,5 +17,5 @@ RETURNING user_id, email, display_name, created_at, last_login_at, updated_at;
 SELECT w.workspace_id, w.name, w.created_at
 FROM workspaces w
 JOIN account_users au ON au.account_id = w.account_id
-WHERE au.user_id = $1
+WHERE au.user_id = $1 AND w.deleted_at IS NULL
 ORDER BY w.created_at DESC;

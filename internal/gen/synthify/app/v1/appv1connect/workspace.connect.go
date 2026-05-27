@@ -57,6 +57,9 @@ const (
 	// WorkspaceServiceTransferOwnershipProcedure is the fully-qualified name of the WorkspaceService's
 	// TransferOwnership RPC.
 	WorkspaceServiceTransferOwnershipProcedure = "/synthify.app.v1.WorkspaceService/TransferOwnership"
+	// WorkspaceServiceDeleteWorkspaceProcedure is the fully-qualified name of the WorkspaceService's
+	// DeleteWorkspace RPC.
+	WorkspaceServiceDeleteWorkspaceProcedure = "/synthify.app.v1.WorkspaceService/DeleteWorkspace"
 )
 
 // WorkspaceServiceClient is a client for the synthify.app.v1.WorkspaceService service.
@@ -69,6 +72,7 @@ type WorkspaceServiceClient interface {
 	UpdateMemberRole(context.Context, *connect.Request[v1.UpdateMemberRoleRequest]) (*connect.Response[v1.UpdateMemberRoleResponse], error)
 	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
 	TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error)
+	DeleteWorkspace(context.Context, *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error)
 }
 
 // NewWorkspaceServiceClient constructs a client for the synthify.app.v1.WorkspaceService service.
@@ -130,6 +134,12 @@ func NewWorkspaceServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(workspaceServiceMethods.ByName("TransferOwnership")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteWorkspace: connect.NewClient[v1.DeleteWorkspaceRequest, v1.DeleteWorkspaceResponse](
+			httpClient,
+			baseURL+WorkspaceServiceDeleteWorkspaceProcedure,
+			connect.WithSchema(workspaceServiceMethods.ByName("DeleteWorkspace")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -143,6 +153,7 @@ type workspaceServiceClient struct {
 	updateMemberRole  *connect.Client[v1.UpdateMemberRoleRequest, v1.UpdateMemberRoleResponse]
 	removeMember      *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
 	transferOwnership *connect.Client[v1.TransferOwnershipRequest, v1.TransferOwnershipResponse]
+	deleteWorkspace   *connect.Client[v1.DeleteWorkspaceRequest, v1.DeleteWorkspaceResponse]
 }
 
 // CreateWorkspace calls synthify.app.v1.WorkspaceService.CreateWorkspace.
@@ -185,6 +196,11 @@ func (c *workspaceServiceClient) TransferOwnership(ctx context.Context, req *con
 	return c.transferOwnership.CallUnary(ctx, req)
 }
 
+// DeleteWorkspace calls synthify.app.v1.WorkspaceService.DeleteWorkspace.
+func (c *workspaceServiceClient) DeleteWorkspace(ctx context.Context, req *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error) {
+	return c.deleteWorkspace.CallUnary(ctx, req)
+}
+
 // WorkspaceServiceHandler is an implementation of the synthify.app.v1.WorkspaceService service.
 type WorkspaceServiceHandler interface {
 	CreateWorkspace(context.Context, *connect.Request[v1.CreateWorkspaceRequest]) (*connect.Response[v1.CreateWorkspaceResponse], error)
@@ -195,6 +211,7 @@ type WorkspaceServiceHandler interface {
 	UpdateMemberRole(context.Context, *connect.Request[v1.UpdateMemberRoleRequest]) (*connect.Response[v1.UpdateMemberRoleResponse], error)
 	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
 	TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error)
+	DeleteWorkspace(context.Context, *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error)
 }
 
 // NewWorkspaceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -252,6 +269,12 @@ func NewWorkspaceServiceHandler(svc WorkspaceServiceHandler, opts ...connect.Han
 		connect.WithSchema(workspaceServiceMethods.ByName("TransferOwnership")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workspaceServiceDeleteWorkspaceHandler := connect.NewUnaryHandler(
+		WorkspaceServiceDeleteWorkspaceProcedure,
+		svc.DeleteWorkspace,
+		connect.WithSchema(workspaceServiceMethods.ByName("DeleteWorkspace")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.app.v1.WorkspaceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkspaceServiceCreateWorkspaceProcedure:
@@ -270,6 +293,8 @@ func NewWorkspaceServiceHandler(svc WorkspaceServiceHandler, opts ...connect.Han
 			workspaceServiceRemoveMemberHandler.ServeHTTP(w, r)
 		case WorkspaceServiceTransferOwnershipProcedure:
 			workspaceServiceTransferOwnershipHandler.ServeHTTP(w, r)
+		case WorkspaceServiceDeleteWorkspaceProcedure:
+			workspaceServiceDeleteWorkspaceHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -309,4 +334,8 @@ func (UnimplementedWorkspaceServiceHandler) RemoveMember(context.Context, *conne
 
 func (UnimplementedWorkspaceServiceHandler) TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.TransferOwnership is not implemented"))
+}
+
+func (UnimplementedWorkspaceServiceHandler) DeleteWorkspace(context.Context, *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.DeleteWorkspace is not implemented"))
 }

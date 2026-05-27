@@ -414,6 +414,16 @@ func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name strin
 	return s.workspaceWithAccount(w), nil
 }
 
+func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.workspaces[workspaceID]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(s.workspaces, workspaceID)
+	return nil
+}
+
 func (s *Store) workspaceWithAccount(w *domain.Workspace) *domain.Workspace {
 	if w == nil {
 		return nil

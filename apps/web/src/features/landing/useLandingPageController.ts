@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { useAuthState } from '@/features/auth/useAuthState';
 import { signOutSession } from '@/features/auth/session';
-import { createWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
+import { createWorkspace, deleteWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
@@ -78,6 +78,16 @@ export function useLandingPageController() {
     await handleRenameWorkspace(workspaceId, trimmed.slice(0, 64));
   }, [handleRenameWorkspace, workspaces]);
 
+  const handleDeleteWorkspace = useCallback(async (workspaceId: string) => {
+    await deleteWorkspace(workspaceId);
+    setWorkspaces((prev) => prev.filter((ws) => ws.workspaceId !== workspaceId));
+    setWorkspacePaperGroups((prev) => {
+      const next = new Map(prev);
+      next.delete(workspaceId);
+      return next;
+    });
+  }, [setWorkspaces]);
+
   const { handleOpenWorkspace, refreshWorkspaceTree, resetTree, buildWsPaper, uploadWorkspaceFile } = useWorkspaceTree(
     getWorkspaceName,
     expansionMap,
@@ -88,6 +98,7 @@ export function useLandingPageController() {
     workspaces,
     handleRenameWorkspace,
     handleAutoNameWorkspace,
+    handleDeleteWorkspace,
   );
 
   const { isFullscreen } = useHomeCanvasViewState(expansionMap, canvasFullscreen);
@@ -136,6 +147,7 @@ export function useLandingPageController() {
     handleRootUploadComplete,
     handleSuggestedWorkspaceName: handleAutoNameWorkspace,
     handleOpenWorkspace,
+    handleDeleteWorkspace,
     buildWsPaper,
     onRetryWorkspaces: retryWorkspaces,
   });
