@@ -78,16 +78,6 @@ export function useLandingPageController() {
     await handleRenameWorkspace(workspaceId, trimmed.slice(0, 64));
   }, [handleRenameWorkspace, workspaces]);
 
-  const handleDeleteWorkspace = useCallback(async (workspaceId: string) => {
-    await deleteWorkspace(workspaceId);
-    setWorkspaces((prev) => prev.filter((ws) => ws.workspaceId !== workspaceId));
-    setWorkspacePaperGroups((prev) => {
-      const next = new Map(prev);
-      next.delete(workspaceId);
-      return next;
-    });
-  }, [setWorkspaces]);
-
   const { handleOpenWorkspace, refreshWorkspaceTree, resetTree, buildWsPaper, uploadWorkspaceFile } = useWorkspaceTree(
     getWorkspaceName,
     expansionMap,
@@ -98,7 +88,6 @@ export function useLandingPageController() {
     workspaces,
     handleRenameWorkspace,
     handleAutoNameWorkspace,
-    handleDeleteWorkspace,
   );
 
   const { isFullscreen } = useHomeCanvasViewState(expansionMap, canvasFullscreen);
@@ -147,7 +136,6 @@ export function useLandingPageController() {
     handleRootUploadComplete,
     handleSuggestedWorkspaceName: handleAutoNameWorkspace,
     handleOpenWorkspace,
-    handleDeleteWorkspace,
     buildWsPaper,
     onRetryWorkspaces: retryWorkspaces,
   });

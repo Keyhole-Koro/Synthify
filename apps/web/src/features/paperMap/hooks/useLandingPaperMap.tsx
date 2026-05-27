@@ -31,7 +31,6 @@ interface UseLandingPaperMapProps {
   handleRootUploadComplete: (workspaceId: string) => Promise<void>;
   handleSuggestedWorkspaceName: (workspaceId: string, name: string) => Promise<void>;
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
-  handleDeleteWorkspace: (workspaceId: string) => Promise<void>;
   onRetryWorkspaces: () => void;
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
 }
@@ -692,7 +691,6 @@ export function useLandingPaperMap({
   handleRootUploadComplete,
   handleSuggestedWorkspaceName,
   handleOpenWorkspace,
-  handleDeleteWorkspace,
   onRetryWorkspaces,
   buildWsPaper,
 }: UseLandingPaperMapProps) {
@@ -803,7 +801,6 @@ export function useLandingPaperMap({
             onCreateWorkspace={handleCreateWorkspace}
             onRetry={onRetryWorkspaces}
             onLogout={handleLogout}
-            onDeleteWorkspace={handleDeleteWorkspace}
           />
         ),
       });
@@ -903,13 +900,14 @@ export function useLandingPaperMap({
     }
 
     return map;
-  }, [
+  ], [
     user, workspaces, workspaceError, authError, loading,
     handleGoogleSubmit, handleLogout, handleCreateWorkspace,
     handleRootUpload, handleRootUploadComplete, handleSuggestedWorkspaceName,
-    handleOpenWorkspace, handleDeleteWorkspace, buildWsPaper, onRetryWorkspaces,
+    handleOpenWorkspace, buildWsPaper, onRetryWorkspaces,
     workspacePaperGroups,
   ]);
+
 
 
   return { paperMap };

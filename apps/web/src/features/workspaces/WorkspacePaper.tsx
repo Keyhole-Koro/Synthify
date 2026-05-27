@@ -19,7 +19,6 @@ interface WorkspacePaperProps {
   childItems: { id: string }[];
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
-  onDeleteWorkspace: () => Promise<void>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
   onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
@@ -31,7 +30,6 @@ export function WorkspacePaper({
   childItems,
   onUploadFile,
   onRenameWorkspace,
-  onDeleteWorkspace,
   onSuggestedWorkspaceName,
   onProcessingComplete,
 }: WorkspacePaperProps) {
@@ -48,8 +46,6 @@ export function WorkspacePaper({
   const [draftName, setDraftName] = useState(workspaceName);
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const { status: jobStatus, error: jobStatusError } = useJobStatus(workspaceId, activeJobId);
   const { jobs: workspaceJobs } = useWorkspaceJobStatuses(workspaceId);
 
@@ -57,23 +53,6 @@ export function WorkspacePaper({
   const isPopulated = hasTree && childItems.length > 0;
   const isExpanded = !isPopulated || isHovered || isPinned;
   const isRunning = !!activeJobId && jobStatus?.status === 'running';
-
-  const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      return;
-    }
-    setIsDeleting(true);
-    try {
-      await onDeleteWorkspace();
-    } catch (err) {
-      console.error('Delete workspace failed:', err);
-      const appErr = toAppError(err);
-      setUploadMessage(appErr.message);
-      setIsDeleting(false);
-      setConfirmDelete(false);
-    }
-  };
 
   const commitName = useCallback(async () => {
     const nextName = draftName.trim();
@@ -181,8 +160,6 @@ export function WorkspacePaper({
             jobProgress={jobStatus?.progress}
             isJustCompleted={uploadMessage === '解析が完了しました。'}
             isPinned={isPinned}
-            isDeleting={isDeleting}
-            confirmDelete={confirmDelete}
             onTogglePinned={() => setIsPinned((p) => !p)}
             onStartRename={() => {
               setDraftName(workspaceName);
@@ -194,8 +171,6 @@ export function WorkspacePaper({
               setEditingName(false);
               setDraftName(workspaceName);
             }}
-            onDelete={handleDelete}
-            onCancelDelete={() => setConfirmDelete(false)}
           />
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
         </>

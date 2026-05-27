@@ -4,10 +4,9 @@ import { type Workspace } from '@/features/workspaces/api';
 interface WorkspaceItemListProps {
   workspaces: Workspace[];
   onOpenWorkspace: (workspaceId: string) => void;
-  onDeleteWorkspace: (workspaceId: string) => void;
 }
 
-export function WorkspaceItemList({ workspaces, onOpenWorkspace, onDeleteWorkspace }: WorkspaceItemListProps) {
+export function WorkspaceItemList({ workspaces, onOpenWorkspace }: WorkspaceItemListProps) {
   if (workspaces.length === 0) return null;
 
   return (
@@ -30,30 +29,9 @@ export function WorkspaceItemList({ workspaces, onOpenWorkspace, onDeleteWorkspa
               </svg>
             </div>
             <span className="truncate">{ws.name}</span>
-            
-            <div className="ml-auto flex items-center gap-1">
-              <button
-                type="button"
-                onPointerDown={(e) => e.stopPropagation()}
-                onPointerUp={(e) => e.stopPropagation()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (confirm('ワークスペースを削除しますか？')) {
-                    onDeleteWorkspace(ws.workspaceId);
-                  }
-                }}
-                className="flex h-6 w-6 items-center justify-center rounded-md text-stone-300 opacity-0 transition-all hover:bg-red-50 hover:text-red-500 group-hover:opacity-100"
-                title="削除"
-              >
-                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              
-              <svg className="h-3.5 w-3.5 shrink-0 text-stone-300 opacity-0 transition-opacity group-hover:opacity-100 group-hover:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </div>
+            <svg className="ml-auto h-3.5 w-3.5 shrink-0 text-stone-300 opacity-0 transition-opacity group-hover:opacity-100 group-hover:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </a>
         ))}
       </div>
