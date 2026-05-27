@@ -170,3 +170,19 @@ resource "google_storage_bucket_iam_member" "worker_uploads_reader" {
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.worker_service_account.email}"
 }
+
+# Firestore job-status notifier (apps/api, apps/worker) writes to
+# workspaces/{ws}/jobs/{job} via the Admin SDK. Native-mode Firestore
+# access is controlled by roles/datastore.user; without it the writes
+# fail with PermissionDenied even though the database exists.
+resource "google_project_iam_member" "api_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${module.api_service_account.email}"
+}
+
+resource "google_project_iam_member" "worker_firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${module.worker_service_account.email}"
+}
