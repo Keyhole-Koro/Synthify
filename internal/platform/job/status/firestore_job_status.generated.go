@@ -102,6 +102,32 @@ const FirestoreJobStatusJSONSchema = `{
         "null"
       ],
       "x-firestore-timestamp": true
+    },
+    "createdDocumentRootItemId": {
+      "description": "On successful completion of a PROCESS_DOCUMENT job, the id of the document_root tree_item created for the processed document. The frontend uses this to fetch only the new subtree rather than refetching the whole workspace tree.",
+      "type": "string"
+    },
+    "affectedWorkspaceRootItemId": {
+      "description": "The id of the workspace_root tree_item under which the job's output was placed. Almost always the same as the workspace's root, but is emitted explicitly so the frontend never has to derive it.",
+      "type": "string"
+    },
+    "stageSummary": {
+      "description": "Ordered list of pipeline stage names that the job traversed. Useful for debug-time inspection without pulling job_logs.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reason": {
+      "description": "Failure classification. Populated on status=failed; absent or empty on other states. Lets the UI switch on a value instead of pattern-matching errorMessage.",
+      "type": "string",
+      "enum": [
+        "vertex_model_not_found",
+        "quota_exceeded",
+        "agent_error",
+        "cancelled",
+        "internal"
+      ]
     }
   }
 }`
@@ -119,6 +145,16 @@ type FirestoreJobStatusSuggestedWorkspaceNameSource string
 
 const (
 	FirestoreJobStatusSuggestedWorkspaceNameSourceBriefTopic FirestoreJobStatusSuggestedWorkspaceNameSource = "brief.topic"
+)
+
+type FirestoreJobStatusReason string
+
+const (
+	FirestoreJobStatusReasonVertexModelNotFound FirestoreJobStatusReason = "vertex_model_not_found"
+	FirestoreJobStatusReasonQuotaExceeded FirestoreJobStatusReason = "quota_exceeded"
+	FirestoreJobStatusReasonAgentError FirestoreJobStatusReason = "agent_error"
+	FirestoreJobStatusReasonCancelled FirestoreJobStatusReason = "cancelled"
+	FirestoreJobStatusReasonInternal FirestoreJobStatusReason = "internal"
 )
 
 const (
@@ -139,6 +175,10 @@ const (
 	FirestoreJobStatusFieldUpdatedAt = "updatedAt"
 	FirestoreJobStatusFieldCompletedAt = "completedAt"
 	FirestoreJobStatusFieldExpiresAt = "expiresAt"
+	FirestoreJobStatusFieldCreatedDocumentRootItemID = "createdDocumentRootItemId"
+	FirestoreJobStatusFieldAffectedWorkspaceRootItemID = "affectedWorkspaceRootItemId"
+	FirestoreJobStatusFieldStageSummary = "stageSummary"
+	FirestoreJobStatusFieldReason = "reason"
 )
 
 type FirestoreJobStatus struct {
@@ -159,4 +199,8 @@ type FirestoreJobStatus struct {
 	UpdatedAt string `firestore:"updatedAt" json:"updatedAt"`
 	CompletedAt *string `firestore:"completedAt,omitempty" json:"completedAt,omitempty"`
 	ExpiresAt *time.Time `firestore:"expiresAt,omitempty" json:"expiresAt,omitempty"`
+	CreatedDocumentRootItemID *string `firestore:"createdDocumentRootItemId,omitempty" json:"createdDocumentRootItemId,omitempty"`
+	AffectedWorkspaceRootItemID *string `firestore:"affectedWorkspaceRootItemId,omitempty" json:"affectedWorkspaceRootItemId,omitempty"`
+	StageSummary []string `firestore:"stageSummary,omitempty" json:"stageSummary,omitempty"`
+	Reason *FirestoreJobStatusReason `firestore:"reason,omitempty" json:"reason,omitempty"`
 }

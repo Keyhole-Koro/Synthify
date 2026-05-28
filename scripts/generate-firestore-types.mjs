@@ -27,6 +27,9 @@ function typeFor(prop) {
       return 'boolean';
     case 'string':
       return 'string';
+    case 'array':
+      if (!prop.items) throw new Error(`array property is missing items: ${JSON.stringify(prop)}`);
+      return `${typeFor(prop.items)}[]`;
     default:
       throw new Error(`Unsupported schema type: ${JSON.stringify(prop)}`);
   }
@@ -63,6 +66,8 @@ const goNameOverrides = {
   updatedAt: 'UpdatedAt',
   completedAt: 'CompletedAt',
   expiresAt: 'ExpiresAt',
+  createdDocumentRootItemId: 'CreatedDocumentRootItemID',
+  affectedWorkspaceRootItemId: 'AffectedWorkspaceRootItemID',
 };
 
 function goName(name) {
@@ -81,6 +86,13 @@ function goType(name, prop, optional) {
       ? 'FirestoreJobStatusState'
       : `FirestoreJobStatus${goName(name)}`;
     return optional ? `*${typ}` : typ;
+  }
+  if (prop.type === 'array') {
+    if (!prop.items) throw new Error(`array property is missing items: ${JSON.stringify(prop)}`);
+    // Slices are already nullable in Go, so the optional pointer wrap is
+    // skipped; a missing field is the empty slice.
+    const elem = prop.items.type === 'integer' || prop.items.type === 'number' ? 'int' : 'string';
+    return `[]${elem}`;
   }
   const typ = prop.type === 'integer' || prop.type === 'number' ? 'int' : 'string';
   return optional ? `*${typ}` : typ;
