@@ -4,7 +4,7 @@ import { useRef, useCallback, useEffect } from 'react';
 import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
 import { WorkspacePaper } from '@/features/workspaces/WorkspacePaper';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
-import { findRootItemId } from '@/features/tree/buildTree';
+import { findRootItemId, findDocumentRootItemIds } from '@/features/tree/buildTree';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { getTree, getSubtree, type ApiItem, type SubtreeItem } from '@/features/tree/api';
 import { create } from '@bufbuild/protobuf';
@@ -245,8 +245,14 @@ export function useWorkspaceTree(
     if (!rootItemId) return;
 
     const previousDocumentRootIds = workspaceDocumentRootIdsRef.current.get(workspaceId) ?? [];
+    // Prefer the explicit kind flag (PR 4 of the kind-track migration);
+    // fall back to "children of workspace_root" for legacy rows written
+    // before the column existed, since those still need to be displayed.
     const rootItem = items.find((item: ApiItem) => item.id === rootItemId);
-    const documentRootIds = rootItem?.childIds ?? [];
+    const explicitDocumentRootIds = findDocumentRootItemIds(items);
+    const documentRootIds = explicitDocumentRootIds.length > 0
+      ? explicitDocumentRootIds
+      : (rootItem?.childIds ?? []);
     const newDocumentRootIds = documentRootIds.filter((id: string) => !previousDocumentRootIds.includes(id));
 
     workspaceRootItemRef.current.set(workspaceId, rootItemId);

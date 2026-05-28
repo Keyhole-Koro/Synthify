@@ -1,4 +1,5 @@
 import type { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
+import { ItemKind } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import type { ApiItem } from './api';
 
 const DEFAULT_HUE = 220;
@@ -29,10 +30,26 @@ export function findUnplacedItemIds(items: ApiItem[]): string[] {
 }
 
 
-/** Returns the root item ID (level 0 or a item without a parent). */
+/**
+ * Returns the workspace_root item's id. Prefers the explicit kind flag
+ * surfaced by the backend (PR 2 of the kind-track migration); falls back
+ * to the legacy "level 0 and no parent" heuristic for items written
+ * before PR 3 backfilled the column, or for backends that have not yet
+ * been upgraded.
+ */
 export function findRootItemId(items: ApiItem[]): string | undefined {
+  const explicit = items.find((i) => i.kind === ItemKind.WORKSPACE_ROOT);
+  if (explicit) return explicit.id;
   const root = items.find((i) => i.level === 0 && !i.parentId);
   if (root) return root.id;
-  // If no level-0 item exists, return a item without a parent.
   return items.find((i) => !i.parentId)?.id;
+}
+
+/**
+ * Returns ids of document_root items under the workspace_root. Useful for
+ * the frontend to know which children of the workspace root represent
+ * documents (as opposed to user-created nodes or future structural items).
+ */
+export function findDocumentRootItemIds(items: ApiItem[]): string[] {
+  return items.filter((i) => i.kind === ItemKind.DOCUMENT_ROOT).map((i) => i.id);
 }
