@@ -20,6 +20,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
+	"golang.org/x/oauth2"
 	"google.golang.org/api/idtoken"
 )
 
@@ -118,10 +119,76 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.Exe
 
 // httpClient returns an ID-token authenticated client for Cloud Run
 // (https targets), or the default client for local/plain-http targets.
+//
+// For HTTPS targets we explicitly build the oauth2.Transport ourselves
+// (instead of idtoken.NewClient) so we can inject authProbeTransport as
+// Base. authProbeTransport observes the request after oauth2.Transport
+// has attached the Bearer token, which is the only way to confirm whether
+// the Authorization header actually made it onto the wire.
 func (d *HTTPDispatcher) httpClient(ctx context.Context) (*http.Client, error) {
-	baseURL := strings.TrimRight(d.baseURL, "/")
-	if !strings.HasPrefix(baseURL, "https://") {
+	audience := strings.TrimRight(d.baseURL, "/")
+	if !strings.HasPrefix(audience, "https://") {
 		return http.DefaultClient, nil
 	}
-	return idtoken.NewClient(ctx, baseURL)
+	ts, err := idtoken.NewTokenSource(ctx, audience)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{
+		Transport: &oauth2.Transport{
+			Source: ts,
+			Base: &authProbeTransport{
+				inner:    http.DefaultTransport,
+				logger:   d.logger,
+				audience: audience,
+			},
+		},
+	}, nil
+}
+
+// authProbeTransport logs whether the outbound request carried an
+// Authorization header. It only emits a record when the response is an
+// HTTP error (>=400) or the transport itself failed, to keep happy-path
+// traffic silent.
+type authProbeTransport struct {
+	inner    http.RoundTripper
+	logger   *slog.Logger
+	audience string
+}
+
+func (t *authProbeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	authHeader := req.Header.Get("Authorization")
+	resp, err := t.inner.RoundTrip(req)
+	if err != nil {
+		t.logger.Error("worker.dispatcher_transport_failed",
+			"audience", t.audience,
+			"url", req.URL.String(),
+			"auth_present", authHeader != "",
+			"auth_len", len(authHeader),
+			"error", err.Error(),
+		)
+		return resp, err
+	}
+	if resp.StatusCode >= 400 {
+		t.logger.Error("worker.dispatcher_http_error",
+			"audience", t.audience,
+			"url", req.URL.String(),
+			"http_status", resp.StatusCode,
+			"auth_present", authHeader != "",
+			"auth_len", len(authHeader),
+			"auth_scheme", schemeOf(authHeader),
+			"response_content_type", resp.Header.Get("Content-Type"),
+		)
+	}
+	return resp, nil
+}
+
+func schemeOf(authHeader string) string {
+	if authHeader == "" {
+		return ""
+	}
+	if idx := strings.IndexByte(authHeader, ' '); idx > 0 {
+		return authHeader[:idx]
+	}
+	return "unknown"
 }
