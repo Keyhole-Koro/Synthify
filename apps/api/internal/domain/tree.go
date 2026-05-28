@@ -27,6 +27,7 @@ type Item struct {
 	ParentID          string                    `json:"parent_id,omitempty"`
 	ChildIDs          []string                  `json:"child_ids,omitempty"`
 	Scope             appv1.TreeProjectionScope `json:"scope,omitempty"`
+	Kind              appv1.ItemKind            `json:"kind,omitempty"`
 }
 
 type ItemSource struct {

@@ -344,7 +344,7 @@ func (q *Queries) SoftDeleteWorkspace(ctx context.Context, arg SoftDeleteWorkspa
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :execrows
 UPDATE workspaces
 SET name = $2, updated_at = $3
-WHERE workspace_id = $1
+WHERE workspace_id = $1 AND deleted_at IS NULL
 `
 
 type UpdateWorkspaceNameParams struct {

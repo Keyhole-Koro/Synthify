@@ -68,6 +68,16 @@ export declare type Item = Message<"synthify.app.v1.Item"> & {
    * @generated from field: string override_css = 11;
    */
   overrideCss: string;
+
+  /**
+   * kind identifies the structural role of this item in its workspace
+   * tree. The frontend used to derive this by inspecting parent_id and
+   * walking children of the inferred root; serving it explicitly lets
+   * both backend and frontend reason about the role directly.
+   *
+   * @generated from field: synthify.app.v1.ItemKind kind = 12;
+   */
+  kind: ItemKind;
 };
 
 /**
@@ -187,4 +197,34 @@ export enum ItemGovernanceState {
  * Describes the enum synthify.app.v1.ItemGovernanceState.
  */
 export declare const ItemGovernanceStateSchema: GenEnum<ItemGovernanceState>;
+
+/**
+ * @generated from enum synthify.app.v1.ItemKind
+ */
+export enum ItemKind {
+  /**
+   * @generated from enum value: ITEM_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ITEM_KIND_NODE = 1;
+   */
+  NODE = 1,
+
+  /**
+   * @generated from enum value: ITEM_KIND_WORKSPACE_ROOT = 2;
+   */
+  WORKSPACE_ROOT = 2,
+
+  /**
+   * @generated from enum value: ITEM_KIND_DOCUMENT_ROOT = 3;
+   */
+  DOCUMENT_ROOT = 3,
+}
+
+/**
+ * Describes the enum synthify.app.v1.ItemKind.
+ */
+export declare const ItemKindSchema: GenEnum<ItemKind>;
 

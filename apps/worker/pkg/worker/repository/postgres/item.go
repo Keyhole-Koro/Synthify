@@ -304,6 +304,7 @@ func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 		OverrideCSS:     row.OverrideCss,
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
+		Kind:            parseItemKind(row.Kind),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
 		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
 	}
@@ -321,6 +322,7 @@ func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 		OverrideCSS:     row.OverrideCss,
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
+		Kind:            parseItemKind(row.Kind),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
 		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
 	}
@@ -338,8 +340,25 @@ func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 		OverrideCSS:     row.OverrideCss,
 		CreatedBy:       row.CreatedBy,
 		GovernanceState: parseGovernanceState(row.GovernanceState),
+		Kind:            parseItemKind(row.Kind),
 		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
 		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+	}
+}
+
+// parseItemKind mirrors the api-side mapper. Keeping the two in sync is
+// deliberate; the schema defines the canonical strings, and we accept the
+// duplication until the worker/api domain split is collapsed.
+func parseItemKind(s string) appv1.ItemKind {
+	switch s {
+	case "workspace_root":
+		return appv1.ItemKind_ITEM_KIND_WORKSPACE_ROOT
+	case "document_root":
+		return appv1.ItemKind_ITEM_KIND_DOCUMENT_ROOT
+	case "node":
+		return appv1.ItemKind_ITEM_KIND_NODE
+	default:
+		return appv1.ItemKind_ITEM_KIND_UNSPECIFIED
 	}
 }
 

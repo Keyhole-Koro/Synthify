@@ -30,6 +30,7 @@ func toProtoItem(item *domain.Item) *appv1.Item {
 		ChildIds:        item.ChildIDs,
 		Scope:           item.Scope,
 		GovernanceState: item.GovernanceState,
+		Kind:            item.Kind,
 	}
 }
 

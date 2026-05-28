@@ -132,6 +132,13 @@ type DocumentProcessingJob struct {
 	UpdatedAt        time.Time
 }
 
+type DocumentTreeLink struct {
+	DocumentID  string
+	RootItemID  string
+	WorkspaceID string
+	CreatedAt   time.Time
+}
+
 type DynamicTool struct {
 	ToolID            string
 	Name              string
@@ -301,6 +308,7 @@ type TreeItem struct {
 	LastMutationJobID string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	Kind              string
 }
 
 type UploadReservation struct {
