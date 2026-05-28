@@ -103,6 +103,9 @@ export function WorkspacePaper({
     }
   };
 
+  const COMPLETION_MESSAGE = '解析が完了しました。';
+  const COMPLETION_MESSAGE_TTL_MS = 4000;
+
   useEffect(() => {
     if (!jobStatus || !activeJobId) return;
     if (jobStatus.suggestedWorkspaceName && suggestedNameRef.current !== jobStatus.suggestedWorkspaceName) {
@@ -112,15 +115,24 @@ export function WorkspacePaper({
     if (jobStatus.status !== 'succeeded') return;
     if (completedJobRef.current === activeJobId) return;
     completedJobRef.current = activeJobId;
-    setUploadMessage('解析が完了しました。');
+    setUploadMessage(COMPLETION_MESSAGE);
     void onProcessingComplete?.(activeJobId);
   }, [activeJobId, jobStatus, onProcessingComplete, onSuggestedWorkspaceName]);
 
-  const handleMouseEnter = useCallback(() => setIsHovered(true), []);
-  const handleMouseLeave = useCallback(() => {
-    setIsHovered(false);
-    if (uploadMessage === '解析が完了しました。') setUploadMessage(null);
+  // Auto-dismiss the success toast after a short window. Failure / upload
+  // messages are unrelated strings so they stay until the user does something
+  // that overwrites them. Comparing the rendered text keeps this side-effect
+  // local without threading another state flag.
+  useEffect(() => {
+    if (uploadMessage !== COMPLETION_MESSAGE) return;
+    const timer = window.setTimeout(() => {
+      setUploadMessage((current) => (current === COMPLETION_MESSAGE ? null : current));
+    }, COMPLETION_MESSAGE_TTL_MS);
+    return () => window.clearTimeout(timer);
   }, [uploadMessage]);
+
+  const handleMouseEnter = useCallback(() => setIsHovered(true), []);
+  const handleMouseLeave = useCallback(() => setIsHovered(false), []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
