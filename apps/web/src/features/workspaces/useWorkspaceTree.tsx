@@ -157,9 +157,18 @@ export function useWorkspaceTree(
           onUploadFile={(file) => handleUploadWorkspaceFile(workspaceId, file)}
           onRenameWorkspace={(name) => onRenameWorkspace(workspaceId, name)}
           onSuggestedWorkspaceName={(name) => onSuggestedWorkspaceName(workspaceId, name)}
-          onProcessingComplete={() => {
+          onProcessingComplete={async (_jobId, createdDocumentRootItemId) => {
             onWorkspaceRuntimeStateComplete(workspaceId);
-            return refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+            // Prefer the incremental subtree fetch when the worker
+            // surfaced the new root id (post-PR 12); fall back to a
+            // full tree refetch when it didn't, which keeps the
+            // pre-migration behavior for any worker that has not
+            // shipped yet.
+            if (createdDocumentRootItemId) {
+              const merged = await mergeDocumentRootIntoTree(workspaceId, createdDocumentRootItemId);
+              if (merged) return;
+            }
+            await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
           }}
         />
       ),
@@ -225,6 +234,47 @@ export function useWorkspaceTree(
     } finally {
       loadingSubtreeItemsRef.current.delete(itemId);
     }
+  }
+
+  // mergeDocumentRootIntoTree is the incremental refresh path used after a
+  // PROCESS_DOCUMENT job completes: instead of refetching the entire
+  // workspace tree, it pulls just the freshly created document_root's
+  // subtree and grafts it under the workspace root. Falls back to the
+  // caller's preferred strategy (usually refreshWorkspaceTree) when the
+  // server did not supply createdDocumentRootItemId — that happens for
+  // legacy jobs and for tests with mocked notifiers.
+  async function mergeDocumentRootIntoTree(
+    workspaceId: string,
+    createdDocumentRootItemId: string,
+  ): Promise<boolean> {
+    const workspaceRootItemId = workspaceRootItemRef.current.get(workspaceId);
+    if (!workspaceRootItemId) return false;
+    let items: SubtreeItem[];
+    try {
+      items = await getSubtree(workspaceId, createdDocumentRootItemId, 5);
+    } catch (err) {
+      console.error('Failed to fetch document subtree for incremental merge:', err);
+      return false;
+    }
+    if (items.length === 0) return false;
+
+    const previousDocumentRootIds = workspaceDocumentRootIdsRef.current.get(workspaceId) ?? [];
+    if (!previousDocumentRootIds.includes(createdDocumentRootItemId)) {
+      workspaceDocumentRootIdsRef.current.set(workspaceId, [
+        ...previousDocumentRootIds,
+        createdDocumentRootItemId,
+      ]);
+    }
+    for (const item of items) {
+      const id = item.item!.id;
+      itemWorkspaceRef.current.set(id, workspaceId);
+      itemHasChildrenRef.current.set(id, item.hasChildren);
+      loadedSubtreeItemsRef.current.add(id);
+    }
+    void mergeTreeIntoWorkspace(workspaceId, workspaceRootItemId, items);
+    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, workspaceRootItemId));
+    updateWorkspaceExpansion(workspaceId, [createdDocumentRootItemId], true);
+    return true;
   }
 
   async function refreshWorkspaceTree(

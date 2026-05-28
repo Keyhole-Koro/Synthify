@@ -42,6 +42,11 @@ VALUES ($1, $2, $3, $4, 1, $5, '', '', 'worker', 'system_generated', $6, 'docume
 INSERT INTO document_tree_links (document_id, root_item_id, workspace_id, created_at)
 VALUES ($1, $2, $3, $4);
 
+-- name: GetDocumentRootItemID :one
+SELECT root_item_id
+FROM document_tree_links
+WHERE document_id = $1;
+
 -- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
   id, workspace_id, parent_id, title, level, description, content, override_css,

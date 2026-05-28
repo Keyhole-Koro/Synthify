@@ -27,7 +27,7 @@ interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
-  onProcessingComplete?: (jobId: string) => Promise<void> | void;
+  onProcessingComplete?: (jobId: string, createdDocumentRootItemId?: string) => Promise<void> | void;
 }
 
 export function WorkspacePaper({
@@ -116,7 +116,7 @@ export function WorkspacePaper({
     if (completedJobRef.current === activeJobId) return;
     completedJobRef.current = activeJobId;
     setUploadMessage(COMPLETION_MESSAGE);
-    void onProcessingComplete?.(activeJobId);
+    void onProcessingComplete?.(activeJobId, jobStatus.createdDocumentRootItemId);
   }, [activeJobId, jobStatus, onProcessingComplete, onSuggestedWorkspaceName]);
 
   // Auto-dismiss the success toast after a short window. Failure / upload

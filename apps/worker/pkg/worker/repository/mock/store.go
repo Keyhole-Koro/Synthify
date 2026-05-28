@@ -1132,6 +1132,15 @@ func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string
 	return "", domain.ErrNotFound
 }
 
+func (s *Store) GetDocumentRootItemID(ctx context.Context, documentID string) (string, error) {
+	// The mock keeps document_tree_links implicit: the document_root for
+	// a documentID is the most-recently created item created by the
+	// worker for that document. Good enough for unit tests; the real
+	// store uses the document_tree_links table.
+	_ = documentID
+	return "", domain.ErrNotFound
+}
+
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	items, err := s.GetTreeByWorkspace(ctx, wsID)
 	if err != nil {

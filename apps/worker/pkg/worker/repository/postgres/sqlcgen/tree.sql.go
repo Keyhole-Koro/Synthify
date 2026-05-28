@@ -187,6 +187,19 @@ func (q *Queries) CreateWorkspaceRootItem(ctx context.Context, arg CreateWorkspa
 	return err
 }
 
+const getDocumentRootItemID = `-- name: GetDocumentRootItemID :one
+SELECT root_item_id
+FROM document_tree_links
+WHERE document_id = $1
+`
+
+func (q *Queries) GetDocumentRootItemID(ctx context.Context, documentID string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDocumentRootItemID, documentID)
+	var root_item_id string
+	err := row.Scan(&root_item_id)
+	return root_item_id, err
+}
+
 const getItem = `-- name: GetItem :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
        COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at

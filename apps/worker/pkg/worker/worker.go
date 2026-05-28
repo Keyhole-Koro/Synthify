@@ -168,10 +168,18 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		Event:       "job.completed",
 		Message:     "LLM worker job completed successfully",
 	})
-	// The CompletionOutcome is intentionally empty here; the worker does
-	// not yet thread createdDocumentRootItemId out of the agent. PR 12
-	// (frontend incremental subtree fetch) is where that wiring lands.
-	if err := w.lifecycle.Complete(ctx, payload, joblifecycle.CompletionOutcome{}); err != nil {
+	// Lift the freshly persisted document_root + workspace_root pair off
+	// the repository so the Firestore notification carries them. Misses
+	// here are non-fatal: the frontend's legacy refetch path covers the
+	// case where the link table did not get a row (older jobs).
+	outcome := joblifecycle.CompletionOutcome{}
+	if rootID, err := w.repo.GetDocumentRootItemID(ctx, req.DocumentID); err == nil {
+		outcome.CreatedDocumentRootItemID = rootID
+	}
+	if wsRoot, err := w.repo.GetWorkspaceRootItemID(ctx, req.WorkspaceID); err == nil {
+		outcome.AffectedWorkspaceRootItemID = wsRoot
+	}
+	if err := w.lifecycle.Complete(ctx, payload, outcome); err != nil {
 		return fmt.Errorf("complete job in repo: %w", err)
 	}
 
