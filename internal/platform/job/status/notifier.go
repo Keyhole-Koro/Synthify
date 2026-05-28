@@ -128,6 +128,7 @@ func (n *firestoreNotifier) Queued(ctx context.Context, payload Payload) error {
 func (n *firestoreNotifier) Running(ctx context.Context, payload Payload) error {
 	return n.write(ctx, payload, map[string]any{
 		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateRunning),
+		FirestoreJobStatusFieldCurrentStage: "",
 		FirestoreJobStatusFieldProgress:     5,
 		FirestoreJobStatusFieldMessage:      "Processing started",
 		FirestoreJobStatusFieldErrorMessage: "",
