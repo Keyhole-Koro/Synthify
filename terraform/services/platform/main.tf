@@ -198,3 +198,27 @@ resource "google_project_iam_member" "eval_aiplatform_user" {
   role    = "roles/aiplatform.user"
   member  = "serviceAccount:${module.eval_service_account.email}"
 }
+
+# TTL policy: Firestore deletes workspaces/{ws}/jobs/{job} documents
+# automatically once their expiresAt timestamp passes. The notifier writes
+# expiresAt = now + 7d on Completed and Failed, so finished jobs are kept
+# long enough for users to inspect the outcome and then garbage-collected
+# without an extra Cloud Scheduler job. Running/queued jobs never set
+# expiresAt and stay until they reach a terminal state.
+#
+# google_firestore_field is also the way you address jobId/etc fields, so we
+# pin collection_group="jobs" and field="expiresAt" exactly. The
+# index_config block is required by the provider even when only TTL is
+# configured.
+resource "google_firestore_field" "jobs_expires_at_ttl" {
+  project    = var.project_id
+  database   = "(default)"
+  collection = "jobs"
+  field      = "expiresAt"
+
+  ttl_config {}
+
+  # Keep the default single-field index settings; declaring ttl_config alone
+  # is enough to enable the TTL policy.
+  index_config {}
+}
