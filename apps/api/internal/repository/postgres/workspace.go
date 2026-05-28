@@ -415,15 +415,11 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	}); err != nil {
 		return nil, fmt.Errorf("create workspace: %w", err)
 	}
-	if err := s.q().CreateItem(ctx, sqlcgen.CreateItemParams{
+	if err := s.q().CreateWorkspaceRootItem(ctx, sqlcgen.CreateWorkspaceRootItemParams{
 		ID:          rootItemID,
 		WorkspaceID: wsID,
-		ParentID:    sql.NullString{},
 		Title:       name,
-		Level:       0,
 		Description: "Workspace root",
-		Content:     "",
-		CreatedBy:   "system",
 		CreatedAt:   createdAt,
 	}); err != nil {
 		return nil, fmt.Errorf("create workspace root item: %w", err)

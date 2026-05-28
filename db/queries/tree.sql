@@ -21,6 +21,27 @@ WHERE id = $1;
 INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10);
 
+-- name: CreateWorkspaceRootItem :exec
+-- Inserts the singleton workspace_root tree_item for a new workspace.
+-- kind is set explicitly rather than relying on the default so the
+-- intent is visible at the call-site.
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
+VALUES ($1, $2, NULL, $3, 0, $4, '', '', 'system', 'workspace_root', $5, $5);
+
+-- name: CreateDocumentRootItem :exec
+-- Inserts a tree_item that anchors a document's subtree under the
+-- workspace_root. Pair this with CreateDocumentTreeLink in the same
+-- transaction so the 1:1 between document and root_item holds.
+INSERT INTO tree_items (
+  id, workspace_id, parent_id, title, level, description, content, override_css,
+  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
+)
+VALUES ($1, $2, $3, $4, 1, $5, '', '', 'worker', 'system_generated', $6, 'document_root', $7, $7);
+
+-- name: CreateDocumentTreeLink :exec
+INSERT INTO document_tree_links (document_id, root_item_id, workspace_id, created_at)
+VALUES ($1, $2, $3, $4);
+
 -- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
   id, workspace_id, parent_id, title, level, description, content, override_css,

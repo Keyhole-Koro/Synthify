@@ -57,37 +57,64 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 		sortedItems := sortItemsTopologically(args.Items)
 
 		itemIDs := make(map[string]string, len(args.Items))
-		rootID, err := b.Repo.GetWorkspaceRootItemID(ctx, args.WorkspaceID)
+		workspaceRootID, err := b.Repo.GetWorkspaceRootItemID(ctx, args.WorkspaceID)
 		if err != nil {
-			rootID = ""
+			workspaceRootID = ""
 		}
+		// document_root_item: the first item the LLM produces whose
+		// ParentLocalID is empty (= sits directly under the workspace
+		// root) is registered as the document's root. Subsequent
+		// top-level items, if any, become regular nodes under the
+		// workspace root — the schema's 1:1 link permits only one
+		// document_root per document.
+		documentRootCreated := false
 		created := 0
 		for _, item := range sortedItems {
-			parentID := rootID
-			if mapped := itemIDs[item.ParentLocalID]; mapped != "" {
-				parentID = mapped
-			}
 			title := strings.TrimSpace(item.Title)
 			if title == "" {
 				title = item.LocalID
 			}
-			createdItem, err := b.Repo.CreateStructuredItemWithCapability(
-				ctx,
-				capability,
-				args.JobID,
-				args.DocumentID,
-				args.WorkspaceID,
-				title,
-				item.Level,
-				item.Description,
-				item.Content,
-				item.OverrideCSS,
-				"llm_worker",
-				parentID,
-				item.SourceChunkIDs,
-			)
-			if err != nil {
-				return nil, core.Usage{}, fmt.Errorf("create item %q: %w", title, err)
+			isTopLevel := item.ParentLocalID == ""
+			parentID := workspaceRootID
+			if mapped := itemIDs[item.ParentLocalID]; mapped != "" {
+				parentID = mapped
+			}
+
+			var createdItem *domain.Item
+			if isTopLevel && !documentRootCreated {
+				createdItem, err = b.Repo.CreateDocumentRootItemWithCapability(
+					ctx,
+					capability,
+					args.JobID,
+					args.DocumentID,
+					args.WorkspaceID,
+					title,
+					item.Description,
+					workspaceRootID,
+				)
+				if err != nil {
+					return nil, core.Usage{}, fmt.Errorf("create document root item %q: %w", title, err)
+				}
+				documentRootCreated = true
+			} else {
+				createdItem, err = b.Repo.CreateStructuredItemWithCapability(
+					ctx,
+					capability,
+					args.JobID,
+					args.DocumentID,
+					args.WorkspaceID,
+					title,
+					item.Level,
+					item.Description,
+					item.Content,
+					item.OverrideCSS,
+					"llm_worker",
+					parentID,
+					item.SourceChunkIDs,
+				)
+				if err != nil {
+					return nil, core.Usage{}, fmt.Errorf("create item %q: %w", title, err)
+				}
 			}
 			itemIDs[item.LocalID] = createdItem.ItemID
 			for _, chunkID := range item.SourceChunkIDs {

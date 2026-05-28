@@ -132,6 +132,89 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 	return item, nil
 }
 
+// CreateDocumentRootItemWithCapability inserts the document_root tree_item
+// for a document and adds the matching document_tree_links row in the same
+// transaction. The UNIQUE constraint on (document_id) ensures we cannot
+// silently overwrite an existing root for the same document — a second
+// call surfaces as ErrDocumentRootAlreadyExists via the FK violation path.
+func (s *Store) CreateDocumentRootItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label, description, workspaceRootItemID string) (*domain.Item, error) {
+	if !s.canMutateTree(capability, appv1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
+		return nil, fmt.Errorf("capability denies item creation: %w", domain.ErrForbidden)
+	}
+	if capability.MaxItemCreations > 0 && s.countJobMutations(ctx, jobID, "item") >= capability.MaxItemCreations {
+		return nil, fmt.Errorf("max item creations reached for job: %w", domain.ErrForbidden)
+	}
+
+	createdAt := nowTime()
+	itemID := newID()
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	qtx := s.q().WithTx(tx)
+	if err := qtx.CreateDocumentRootItem(ctx, sqlcgen.CreateDocumentRootItemParams{
+		ID:          itemID,
+		WorkspaceID: workspaceID,
+		ParentID: sql.NullString{
+			String: workspaceRootItemID,
+			Valid:  workspaceRootItemID != "",
+		},
+		Title:             label,
+		Description:       description,
+		LastMutationJobID: jobID,
+		CreatedAt:         createdAt,
+	}); err != nil {
+		return nil, fmt.Errorf("create document root item: %w", err)
+	}
+	if err := qtx.CreateDocumentTreeLink(ctx, sqlcgen.CreateDocumentTreeLinkParams{
+		DocumentID:  documentID,
+		RootItemID:  itemID,
+		WorkspaceID: workspaceID,
+		CreatedAt:   createdAt,
+	}); err != nil {
+		return nil, fmt.Errorf("create document tree link: %w", err)
+	}
+
+	item := &domain.Item{
+		ItemID:            itemID,
+		WorkspaceID:       workspaceID,
+		ParentID:          workspaceRootItemID,
+		Title:             label,
+		Level:             1,
+		Description:       description,
+		CreatedBy:         "worker",
+		GovernanceState:   appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED,
+		Kind:              appv1.ItemKind_ITEM_KIND_DOCUMENT_ROOT,
+		LastMutationJobID: jobID,
+		CreatedAt:         createdAt.Format(time.RFC3339),
+	}
+
+	if err := s.logMutationTx(ctx, tx, &domain.JobMutationLog{
+		MutationID:     newID(),
+		JobID:          jobID,
+		CapabilityID:   capability.CapabilityID,
+		WorkspaceID:    workspaceID,
+		TargetType:     "item",
+		TargetID:       itemID,
+		MutationType:   "append",
+		RiskTier:       "tier_1",
+		BeforeJSON:     "{}",
+		AfterJSON:      mustJSON(item),
+		ProvenanceJSON: mustJSON(map[string]any{"document_id": documentID, "kind": "document_root"}),
+		CreatedAt:      createdAt.Format(time.RFC3339),
+	}); err != nil {
+		return nil, fmt.Errorf("log mutation: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit document root creation: %w", err)
+	}
+	return item, nil
+}
+
 func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
 	return s.q().UpsertItemSource(ctx, sqlcgen.UpsertItemSourceParams{
 		ItemID:     itemID,

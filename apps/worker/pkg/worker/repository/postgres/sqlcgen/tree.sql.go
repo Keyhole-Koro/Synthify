@@ -29,6 +29,62 @@ func (q *Queries) CountJobMutationsByTarget(ctx context.Context, arg CountJobMut
 	return count, err
 }
 
+const createDocumentRootItem = `-- name: CreateDocumentRootItem :exec
+INSERT INTO tree_items (
+  id, workspace_id, parent_id, title, level, description, content, override_css,
+  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
+)
+VALUES ($1, $2, $3, $4, 1, $5, '', '', 'worker', 'system_generated', $6, 'document_root', $7, $7)
+`
+
+type CreateDocumentRootItemParams struct {
+	ID                string
+	WorkspaceID       string
+	ParentID          sql.NullString
+	Title             string
+	Description       string
+	LastMutationJobID string
+	CreatedAt         time.Time
+}
+
+// Inserts a tree_item that anchors a document's subtree under the
+// workspace_root. Pair this with CreateDocumentTreeLink in the same
+// transaction so the 1:1 between document and root_item holds.
+func (q *Queries) CreateDocumentRootItem(ctx context.Context, arg CreateDocumentRootItemParams) error {
+	_, err := q.db.ExecContext(ctx, createDocumentRootItem,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ParentID,
+		arg.Title,
+		arg.Description,
+		arg.LastMutationJobID,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createDocumentTreeLink = `-- name: CreateDocumentTreeLink :exec
+INSERT INTO document_tree_links (document_id, root_item_id, workspace_id, created_at)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateDocumentTreeLinkParams struct {
+	DocumentID  string
+	RootItemID  string
+	WorkspaceID string
+	CreatedAt   time.Time
+}
+
+func (q *Queries) CreateDocumentTreeLink(ctx context.Context, arg CreateDocumentTreeLinkParams) error {
+	_, err := q.db.ExecContext(ctx, createDocumentTreeLink,
+		arg.DocumentID,
+		arg.RootItemID,
+		arg.WorkspaceID,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const createItem = `-- name: CreateItem :exec
 INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
@@ -99,6 +155,33 @@ func (q *Queries) CreateStructuredItem(ctx context.Context, arg CreateStructured
 		arg.CreatedBy,
 		arg.GovernanceState,
 		arg.LastMutationJobID,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createWorkspaceRootItem = `-- name: CreateWorkspaceRootItem :exec
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
+VALUES ($1, $2, NULL, $3, 0, $4, '', '', 'system', 'workspace_root', $5, $5)
+`
+
+type CreateWorkspaceRootItemParams struct {
+	ID          string
+	WorkspaceID string
+	Title       string
+	Description string
+	CreatedAt   time.Time
+}
+
+// Inserts the singleton workspace_root tree_item for a new workspace.
+// kind is set explicitly rather than relying on the default so the
+// intent is visible at the call-site.
+func (q *Queries) CreateWorkspaceRootItem(ctx context.Context, arg CreateWorkspaceRootItemParams) error {
+	_, err := q.db.ExecContext(ctx, createWorkspaceRootItem,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Title,
+		arg.Description,
 		arg.CreatedAt,
 	)
 	return err

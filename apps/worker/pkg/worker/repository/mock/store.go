@@ -1208,6 +1208,15 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
 }
 
+func (s *Store) CreateDocumentRootItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label, description, workspaceRootItemID string) (*domain.Item, error) {
+	item, err := s.CreateItem(ctx, workspaceID, label, description, workspaceRootItemID, "worker")
+	if err != nil {
+		return nil, err
+	}
+	item.Kind = appv1.ItemKind_ITEM_KIND_DOCUMENT_ROOT
+	return item, nil
+}
+
 func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

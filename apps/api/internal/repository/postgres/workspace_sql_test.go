@@ -68,19 +68,15 @@ func TestCreateWorkspace_InsertsWorkspaceAndRootItem(t *testing.T) {
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// 2) workspace tree root item insert (INTO tree_items)
+	// 2) workspace tree root item insert (CreateWorkspaceRootItem)
+	//    fixed kind='workspace_root', so only id/ws/title/desc/created_at are bound.
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO tree_items")).
 		WithArgs(
 			sqlmock.AnyArg(), // $1 id (rootItemID)
 			sqlmock.AnyArg(), // $2 workspace_id
-			sqlmock.AnyArg(), // $3 parent_id (null)
-			"My WS",          // $4 title
-			int32(0),         // $5 level
-			"Workspace root", // $6 description
-			"",               // $7 content
-			"",               // $8 override_css
-			"system",         // $9 created_by
-			sqlmock.AnyArg(), // $10 created_at (also used as updated_at)
+			"My WS",          // $3 title
+			"Workspace root", // $4 description
+			sqlmock.AnyArg(), // $5 created_at (also used as updated_at)
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
