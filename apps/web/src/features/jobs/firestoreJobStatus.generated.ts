@@ -18,4 +18,5 @@ export type FirestoreJobStatus = {
   startedAt?: string;
   updatedAt: string;
   completedAt?: string;
+  expiresAt?: unknown;
 };

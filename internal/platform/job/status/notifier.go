@@ -164,6 +164,10 @@ func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMe
 		FirestoreJobStatusFieldErrorMessage: errorMessage,
 		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
 		FirestoreJobStatusFieldCompletedAt:  nowRFC3339(),
+		// Bound the lifetime so the workspace's jobs collection does not
+		// grow without bound; Firestore TTL policy deletes the document
+		// once expiresAt passes.
+		FirestoreJobStatusFieldExpiresAt: ttlFromNow(),
 	})
 }
 
@@ -192,6 +196,9 @@ func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) erro
 		FirestoreJobStatusFieldErrorMessage: "",
 		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
 		FirestoreJobStatusFieldCompletedAt:  nowRFC3339(),
+		// Same TTL contract as Failed: keep the document for a week so the
+		// user can still inspect a finished job, then let TTL clean it up.
+		FirestoreJobStatusFieldExpiresAt: ttlFromNow(),
 	})
 }
 
@@ -220,4 +227,14 @@ func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields m
 
 func nowRFC3339() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// jobStatusTTL is how long a terminal job status document survives in
+// Firestore before the platform TTL policy garbage-collects it. The
+// expiresAt field is bound to the TTL policy in terraform; changing the
+// duration here only takes effect for documents written after the change.
+const jobStatusTTL = 7 * 24 * time.Hour
+
+func ttlFromNow() time.Time {
+	return time.Now().UTC().Add(jobStatusTTL)
 }

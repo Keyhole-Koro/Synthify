@@ -3,6 +3,8 @@
 
 package jobstatus
 
+import "time"
+
 const FirestoreJobStatusJSONSchema = `{
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://synthify.local/contracts/firestore/job-status.schema.json",
@@ -90,6 +92,16 @@ const FirestoreJobStatusJSONSchema = `{
     "completedAt": {
       "type": "string",
       "format": "date-time"
+    },
+    "expiresAt": {
+      "description": "Firestore Timestamp at which this document becomes eligible for automatic deletion by the TTL policy. Written as a native Firestore Timestamp (not RFC3339) so the platform-side TTL field selector can match it.",
+      "type": [
+        "object",
+        "string",
+        "number",
+        "null"
+      ],
+      "x-firestore-timestamp": true
     }
   }
 }`
@@ -97,10 +109,10 @@ const FirestoreJobStatusJSONSchema = `{
 type FirestoreJobStatusState string
 
 const (
-	FirestoreJobStatusStateQueued    FirestoreJobStatusState = "queued"
-	FirestoreJobStatusStateRunning   FirestoreJobStatusState = "running"
+	FirestoreJobStatusStateQueued FirestoreJobStatusState = "queued"
+	FirestoreJobStatusStateRunning FirestoreJobStatusState = "running"
 	FirestoreJobStatusStateSucceeded FirestoreJobStatusState = "succeeded"
-	FirestoreJobStatusStateFailed    FirestoreJobStatusState = "failed"
+	FirestoreJobStatusStateFailed FirestoreJobStatusState = "failed"
 )
 
 type FirestoreJobStatusSuggestedWorkspaceNameSource string
@@ -110,39 +122,41 @@ const (
 )
 
 const (
-	FirestoreJobStatusFieldJobID                        = "jobId"
-	FirestoreJobStatusFieldJobType                      = "jobType"
-	FirestoreJobStatusFieldDocumentID                   = "documentId"
-	FirestoreJobStatusFieldWorkspaceID                  = "workspaceId"
-	FirestoreJobStatusFieldTreeID                       = "treeId"
-	FirestoreJobStatusFieldStatus                       = "status"
-	FirestoreJobStatusFieldCurrentStage                 = "currentStage"
-	FirestoreJobStatusFieldProgress                     = "progress"
-	FirestoreJobStatusFieldMessage                      = "message"
-	FirestoreJobStatusFieldErrorMessage                 = "errorMessage"
-	FirestoreJobStatusFieldSuggestedWorkspaceName       = "suggestedWorkspaceName"
+	FirestoreJobStatusFieldJobID = "jobId"
+	FirestoreJobStatusFieldJobType = "jobType"
+	FirestoreJobStatusFieldDocumentID = "documentId"
+	FirestoreJobStatusFieldWorkspaceID = "workspaceId"
+	FirestoreJobStatusFieldTreeID = "treeId"
+	FirestoreJobStatusFieldStatus = "status"
+	FirestoreJobStatusFieldCurrentStage = "currentStage"
+	FirestoreJobStatusFieldProgress = "progress"
+	FirestoreJobStatusFieldMessage = "message"
+	FirestoreJobStatusFieldErrorMessage = "errorMessage"
+	FirestoreJobStatusFieldSuggestedWorkspaceName = "suggestedWorkspaceName"
 	FirestoreJobStatusFieldSuggestedWorkspaceNameSource = "suggestedWorkspaceNameSource"
-	FirestoreJobStatusFieldCreatedAt                    = "createdAt"
-	FirestoreJobStatusFieldStartedAt                    = "startedAt"
-	FirestoreJobStatusFieldUpdatedAt                    = "updatedAt"
-	FirestoreJobStatusFieldCompletedAt                  = "completedAt"
+	FirestoreJobStatusFieldCreatedAt = "createdAt"
+	FirestoreJobStatusFieldStartedAt = "startedAt"
+	FirestoreJobStatusFieldUpdatedAt = "updatedAt"
+	FirestoreJobStatusFieldCompletedAt = "completedAt"
+	FirestoreJobStatusFieldExpiresAt = "expiresAt"
 )
 
 type FirestoreJobStatus struct {
-	JobID                        string                                          `firestore:"jobId" json:"jobId"`
-	JobType                      string                                          `firestore:"jobType" json:"jobType"`
-	DocumentID                   string                                          `firestore:"documentId" json:"documentId"`
-	WorkspaceID                  string                                          `firestore:"workspaceId" json:"workspaceId"`
-	TreeID                       string                                          `firestore:"treeId" json:"treeId"`
-	Status                       FirestoreJobStatusState                         `firestore:"status" json:"status"`
-	CurrentStage                 string                                          `firestore:"currentStage" json:"currentStage"`
-	Progress                     *int                                            `firestore:"progress,omitempty" json:"progress,omitempty"`
-	Message                      *string                                         `firestore:"message,omitempty" json:"message,omitempty"`
-	ErrorMessage                 string                                          `firestore:"errorMessage" json:"errorMessage"`
-	SuggestedWorkspaceName       *string                                         `firestore:"suggestedWorkspaceName,omitempty" json:"suggestedWorkspaceName,omitempty"`
+	JobID string `firestore:"jobId" json:"jobId"`
+	JobType string `firestore:"jobType" json:"jobType"`
+	DocumentID string `firestore:"documentId" json:"documentId"`
+	WorkspaceID string `firestore:"workspaceId" json:"workspaceId"`
+	TreeID string `firestore:"treeId" json:"treeId"`
+	Status FirestoreJobStatusState `firestore:"status" json:"status"`
+	CurrentStage string `firestore:"currentStage" json:"currentStage"`
+	Progress *int `firestore:"progress,omitempty" json:"progress,omitempty"`
+	Message *string `firestore:"message,omitempty" json:"message,omitempty"`
+	ErrorMessage string `firestore:"errorMessage" json:"errorMessage"`
+	SuggestedWorkspaceName *string `firestore:"suggestedWorkspaceName,omitempty" json:"suggestedWorkspaceName,omitempty"`
 	SuggestedWorkspaceNameSource *FirestoreJobStatusSuggestedWorkspaceNameSource `firestore:"suggestedWorkspaceNameSource,omitempty" json:"suggestedWorkspaceNameSource,omitempty"`
-	CreatedAt                    *string                                         `firestore:"createdAt,omitempty" json:"createdAt,omitempty"`
-	StartedAt                    *string                                         `firestore:"startedAt,omitempty" json:"startedAt,omitempty"`
-	UpdatedAt                    string                                          `firestore:"updatedAt" json:"updatedAt"`
-	CompletedAt                  *string                                         `firestore:"completedAt,omitempty" json:"completedAt,omitempty"`
+	CreatedAt *string `firestore:"createdAt,omitempty" json:"createdAt,omitempty"`
+	StartedAt *string `firestore:"startedAt,omitempty" json:"startedAt,omitempty"`
+	UpdatedAt string `firestore:"updatedAt" json:"updatedAt"`
+	CompletedAt *string `firestore:"completedAt,omitempty" json:"completedAt,omitempty"`
+	ExpiresAt *time.Time `firestore:"expiresAt,omitempty" json:"expiresAt,omitempty"`
 }

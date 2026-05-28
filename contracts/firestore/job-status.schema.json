@@ -78,6 +78,11 @@
     "completedAt": {
       "type": "string",
       "format": "date-time"
+    },
+    "expiresAt": {
+      "description": "Firestore Timestamp at which this document becomes eligible for automatic deletion by the TTL policy. Written as a native Firestore Timestamp (not RFC3339) so the platform-side TTL field selector can match it.",
+      "type": ["object", "string", "number", "null"],
+      "x-firestore-timestamp": true
     }
   }
 }
