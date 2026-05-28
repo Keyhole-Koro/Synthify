@@ -82,11 +82,15 @@ CREATE TABLE document_tree_links (
 | ジョブの作成 (`queued`) | **api** | worker |
 | `running` への遷移 | **worker** | api (Postgres から read のみ) |
 | ステージ更新 (`current_stage`) | **worker** | api |
-| `succeeded` / `failed` への遷移 | **worker** | api |
+| `succeeded` への遷移 | **worker** | api |
+| `failed` への遷移 (実行中の失敗) | **worker** | api |
+| `failed` への遷移 (dispatch RPC 自体の失敗) | **api** | worker |
 | 承認リクエスト (approval) | **api** | worker |
 | 承認の承認 / 却下 | **api** | worker |
 | 課金記録 (`usage_events` 等) | **worker** (直接 Postgres) | api (照会のみ) |
-| Firestore 通知 | **状態遷移を起こしたサービス** (`Queued` は api / 以降は worker) | フロント |
+| Firestore 通知 | **状態遷移を起こしたサービス** | フロント |
+
+`failed` 遷移が両者にあるのは意図的だ。worker が呼ばれる前に api → worker の RPC が落ちたケースは、その時点で worker は事象を知らない。api が `TryFail` を呼んで状態を確定させる責任を持つ。
 
 **原則: api min-instances=0 を許容するため、worker は処理を完走するために api に同期依存しない。**
 
@@ -134,25 +138,27 @@ api と worker の `postgres.Store` がそれぞれこの interface を実装す
   - `lifecycle.MarkRunning`, `Complete`, `TryFail` を呼ぶ
   - `pipeline.Runner` 内からの `UpdateProcessingJobStage` は `lifecycle.UpdateStage` 経由に統一 (現状の直接 repo 呼びは禁止)
 
-「`MarkRunning` を api から呼ばない」を **コンパイル時に保証する**ため、`lifecycle.Service` を 2 つの interface に分割する:
+「`MarkRunning` を api から呼ばない / `NotifyQueued` を worker から呼ばない」を **コンパイル時に保証する**ため、`lifecycle.Service` を 2 つの interface に分割する:
 
 ```go
 type QueuedNotifier interface {
     NotifyQueued(ctx context.Context, payload jobstatus.Payload)
-    RequestApproval(...) (...)
-    ApproveApproval(...) (...)
-    RejectApproval(...) (...)
+    TryFail(ctx context.Context, payload jobstatus.Payload, cause error)
 }
 
 type RuntimeController interface {
     MarkRunning(ctx context.Context, payload jobstatus.Payload) error
     UpdateStage(ctx context.Context, payload jobstatus.Payload, stage string) error
-    Complete(ctx context.Context, payload jobstatus.Payload, completedRoot CompletedRoot) error
+    Complete(ctx context.Context, payload jobstatus.Payload) error
     TryFail(ctx context.Context, payload jobstatus.Payload, cause error)
 }
 ```
 
 `Service` 構造体は両方を実装するが、api の DocumentService には `QueuedNotifier` のみ注入し、worker の `Worker` には `RuntimeController` のみ注入する。これで「api が誤って `Complete` を呼ぶ」コードは型エラーになる。
+
+`TryFail` を両 interface に置く理由は責務マトリクスのとおり: dispatch RPC 自体が失敗したケースは api だけが状態を確定できる。
+
+approval メソッド (`RequestApproval` / `ApproveApproval` / `RejectApproval`) は lifecycle には含めない。これらは Repository への単純なパススルーで、`JobHandler` から直接 repo を呼べばよく、lifecycle を経由しても何も得ない。worker 側では使わないので dead code を生むだけだった。
 
 ### 2.4 課金経路の見直し
 
