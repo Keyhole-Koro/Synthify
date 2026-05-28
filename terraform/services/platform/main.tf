@@ -186,3 +186,19 @@ resource "google_project_iam_member" "worker_firestore_user" {
   role    = "roles/datastore.user"
   member  = "serviceAccount:${module.worker_service_account.email}"
 }
+
+# Vertex AI access for Gemini inference (replaces the Gemini API key path).
+# The worker SA calls aiplatform.googleapis.com via the genai client; eval
+# uses the same path when run in CI / Cloud Run. Without this binding the
+# Vertex backend returns PERMISSION_DENIED at the first request.
+resource "google_project_iam_member" "worker_aiplatform_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${module.worker_service_account.email}"
+}
+
+resource "google_project_iam_member" "eval_aiplatform_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${module.eval_service_account.email}"
+}

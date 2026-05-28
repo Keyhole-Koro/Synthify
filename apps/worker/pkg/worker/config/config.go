@@ -31,9 +31,11 @@ type Store struct {
 }
 
 type LLM struct {
-	GeminiAPIKey string
-	GeminiModel  string
-	LogPayload   bool
+	GeminiAPIKey   string
+	GeminiModel    string
+	LogPayload     bool
+	GCPProject     string
+	VertexLocation string
 }
 
 func LoadWorker() Worker {
@@ -60,14 +62,24 @@ func LoadStore() Store {
 
 func LoadLLM() LLM {
 	return LLM{
-		GeminiAPIKey: util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
-		GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
-		LogPayload:   os.Getenv("LOG_LLM_PAYLOAD") == "true",
+		GeminiAPIKey:   util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+		GeminiModel:    get("GEMINI_MODEL", "gemini-3-flash-preview"),
+		LogPayload:     os.Getenv("LOG_LLM_PAYLOAD") == "true",
+		GCPProject:     util.FirstNonEmpty(os.Getenv("GCP_PROJECT"), os.Getenv("GOOGLE_CLOUD_PROJECT")),
+		VertexLocation: os.Getenv("VERTEX_LOCATION"),
 	}
 }
 
+// UseVertex reports whether the Vertex AI backend should be used. Vertex is
+// preferred when both project and location are set, regardless of whether an
+// API key is also present, so production stays on Vertex while local .env
+// configs can fall back to the Gemini API by leaving GCP_PROJECT unset.
+func (c LLM) UseVertex() bool {
+	return c.GCPProject != "" && c.VertexLocation != ""
+}
+
 func (c LLM) Enabled() bool {
-	return c.GeminiAPIKey != ""
+	return c.UseVertex() || c.GeminiAPIKey != ""
 }
 
 func get(key, fallback string) string {

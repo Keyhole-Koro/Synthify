@@ -28,6 +28,7 @@ variable "required_services" {
     "cloudscheduler.googleapis.com",
     "secretmanager.googleapis.com",
     "storage.googleapis.com",
-    "iam.googleapis.com"
+    "iam.googleapis.com",
+    "aiplatform.googleapis.com"
   ]
 }

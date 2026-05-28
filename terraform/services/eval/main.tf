@@ -35,6 +35,16 @@ resource "google_cloud_run_v2_job" "this" {
         }
 
         env {
+          name  = "GCP_PROJECT"
+          value = var.project_id
+        }
+
+        env {
+          name  = "VERTEX_LOCATION"
+          value = var.vertex_location
+        }
+
+        env {
           name  = "EVAL_OUTPUT_GCS_URI"
           value = var.output_gcs_uri
         }

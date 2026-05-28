@@ -55,7 +55,7 @@ func main() {
 
 	cfg := config.LoadLLM()
 	if !cfg.Enabled() {
-		fmt.Fprintln(os.Stderr, "GEMINI_API_KEY or GOOGLE_API_KEY is required")
+		fmt.Fprintln(os.Stderr, "configure either GEMINI_API_KEY/GOOGLE_API_KEY (Gemini API) or GCP_PROJECT+VERTEX_LOCATION (Vertex AI)")
 		os.Exit(2)
 	}
 

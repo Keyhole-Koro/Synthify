@@ -31,6 +31,12 @@ variable "gemini_model" {
   type = string
 }
 
+variable "vertex_location" {
+  description = "Region for Vertex AI Gemini inference. Eval reaches Vertex via the genai client using GCP_PROJECT + this location."
+  type        = string
+  default     = "asia-northeast1"
+}
+
 variable "output_gcs_uri" {
   description = "gs:// prefix where eval JSON reports are saved."
   type        = string

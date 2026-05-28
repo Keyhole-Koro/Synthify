@@ -28,10 +28,20 @@ type GeminiClient struct {
 }
 
 func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem) (*GeminiClient, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  cfg.GeminiAPIKey,
-		Backend: genai.BackendGeminiAPI,
-	})
+	var clientCfg *genai.ClientConfig
+	if cfg.UseVertex() {
+		clientCfg = &genai.ClientConfig{
+			Backend:  genai.BackendVertexAI,
+			Project:  cfg.GCPProject,
+			Location: cfg.VertexLocation,
+		}
+	} else {
+		clientCfg = &genai.ClientConfig{
+			APIKey:  cfg.GeminiAPIKey,
+			Backend: genai.BackendGeminiAPI,
+		}
+	}
+	client, err := genai.NewClient(ctx, clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("init gemini client: %w", err)
 	}
