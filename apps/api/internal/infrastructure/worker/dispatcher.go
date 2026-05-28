@@ -12,6 +12,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -27,18 +28,31 @@ import (
 type HTTPDispatcher struct {
 	baseURL string
 	opts    []connect.ClientOption
+	logger  *slog.Logger
 }
 
-func NewHTTPDispatcher(baseURL string, opts ...connect.ClientOption) *HTTPDispatcher {
-	return &HTTPDispatcher{baseURL: baseURL, opts: opts}
+func NewHTTPDispatcher(baseURL string, logger *slog.Logger, opts ...connect.ClientOption) *HTTPDispatcher {
+	audience := strings.TrimRight(baseURL, "/")
+	logger.Info("worker.dispatcher_init",
+		"base_url", baseURL,
+		"audience", audience,
+		"id_token_auth", strings.HasPrefix(audience, "https://"),
+	)
+	return &HTTPDispatcher{baseURL: baseURL, opts: opts, logger: logger}
 }
 
 func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
+	audience := strings.TrimRight(d.baseURL, "/")
 	httpClient, err := d.httpClient(ctx)
 	if err != nil {
+		d.logger.Error("worker.dispatcher_http_client_failed",
+			"audience", audience,
+			"rpc", "GenerateExecutionPlan",
+			"error", err.Error(),
+		)
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := workerv1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
+	client := workerv1connect.NewWorkerServiceClient(httpClient, audience, d.opts...)
 	rpcReq := connect.NewRequest(&workerv1.GenerateExecutionPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
@@ -49,17 +63,31 @@ func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.E
 		MimeType:    req.MimeType,
 	})
 	if _, err = client.GenerateExecutionPlan(ctx, rpcReq); err != nil {
+		d.logger.Error("worker.dispatcher_rpc_failed",
+			"rpc", "GenerateExecutionPlan",
+			"audience", audience,
+			"request_url", audience+workerv1connect.WorkerServiceGenerateExecutionPlanProcedure,
+			"connect_code", connect.CodeOf(err).String(),
+			"error", err.Error(),
+			"job_id", req.JobID,
+		)
 		return fmt.Errorf("GenerateExecutionPlan rpc: %w", err)
 	}
 	return nil
 }
 
 func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
+	audience := strings.TrimRight(d.baseURL, "/")
 	httpClient, err := d.httpClient(ctx)
 	if err != nil {
+		d.logger.Error("worker.dispatcher_http_client_failed",
+			"audience", audience,
+			"rpc", "ExecuteApprovedPlan",
+			"error", err.Error(),
+		)
 		return fmt.Errorf("http client: %w", err)
 	}
-	client := workerv1connect.NewWorkerServiceClient(httpClient, strings.TrimRight(d.baseURL, "/"), d.opts...)
+	client := workerv1connect.NewWorkerServiceClient(httpClient, audience, d.opts...)
 	rpcReq := connect.NewRequest(&workerv1.ExecuteApprovedPlanRequest{
 		JobId:       req.JobID,
 		JobType:     req.JobType,
@@ -71,9 +99,18 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.Exe
 		MimeType:    req.MimeType,
 	})
 	if _, err = client.ExecuteApprovedPlan(ctx, rpcReq); err != nil {
-		if connect.CodeOf(err) == connect.CodeFailedPrecondition {
+		code := connect.CodeOf(err)
+		if code == connect.CodeFailedPrecondition {
 			return domain.ErrApprovalRequired
 		}
+		d.logger.Error("worker.dispatcher_rpc_failed",
+			"rpc", "ExecuteApprovedPlan",
+			"audience", audience,
+			"request_url", audience+workerv1connect.WorkerServiceExecuteApprovedPlanProcedure,
+			"connect_code", code.String(),
+			"error", err.Error(),
+			"job_id", req.JobID,
+		)
 		return err
 	}
 	return nil

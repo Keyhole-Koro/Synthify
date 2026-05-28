@@ -50,7 +50,7 @@ func main() {
 	// Document pipeline wiring. The dispatcher talks to the worker service
 	// over Connect; object metadata + source URLs are derived from the
 	// internal GCS upload base.
-	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, observability.ConnectClientOptions(nrApp)...)
+	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, appLogger, observability.ConnectClientOptions(nrApp)...)
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
