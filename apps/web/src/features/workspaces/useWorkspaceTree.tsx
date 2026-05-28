@@ -6,7 +6,7 @@ import { WorkspacePaper } from '@/features/workspaces/WorkspacePaper';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
 import { findRootItemId, findDocumentRootItemIds } from '@/features/tree/buildTree';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
-import { getTree, getSubtree, type ApiItem, type SubtreeItem } from '@/features/tree/api';
+import { getTree, getSubtree, type SubtreeItem } from '@/features/tree/api';
 import { create } from '@bufbuild/protobuf';
 import { SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import { createDocument, startProcessing, uploadFile } from '@/features/documents/api';
@@ -159,16 +159,9 @@ export function useWorkspaceTree(
           onSuggestedWorkspaceName={(name) => onSuggestedWorkspaceName(workspaceId, name)}
           onProcessingComplete={async (_jobId, createdDocumentRootItemId) => {
             onWorkspaceRuntimeStateComplete(workspaceId);
-            // Prefer the incremental subtree fetch when the worker
-            // surfaced the new root id (post-PR 12); fall back to a
-            // full tree refetch when it didn't, which keeps the
-            // pre-migration behavior for any worker that has not
-            // shipped yet.
-            if (createdDocumentRootItemId) {
-              const merged = await mergeDocumentRootIntoTree(workspaceId, createdDocumentRootItemId);
-              if (merged) return;
-            }
-            await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+            // The worker always reports the new document_root id alongside
+            // job completion, so the merge path is the only one we need.
+            await mergeDocumentRootIntoTree(workspaceId, createdDocumentRootItemId);
           }}
         />
       ),
@@ -237,26 +230,17 @@ export function useWorkspaceTree(
   }
 
   // mergeDocumentRootIntoTree is the incremental refresh path used after a
-  // PROCESS_DOCUMENT job completes: instead of refetching the entire
-  // workspace tree, it pulls just the freshly created document_root's
-  // subtree and grafts it under the workspace root. Falls back to the
-  // caller's preferred strategy (usually refreshWorkspaceTree) when the
-  // server did not supply createdDocumentRootItemId — that happens for
-  // legacy jobs and for tests with mocked notifiers.
+  // PROCESS_DOCUMENT job completes: it pulls just the freshly created
+  // document_root's subtree and grafts it under the workspace root rather
+  // than refetching the whole workspace tree.
   async function mergeDocumentRootIntoTree(
     workspaceId: string,
     createdDocumentRootItemId: string,
-  ): Promise<boolean> {
+  ): Promise<void> {
     const workspaceRootItemId = workspaceRootItemRef.current.get(workspaceId);
-    if (!workspaceRootItemId) return false;
-    let items: SubtreeItem[];
-    try {
-      items = await getSubtree(workspaceId, createdDocumentRootItemId, 5);
-    } catch (err) {
-      console.error('Failed to fetch document subtree for incremental merge:', err);
-      return false;
-    }
-    if (items.length === 0) return false;
+    if (!workspaceRootItemId) return;
+    const items = await getSubtree(workspaceId, createdDocumentRootItemId, 5);
+    if (items.length === 0) return;
 
     const previousDocumentRootIds = workspaceDocumentRootIdsRef.current.get(workspaceId) ?? [];
     if (!previousDocumentRootIds.includes(createdDocumentRootItemId)) {
@@ -274,7 +258,6 @@ export function useWorkspaceTree(
     void mergeTreeIntoWorkspace(workspaceId, workspaceRootItemId, items);
     setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, workspaceRootItemId));
     updateWorkspaceExpansion(workspaceId, [createdDocumentRootItemId], true);
-    return true;
   }
 
   async function refreshWorkspaceTree(
@@ -291,18 +274,11 @@ export function useWorkspaceTree(
       setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
       return;
     }
-    const rootItemId = findRootItemId(items) ?? items[0]?.id;
+    const rootItemId = findRootItemId(items);
     if (!rootItemId) return;
 
     const previousDocumentRootIds = workspaceDocumentRootIdsRef.current.get(workspaceId) ?? [];
-    // Prefer the explicit kind flag (PR 4 of the kind-track migration);
-    // fall back to "children of workspace_root" for legacy rows written
-    // before the column existed, since those still need to be displayed.
-    const rootItem = items.find((item: ApiItem) => item.id === rootItemId);
-    const explicitDocumentRootIds = findDocumentRootItemIds(items);
-    const documentRootIds = explicitDocumentRootIds.length > 0
-      ? explicitDocumentRootIds
-      : (rootItem?.childIds ?? []);
+    const documentRootIds = findDocumentRootItemIds(items);
     const newDocumentRootIds = documentRootIds.filter((id: string) => !previousDocumentRootIds.includes(id));
 
     workspaceRootItemRef.current.set(workspaceId, rootItemId);

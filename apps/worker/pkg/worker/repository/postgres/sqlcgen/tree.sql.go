@@ -86,8 +86,8 @@ func (q *Queries) CreateDocumentTreeLink(ctx context.Context, arg CreateDocument
 }
 
 const createItem = `-- name: CreateItem :exec
-INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'node', $10, $10)
 `
 
 type CreateItemParams struct {
@@ -103,6 +103,8 @@ type CreateItemParams struct {
 	CreatedAt   time.Time
 }
 
+// Creates a regular 'node' item under an explicit parent. Use
+// CreateWorkspaceRootItem / CreateDocumentRootItem for the role-bearing roots.
 func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) error {
 	_, err := q.db.ExecContext(ctx, createItem,
 		arg.ID,
@@ -122,9 +124,9 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) error {
 const createStructuredItem = `-- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
   id, workspace_id, parent_id, title, level, description, content, override_css,
-  created_by, governance_state, last_mutation_job_id, created_at, updated_at
+  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'node', $12, $12)
 `
 
 type CreateStructuredItemParams struct {
@@ -174,8 +176,6 @@ type CreateWorkspaceRootItemParams struct {
 }
 
 // Inserts the singleton workspace_root tree_item for a new workspace.
-// kind is set explicitly rather than relying on the default so the
-// intent is visible at the call-site.
 func (q *Queries) CreateWorkspaceRootItem(ctx context.Context, arg CreateWorkspaceRootItemParams) error {
 	_, err := q.db.ExecContext(ctx, createWorkspaceRootItem,
 		arg.ID,
@@ -202,7 +202,7 @@ func (q *Queries) GetDocumentRootItemID(ctx context.Context, documentID string) 
 
 const getItem = `-- name: GetItem :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at
+       governance_state, kind, created_at
 FROM tree_items
 WHERE id = $1
 `
@@ -243,7 +243,7 @@ func (q *Queries) GetItem(ctx context.Context, id string) (GetItemRow, error) {
 }
 
 const getItemSummaryUpdateContext = `-- name: GetItemSummaryUpdateContext :one
-SELECT workspace_id, COALESCE(content, '') AS content, COALESCE(governance_state, 'system_generated') AS governance_state
+SELECT workspace_id, content, governance_state
 FROM tree_items
 WHERE id = $1
 `
@@ -264,7 +264,7 @@ func (q *Queries) GetItemSummaryUpdateContext(ctx context.Context, id string) (G
 const getTreeRoot = `-- name: GetTreeRoot :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at
 FROM tree_items
-WHERE workspace_id = $1 AND parent_id IS NULL
+WHERE workspace_id = $1 AND kind = 'workspace_root'
 LIMIT 1
 `
 
@@ -346,7 +346,7 @@ func (q *Queries) InsertJobMutationLog(ctx context.Context, arg InsertJobMutatio
 
 const listChildItems = `-- name: ListChildItems :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-  COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at,
+  governance_state, kind, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
 WHERE tree_items.parent_id = $1
@@ -455,7 +455,7 @@ func (q *Queries) ListItemSources(ctx context.Context, itemID string) ([]ListIte
 
 const listItemsByWorkspace = `-- name: ListItemsByWorkspace :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at
+       governance_state, kind, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC

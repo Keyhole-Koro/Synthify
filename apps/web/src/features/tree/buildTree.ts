@@ -31,24 +31,16 @@ export function findUnplacedItemIds(items: ApiItem[]): string[] {
 
 
 /**
- * Returns the workspace_root item's id. Prefers the explicit kind flag
- * surfaced by the backend (PR 2 of the kind-track migration); falls back
- * to the legacy "level 0 and no parent" heuristic for items written
- * before PR 3 backfilled the column, or for backends that have not yet
- * been upgraded.
+ * Returns the workspace_root item's id. Schema invariant: every workspace
+ * has exactly one item with kind=WORKSPACE_ROOT, so the lookup is direct.
  */
 export function findRootItemId(items: ApiItem[]): string | undefined {
-  const explicit = items.find((i) => i.kind === ItemKind.WORKSPACE_ROOT);
-  if (explicit) return explicit.id;
-  const root = items.find((i) => i.level === 0 && !i.parentId);
-  if (root) return root.id;
-  return items.find((i) => !i.parentId)?.id;
+  return items.find((i) => i.kind === ItemKind.WORKSPACE_ROOT)?.id;
 }
 
 /**
- * Returns ids of document_root items under the workspace_root. Useful for
- * the frontend to know which children of the workspace root represent
- * documents (as opposed to user-created nodes or future structural items).
+ * Returns ids of document_root items under the workspace_root. Each document
+ * has exactly one such item (enforced by document_tree_links).
  */
 export function findDocumentRootItemIds(items: ApiItem[]): string[] {
   return items.filter((i) => i.kind === ItemKind.DOCUMENT_ROOT).map((i) => i.id);

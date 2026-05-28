@@ -21,13 +21,3 @@ func TestFindPaths_DBError_ReturnsError(t *testing.T) {
 	assert.Error(t, err, "expected error on DB error, got nil")
 }
 
-func TestGetOrCreateTree_DBError_ReturnsError(t *testing.T) {
-	db, _, err := sqlmock.New()
-	require.NoError(t, err, "sqlmock.New")
-	defer db.Close()
-
-	store := &Store{db: db}
-
-	_, err = store.GetOrCreateTree(context.Background(), "ws_1")
-	assert.Error(t, err, "expected error on DB failure, got nil")
-}

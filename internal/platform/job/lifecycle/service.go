@@ -55,10 +55,11 @@ type RuntimeController interface {
 	TryFailWith(ctx context.Context, payload jobstatus.Payload, failure Failure)
 }
 
-// CompletionOutcome carries the optional metadata the worker collects while
-// a job runs so it can be reflected onto the Firestore mirror without an
-// extra round-trip. All fields are best-effort: leaving CreatedDocumentRootItemID
-// empty produces a notification that simply omits the field.
+// CompletionOutcome carries the metadata the worker collects while a job
+// runs so it can be reflected onto the Firestore mirror without an extra
+// round-trip. CreatedDocumentRootItemID + AffectedWorkspaceRootItemID are
+// the IDs the frontend uses to graft the new subtree into the workspace
+// view; StageSummary is optional human-readable progress.
 type CompletionOutcome struct {
 	CreatedDocumentRootItemID   string
 	AffectedWorkspaceRootItemID string

@@ -60,16 +60,16 @@ func TestTreeService_GetSubtree_ItemInWorkspace_ReturnsItems(t *testing.T) {
 func TestTreeService_GetSubtree_ItemInOtherWorkspace_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
-	// "ws-owner" を作って owner がアクセスできるよう wsOwners に登録する
+	// "ws-owner" / "ws-stranger" を作って owner がアクセスできるよう wsOwners に登録する。
+	// CreateWorkspace は workspace_root tree_item も同時に作るので、
+	// 追加の GetTree 呼び出しは不要。
 	acct, _ := store.GetOrCreateAccount(ctx, "owner")
 	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "owner")    // → ws-owner
 	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "stranger") // → ws-stranger (owner が membership 持つ)
-	_, err := store.GetOrCreateTree(ctx, "ws-owner")
-	require.NoError(t, err)
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	// nd_root は ws-owner 配下だが、ws-stranger の workspaceID で問い合わせ → Forbidden
-	_, err = svc.GetSubtree(ctx, "ws-stranger", "nd_root", "owner", 3)
+	_, err := svc.GetSubtree(ctx, "ws-stranger", "nd_root", "owner", 3)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, domain.ErrForbidden), "expected ErrForbidden, got %v", err)
 }
@@ -85,17 +85,16 @@ func TestTreeService_GetSubtree_MissingArgs_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 }
 
-// FindPaths は tree が無くても GetOrCreateTree の副作用で作成して進む。
-func TestTreeService_FindPaths_AutoCreatesTree(t *testing.T) {
+// FindPaths は workspace 作成時に root が必ず作られている前提なので、
+// 追加の GetOrCreateTree 副作用は不要。
+func TestTreeService_FindPaths_FindsTreeFromWorkspace(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
-	// fixture を作って owner にアクセス権を付与
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	items, _, err := svc.FindPaths(ctx, fixture.Workspace.WorkspaceID, "a", "b", "owner", 3, 5)
 	require.NoError(t, err)
-	// 作成された tree には root だけ存在する
 	assert.NotEmpty(t, items)
 }
 

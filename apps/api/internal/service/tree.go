@@ -88,8 +88,9 @@ func (s *TreeService) GetSubtree(ctx context.Context, workspaceID, itemID, userI
 	return items, nil
 }
 
-// FindPaths は source-target 間の path を検索する。
-// workspace の tree が未作成なら作成する (GetOrCreateTree の副作用)。
+// FindPaths は source-target 間の path を検索する。tree は workspace 作成時に
+// 必ず一緒に作られている前提なので、ここで GetTree が失敗するのは workspace が
+// 存在しない (= 認可前に弾かれているはず) ケースだけ。
 func (s *TreeService) FindPaths(ctx context.Context, workspaceID, sourceItemID, targetItemID, userID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	if workspaceID == "" || sourceItemID == "" || targetItemID == "" {
 		return nil, nil, errors.New("workspace_id, source_item_id, target_item_id are required")
@@ -97,7 +98,7 @@ func (s *TreeService) FindPaths(ctx context.Context, workspaceID, sourceItemID, 
 	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
 		return nil, nil, err
 	}
-	tree, err := s.tree.GetOrCreateTree(ctx, workspaceID)
+	tree, err := s.tree.GetTree(ctx, workspaceID)
 	if err != nil {
 		return nil, nil, err
 	}

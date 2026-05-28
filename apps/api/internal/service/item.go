@@ -19,14 +19,12 @@ type ItemUsecase interface {
 
 type ItemService struct {
 	repo       repository.ItemRepository
-	tree       repository.TreeRepository
 	workspaces repository.WorkspaceRepository
 	logger     *slog.Logger
 }
 
 type ItemServiceDeps struct {
 	Repo       repository.ItemRepository
-	Tree       repository.TreeRepository
 	Workspaces repository.WorkspaceRepository
 	Logger     *slog.Logger
 }
@@ -34,7 +32,6 @@ type ItemServiceDeps struct {
 func NewItemService(deps ItemServiceDeps) *ItemService {
 	return &ItemService{
 		repo:       deps.Repo,
-		tree:       deps.Tree,
 		workspaces: deps.Workspaces,
 		logger:     deps.Logger,
 	}
@@ -68,9 +65,6 @@ func (s *ItemService) GetItem(ctx context.Context, itemID, workspaceID, userID s
 
 func (s *ItemService) CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error) {
 	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
-		return nil, err
-	}
-	if _, err := s.tree.GetOrCreateTree(ctx, workspaceID); err != nil {
 		return nil, err
 	}
 	return s.repo.CreateItem(ctx, workspaceID, label, description, parentID, userID)

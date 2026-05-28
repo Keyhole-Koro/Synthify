@@ -342,7 +342,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 			}
 		}
 	}
-	tree, err := s.tree.GetOrCreateTree(ctx, wsID)
+	tree, err := s.tree.GetTree(ctx, wsID)
 	if err != nil {
 		return nil, err
 	}

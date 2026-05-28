@@ -169,15 +169,20 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		Message:     "LLM worker job completed successfully",
 	})
 	// Lift the freshly persisted document_root + workspace_root pair off
-	// the repository so the Firestore notification carries them. Misses
-	// here are non-fatal: the frontend's legacy refetch path covers the
-	// case where the link table did not get a row (older jobs).
-	outcome := joblifecycle.CompletionOutcome{}
-	if rootID, err := w.repo.GetDocumentRootItemID(ctx, req.DocumentID); err == nil {
-		outcome.CreatedDocumentRootItemID = rootID
+	// the repository so the Firestore notification carries them. Both lookups
+	// must succeed: persistence is the same transaction that just completed,
+	// so a missing row here means the schema invariants are broken.
+	rootID, err := w.repo.GetDocumentRootItemID(ctx, req.DocumentID)
+	if err != nil {
+		return fmt.Errorf("get document root item id for completion: %w", err)
 	}
-	if wsRoot, err := w.repo.GetWorkspaceRootItemID(ctx, req.WorkspaceID); err == nil {
-		outcome.AffectedWorkspaceRootItemID = wsRoot
+	wsRoot, err := w.repo.GetWorkspaceRootItemID(ctx, req.WorkspaceID)
+	if err != nil {
+		return fmt.Errorf("get workspace root item id for completion: %w", err)
+	}
+	outcome := joblifecycle.CompletionOutcome{
+		CreatedDocumentRootItemID:   rootID,
+		AffectedWorkspaceRootItemID: wsRoot,
 	}
 	if err := w.lifecycle.Complete(ctx, payload, outcome); err != nil {
 		return fmt.Errorf("complete job in repo: %w", err)

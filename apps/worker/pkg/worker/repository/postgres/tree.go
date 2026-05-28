@@ -4,48 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
 )
-
-func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
-	// 1 ワークスペース = 1 ツリー。ルートアイテムがあればそれを返す。
-	root, err := s.q().GetTreeRoot(ctx, wsID)
-	if err == nil {
-		return &domain.Tree{
-			TreeID:      wsID,
-			WorkspaceID: wsID,
-			Name:        "default",
-			CreatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
-			UpdatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
-		}, nil
-	}
-
-	// ルートがない場合は作成
-	ws, err := s.q().GetWorkspace(ctx, wsID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workspace: %w", err)
-	}
-
-	err = s.q().CreateItem(ctx, sqlcgen.CreateItemParams{
-		ID:          newID(),
-		WorkspaceID: wsID,
-		ParentID:    sql.NullString{Valid: false},
-		Title:       ws.Name,
-		Level:       0,
-		Description: "Workspace root",
-		Content:     "",
-		CreatedBy:   "system",
-		CreatedAt:   nowTime(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create root item: %w", err)
-	}
-
-	return s.GetOrCreateTree(ctx, wsID)
-}
 
 func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {
 	rows, err := s.q().ListItemsByWorkspace(ctx, wsID)

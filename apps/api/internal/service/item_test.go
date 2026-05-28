@@ -15,7 +15,6 @@ func TestCreateItem_CreatesItem(t *testing.T) {
 	repo := mock.NewStore()
 	svc := NewItemService(ItemServiceDeps{
 		Repo:       repo,
-		Tree:       repo,
 		Workspaces: repo,
 		Logger:     nil,
 	})
@@ -33,7 +32,6 @@ func TestCreateItem_NonMember_ReturnsForbidden(t *testing.T) {
 	repo := mock.NewStore()
 	svc := NewItemService(ItemServiceDeps{
 		Repo:       repo,
-		Tree:       repo,
 		Workspaces: repo,
 		Logger:     nil,
 	})
@@ -49,7 +47,6 @@ func TestGetItem_OtherWorkspaceID_ReturnsForbidden(t *testing.T) {
 	repo := mock.NewStore()
 	svc := NewItemService(ItemServiceDeps{
 		Repo:       repo,
-		Tree:       repo,
 		Workspaces: repo,
 		Logger:     nil,
 	})

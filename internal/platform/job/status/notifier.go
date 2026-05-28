@@ -86,8 +86,10 @@ type FailureNotification struct {
 	Reason       FirestoreJobStatusReason
 }
 
-// CompletionNotification carries the optional metadata about a successful
-// job: where its output landed in the tree, and which stages it traversed.
+// CompletionNotification carries the metadata about a successful job: where
+// its output landed in the tree, and which stages it traversed. The two root
+// IDs are required so the frontend can graft the new subtree in place
+// without refetching the whole tree; StageSummary is optional.
 type CompletionNotification struct {
 	CreatedDocumentRootItemID   string
 	AffectedWorkspaceRootItemID string
@@ -235,12 +237,8 @@ func (n *firestoreNotifier) CompletedWith(ctx context.Context, payload Payload, 
 		// user can still inspect a finished job, then let TTL clean it up.
 		FirestoreJobStatusFieldExpiresAt: ttlFromNow(),
 	}
-	if cn.CreatedDocumentRootItemID != "" {
-		fields[FirestoreJobStatusFieldCreatedDocumentRootItemID] = cn.CreatedDocumentRootItemID
-	}
-	if cn.AffectedWorkspaceRootItemID != "" {
-		fields[FirestoreJobStatusFieldAffectedWorkspaceRootItemID] = cn.AffectedWorkspaceRootItemID
-	}
+	fields[FirestoreJobStatusFieldCreatedDocumentRootItemID] = cn.CreatedDocumentRootItemID
+	fields[FirestoreJobStatusFieldAffectedWorkspaceRootItemID] = cn.AffectedWorkspaceRootItemID
 	if len(cn.StageSummary) > 0 {
 		fields[FirestoreJobStatusFieldStageSummary] = cn.StageSummary
 	}

@@ -400,6 +400,19 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	}
 	s.workspaces[w.WorkspaceID] = w
 	s.wsOwners[w.WorkspaceID] = accountID
+	// Mirror the postgres Store: workspace creation also inserts the
+	// workspace_root tree_item. Tests that exercise tree code rely on the
+	// root existing without an extra setup call.
+	s.items[w.WorkspaceID] = map[string]*domain.Item{
+		"nd_root": {
+			ItemID:      "nd_root",
+			WorkspaceID: w.WorkspaceID,
+			ParentID:    "",
+			Title:       name,
+			Kind:        appv1.ItemKind_ITEM_KIND_WORKSPACE_ROOT,
+		},
+	}
+	w.RootItemID = "nd_root"
 	return w, nil
 }
 
@@ -1184,18 +1197,11 @@ func containsString(values []string, target string) bool {
 }
 
 // TreeRepository
-func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Store) GetTree(ctx context.Context, wsID string) (*domain.Tree, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	if _, ok := s.items[wsID]; !ok {
-		s.items[wsID] = map[string]*domain.Item{
-			"nd_root": {
-				ItemID:      "nd_root",
-				WorkspaceID: wsID,
-				ParentID:    "",
-				Title:       "root",
-			},
-		}
+		return nil, domain.ErrNotFound
 	}
 	return &domain.Tree{TreeID: wsID, WorkspaceID: wsID, Name: "default"}, nil
 }

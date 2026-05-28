@@ -261,7 +261,6 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 func newTestItemHandler(store *mock.Store) *ItemHandler {
 	svc := service.NewItemService(service.ItemServiceDeps{
 		Repo:       store,
-		Tree:       store,
 		Workspaces: store,
 		Logger:     nil,
 	})

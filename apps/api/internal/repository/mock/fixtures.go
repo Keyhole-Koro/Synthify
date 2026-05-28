@@ -35,12 +35,15 @@ func CreateUserWorkspaceFixture(t testing.TB, ctx context.Context, store *Store,
 	}
 }
 
+// CreateWorkspaceWithTreeFixture returns a workspace whose root tree_item is
+// already populated by the mock store's CreateWorkspace (mirroring the
+// postgres Store), so callers that need both can just call this.
 func CreateWorkspaceWithTreeFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
 	t.Helper()
 
 	fixture := CreateUserWorkspaceFixture(t, ctx, store, userID)
-	tree, err := store.GetOrCreateTree(ctx, fixture.Workspace.WorkspaceID)
-	require.NoError(t, err, "GetOrCreateTree")
+	tree, err := store.GetTree(ctx, fixture.Workspace.WorkspaceID)
+	require.NoError(t, err, "GetTree")
 	fixture.Tree = tree
 	return fixture
 }

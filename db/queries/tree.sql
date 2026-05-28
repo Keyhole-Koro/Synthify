@@ -1,30 +1,30 @@
 -- name: GetTreeRoot :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at
 FROM tree_items
-WHERE workspace_id = $1 AND parent_id IS NULL
+WHERE workspace_id = $1 AND kind = 'workspace_root'
 LIMIT 1;
 
 -- name: ListItemsByWorkspace :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at
+       governance_state, kind, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC;
 
 -- name: GetItem :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at
+       governance_state, kind, created_at
 FROM tree_items
 WHERE id = $1;
 
 -- name: CreateItem :exec
-INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10);
+-- Creates a regular 'node' item under an explicit parent. Use
+-- CreateWorkspaceRootItem / CreateDocumentRootItem for the role-bearing roots.
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'node', $10, $10);
 
 -- name: CreateWorkspaceRootItem :exec
 -- Inserts the singleton workspace_root tree_item for a new workspace.
--- kind is set explicitly rather than relying on the default so the
--- intent is visible at the call-site.
 INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
 VALUES ($1, $2, NULL, $3, 0, $4, '', '', 'system', 'workspace_root', $5, $5);
 
@@ -50,9 +50,9 @@ WHERE document_id = $1;
 -- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
   id, workspace_id, parent_id, title, level, description, content, override_css,
-  created_by, governance_state, last_mutation_job_id, created_at, updated_at
+  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'node', $12, $12);
 
 -- name: UpdateItemParent :exec
 UPDATE tree_items
@@ -60,7 +60,7 @@ SET parent_id = $2, updated_at = $3
 WHERE id = $1;
 
 -- name: GetItemSummaryUpdateContext :one
-SELECT workspace_id, COALESCE(content, '') AS content, COALESCE(governance_state, 'system_generated') AS governance_state
+SELECT workspace_id, content, governance_state
 FROM tree_items
 WHERE id = $1;
 
@@ -112,7 +112,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
 -- name: ListChildItems :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-  COALESCE(governance_state, 'system_generated') AS governance_state, kind, created_at,
+  governance_state, kind, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
 WHERE tree_items.parent_id = $1;

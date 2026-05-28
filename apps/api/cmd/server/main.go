@@ -112,7 +112,6 @@ func main() {
 	}()
 	itemSvc := service.NewItemService(service.ItemServiceDeps{
 		Repo:       store,
-		Tree:       store,
 		Workspaces: store,
 		Logger:     appLogger,
 	})

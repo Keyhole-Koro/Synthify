@@ -306,9 +306,9 @@ type TreeItem struct {
 	CreatedBy         string
 	GovernanceState   string
 	LastMutationJobID string
+	Kind              string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-	Kind              string
 }
 
 type UploadReservation struct {

@@ -7,44 +7,28 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
 )
 
-func (s *Store) GetOrCreateTree(ctx context.Context, wsID string) (*domain.Tree, error) {
-	// 1 ワークスペース = 1 ツリー。ルートアイテムがあればそれを返す。
+// GetTree returns the tree metadata for a workspace. The workspace_root
+// tree_item is created atomically with the workspace itself
+// (CreateWorkspace), so a missing root here means the workspace does
+// not exist or has been corrupted — we surface ErrNotFound rather than
+// papering over it.
+func (s *Store) GetTree(ctx context.Context, wsID string) (*domain.Tree, error) {
 	root, err := s.q().GetTreeRoot(ctx, wsID)
-	if err == nil {
-		return &domain.Tree{
-			TreeID:      wsID,
-			WorkspaceID: wsID,
-			Name:        "default",
-			CreatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
-			UpdatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
-		}, nil
-	}
-
-	// ルートがない場合は作成
-	ws, err := s.q().GetWorkspace(ctx, wsID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workspace: %w", err)
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("get tree root: %w", err)
 	}
-
-	err = s.q().CreateItem(ctx, sqlcgen.CreateItemParams{
-		ID:          newID(),
+	return &domain.Tree{
+		TreeID:      wsID,
 		WorkspaceID: wsID,
-		ParentID:    sql.NullString{Valid: false},
-		Title:       ws.Name,
-		Level:       0,
-		Description: "Workspace root",
-		Content:     "",
-		CreatedBy:   "system",
-		CreatedAt:   nowTime(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create root item: %w", err)
-	}
-
-	return s.GetOrCreateTree(ctx, wsID)
+		Name:        "default",
+		CreatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
+	}, nil
 }
 
 func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {

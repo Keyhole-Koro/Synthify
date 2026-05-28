@@ -27,7 +27,7 @@ interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
-  onProcessingComplete?: (jobId: string, createdDocumentRootItemId?: string) => Promise<void> | void;
+  onProcessingComplete?: (jobId: string, createdDocumentRootItemId: string) => Promise<void> | void;
 }
 
 export function WorkspacePaper({
@@ -113,10 +113,15 @@ export function WorkspacePaper({
       void onSuggestedWorkspaceName(jobStatus.suggestedWorkspaceName);
     }
     if (jobStatus.status !== 'succeeded') return;
+    // The worker writes createdDocumentRootItemId atomically with
+    // status=succeeded, so its absence here means an in-flight schema
+    // mismatch — bail out rather than feed undefined into the tree merge.
+    const createdDocumentRootItemId = jobStatus.createdDocumentRootItemId;
+    if (!createdDocumentRootItemId) return;
     if (completedJobRef.current === activeJobId) return;
     completedJobRef.current = activeJobId;
     setUploadMessage(COMPLETION_MESSAGE);
-    void onProcessingComplete?.(activeJobId, jobStatus.createdDocumentRootItemId);
+    void onProcessingComplete?.(activeJobId, createdDocumentRootItemId);
   }, [activeJobId, jobStatus, onProcessingComplete, onSuggestedWorkspaceName]);
 
   // Auto-dismiss the success toast after a short window. Failure / upload
