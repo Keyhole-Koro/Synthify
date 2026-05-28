@@ -47,6 +47,7 @@
 
 ## 可観測性・ロギング
 
+- [frontend-observability-newrelic.md](frontend-observability-newrelic.md) — フロントエンド (Next.js) のエラー捕捉・パフォーマンスモニタリングのための New Relic Browser 導入計画
 - [logging.md](logging.md) — 追加すべきログ一覧（P1〜P3）
 - [monitor.md](monitor.md) — monitor サブモジュール設計（Logger + JobMonitor コンポーネント）
 

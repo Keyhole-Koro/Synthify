@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
 	"github.com/synthify/backend/apps/api/internal/repository"
@@ -62,6 +63,7 @@ func NewDocumentService(
 	dispatcher WorkerDispatcher,
 	notifier jobstatus.Notifier,
 	logger *slog.Logger,
+	nrApp ...*newrelic.Application,
 ) *DocumentService {
 	return &DocumentService{
 		repo:             repo,
@@ -72,7 +74,7 @@ func NewDocumentService(
 		sourceURLBuilder: sourceURLBuilder,
 		objectMetadata:   objectMetadata,
 		dispatcher:       dispatcher,
-		lifecycle:        joblifecycle.New(lifecycleRepo, notifier, logger),
+		lifecycle:        joblifecycle.New(lifecycleRepo, notifier, logger, nrApp...),
 		notifier:         notifier,
 		logger:           logger,
 	}
@@ -274,6 +276,13 @@ func (s *DocumentService) logJobQueued(ctx context.Context, job *domain.Document
 }
 
 func (s *DocumentService) handleDispatchFailure(ctx context.Context, job *domain.DocumentProcessingJob, payload jobstatus.Payload, wsID, documentID string, dispatchErr error, reloadLatest bool) *domain.DocumentProcessingJob {
+	s.logger.Error("job.dispatch_failed",
+		"error", dispatchErr.Error(),
+		"job_id", job.JobID,
+		"job_type", job.JobType.String(),
+		"workspace_id", wsID,
+		"document_id", documentID,
+	)
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:       job.JobID,
 		WorkspaceID: wsID,
@@ -283,7 +292,7 @@ func (s *DocumentService) handleDispatchFailure(ctx context.Context, job *domain
 		Message:     fmt.Sprintf("job dispatch failed: %v", dispatchErr),
 		Detail:      map[string]any{"error": dispatchErr.Error()},
 	})
-	s.lifecycle.TryFail(ctx, payload, dispatchErr.Error())
+	s.lifecycle.TryFail(ctx, payload, dispatchErr)
 	if reloadLatest {
 		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			return latest
