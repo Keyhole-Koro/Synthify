@@ -14,8 +14,12 @@ module "service" {
   image                 = var.image
   service_account_email = var.service_account_email
   allow_unauthenticated = false
-  ingress               = "INGRESS_TRAFFIC_INTERNAL_ONLY"
-  deletion_protection   = var.deletion_protection
+  # ingress is INGRESS_TRAFFIC_ALL: worker is invoked from the API service,
+  # which does not have a VPC connector, so internal-only ingress blocks all
+  # Cloud Run -> Cloud Run traffic and returns HTML 404. Access is gated by
+  # allow_unauthenticated=false + IAM roles/run.invoker bound only to the API
+  # service account.
+  deletion_protection = var.deletion_protection
 
   gcs_volume = {
     bucket     = var.uploads_bucket_name
