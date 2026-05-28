@@ -243,7 +243,7 @@ func (s *Store) ListPaymentMethods(ctx context.Context, accountID string) ([]*do
 // formatMinorCost converts a minor-unit amount to a decimal string.
 // JPY has no fractional unit; all other currencies use 2 decimal places.
 func formatMinorCost(minor int64, currency string) string {
-	if currency == "jpy" {
+	if currency == string(domain.BillingCurrencyJPY) {
 		if minor < 0 {
 			return "-" + itoa(-minor)
 		}

@@ -629,7 +629,7 @@ func (s *billingService) reportStripeMeterPortion(ctx context.Context, ev *domai
 // formatMinor renders a minor-unit amount as a decimal string in the conventional
 // presentation for the currency (2 decimal places for cents currencies, integer for JPY).
 func formatMinor(minor int64, currency string) string {
-	if currency == "jpy" {
+	if currency == string(domain.BillingCurrencyJPY) {
 		return strconv.FormatInt(minor, 10)
 	}
 	neg := ""
@@ -645,7 +645,7 @@ func parseMinor(value string, currency string) (int64, error) {
 	if value == "" {
 		return 0, nil
 	}
-	if currency == "jpy" {
+	if currency == string(domain.BillingCurrencyJPY) {
 		return strconv.ParseInt(value, 10, 64)
 	}
 	neg := false

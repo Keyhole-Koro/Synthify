@@ -10,12 +10,21 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 )
 
+type JournalStatus string
+
+const (
+	JournalStatusPending    JournalStatus = "pending"
+	JournalStatusInProgress JournalStatus = "in_progress"
+	JournalStatusCompleted  JournalStatus = "completed"
+)
+
 type Task struct {
-	ID          string   `json:"id"`
-	Description string   `json:"description"`
-	Status      string   `json:"status"` // "pending", "in_progress", "completed"
-	DependsOn   []string `json:"depends_on,omitempty"`
+	ID          string        `json:"id"`
+	Description string        `json:"description"`
+	Status      JournalStatus `json:"status"` // "pending", "in_progress", "completed"
+	DependsOn   []string      `json:"depends_on,omitempty"`
 }
+
 
 type Journal struct {
 	mu    sync.RWMutex
@@ -36,9 +45,9 @@ func (j *Journal) RenderForPrompt() string {
 	sb.WriteString("### Tasks\n")
 	for _, t := range j.tasks {
 		switch t.Status {
-		case "completed":
+		case JournalStatusCompleted:
 			sb.WriteString("- [x] ")
-		case "in_progress":
+		case JournalStatusInProgress:
 			sb.WriteString("- [~] ")
 		default:
 			sb.WriteString("- [ ] ")
@@ -77,7 +86,7 @@ func NewAddTaskTool(j *Journal) (core.Tool, error) {
 		j.tasks = append(j.tasks, Task{
 			ID:          id,
 			Description: args.Description,
-			Status:      "pending",
+			Status:      JournalStatusPending,
 			DependsOn:   args.DependsOn,
 		})
 		out, mErr := json.Marshal(addResult{TaskID: id, Message: "Task added: " + id})
@@ -92,8 +101,8 @@ func NewAddTaskTool(j *Journal) (core.Tool, error) {
 }
 
 type updateArgs struct {
-	TaskID string `json:"task_id"`
-	Status string `json:"status"`
+	TaskID string        `json:"task_id"`
+	Status JournalStatus `json:"status"`
 }
 
 type updateResult struct {

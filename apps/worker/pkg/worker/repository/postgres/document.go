@@ -193,10 +193,10 @@ FOR UPDATE
 		}
 		return err
 	}
-	if status == "confirmed" {
+	if status == string(domain.DocumentStatusConfirmed) {
 		return nil
 	}
-	if status != "reserved" || nowTime().After(expiresAt) {
+	if status != string(domain.DocumentStatusReserved) || nowTime().After(expiresAt) {
 		return domain.ErrUploadNotConfirmed
 	}
 	if expectedSize != actualSize {
@@ -667,7 +667,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	}
 	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    planID,
-		Status:    "rejected",
+		Status:    string(domain.PlanStatusRejected),
 		UpdatedAt: now,
 	}); err != nil {
 		return fmt.Errorf("update plan status: %w", err)
@@ -675,7 +675,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: planID,
-		PlanStatus:      "rejected",
+		PlanStatus:      string(domain.PlanStatusRejected),
 		UpdatedAt:       now,
 	}); err != nil {
 		return fmt.Errorf("update job plan state: %w", err)

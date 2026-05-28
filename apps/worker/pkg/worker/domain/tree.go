@@ -84,3 +84,11 @@ type TreePath struct {
 }
 
 type NodeGovernanceState string
+
+const (
+	GovernanceStateSystemGenerated NodeGovernanceState = "system_generated"
+	GovernanceStatePendingReview   NodeGovernanceState = "pending_review"
+	GovernanceStateHumanCurated    NodeGovernanceState = "human_curated"
+	GovernanceStateLocked          NodeGovernanceState = "locked"
+)
+

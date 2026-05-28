@@ -232,6 +232,15 @@ type JobEvaluationResult struct {
 	MutationCount int32    `json:"mutation_count,omitempty"`
 }
 
+type ActionStatus string
+
+const (
+	ActionStatusPending   ActionStatus = "pending"
+	ActionStatusCompleted ActionStatus = "completed"
+	ActionStatusRejected  ActionStatus = "rejected"
+	ActionStatusFailed    ActionStatus = "failed"
+)
+
 func DefaultJobCapability(jobID, workspaceID, documentID string, createdAt time.Time) *JobCapability {
 	return &JobCapability{
 		CapabilityID:       "cap_" + jobID,

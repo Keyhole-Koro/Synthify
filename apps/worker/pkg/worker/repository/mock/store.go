@@ -480,7 +480,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		WorkspaceID:  wsID,
 		DocumentID:   d.DocumentID,
 		ExpectedSize: fileSize,
-		Status:       "reserved",
+		Status:       string(domain.DocumentStatusReserved),
 		ExpiresAt:    time.Now().Add(15 * time.Minute),
 	}
 	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType, fileSize)
@@ -507,10 +507,10 @@ func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, ac
 	if !ok {
 		return domain.ErrUploadNotConfirmed
 	}
-	if reservation.Status == "confirmed" {
+	if reservation.Status == string(domain.DocumentStatusConfirmed) {
 		return nil
 	}
-	if reservation.Status != "reserved" || time.Now().After(reservation.ExpiresAt) {
+	if reservation.Status != string(domain.DocumentStatusReserved) || time.Now().After(reservation.ExpiresAt) {
 		return domain.ErrUploadNotConfirmed
 	}
 	if reservation.ExpectedSize != actualSize {
@@ -526,7 +526,7 @@ func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, ac
 	}
 	account.StorageUsedBytes += actualSize
 	reservation.ActualSize = actualSize
-	reservation.Status = "confirmed"
+	reservation.Status = string(domain.DocumentStatusConfirmed)
 	return nil
 }
 

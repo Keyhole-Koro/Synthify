@@ -141,7 +141,7 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 
 	if approvals, err := w.repo.ListJobApprovalRequests(ctx, req.JobID); err == nil {
 		for _, a := range approvals {
-			if a.Status == "rejected" {
+			if a.Status == string(domain.ActionStatusRejected) {
 				return ErrPlanRejected
 			}
 		}

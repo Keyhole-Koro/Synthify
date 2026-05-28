@@ -57,3 +57,22 @@ type SectionBrief struct {
 	ItemCandidates  []string `json:"item_candidates"`
 	ConnectionHints string   `json:"connection_hints"`
 }
+
+type DocumentStatus string
+
+const (
+	DocumentStatusReserved  DocumentStatus = "reserved"
+	DocumentStatusConfirmed DocumentStatus = "confirmed"
+	DocumentStatusRejected  DocumentStatus = "rejected"
+)
+
+type PlanStatus string
+
+const (
+	PlanStatusPending    PlanStatus = "pending"
+	PlanStatusInProgress PlanStatus = "in_progress"
+	PlanStatusCompleted  PlanStatus = "completed"
+	PlanStatusFailed     PlanStatus = "failed"
+	PlanStatusRejected   PlanStatus = "rejected"
+)
+

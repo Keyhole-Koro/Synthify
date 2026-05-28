@@ -244,7 +244,7 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 	if !capability.AllowsItem(itemID) {
 		return fmt.Errorf("item not in capability scope")
 	}
-	if row.GovernanceState == "human_curated" || row.GovernanceState == "locked" {
+	if row.GovernanceState == string(domain.GovernanceStateHumanCurated) || row.GovernanceState == string(domain.GovernanceStateLocked) {
 		return fmt.Errorf("item is protected")
 	}
 
