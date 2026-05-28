@@ -24,3 +24,14 @@ worker は GCS bucket を GCS FUSE で filesystem として mount します。�
 
 LLM による検索で、OpenSearch や PostgreSQL の部分一致検索を主経路にはしていません。worker が filesystem 上の成果物と tool を使って探索します。派生成果物や cache も filesystem 前提で扱えるので、LLM が段階的に読み進めやすいです。
 
+### ログと観測データ
+
+ログは用途ごとに保存先を分けています。
+
+Cloud Run / Cloud Logging には、API と worker が stdout に出す `slog` JSON、Cloud Run request log、system log が残ります。主に障害時の一次切り分け用で、`job_id`、`workspace_id`、`document_id`、trace id などで調査します。
+
+New Relic は API / worker の処理時間、Connect RPC、DB 呼び出し、error、明示的に送った custom event を集約します。stack trace、遅い処理、job 失敗の傾向分析に使います。
+
+frontend には New Relic Browser を入れています。ブラウザ内で起きた JavaScript error、error boundary で捕捉した error、画面表示・遷移の遅さ、API 通信時間を New Relic に送ります。token、cookie、document 本文、アップロード内容、個人情報の本文値は送らず、カスタム属性は `user_id` など調査に必要な ID に限定します。
+
+worker の job 実行ログは、Cloud Logging とは別に DB の `job_logs` / `job_mutation_logs` にも残します。これは job 単位の進行表示、失敗理由の確認、監査用です。

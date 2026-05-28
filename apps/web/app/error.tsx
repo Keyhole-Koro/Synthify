@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { FatalErrorView } from '@/components/error/FatalErrorView';
+import { noticeBrowserError } from '@/lib/newrelic/browser';
 
 export default function Error({
   error,
@@ -11,8 +12,11 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // In a real app, you would log the error to a service like Sentry or New Relic
     console.error('Fatal Error Boundary:', error);
+    noticeBrowserError(error, {
+      source: 'next_error_boundary',
+      digest: error.digest ?? '',
+    });
   }, [error]);
 
   return <FatalErrorView error={error} reset={reset} />;

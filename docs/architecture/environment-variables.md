@@ -45,6 +45,11 @@
 | `GCS_SIGNED_URL_TTL_MINUTES` | Signed URL の有効期限 | `15` |
 | `SYNTHIFY_ADMIN_USER_EMAILS` | 管理者の email (カンマ区切り) | 追加権限。空で admin なし |
 | `SYNTHIFY_ALLOWED_USER_EMAILS` | アクセス許可 email (カンマ区切り) | **非空なら API は許可 email のみ**。空で無制限。stage を 1 アカウントに絞る用途。CD は GitHub Environment 変数 `ALLOWED_USER_EMAILS` から `-var` で注入し、未設定なら tfvars のフォールバックを使う |
+| `NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY` | New Relic Browser の browser license key | frontend から参照される公開値 |
+| `NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID` | New Relic Browser application ID | frontend から参照される公開値 |
+| `NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID` | New Relic account ID | New Relic Browser snippet の `loader_config` から転記 |
+| `NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY` | New Relic trust key | New Relic Browser snippet の `loader_config` から転記 |
+| `NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID` | New Relic Browser agent ID | 未設定なら application ID を使う |
 
 ---
 

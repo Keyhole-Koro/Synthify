@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { FatalErrorView } from '@/components/error/FatalErrorView';
+import { noticeBrowserError } from '@/lib/newrelic/browser';
 
 export default function GlobalError({
   error,
@@ -12,6 +13,10 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error('Global Error Boundary:', error);
+    noticeBrowserError(error, {
+      source: 'next_global_error_boundary',
+      digest: error.digest ?? '',
+    });
   }, [error]);
 
   return (

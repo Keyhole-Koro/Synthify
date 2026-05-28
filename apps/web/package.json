@@ -17,6 +17,7 @@
     "@connectrpc/connect": "^2.1.1",
     "@connectrpc/connect-web": "^2.1.1",
     "@keyhole-koro/paper-in-paper": "file:./vender/paper-in-paper",
+    "@newrelic/browser-agent": "^1.315.0",
     "firebase": "^12.12.0",
     "framer-motion": "^12.38.0",
     "next": "^16.2.2",
