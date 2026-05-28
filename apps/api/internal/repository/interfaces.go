@@ -131,6 +131,7 @@ type JobRepository interface {
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error
+	SetProcessingJobRetryCount(ctx context.Context, jobID string, retryCount int) error
 	CompleteProcessingJob(ctx context.Context, jobID string) error
 	ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, error)
 	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)

@@ -37,6 +37,11 @@ type DocumentUsecase interface {
 	ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error)
 }
 
+const (
+	autoResumeMaxRetries = 1
+	autoResumeMaxAge     = 24 * time.Hour
+)
+
 type DocumentService struct {
 	repo             repository.DocumentRepository
 	jobs             repository.JobRepository
@@ -274,18 +279,66 @@ func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, user
 	return s.startProcessingJob(ctx, doc, userID, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
 }
 
+func (s *DocumentService) AutoResumeFailedJobs(ctx context.Context) (int, error) {
+	jobs, err := s.jobs.ListAllJobs(ctx)
+	if err != nil {
+		return 0, err
+	}
+	seenDocuments := make(map[string]struct{}, len(jobs))
+	resumed := 0
+	cutoff := time.Now().UTC().Add(-autoResumeMaxAge)
+	for _, job := range jobs {
+		if job == nil {
+			continue
+		}
+		if _, seen := seenDocuments[job.DocumentID]; seen {
+			continue
+		}
+		seenDocuments[job.DocumentID] = struct{}{}
+		if job.Status != appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED {
+			continue
+		}
+		if job.RetryCount >= autoResumeMaxRetries || job.RequestedBy == "" {
+			continue
+		}
+		if createdAt, err := time.Parse(time.RFC3339, job.CreatedAt); err == nil && createdAt.Before(cutoff) {
+			continue
+		}
+		s.logger.Info("job.auto_resume_starting",
+			"job_id", job.JobID,
+			"document_id", job.DocumentID,
+			"workspace_id", job.WorkspaceID,
+			"retry_count", job.RetryCount,
+		)
+		if _, err := s.ResumeProcessing(ctx, job.DocumentID, job.RequestedBy); err != nil {
+			s.logger.Error("job.auto_resume_failed",
+				"error", err.Error(),
+				"job_id", job.JobID,
+				"document_id", job.DocumentID,
+				"workspace_id", job.WorkspaceID,
+			)
+			continue
+		}
+		resumed++
+	}
+	return resumed, nil
+}
+
 func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Document, requestedBy string, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
 	wsID := doc.WorkspaceID
 	documentID := doc.DocumentID
 	if err := s.confirmUploadedObject(ctx, doc); err != nil {
 		return nil, err
 	}
+	retryCount := 0
 	if resumeExisting {
 		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
 			case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
 				appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED:
 				return latest, nil
+			case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED:
+				retryCount = latest.RetryCount + 1
 			}
 		}
 	}
@@ -305,6 +358,12 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 		return createErr
 	}); err != nil {
 		return nil, fmt.Errorf("create processing job: %w", err)
+	}
+	if retryCount > 0 {
+		if err := s.jobs.SetProcessingJobRetryCount(ctx, job.JobID, retryCount); err != nil {
+			return nil, fmt.Errorf("set processing job retry count: %w", err)
+		}
+		job.RetryCount = retryCount
 	}
 	payload := documentJobPayload(job, documentID, wsID, tree.TreeID)
 	s.lifecycle.NotifyQueued(ctx, payload)

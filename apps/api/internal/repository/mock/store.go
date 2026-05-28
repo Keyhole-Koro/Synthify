@@ -757,10 +757,61 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 	return j, nil
 }
 
-func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error        { return nil }
-func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error { return nil }
-func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error { return nil }
-func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error           { return nil }
+func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[jobID]; ok {
+		job.Status = appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING
+		job.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		return nil
+	}
+	return domain.ErrNotFound
+}
+
+func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[jobID]; ok {
+		job.CurrentStage = stage
+		job.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		return nil
+	}
+	return domain.ErrNotFound
+}
+
+func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[jobID]; ok {
+		job.Status = appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED
+		job.ErrorMessage = errorMessage
+		job.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		return nil
+	}
+	return domain.ErrNotFound
+}
+
+func (s *Store) SetProcessingJobRetryCount(ctx context.Context, jobID string, retryCount int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[jobID]; ok {
+		job.RetryCount = retryCount
+		job.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		return nil
+	}
+	return domain.ErrNotFound
+}
+
+func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if job, ok := s.jobs[jobID]; ok {
+		job.Status = appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED
+		job.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
+		return nil
+	}
+	return domain.ErrNotFound
+}
 
 // CheckpointRepository
 func (s *Store) UpsertStageRunning(ctx context.Context, jobID, stage string) error {

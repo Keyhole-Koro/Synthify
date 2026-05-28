@@ -95,6 +95,22 @@ func main() {
 		Logger:           appLogger,
 		NRApp:            nrApp,
 	})
+	go func() {
+		// Let the new API/worker revisions settle, then retry the latest failed
+		// document jobs once. The retry job carries retry_count=1, so subsequent
+		// API restarts do not loop forever on the same failure.
+		time.Sleep(15 * time.Second)
+		resumeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		resumed, err := documentSvc.AutoResumeFailedJobs(resumeCtx)
+		if err != nil {
+			appLogger.Error("job.auto_resume_scan_failed", "error", err.Error())
+			return
+		}
+		if resumed > 0 {
+			appLogger.Info("job.auto_resume_completed", "resumed", resumed)
+		}
+	}()
 	itemSvc := service.NewItemService(service.ItemServiceDeps{
 		Repo:       store,
 		Tree:       store,

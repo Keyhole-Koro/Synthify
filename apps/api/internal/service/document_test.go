@@ -300,6 +300,79 @@ func TestStartProcessingRespectsForceReprocess(t *testing.T) {
 	assert.Equal(t, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, job3.JobType)
 }
 
+func TestAutoResumeFailedJobsRetriesLatestFailedJobOnce(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	metadata := &fakeObjectMetadata{size: 128}
+	dispatcher := &fakeDispatcher{}
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		ObjectMetadata:   metadata,
+		Dispatcher:       dispatcher,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
+	require.NoError(t, err)
+	failed, err := store.CreateProcessingJob(ctx, doc.DocumentID, ws.WorkspaceID, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	require.NoError(t, err)
+	require.NoError(t, store.FailProcessingJob(ctx, failed.JobID, "transient failure"))
+
+	resumed, err := svc.AutoResumeFailedJobs(ctx)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, resumed)
+	assert.Equal(t, 1, dispatcher.executeCalls)
+	latest, err := store.GetLatestProcessingJob(ctx, doc.DocumentID)
+	require.NoError(t, err)
+	assert.NotEqual(t, failed.JobID, latest.JobID)
+	assert.Equal(t, 1, latest.RetryCount)
+}
+
+func TestAutoResumeFailedJobsSkipsAlreadyRetriedLatestFailure(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	metadata := &fakeObjectMetadata{size: 128}
+	dispatcher := &fakeDispatcher{}
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		ObjectMetadata:   metadata,
+		Dispatcher:       dispatcher,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 128)
+	require.NoError(t, err)
+	failed, err := store.CreateProcessingJob(ctx, doc.DocumentID, ws.WorkspaceID, "owner", appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT)
+	require.NoError(t, err)
+	require.NoError(t, store.FailProcessingJob(ctx, failed.JobID, "still failing"))
+	require.NoError(t, store.SetProcessingJobRetryCount(ctx, failed.JobID, 1))
+
+	resumed, err := svc.AutoResumeFailedJobs(ctx)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, resumed)
+	assert.Equal(t, 0, dispatcher.executeCalls)
+}
+
 func documentSourceURL(workspaceID, documentID string) string {
 	return "https://storage.example/" + workspaceID + "/" + documentID
 }
@@ -310,4 +383,23 @@ type fakeObjectMetadata struct {
 
 func (f *fakeObjectMetadata) GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error) {
 	return &domain.ObjectMetadata{Size: f.size, ContentType: "application/pdf"}, nil
+}
+
+type fakeDispatcher struct {
+	generateCalls int
+	executeCalls  int
+	executeErr    error
+}
+
+func (d *fakeDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
+	d.generateCalls++
+	return nil
+}
+
+func (d *fakeDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
+	d.executeCalls++
+	if d.executeErr != nil {
+		return d.executeErr
+	}
+	return nil
 }

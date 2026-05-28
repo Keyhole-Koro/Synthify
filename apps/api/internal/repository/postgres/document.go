@@ -808,6 +808,25 @@ func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage strin
 	return nil
 }
 
+func (s *Store) SetProcessingJobRetryCount(ctx context.Context, jobID string, retryCount int) error {
+	res, err := s.db.ExecContext(ctx, `
+UPDATE document_processing_jobs
+SET retry_count = $2, updated_at = $3
+WHERE job_id = $1
+`, jobID, retryCount, nowTime())
+	if err != nil {
+		return fmt.Errorf("set job retry count: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("set job retry count rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error {
 	rowsAffected, err := s.q().CompleteProcessingJob(ctx, sqlcgen.CompleteProcessingJobParams{
 		JobID:     jobID,
