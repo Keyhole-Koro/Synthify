@@ -9,8 +9,8 @@ import (
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/job/lifecycle"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
@@ -52,7 +52,7 @@ type DocumentService struct {
 	objectMetadata   ObjectMetadataFetcher
 	objectStore      repository.DocumentObjectStore
 	dispatcher       WorkerDispatcher
-	lifecycle        *joblifecycle.Service
+	lifecycle        joblifecycle.QueuedNotifier
 	notifier         jobstatus.Notifier
 	logger           *slog.Logger
 	nrApp            *newrelic.Application

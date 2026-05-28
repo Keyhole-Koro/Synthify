@@ -13,7 +13,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/agents"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	"github.com/synthify/backend/apps/worker/pkg/worker/job/lifecycle"
+	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
@@ -47,7 +47,7 @@ type Repository interface {
 type Worker struct {
 	orchestrator *agents.Orchestrator
 	repo         Repository
-	lifecycle    *joblifecycle.Service
+	lifecycle    joblifecycle.RuntimeController
 	status       jobstatus.Notifier
 	logger       *slog.Logger
 }

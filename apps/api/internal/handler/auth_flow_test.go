@@ -197,7 +197,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithProcessingJobFixture(t, ctx, store, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
-	handler := NewJobHandler(store, store, store, store, store, store, nil)
+	handler := NewJobHandler(store, store, store, store, store, nil)
 
 	t.Run("status requires authentication", func(t *testing.T) {
 		resp, err := handler.GetJobStatus(ctx, connect.NewRequest(&appv1.GetJobStatusRequest{

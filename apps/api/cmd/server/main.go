@@ -148,7 +148,7 @@ func main() {
 	itemHandler := handler.NewItemHandler(itemSvc)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceSvc)
 	userHandler := handler.NewUserHandler(userSvc)
-	jobHandler := handler.NewJobHandler(store, store, store, store, store, store, appLogger)
+	jobHandler := handler.NewJobHandler(store, store, store, store, store, appLogger)
 	billingHandler := handler.NewBillingHandler(billingSvc)
 
 	mux := http.NewServeMux()

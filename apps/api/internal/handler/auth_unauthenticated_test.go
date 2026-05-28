@@ -119,7 +119,7 @@ func TestItemHandler_RejectAlias_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_GetJobExecutionPlan_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.GetJobExecutionPlan(context.Background(), connect.NewRequest(&appv1.GetJobExecutionPlanRequest{JobId: "j"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -127,7 +127,7 @@ func TestJobHandler_GetJobExecutionPlan_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_ListJobApprovalRequests_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.ListJobApprovalRequests(context.Background(), connect.NewRequest(&appv1.ListJobApprovalRequestsRequest{JobId: "j"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -135,7 +135,7 @@ func TestJobHandler_ListJobApprovalRequests_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_ApproveJobApproval_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.ApproveJobApproval(context.Background(), connect.NewRequest(&appv1.ApproveJobApprovalRequest{ApprovalId: "a"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -143,7 +143,7 @@ func TestJobHandler_ApproveJobApproval_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_RejectJobApproval_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.RejectJobApproval(context.Background(), connect.NewRequest(&appv1.RejectJobApprovalRequest{ApprovalId: "a"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -151,7 +151,7 @@ func TestJobHandler_RejectJobApproval_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_ListJobMutationLogs_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.ListJobMutationLogs(context.Background(), connect.NewRequest(&appv1.ListJobMutationLogsRequest{JobId: "j"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -159,7 +159,7 @@ func TestJobHandler_ListJobMutationLogs_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_ListJobLogs_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.ListJobLogs(context.Background(), connect.NewRequest(&appv1.ListJobLogsRequest{JobId: "j"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -167,7 +167,7 @@ func TestJobHandler_ListJobLogs_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_SearchJobLogs_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.SearchJobLogs(context.Background(), connect.NewRequest(&appv1.SearchJobLogsRequest{WorkspaceId: "ws"}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -176,7 +176,7 @@ func TestJobHandler_SearchJobLogs_Unauthenticated(t *testing.T) {
 // ListAllJobs: 認証 + admin 必須。anonymous read 用パスを除く。
 func TestJobHandler_ListAllJobs_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.ListAllJobs(context.Background(), connect.NewRequest(&appv1.ListAllJobsRequest{}))
 	assert.Nil(t, resp)
 	assertConnectCode(t, err, connect.CodeUnauthenticated)
@@ -184,7 +184,7 @@ func TestJobHandler_ListAllJobs_Unauthenticated(t *testing.T) {
 
 func TestJobHandler_ListAllJobs_NonAdminUser_ReturnsPermissionDenied(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "u1", Email: "u@example.com"})
 	resp, err := h.ListAllJobs(ctx, connect.NewRequest(&appv1.ListAllJobsRequest{}))
 	assert.Nil(t, resp)
@@ -193,7 +193,7 @@ func TestJobHandler_ListAllJobs_NonAdminUser_ReturnsPermissionDenied(t *testing.
 
 func TestJobHandler_ListAllJobs_AdminUser_Allowed(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "admin", Email: "a@example.com", Admin: true})
 	resp, err := h.ListAllJobs(ctx, connect.NewRequest(&appv1.ListAllJobsRequest{}))
 	assert.NoError(t, err)
@@ -202,7 +202,7 @@ func TestJobHandler_ListAllJobs_AdminUser_Allowed(t *testing.T) {
 
 func TestJobHandler_ListRelatedJobLogs_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewJobHandler(store, store, store, store, store, store, nil)
+	h := NewJobHandler(store, store, store, store, store, nil)
 	resp, err := h.ListRelatedJobLogs(context.Background(), connect.NewRequest(&appv1.ListRelatedJobLogsRequest{
 		Scope: appv1.RelatedLogScope_RELATED_LOG_SCOPE_JOB,
 		JobId: "j",
