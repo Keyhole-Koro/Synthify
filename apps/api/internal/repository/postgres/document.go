@@ -150,7 +150,7 @@ VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 		s.logger.Error("repository.create_upload_reservation_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
-	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType)
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType, fileSize)
 	if err != nil {
 		s.logger.Error("repository.issue_document_upload_url_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
@@ -244,16 +244,32 @@ WHERE document_id = $1
 	return tx.Commit()
 }
 
-func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
-	res, err := s.db.ExecContext(ctx, `
+func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) ([]domain.ExpiredReservation, error) {
+	// RETURNING で expire 対象の document/workspace を取り出し、呼び出し側に GCS
+	// オブジェクト削除を委ねる。reserved → expired は 1 文の UPDATE なので競合は
+	// 発生せず、同じドキュメントを 2 回拾うことは無い。
+	rows, err := s.db.QueryContext(ctx, `
 UPDATE upload_reservations
 SET status = 'expired'
 WHERE status = 'reserved' AND expires_at <= $1
+RETURNING document_id, workspace_id
 `, now)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return res.RowsAffected()
+	defer rows.Close()
+	var expired []domain.ExpiredReservation
+	for rows.Next() {
+		var entry domain.ExpiredReservation
+		if err := rows.Scan(&entry.DocumentID, &entry.WorkspaceID); err != nil {
+			return nil, err
+		}
+		expired = append(expired, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return expired, nil
 }
 
 func lockWorkspaceAccount(ctx context.Context, tx *sql.Tx, workspaceID string) (*domain.Account, error) {

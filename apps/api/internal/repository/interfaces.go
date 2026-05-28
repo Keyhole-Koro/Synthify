@@ -17,7 +17,17 @@ type DocumentUploadTarget struct {
 }
 
 type DocumentUploadURLIssuer interface {
-	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (DocumentUploadTarget, error)
+	// IssueDocumentUploadURL は GCS への signed PUT URL を発行する。
+	// fileSize は Content-Length ヘッダを signature に含めて固定するためのもので、
+	// 0 以下なら Content-Length 強制を行わない (互換用のフォールバック)。
+	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (DocumentUploadTarget, error)
+}
+
+// DocumentObjectStore は CreateDocument で発行された GCS object に対する
+// 後始末を担う。reservation の mismatch / expiry のような「アップロード失敗」
+// 系で残骸を消すために用意している。
+type DocumentObjectStore interface {
+	DeleteDocumentObject(ctx context.Context, workspaceID, objectName string) error
 }
 
 // Repositories は単一 unit-of-work 内で利用可能な全リポジトリの集合体。
@@ -91,7 +101,7 @@ type DocumentRepository interface {
 	GetDocument(ctx context.Context, id string) (*domain.Document, error)
 	CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, DocumentUploadTarget, error)
 	ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error
-	ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error)
+	ExpireUploadReservations(ctx context.Context, now time.Time) ([]domain.ExpiredReservation, error)
 	CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error)
 	ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error)
 	GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error)

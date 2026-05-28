@@ -28,7 +28,7 @@ type fakeUploadURLIssuer struct {
 	err    error
 }
 
-func (f fakeUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, _, _, _ string) (repository.DocumentUploadTarget, error) {
+func (f fakeUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, _, _, _ string, _ int64) (repository.DocumentUploadTarget, error) {
 	return f.target, f.err
 }
 
@@ -181,13 +181,16 @@ func TestExpireUploadReservations_ReturnsRowsAffected(t *testing.T) {
 	store, mock, cleanup := newStoreWithMock(t)
 	defer cleanup()
 
-	mock.ExpectExec(regexp.QuoteMeta("UPDATE upload_reservations\nSET status = 'expired'\nWHERE status = 'reserved' AND expires_at <= $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("UPDATE upload_reservations\nSET status = 'expired'\nWHERE status = 'reserved' AND expires_at <= $1\nRETURNING document_id, workspace_id")).
 		WithArgs(sqlmock.AnyArg()).
-		WillReturnResult(sqlmock.NewResult(0, 3))
+		WillReturnRows(sqlmock.NewRows([]string{"document_id", "workspace_id"}).
+			AddRow("doc-1", "ws-1").
+			AddRow("doc-2", "ws-2").
+			AddRow("doc-3", "ws-3"))
 
-	n, err := store.ExpireUploadReservations(context.Background(), time.Now())
+	expired, err := store.ExpireUploadReservations(context.Background(), time.Now())
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), n)
+	assert.Len(t, expired, 3)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

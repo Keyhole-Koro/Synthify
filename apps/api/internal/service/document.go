@@ -45,10 +45,12 @@ type DocumentService struct {
 	transactor       repository.Transactor
 	sourceURLBuilder repository.DocumentSourceURLBuilder
 	objectMetadata   ObjectMetadataFetcher
+	objectStore      repository.DocumentObjectStore
 	dispatcher       WorkerDispatcher
 	lifecycle        *joblifecycle.Service
 	notifier         jobstatus.Notifier
 	logger           *slog.Logger
+	nrApp            *newrelic.Application
 }
 
 func NewDocumentService(
@@ -60,11 +62,16 @@ func NewDocumentService(
 	transactor repository.Transactor,
 	sourceURLBuilder repository.DocumentSourceURLBuilder,
 	objectMetadata ObjectMetadataFetcher,
+	objectStore repository.DocumentObjectStore,
 	dispatcher WorkerDispatcher,
 	notifier jobstatus.Notifier,
 	logger *slog.Logger,
 	nrApp ...*newrelic.Application,
 ) *DocumentService {
+	var app *newrelic.Application
+	if len(nrApp) > 0 {
+		app = nrApp[0]
+	}
 	return &DocumentService{
 		repo:             repo,
 		jobs:             jobs,
@@ -73,10 +80,12 @@ func NewDocumentService(
 		transactor:       transactor,
 		sourceURLBuilder: sourceURLBuilder,
 		objectMetadata:   objectMetadata,
+		objectStore:      objectStore,
 		dispatcher:       dispatcher,
 		lifecycle:        joblifecycle.New(lifecycleRepo, notifier, logger, nrApp...),
 		notifier:         notifier,
 		logger:           logger,
+		nrApp:            app,
 	}
 }
 
@@ -123,7 +132,37 @@ func (s *DocumentService) CreateDocument(ctx context.Context, wsID, userID, file
 	if err := s.authorizeWorkspace(ctx, wsID, userID); err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
-	return s.repo.CreateDocument(ctx, wsID, userID, filename, mimeType, fileSize)
+	doc, target, err := s.repo.CreateDocument(ctx, wsID, userID, filename, mimeType, fileSize)
+	if err != nil {
+		s.reportCreateDocumentRejection(wsID, userID, filename, fileSize, err)
+	}
+	return doc, target, err
+}
+
+func (s *DocumentService) reportCreateDocumentRejection(workspaceID, userID, filename string, fileSize int64, cause error) {
+	if s.nrApp == nil {
+		return
+	}
+	var reason string
+	switch {
+	case errors.Is(cause, domain.ErrFileTooLarge):
+		reason = "file_too_large"
+	case errors.Is(cause, domain.ErrStorageQuotaExceeded):
+		reason = "storage_quota_exceeded"
+	case errors.Is(cause, domain.ErrUploadSizeMismatch):
+		reason = "size_mismatch"
+	default:
+		// Non-quota errors (DB outage, etc.) are already covered by the Connect
+		// interceptor — skip to avoid double-counting.
+		return
+	}
+	s.nrApp.RecordCustomEvent("UploadRejected", map[string]any{
+		"workspace_id": workspaceID,
+		"user_id":      userID,
+		"filename":     filename,
+		"file_size":    fileSize,
+		"reason":       reason,
+	})
 }
 
 func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID, userID string) (*domain.Document, error) {
@@ -143,10 +182,67 @@ func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time
 		s.logger.Error("document.upload_reservations.expire_failed", "error", err.Error())
 		return 0, err
 	}
-	if expired > 0 {
-		s.logger.Info("document.upload_reservations.expired", "count", expired)
+	if len(expired) > 0 {
+		s.logger.Info("document.upload_reservations.expired", "count", len(expired))
+		for _, entry := range expired {
+			s.deleteOrphanedObject(ctx, entry.WorkspaceID, entry.DocumentID, "reservation_expired")
+		}
 	}
-	return expired, nil
+	return int64(len(expired)), nil
+}
+
+// deleteOrphanedObject はサイズ不一致や予約期限切れで「もう正規ルートでは
+// 使われなくなった」ドキュメントオブジェクトを GCS から消す。ベストエフォート:
+// 失敗してもクライアントには影響させず、ログと NR にだけ残して呼び出し元の
+// メイン経路を止めない。
+func (s *DocumentService) deleteOrphanedObject(ctx context.Context, workspaceID, documentID, reason string) {
+	if s.objectStore == nil {
+		return
+	}
+	if err := s.objectStore.DeleteDocumentObject(ctx, workspaceID, documentID); err != nil {
+		s.logger.Warn("document.orphan_object_delete_failed",
+			"error", err.Error(),
+			"workspace_id", workspaceID,
+			"document_id", documentID,
+			"reason", reason,
+		)
+		s.reportUploadIncident("OrphanObjectDeleteFailed", workspaceID, documentID, reason, err)
+		return
+	}
+	s.logger.Info("document.orphan_object_deleted",
+		"workspace_id", workspaceID,
+		"document_id", documentID,
+		"reason", reason,
+	)
+}
+
+// reportUploadIncident はクオータ違反やサイズ不一致など、アップロード周辺で
+// 発生した「攻撃 / 誤用 / バグの兆候」を NR に流す。slog だけだと長期トレンドや
+// アカウント別分析が組めないので、NRQL 集計用に CustomEvent + NoticeError の
+// 両方に乗せる。NR 未設定のときは no-op。
+func (s *DocumentService) reportUploadIncident(eventName, workspaceID, documentID, reason string, cause error) {
+	if s.nrApp == nil {
+		return
+	}
+	attrs := map[string]any{
+		"workspace_id": workspaceID,
+		"document_id":  documentID,
+		"reason":       reason,
+	}
+	if cause != nil {
+		attrs["error"] = cause.Error()
+	}
+	s.nrApp.RecordCustomEvent(eventName, attrs)
+	if cause == nil {
+		return
+	}
+	tx := s.nrApp.StartTransaction("document.upload_incident")
+	tx.AddAttribute("workspace_id", workspaceID)
+	tx.AddAttribute("document_id", documentID)
+	tx.AddAttribute("reason", reason)
+	tx.AddAttribute("event", eventName)
+	tx.NoticeError(cause)
+	tx.End()
 }
 
 func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
@@ -238,7 +334,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 
 func (s *DocumentService) confirmUploadedObject(ctx context.Context, doc *domain.Document) error {
 	if s.objectMetadata == nil {
-		return s.repo.ConfirmDocumentUpload(ctx, doc.DocumentID, doc.FileSize)
+		return s.runConfirmAndHandleMismatch(ctx, doc, doc.FileSize)
 	}
 	metadata, err := s.objectMetadata.GetObjectMetadata(ctx, doc.WorkspaceID, doc.DocumentID)
 	if err != nil {
@@ -247,7 +343,28 @@ func (s *DocumentService) confirmUploadedObject(ctx context.Context, doc *domain
 	if metadata == nil {
 		return domain.ErrUploadNotConfirmed
 	}
-	return s.repo.ConfirmDocumentUpload(ctx, doc.DocumentID, metadata.Size)
+	return s.runConfirmAndHandleMismatch(ctx, doc, metadata.Size)
+}
+
+func (s *DocumentService) runConfirmAndHandleMismatch(ctx context.Context, doc *domain.Document, actualSize int64) error {
+	err := s.repo.ConfirmDocumentUpload(ctx, doc.DocumentID, actualSize)
+	if err == nil {
+		return nil
+	}
+	// Content-Length 強制をすり抜けた、あるいは fake-gcs 上で意図的に申告サイズと
+	// 違うアップロードが入った場合、GCS には実体が残っているので消す。サイズ違反は
+	// 攻撃か計装バグの兆候なので NR にも投げて可視化する。
+	if errors.Is(err, domain.ErrUploadSizeMismatch) {
+		s.logger.Warn("document.upload_size_mismatch",
+			"document_id", doc.DocumentID,
+			"workspace_id", doc.WorkspaceID,
+			"expected", doc.FileSize,
+			"actual", actualSize,
+		)
+		s.reportUploadIncident("UploadSizeMismatch", doc.WorkspaceID, doc.DocumentID, "size_mismatch", err)
+		s.deleteOrphanedObject(ctx, doc.WorkspaceID, doc.DocumentID, "size_mismatch")
+	}
+	return err
 }
 
 func (s *DocumentService) buildExecutePlanRequest(job *domain.DocumentProcessingJob, doc *domain.Document, wsID, treeID string) domain.ExecutePlanRequest {

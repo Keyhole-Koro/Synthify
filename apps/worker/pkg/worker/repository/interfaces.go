@@ -17,7 +17,7 @@ type DocumentUploadTarget struct {
 }
 
 type DocumentUploadURLIssuer interface {
-	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (DocumentUploadTarget, error)
+	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (DocumentUploadTarget, error)
 }
 
 type DocumentSourceURLBuilder func(workspaceID, documentID string) string

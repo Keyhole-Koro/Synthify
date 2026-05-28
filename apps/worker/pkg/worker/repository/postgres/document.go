@@ -150,7 +150,7 @@ VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 		s.logger.Error("repository.create_upload_reservation_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
-	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType)
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType, fileSize)
 	if err != nil {
 		s.logger.Error("repository.issue_document_upload_url_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err

@@ -513,7 +513,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		Status:       "reserved",
 		ExpiresAt:    time.Now().Add(15 * time.Minute),
 	}
-	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType)
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType, fileSize)
 	if err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
@@ -522,7 +522,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 
 type mockUploadURLIssuer struct{}
 
-func (mockUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, wsID, docID, contentType string) (repository.DocumentUploadTarget, error) {
+func (mockUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, wsID, docID, contentType string, _ int64) (repository.DocumentUploadTarget, error) {
 	return repository.DocumentUploadTarget{
 		URL:         "http://mock-upload-url/" + wsID + "/" + docID,
 		Method:      "POST",
@@ -560,14 +560,17 @@ func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, ac
 	return nil
 }
 
-func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
+func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) ([]domain.ExpiredReservation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var expired int64
+	var expired []domain.ExpiredReservation
 	for _, reservation := range s.reservations {
 		if reservation.Status == "reserved" && now.After(reservation.ExpiresAt) {
 			reservation.Status = "expired"
-			expired++
+			expired = append(expired, domain.ExpiredReservation{
+				DocumentID:  reservation.DocumentID,
+				WorkspaceID: reservation.WorkspaceID,
+			})
 		}
 	}
 	return expired, nil

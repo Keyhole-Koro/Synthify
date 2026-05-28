@@ -34,6 +34,14 @@ type ObjectMetadata struct {
 	ContentType string `json:"content_type,omitempty"`
 }
 
+// ExpiredReservation describes a reservation that ExpireUploadReservations just
+// transitioned out of the "reserved" state, so the caller can clean up any
+// orphaned GCS object the client might have uploaded before abandoning the flow.
+type ExpiredReservation struct {
+	DocumentID  string
+	WorkspaceID string
+}
+
 type SourceFile struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	DocumentID  string `json:"document_id,omitempty"`

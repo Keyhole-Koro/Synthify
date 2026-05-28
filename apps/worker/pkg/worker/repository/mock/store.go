@@ -470,7 +470,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		Status:       "reserved",
 		ExpiresAt:    time.Now().Add(15 * time.Minute),
 	}
-	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType)
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType, fileSize)
 	if err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
@@ -479,7 +479,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 
 type mockUploadURLIssuer struct{}
 
-func (mockUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, wsID, docID, contentType string) (repository.DocumentUploadTarget, error) {
+func (mockUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, wsID, docID, contentType string, _ int64) (repository.DocumentUploadTarget, error) {
 	return repository.DocumentUploadTarget{
 		URL:         "http://mock-upload-url/" + wsID + "/" + docID,
 		Method:      "POST",

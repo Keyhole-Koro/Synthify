@@ -28,7 +28,7 @@ type fakeUploadURLIssuer struct {
 	err    error
 }
 
-func (f fakeUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, _, _, _ string) (repository.DocumentUploadTarget, error) {
+func (f fakeUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, _, _, _ string, _ int64) (repository.DocumentUploadTarget, error) {
 	return f.target, f.err
 }
 

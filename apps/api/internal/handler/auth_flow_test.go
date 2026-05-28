@@ -238,7 +238,7 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 	sourceURL := func(workspaceID, documentID string) string {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
-	svc := service.NewDocumentService(store, store, store, store, store, store, sourceURL, nil, nil, nil, nil)
+	svc := service.NewDocumentService(store, store, store, store, store, store, sourceURL, nil, nil, nil, nil, nil)
 	return NewDocumentHandler(svc, store)
 }
 

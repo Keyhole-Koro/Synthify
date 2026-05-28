@@ -101,7 +101,11 @@ func NewFakeGCSDocumentUploadURLIssuer(base, bucket string) repository.DocumentU
 	return fakeGCSDocumentUploadURLIssuer{base: base, bucket: bucket}
 }
 
-func (i fakeGCSDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (repository.DocumentUploadTarget, error) {
+func (i fakeGCSDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (repository.DocumentUploadTarget, error) {
+	// fake-gcs does not enforce Content-Length on POST uploads; the parameter is
+	// accepted to satisfy the interface and kept identical to the GCS branch so
+	// integration tests exercise the same call shape.
+	_ = fileSize
 	return repository.DocumentUploadTarget{
 		URL:         storage.BuildDocumentUploadURL(i.base, i.bucket, workspaceID, objectName),
 		Method:      "POST",
@@ -130,7 +134,7 @@ func NewGCSSignedDocumentUploadURLIssuer(bucket, googleAccessID, privateKey stri
 	}
 }
 
-func (i gcsSignedDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string) (repository.DocumentUploadTarget, error) {
+func (i gcsSignedDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (repository.DocumentUploadTarget, error) {
 	expiresAt := time.Now().Add(i.ttl)
 	opts := &gcs.SignedURLOptions{
 		GoogleAccessID: i.googleAccessID,
@@ -138,6 +142,13 @@ func (i gcsSignedDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Con
 		Expires:        expiresAt,
 		ContentType:    contentType,
 		Scheme:         gcs.SigningSchemeV4,
+	}
+	// Bind the declared file size into the signature via the Content-Length
+	// header so a client cannot reuse the URL to upload something larger than
+	// what was reserved against the account's quota. V4 signing requires the
+	// header to appear verbatim on the PUT for the signature to validate.
+	if fileSize > 0 {
+		opts.Headers = []string{"Content-Length:" + strconv.FormatInt(fileSize, 10)}
 	}
 	if len(i.privateKey) > 0 {
 		opts.PrivateKey = i.privateKey

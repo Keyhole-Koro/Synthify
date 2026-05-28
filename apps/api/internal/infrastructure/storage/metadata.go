@@ -19,11 +19,22 @@ type objectMetadataFetcher interface {
 	GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error)
 }
 
+type objectDeleter interface {
+	DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error
+}
+
 func NewObjectMetadataFetcher(baseURL, bucket string) objectMetadataFetcher {
 	if usesGoogleCloudStorage(baseURL) {
 		return NewGCSObjectMetadataFetcher(bucket, nil)
 	}
 	return NewFakeGCSObjectMetadataFetcher(baseURL, bucket, nil)
+}
+
+func NewDocumentObjectStore(baseURL, bucket string) objectDeleter {
+	if usesGoogleCloudStorage(baseURL) {
+		return NewGCSDocumentObjectStore(bucket, nil)
+	}
+	return NewFakeGCSDocumentObjectStore(baseURL, bucket, nil)
 }
 
 // FakeGCSObjectMetadataFetcher reads metadata through the fake-gcs JSON API
@@ -128,6 +139,75 @@ func usesGoogleCloudStorage(rawBaseURL string) bool {
 		return false
 	}
 	return parsed.Host == "storage.googleapis.com"
+}
+
+type FakeGCSDocumentObjectStore struct {
+	baseURL string
+	bucket  string
+	client  *http.Client
+}
+
+func NewFakeGCSDocumentObjectStore(baseURL, bucket string, client *http.Client) *FakeGCSDocumentObjectStore {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return &FakeGCSDocumentObjectStore{baseURL: baseURL, bucket: bucket, client: client}
+}
+
+func (f *FakeGCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, sharedstorage.BuildDocumentObjectMetadataURL(f.baseURL, f.bucket, workspaceID, documentID), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		// already gone or never uploaded — treat as success.
+		return nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		return fmt.Errorf("delete object failed status=%d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+type GCSDocumentObjectStore struct {
+	bucket string
+	client *gcs.Client
+}
+
+func NewGCSDocumentObjectStore(bucket string, client *gcs.Client) *GCSDocumentObjectStore {
+	return &GCSDocumentObjectStore{bucket: bucket, client: client}
+}
+
+func (s *GCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error {
+	client, err := s.clientOrDefault(ctx)
+	if err != nil {
+		return err
+	}
+	if err := client.Bucket(s.bucket).Object(workspaceID + "/" + documentID).Delete(ctx); err != nil {
+		if errors.Is(err, gcs.ErrObjectNotExist) {
+			return nil
+		}
+		return fmt.Errorf("delete document object: %w", err)
+	}
+	return nil
+}
+
+func (s *GCSDocumentObjectStore) clientOrDefault(ctx context.Context) (*gcs.Client, error) {
+	if s.client != nil {
+		return s.client, nil
+	}
+	client, err := gcs.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	s.client = client
+	return s.client, nil
 }
 
 func parseObjectSize(value any) (int64, error) {

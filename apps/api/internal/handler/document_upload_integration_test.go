@@ -44,7 +44,7 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	uploadURLIssuer := bootstrap.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL, bucket)
 	store.SetUploadURLIssuer(uploadURLIssuer)
 
-	svc := service.NewDocumentService(store, store, store, store, store, store, nil, nil, nil, nil, nil)
+	svc := service.NewDocumentService(store, store, store, store, store, store, nil, nil, nil, nil, nil, nil)
 	handler := NewDocumentHandler(svc, store)
 
 	authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})

@@ -52,6 +52,7 @@ func main() {
 	// internal GCS upload base.
 	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, appLogger, observability.ConnectClientOptions(nrApp)...)
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
+	objectStore := storage.NewDocumentObjectStore(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
 	stripeProvider, err := stripe.NewProvider(stripe.Config{
@@ -75,7 +76,7 @@ func main() {
 	billingSvc := service.NewBillingService(store, store, stripeProvider, appLogger)
 
 	documentSvc := service.NewDocumentService(
-		store, store, store, store, store, store, sourceURLBuilder, objectMetadata, dispatcher, notifier, appLogger, nrApp,
+		store, store, store, store, store, store, sourceURLBuilder, objectMetadata, objectStore, dispatcher, notifier, appLogger, nrApp,
 	)
 	itemSvc := service.NewItemService(store, store, store, appLogger)
 	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
