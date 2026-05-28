@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	connect "connectrpc.com/connect"
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/config"
@@ -153,9 +152,10 @@ func main() {
 	billingHandler := handler.NewBillingHandler(billingSvc)
 
 	mux := http.NewServeMux()
-	connectOptions := observability.ConnectHandlerOptions(nrApp)
-	// 内部エラー（DB エラー等）の本文をクライアントに晒さず、サーバ側ログに原因を残す。
-	connectOptions = append(connectOptions, connect.WithInterceptors(handler.MaskInternalErrors(appLogger)))
+	connectOptions := append(
+		observability.ConnectHandlerOptions(nrApp),
+		observability.MaskInternalErrorsHandlerOptions(appLogger)...,
+	)
 	mux.Handle(appv1connect.NewDocumentServiceHandler(documentHandler, connectOptions...))
 	mux.Handle(appv1connect.NewTreeServiceHandler(treeHandler, connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(itemHandler, connectOptions...))

@@ -56,9 +56,13 @@ func main() {
 	evaluator := worker.NewJobEvaluator(store, embedder, appLogger)
 
 	mux := http.NewServeMux()
+	handlerOpts := append(
+		observability.ConnectHandlerOptions(nrApp),
+		observability.MaskInternalErrorsHandlerOptions(appLogger)...,
+	)
 	mux.Handle(workerv1connect.NewWorkerServiceHandler(
 		worker.NewConnectHandler(workerService, store, planner, evaluator, appLogger),
-		observability.ConnectHandlerOptions(nrApp)...,
+		handlerOpts...,
 	))
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
