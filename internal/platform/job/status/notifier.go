@@ -73,7 +73,25 @@ type Notifier interface {
 	StageProgress(ctx context.Context, payload Payload, stage string, progress int, message string) error
 	UpdateFields(ctx context.Context, workspaceID, jobID string, fields UpdateFields) error
 	Failed(ctx context.Context, payload Payload, errorMessage string) error
+	FailedWith(ctx context.Context, payload Payload, n FailureNotification) error
 	Completed(ctx context.Context, payload Payload) error
+	CompletedWith(ctx context.Context, payload Payload, n CompletionNotification) error
+}
+
+// FailureNotification is the extended Failed payload that includes the
+// classified reason the frontend can switch on, alongside the original
+// error message.
+type FailureNotification struct {
+	ErrorMessage string
+	Reason       FirestoreJobStatusReason
+}
+
+// CompletionNotification carries the optional metadata about a successful
+// job: where its output landed in the tree, and which stages it traversed.
+type CompletionNotification struct {
+	CreatedDocumentRootItemID   string
+	AffectedWorkspaceRootItemID string
+	StageSummary                []string
 }
 
 type noopNotifier struct{}
@@ -84,9 +102,11 @@ func (noopNotifier) Stage(context.Context, Payload, string) error { return nil }
 func (noopNotifier) StageProgress(context.Context, Payload, string, int, string) error {
 	return nil
 }
-func (noopNotifier) UpdateFields(context.Context, string, string, UpdateFields) error { return nil }
-func (noopNotifier) Failed(context.Context, Payload, string) error                    { return nil }
-func (noopNotifier) Completed(context.Context, Payload) error                         { return nil }
+func (noopNotifier) UpdateFields(context.Context, string, string, UpdateFields) error      { return nil }
+func (noopNotifier) Failed(context.Context, Payload, string) error                          { return nil }
+func (noopNotifier) FailedWith(context.Context, Payload, FailureNotification) error         { return nil }
+func (noopNotifier) Completed(context.Context, Payload) error                               { return nil }
+func (noopNotifier) CompletedWith(context.Context, Payload, CompletionNotification) error   { return nil }
 
 type firestoreNotifier struct {
 	client *firestore.Client
@@ -157,18 +177,29 @@ func (n *firestoreNotifier) StageProgress(ctx context.Context, payload Payload, 
 }
 
 func (n *firestoreNotifier) Failed(ctx context.Context, payload Payload, errorMessage string) error {
-	return n.write(ctx, payload, map[string]any{
+	return n.FailedWith(ctx, payload, FailureNotification{
+		ErrorMessage: errorMessage,
+		Reason:       FirestoreJobStatusReasonInternal,
+	})
+}
+
+func (n *firestoreNotifier) FailedWith(ctx context.Context, payload Payload, fn FailureNotification) error {
+	fields := map[string]any{
 		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateFailed),
 		FirestoreJobStatusFieldCurrentStage: "",
 		FirestoreJobStatusFieldMessage:      "Failed",
-		FirestoreJobStatusFieldErrorMessage: errorMessage,
+		FirestoreJobStatusFieldErrorMessage: fn.ErrorMessage,
 		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
 		FirestoreJobStatusFieldCompletedAt:  nowRFC3339(),
 		// Bound the lifetime so the workspace's jobs collection does not
 		// grow without bound; Firestore TTL policy deletes the document
 		// once expiresAt passes.
 		FirestoreJobStatusFieldExpiresAt: ttlFromNow(),
-	})
+	}
+	if fn.Reason != "" {
+		fields[FirestoreJobStatusFieldReason] = string(fn.Reason)
+	}
+	return n.write(ctx, payload, fields)
 }
 
 func (n *firestoreNotifier) UpdateFields(ctx context.Context, workspaceID, jobID string, fields UpdateFields) error {
@@ -188,7 +219,11 @@ func (n *firestoreNotifier) UpdateFields(ctx context.Context, workspaceID, jobID
 }
 
 func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) error {
-	return n.write(ctx, payload, map[string]any{
+	return n.CompletedWith(ctx, payload, CompletionNotification{})
+}
+
+func (n *firestoreNotifier) CompletedWith(ctx context.Context, payload Payload, cn CompletionNotification) error {
+	fields := map[string]any{
 		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateSucceeded),
 		FirestoreJobStatusFieldCurrentStage: "",
 		FirestoreJobStatusFieldProgress:     100,
@@ -199,7 +234,17 @@ func (n *firestoreNotifier) Completed(ctx context.Context, payload Payload) erro
 		// Same TTL contract as Failed: keep the document for a week so the
 		// user can still inspect a finished job, then let TTL clean it up.
 		FirestoreJobStatusFieldExpiresAt: ttlFromNow(),
-	})
+	}
+	if cn.CreatedDocumentRootItemID != "" {
+		fields[FirestoreJobStatusFieldCreatedDocumentRootItemID] = cn.CreatedDocumentRootItemID
+	}
+	if cn.AffectedWorkspaceRootItemID != "" {
+		fields[FirestoreJobStatusFieldAffectedWorkspaceRootItemID] = cn.AffectedWorkspaceRootItemID
+	}
+	if len(cn.StageSummary) > 0 {
+		fields[FirestoreJobStatusFieldStageSummary] = cn.StageSummary
+	}
+	return n.write(ctx, payload, fields)
 }
 
 func (n *firestoreNotifier) write(ctx context.Context, payload Payload, fields map[string]any) error {

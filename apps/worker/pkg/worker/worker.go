@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 	"google.golang.org/adk/model"
 	"google.golang.org/api/idtoken"
+	"google.golang.org/genai"
 )
 
 var (
@@ -150,7 +152,11 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 	}
 
 	if err := w.orchestrator.ProcessDocument(ctx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
-		w.failJob(ctx, req, payload, err)
+		// Wrap with ErrAgentExecution so classifyFailure can route this
+		// path to agent_error via errors.Is. If the cause is itself a
+		// Vertex APIError, errors.As still finds it through the wrap.
+		wrapped := fmt.Errorf("%w: %w", domain.ErrAgentExecution, err)
+		w.failJob(ctx, req, payload, wrapped)
 		return err
 	}
 
@@ -162,7 +168,10 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		Event:       "job.completed",
 		Message:     "LLM worker job completed successfully",
 	})
-	if err := w.lifecycle.Complete(ctx, payload); err != nil {
+	// The CompletionOutcome is intentionally empty here; the worker does
+	// not yet thread createdDocumentRootItemId out of the agent. PR 12
+	// (frontend incremental subtree fetch) is where that wiring lands.
+	if err := w.lifecycle.Complete(ctx, payload, joblifecycle.CompletionOutcome{}); err != nil {
 		return fmt.Errorf("complete job in repo: %w", err)
 	}
 
@@ -170,6 +179,7 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 }
 
 func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jobstatus.Payload, cause error) {
+	reason := classifyFailure(cause)
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:       req.JobID,
 		WorkspaceID: req.WorkspaceID,
@@ -177,9 +187,49 @@ func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jo
 		Level:       joblog.ERROR,
 		Event:       "job.failed",
 		Message:     fmt.Sprintf("Agent execution failed: %v", cause),
-		Detail:      map[string]any{"error": cause.Error()},
+		Detail:      map[string]any{"error": cause.Error(), "reason": string(reason)},
 	})
-	w.lifecycle.TryFail(ctx, payload, cause)
+	w.lifecycle.TryFailWith(ctx, payload, joblifecycle.Failure{Cause: cause, Reason: reason})
+}
+
+// classifyFailure maps a raw error from the agent / pipeline onto the
+// Firestore reason enum the frontend switches on. Classification is done
+// by error identity (errors.Is) or by structured type (errors.As) — never
+// by message-string contains, so changing a wording upstream does not
+// silently demote a known reason to "internal".
+//
+// New classifications belong here as additional cases. New source-side
+// reasons are added by ensuring the producing code wraps with a recognisable
+// sentinel or returns a typed error this function knows about.
+func classifyFailure(err error) jobstatus.FirestoreJobStatusReason {
+	if err == nil {
+		return jobstatus.FirestoreJobStatusReasonInternal
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return jobstatus.FirestoreJobStatusReasonCancelled
+	}
+	if errors.Is(err, domain.ErrFileTooLarge) ||
+		errors.Is(err, domain.ErrStorageQuotaExceeded) ||
+		errors.Is(err, domain.ErrUploadSizeMismatch) {
+		return jobstatus.FirestoreJobStatusReasonQuotaExceeded
+	}
+	// Vertex AI returns a structured APIError; "Publisher Model X was not
+	// found" comes back as Code=404 + Status=NOT_FOUND. Switch on those
+	// fields instead of grepping the message, so a reworded server reply
+	// does not change the classification.
+	var apiErr *genai.APIError
+	if errors.As(err, &apiErr) {
+		if apiErr.Code == http.StatusNotFound && apiErr.Status == "NOT_FOUND" {
+			return jobstatus.FirestoreJobStatusReasonVertexModelNotFound
+		}
+		// Any other Vertex/Gemini API error counts as an agent error
+		// because the agent owns the call site.
+		return jobstatus.FirestoreJobStatusReasonAgentError
+	}
+	if errors.Is(err, domain.ErrAgentExecution) {
+		return jobstatus.FirestoreJobStatusReasonAgentError
+	}
+	return jobstatus.FirestoreJobStatusReasonInternal
 }
 
 type Planner struct {

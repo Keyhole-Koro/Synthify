@@ -50,8 +50,27 @@ type QueuedNotifier interface {
 type RuntimeController interface {
 	MarkRunning(ctx context.Context, payload jobstatus.Payload) error
 	UpdateStage(ctx context.Context, payload jobstatus.Payload, stage string) error
-	Complete(ctx context.Context, payload jobstatus.Payload) error
+	Complete(ctx context.Context, payload jobstatus.Payload, outcome CompletionOutcome) error
 	TryFail(ctx context.Context, payload jobstatus.Payload, cause error)
+	TryFailWith(ctx context.Context, payload jobstatus.Payload, failure Failure)
+}
+
+// CompletionOutcome carries the optional metadata the worker collects while
+// a job runs so it can be reflected onto the Firestore mirror without an
+// extra round-trip. All fields are best-effort: leaving CreatedDocumentRootItemID
+// empty produces a notification that simply omits the field.
+type CompletionOutcome struct {
+	CreatedDocumentRootItemID   string
+	AffectedWorkspaceRootItemID string
+	StageSummary                []string
+}
+
+// Failure pairs an error with a classified reason so the Firestore mirror
+// can hand the frontend a switchable value alongside the human-readable
+// message. ReasonInternal is the safe fallback for unknown causes.
+type Failure struct {
+	Cause  error
+	Reason jobstatus.FirestoreJobStatusReason
 }
 
 // Service satisfies both QueuedNotifier and RuntimeController. Construct it
@@ -109,31 +128,49 @@ func (s *Service) UpdateStage(ctx context.Context, payload jobstatus.Payload, st
 	return nil
 }
 
+// TryFail is the shorthand for an unclassified failure: it routes through
+// TryFailWith with reason=internal so callers that do not (or cannot)
+// classify the cause still produce a Firestore-conformant notification.
 func (s *Service) TryFail(ctx context.Context, payload jobstatus.Payload, cause error) {
+	s.TryFailWith(ctx, payload, Failure{Cause: cause, Reason: jobstatus.FirestoreJobStatusReasonInternal})
+}
+
+func (s *Service) TryFailWith(ctx context.Context, payload jobstatus.Payload, failure Failure) {
 	errorMessage := ""
-	if cause != nil {
-		errorMessage = cause.Error()
+	if failure.Cause != nil {
+		errorMessage = failure.Cause.Error()
+	}
+	reason := failure.Reason
+	if reason == "" {
+		reason = jobstatus.FirestoreJobStatusReasonInternal
 	}
 	if err := s.repo.FailProcessingJob(ctx, payload.JobID, errorMessage); err != nil {
 		s.logger.Error("repository.mark_job_failed_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
-	s.reportFailure(payload, cause)
+	s.reportFailure(payload, failure.Cause, reason)
 	if s.notifier == nil {
 		return
 	}
-	if err := s.notifier.Failed(ctx, payload, errorMessage); err != nil {
+	if err := s.notifier.FailedWith(ctx, payload, jobstatus.FailureNotification{
+		ErrorMessage: errorMessage,
+		Reason:       reason,
+	}); err != nil {
 		s.logger.Error("jobstatus.notify_failure_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 }
 
-func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload) error {
+func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload, outcome CompletionOutcome) error {
 	if err := s.repo.CompleteProcessingJob(ctx, payload.JobID); err != nil {
 		return err
 	}
 	if s.notifier == nil {
 		return nil
 	}
-	if err := s.notifier.Completed(ctx, payload); err != nil {
+	if err := s.notifier.CompletedWith(ctx, payload, jobstatus.CompletionNotification{
+		CreatedDocumentRootItemID:   outcome.CreatedDocumentRootItemID,
+		AffectedWorkspaceRootItemID: outcome.AffectedWorkspaceRootItemID,
+		StageSummary:                outcome.StageSummary,
+	}); err != nil {
 		s.logger.Error("jobstatus.notify_completion_failed", "error", err.Error(), "job_id", payload.JobID)
 	}
 	return nil
@@ -141,7 +178,7 @@ func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload) error
 
 // --- internals ---------------------------------------------------------------
 
-func (s *Service) reportFailure(payload jobstatus.Payload, cause error) {
+func (s *Service) reportFailure(payload jobstatus.Payload, cause error, reason jobstatus.FirestoreJobStatusReason) {
 	if s.nrApp == nil {
 		return
 	}
@@ -155,6 +192,7 @@ func (s *Service) reportFailure(payload jobstatus.Payload, cause error) {
 		"workspace_id": payload.WorkspaceID,
 		"document_id":  payload.DocumentID,
 		"tree_id":      payload.TreeID,
+		"reason":       string(reason),
 		"error":        errorMessage,
 	})
 	tx := s.nrApp.StartTransaction("job.failed")
@@ -163,6 +201,7 @@ func (s *Service) reportFailure(payload jobstatus.Payload, cause error) {
 	tx.AddAttribute("workspace_id", payload.WorkspaceID)
 	tx.AddAttribute("document_id", payload.DocumentID)
 	tx.AddAttribute("tree_id", payload.TreeID)
+	tx.AddAttribute("reason", string(reason))
 	if cause == nil {
 		cause = errors.New(errorMessage)
 	}

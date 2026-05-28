@@ -15,6 +15,13 @@ var (
 	ErrUploadNotConfirmed   = errors.New("upload is not confirmed")
 	ErrUploadSizeMismatch   = errors.New("uploaded object size does not match reservation")
 
+	// ErrAgentExecution is a sentinel wrap used by agent-call sites that
+	// want their failure to land in the agent_error bucket of the
+	// FirestoreJobStatusReason enum. Wrap with fmt.Errorf("...: %w", err,
+	// ErrAgentExecution) so errors.Is keeps working alongside the
+	// original cause.
+	ErrAgentExecution = errors.New("agent execution failed")
+
 	// Severity markers
 	ErrCritical = errors.New("critical system error") // Triggers CRITICAL alert
 	ErrJobError = errors.New("job level error")       // Triggers ERROR notification
