@@ -12,6 +12,7 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	platformusage "github.com/synthify/backend/internal/platform/billing/usage"
 )
 
 type BillingUsecase interface {
@@ -52,6 +53,7 @@ type billingService struct {
 	provider BillingProvider
 	logger   *slog.Logger
 	now      func() time.Time
+	recorder *platformusage.Recorder
 }
 
 type BillingServiceDeps struct {
@@ -65,13 +67,28 @@ type BillingServiceDeps struct {
 }
 
 func NewBillingService(deps BillingServiceDeps) BillingUsecase {
-	return &billingService{
+	now := time.Now
+	s := &billingService{
 		accounts: deps.Accounts,
 		usage:    deps.Usage,
 		provider: deps.Provider,
 		logger:   deps.Logger,
-		now:      time.Now,
+		now:      now,
 	}
+	if deps.Usage != nil {
+		adapter := newUsageRepoAdapter(deps.Usage, deps.Accounts)
+		s.recorder = platformusage.NewRecorder(adapter, billingClock{now: now}, deps.Logger)
+	}
+	return s
+}
+
+type billingClock struct{ now func() time.Time }
+
+// NowRFC3339Date returns the current instant as an RFC3339 string. The
+// recorder slices the first 10 chars to get YYYY-MM-DD for the daily
+// rollup, and uses the full string for credit grant timestamps.
+func (c billingClock) NowRFC3339Date() string {
+	return c.now().UTC().Format("2006-01-02T15:04:05Z")
 }
 
 func (s *billingService) GetBillingAccount(ctx context.Context, accountID, actorUserID string) (*domain.Account, error) {
@@ -523,7 +540,7 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 
 	// When the usage repository is not wired (early dev), keep the legacy logging stub
 	// so the worker pipeline still flows; still attempt to push to Stripe meter.
-	if s.usage == nil {
+	if s.recorder == nil {
 		s.logger.Info("billing.record_usage.stub",
 			"account_id", ev.AccountID,
 			"workspace_id", ev.WorkspaceID,
@@ -536,142 +553,60 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 		return &domain.UsageRecordResult{EventID: ev.EventID, Cost: "0.00"}, nil
 	}
 
-	// 1. Pricing lookup. Unknown model -> cost 0 + warn but keep persisting for forensics.
-	currency := "usd"
-	costMinor := int64(0)
-	pricing, err := s.usage.GetModelPricing(ctx, ev.Model)
-	switch {
-	case err == nil && pricing != nil:
-		costMinor = computeCostMinor(pricing, ev.InputTokens, ev.OutputTokens)
-		if pricing.Currency != "" {
-			currency = pricing.Currency
-		}
-	case errors.Is(err, domain.ErrNotFound):
-		s.logger.Warn("billing.record_usage.no_pricing",
-			"model", ev.Model,
-			"account_id", ev.AccountID,
-		)
-	default:
-		s.logger.Error("billing.record_usage.pricing_lookup_failed", "error", err.Error(), "model", ev.Model)
-	}
-
-	ev.CostMinor = costMinor
-	ev.Currency = currency
-
-	// 2. 厳密版: クレジット残高があれば優先消費し、不足分は Stripe usage-based meter に流す。
-	//    - balance >= cost  : 全額 credit (paid_via=credit)
-	//    - 0 < balance < cost && usage_based : credit 全消費 + 超過分を Stripe (paid_via=mixed)
-	//    - balance <= 0   && usage_based : 全額 Stripe (paid_via=stripe)
-	//    - balance <= 0   && free        : 停止 (CreditStopped=true)
-	creditStopped := false
-	creditPortion := int64(0)
-	stripePortion := int64(0)
-	paidVia := domain.PaidViaStripe
-
-	if costMinor > 0 {
-		balance, balErr := s.usage.GetCreditBalance(ctx, ev.AccountID)
-		if balErr != nil {
-			s.logger.Warn("billing.record_usage.balance_lookup_failed", "error", balErr.Error(), "account_id", ev.AccountID)
-		}
-		account, accErr := s.accounts.GetAccount(ctx, ev.AccountID)
-		isFree := accErr == nil && account != nil && account.Plan == string(domain.BillingPlanFree)
-
-		switch {
-		case balance >= costMinor:
-			creditPortion = costMinor
-			paidVia = domain.PaidViaCredit
-		case balance > 0:
-			creditPortion = balance
-			stripePortion = costMinor - balance
-			paidVia = domain.PaidViaMixed
-			if isFree {
-				// usage_based 未登録なのに超過した → Stripe に送れないので停止扱い。
-				creditStopped = true
-			}
-		case isFree:
-			// 残高なし & free plan → 停止。Stripe meter にも送らない。
-			creditStopped = true
-			paidVia = domain.PaidViaCredit // 課金経路なし
-		default:
-			stripePortion = costMinor
-			paidVia = domain.PaidViaStripe
-		}
-
-		// クレジット消費分を負の grant として記録 (best-effort).
-		if creditPortion > 0 {
-			deduct := &domain.CreditGrant{
-				CreditID:    "deduct-" + ev.EventID,
-				AccountID:   ev.AccountID,
-				CreditType:  domain.CreditTypeConsumed,
-				AmountMinor: -creditPortion,
-				Currency:    currency,
-				Note:        "usage:" + ev.EventID,
-				GrantedBy:   "system",
-				GrantedAt:   s.now().UTC().Format("2006-01-02T15:04:05Z"),
-			}
-			if err := s.usage.GrantCredit(ctx, deduct); err != nil {
-				s.logger.Warn("billing.record_usage.credit_deduct_failed",
-					"error", err.Error(),
-					"event_id", ev.EventID,
-					"account_id", ev.AccountID,
-				)
-			}
-		}
-		if creditStopped {
-			s.logger.Info("billing.record_usage.credit_exhausted",
-				"account_id", ev.AccountID,
-				"event_id", ev.EventID,
-				"balance", balance,
-				"cost", costMinor,
-			)
-		}
-	}
-
-	ev.PaidVia = paidVia
-	ev.CreditAmountMinor = creditPortion
-	ev.StripeAmountMinor = stripePortion
-
-	// 3. Persist raw event, daily rollup, and account accumulator atomically.
-	date := s.now().UTC().Format("2006-01-02")
-	_, exceeded, err := s.usage.RecordUsageAccounting(ctx, ev, date)
+	pue := toPlatformEvent(ev)
+	result, err := s.recorder.Record(ctx, pue)
 	if err != nil {
-		s.logger.Error("billing.record_usage.accounting_failed", "error", err.Error(), "event_id", ev.EventID, "account_id", ev.AccountID)
+		if errors.Is(err, platformusage.ErrEventInvalid) {
+			return nil, domain.ErrBillingUsageEventInvalid
+		}
 		return nil, err
 	}
+	// Recorder mutated pue with the chosen split; mirror the relevant fields
+	// back onto the caller's domain event so callers reading ev after the
+	// fact see the same accounting.
+	ev.CostMinor = pue.CostMinor
+	ev.Currency = pue.Currency
+	ev.PaidVia = domain.PaidVia(pue.PaidVia)
+	ev.CreditAmountMinor = pue.CreditAmountMinor
+	ev.StripeAmountMinor = pue.StripeAmountMinor
 
-	// 4. Stripe meter event は Stripe portion がある場合のみ送る。
-	//    token 数は cost-比例で按分する (端数は input 側に寄せる)。
-	if stripePortion > 0 {
-		inTok, outTok := proratedTokens(ev.InputTokens, ev.OutputTokens, costMinor, stripePortion)
+	// Stripe meter event: only the Stripe portion, prorated by cost.
+	// The worker (PR 9) writes events via the platform Recorder but does
+	// not call Stripe directly; PR 8b will replace this immediate send
+	// with a stripe_pending flag + scheduled flush so api min-instances=0
+	// no longer means "the moment a worker job costs money, api wakes up".
+	if result.StripeAmountMinor > 0 {
+		inTok, outTok := platformusage.ProratedTokens(ev.InputTokens, ev.OutputTokens, ev.CostMinor, result.StripeAmountMinor)
 		s.reportStripeMeterPortion(ctx, ev, inTok, outTok)
 	}
 
 	return &domain.UsageRecordResult{
-		EventID:           ev.EventID,
-		Cost:              formatMinor(costMinor, currency),
-		BudgetExceeded:    exceeded || creditStopped,
-		CreditStopped:     creditStopped,
-		PaidVia:           paidVia,
-		CreditAmountMinor: creditPortion,
-		StripeAmountMinor: stripePortion,
+		EventID:           result.EventID,
+		Cost:              result.Cost,
+		BudgetExceeded:    result.BudgetExceeded,
+		CreditStopped:     result.CreditStopped,
+		PaidVia:           domain.PaidVia(result.PaidVia),
+		CreditAmountMinor: result.CreditAmountMinor,
+		StripeAmountMinor: result.StripeAmountMinor,
 	}, nil
 }
 
-// proratedTokens splits (inputTokens, outputTokens) by the ratio stripePortion/totalCost,
-// rounding the input side up so that small mixed events still report at least 1 input token.
-func proratedTokens(inputTokens, outputTokens, totalCost, stripePortion int64) (int64, int64) {
-	if totalCost <= 0 || stripePortion >= totalCost {
-		return inputTokens, outputTokens
+func toPlatformEvent(ev *domain.UsageEvent) *platformusage.Event {
+	return &platformusage.Event{
+		EventID:           ev.EventID,
+		AccountID:         ev.AccountID,
+		WorkspaceID:       ev.WorkspaceID,
+		JobID:             ev.JobID,
+		Model:             ev.Model,
+		InputTokens:       ev.InputTokens,
+		OutputTokens:      ev.OutputTokens,
+		CostMinor:         ev.CostMinor,
+		Currency:          ev.Currency,
+		PaidVia:           platformusage.PaidVia(ev.PaidVia),
+		CreditAmountMinor: ev.CreditAmountMinor,
+		StripeAmountMinor: ev.StripeAmountMinor,
+		CreatedAt:         ev.CreatedAt,
 	}
-	stripeIn := (inputTokens*stripePortion + totalCost - 1) / totalCost
-	stripeOut := (outputTokens * stripePortion) / totalCost
-	if stripeIn > inputTokens {
-		stripeIn = inputTokens
-	}
-	if stripeOut > outputTokens {
-		stripeOut = outputTokens
-	}
-	return stripeIn, stripeOut
 }
 
 func (s *billingService) reportStripeMeterPortion(ctx context.Context, ev *domain.UsageEvent, inputTokens, outputTokens int64) {
@@ -689,13 +624,6 @@ func (s *billingService) reportStripeMeterPortion(ctx context.Context, ev *domai
 			"event_id", ev.EventID,
 		)
 	}
-}
-
-// computeCostMinor: cost_minor = (tokens * rate_per_mtoken_minor) / 1_000_000.
-// Integer truncation is intentional — fractional minor units cannot be billed anyway.
-func computeCostMinor(p *domain.ModelPricing, inputTokens, outputTokens int64) int64 {
-	const million = int64(1_000_000)
-	return (inputTokens*p.InputCostPerMTokenMinor)/million + (outputTokens*p.OutputCostPerMTokenMinor)/million
 }
 
 // formatMinor renders a minor-unit amount as a decimal string in the conventional
