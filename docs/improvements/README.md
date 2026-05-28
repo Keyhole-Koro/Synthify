@@ -17,6 +17,7 @@
 - [dependency-architecture-ideal.md](dependency-architecture-ideal.md) — `root` `api` `worker` `shared` `web` `monitor` の理想依存構成と段階的移行方針
 - [api-refactor-cleanup.md](api-refactor-cleanup.md) — API 層の仕様変更残骸、mapper 不整合、重複 dispatch、no-op RPC の整理
 - [store-interface-narrowing.md](store-interface-narrowing.md) — handler / service が `app.Store` を丸ごと受け取らず、必要な repository interface だけを受け取るようにする段階移行
+- [service-constructor-options-struct.md](service-constructor-options-struct.md) — `NewDocumentService(store, store, store, store, store, store, ...)` の positional 引数列を Deps struct に置き換える
 - [refactor-backlog-008-010.md](refactor-backlog-008-010.md) — `sqlc` 移行残件、job/document 状態遷移集約、テスト fixture 共通化の具体作業
 - [job-entity-field-spec.md](job-entity-field-spec.md) — Job エンティティの理想フィールド、状態遷移、処理への影響
 - [capability-limits-not-enforced.md](capability-limits-not-enforced.md) — JobCapability のLLM呼び出し上限が実際には強制されていない
