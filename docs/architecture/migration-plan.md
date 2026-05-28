@@ -196,17 +196,17 @@
 
 ---
 
-### PR 7: pipeline.Runner を RuntimeController 経由に統一
+### PR 7: pipeline パッケージの削除 (元の計画から変更)
 
-**目的**: 直接 repo 呼びを廃止し、ステージ更新の経路を 1 つに集約。
+**当初の計画**: `pipeline.Runner` の直接 repo 呼びを `RuntimeController` 経由に置換。
 
-**変更**:
-- `apps/worker/pkg/worker/pipeline/runner.go` で `r.jobRepo.UpdateProcessingJobStage(...)` 等の直接呼びを `r.lifecycle.UpdateStage(...)` に置換
-- 必要なら `RuntimeController` interface に `UpdateStage` を追加
+**実際**: 着手時に `apps/worker/pkg/worker/pipeline` パッケージが **完全に dead code** であることが判明 (`NewRunner` を呼ぶ箇所が repo 全体にゼロ、テストも無し)。実際のステージ orchestration は `apps/worker/pkg/worker/agents` が担っていた。
 
-**検証**: ステージ進行が Firestore に正しく流れることを確認。
+**変更**: パッケージ丸ごと削除。これで「ステージ更新の経路を 1 つに集約」というゴール (RuntimeController しか経路がない状態) は満たされる。
 
-**ロールバック**: revert。
+**検証**: build と test の通過のみ。挙動変化なし。
+
+**ロールバック**: revert で復活するが、復活させる意味のあるコードではない。
 
 ---
 
