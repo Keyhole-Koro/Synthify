@@ -25,7 +25,7 @@ worker server の起動点は [main.go](/home/unix/Synthify/worker/cmd/server/ma
 - config を読む
 - Store を初期化する
 - Firestore notifier を初期化する
-- Gemini API key があれば ADK model を作る
+- Vertex AI 用の project / location を解決して ADK model を作る
 - `WorkerService` の Connect handler を公開する
 
 公開 RPC は [worker.proto](/home/unix/Synthify/contracts/connectrpc/synthify/worker/v1/worker.proto) の 3 つ:

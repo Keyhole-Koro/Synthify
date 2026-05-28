@@ -1,9 +1,13 @@
 package config
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
+	"cloud.google.com/go/compute/metadata"
 	"github.com/synthify/backend/internal/platform/storage"
 	"github.com/synthify/backend/internal/platform/util"
 )
@@ -31,12 +35,16 @@ type Store struct {
 }
 
 type LLM struct {
-	GeminiAPIKey   string
 	GeminiModel    string
 	LogPayload     bool
 	GCPProject     string
 	VertexLocation string
 }
+
+// defaultVertexLocation is used when neither VERTEX_LOCATION nor the Cloud Run
+// instance region (queried from the metadata server) is available. Pinned to
+// the deployment region so colocated traffic stays cheap and low-latency.
+const defaultVertexLocation = "asia-northeast1"
 
 func LoadWorker() Worker {
 	return Worker{
@@ -61,25 +69,62 @@ func LoadStore() Store {
 }
 
 func LoadLLM() LLM {
+	project := util.FirstNonEmpty(
+		os.Getenv("GCP_PROJECT"),
+		os.Getenv("GOOGLE_CLOUD_PROJECT"),
+		os.Getenv("GCP_PROJECT_ID"),
+	)
+	location := os.Getenv("VERTEX_LOCATION")
+	if project == "" || location == "" {
+		mdProject, mdLocation := detectFromMetadata()
+		if project == "" {
+			project = mdProject
+		}
+		if location == "" {
+			location = mdLocation
+		}
+	}
+	if location == "" {
+		location = defaultVertexLocation
+	}
 	return LLM{
-		GeminiAPIKey:   util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		GeminiModel:    get("GEMINI_MODEL", "gemini-3-flash-preview"),
 		LogPayload:     os.Getenv("LOG_LLM_PAYLOAD") == "true",
-		GCPProject:     util.FirstNonEmpty(os.Getenv("GCP_PROJECT"), os.Getenv("GOOGLE_CLOUD_PROJECT")),
-		VertexLocation: os.Getenv("VERTEX_LOCATION"),
+		GCPProject:     project,
+		VertexLocation: location,
 	}
 }
 
-// UseVertex reports whether the Vertex AI backend should be used. Vertex is
-// preferred when both project and location are set, regardless of whether an
-// API key is also present, so production stays on Vertex while local .env
-// configs can fall back to the Gemini API by leaving GCP_PROJECT unset.
-func (c LLM) UseVertex() bool {
-	return c.GCPProject != "" && c.VertexLocation != ""
+// Enabled reports whether Vertex AI inference can run. The worker can't reach
+// the genai backend without a project ID, so init must fail fast in that case;
+// location falls back to a constant so it is never the blocker.
+func (c LLM) Enabled() bool {
+	return c.GCPProject != ""
 }
 
-func (c LLM) Enabled() bool {
-	return c.UseVertex() || c.GeminiAPIKey != ""
+// detectFromMetadata reads project/region from the Cloud Run metadata server
+// so production deploys don't have to plumb GCP_PROJECT/VERTEX_LOCATION through
+// terraform. Off-GCE callers (laptops, CI without ADC) get empty strings and
+// must set env vars explicitly.
+func detectFromMetadata() (project, location string) {
+	if !metadata.OnGCE() {
+		return "", ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	if id, err := metadata.ProjectIDWithContext(ctx); err == nil {
+		project = id
+	}
+	// instance/region is reported as "projects/<num>/regions/<region>"; the
+	// region is the final segment, which is what Vertex expects as Location.
+	if region, err := metadata.GetWithContext(ctx, "instance/region"); err == nil {
+		if idx := strings.LastIndex(region, "/"); idx >= 0 && idx+1 < len(region) {
+			location = region[idx+1:]
+		} else {
+			location = region
+		}
+	}
+	return project, location
 }
 
 func get(key, fallback string) string {

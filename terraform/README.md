@@ -86,7 +86,6 @@ init→apply→placeholder secret→2回目 apply を自動化する。
 | Key | 内容 | 必須 |
 |---|---|---|
 | `database-dsn` | CockroachDB Serverless の接続文字列 (`postgresql://...`) | ✅ |
-| `gemini-api-key` | Gemini API key | ✅ |
 | `internal-worker-token` | worker → api 内部通信トークン (適当なランダム文字列) | ✅ |
 | `stripe-secret-key` | Stripe Secret Key (`sk_live_...`) | Stripe 使う時 |
 | `stripe-webhook-secret` | Stripe Webhook Signing Secret | Stripe 使う時 |

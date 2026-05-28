@@ -4,7 +4,7 @@
 # 前提:
 #   docker compose up -d
 #   bash scripts/seed_gcs.sh  (初回のみ)
-#   GEMINI_API_KEY が .env または環境変数に設定されていること
+#   Vertex AI を使える ADC と GCP_PROJECT/GOOGLE_CLOUD_PROJECT が設定されていること
 #
 # 使い方:
 #   bash scripts/worker_demo.sh [doc_llm_1|doc_llm_2|doc_llm_3]

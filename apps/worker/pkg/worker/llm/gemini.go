@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	"github.com/synthify/backend/internal/platform/job/log"
+	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	"github.com/synthify/backend/internal/platform/job/log"
 	"google.golang.org/genai"
 )
 
@@ -28,18 +28,10 @@ type GeminiClient struct {
 }
 
 func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem) (*GeminiClient, error) {
-	var clientCfg *genai.ClientConfig
-	if cfg.UseVertex() {
-		clientCfg = &genai.ClientConfig{
-			Backend:  genai.BackendVertexAI,
-			Project:  cfg.GCPProject,
-			Location: cfg.VertexLocation,
-		}
-	} else {
-		clientCfg = &genai.ClientConfig{
-			APIKey:  cfg.GeminiAPIKey,
-			Backend: genai.BackendGeminiAPI,
-		}
+	clientCfg := &genai.ClientConfig{
+		Backend:  genai.BackendVertexAI,
+		Project:  cfg.GCPProject,
+		Location: cfg.VertexLocation,
 	}
 	client, err := genai.NewClient(ctx, clientCfg)
 	if err != nil {

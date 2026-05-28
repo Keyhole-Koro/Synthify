@@ -97,7 +97,6 @@ Cloud Run Job は常駐 HTTP service ではなく、実行して終了する bat
 | Args | `--cases apps/eval/cases --format json` |
 | Task count / parallelism | `1 / 1` |
 | Retry | `0` |
-| Secret | `GEMINI_API_KEY` from Secret Manager `synthify-gemini-api-key` |
 | Model | Terraform `gemini_model` → env `GEMINI_MODEL` |
 | Output | Cloud Logging stdout |
 
@@ -115,12 +114,12 @@ Platform module は次の service account を作る。
 
 | Service Account | 用途 |
 | :--- | :--- |
-| `synthify-eval-${environment}` | Cloud Run Job runtime。Gemini secret を読む |
+| `synthify-eval-${environment}` | Cloud Run Job runtime。Vertex AI を呼び出す |
 | `synthify-eval-scheduler-${environment}` | Cloud Scheduler OAuth principal。Cloud Run Job を実行する |
 
 IAM:
 
-- eval runtime SA は `synthify-gemini-api-key` に `roles/secretmanager.secretAccessor` を持つ。
+- eval runtime SA は project に `roles/aiplatform.user` を持つ。
 - scheduler SA は eval job に `roles/run.invoker` を持つ。
 - `deployer_principal` が設定されている場合、CI/WIF principal は eval runtime SA と scheduler SA に `roles/iam.serviceAccountUser` を持つ。
 

@@ -12,10 +12,10 @@ import (
 )
 
 // Init initializes the LLM clients (both ADK and custom Gemini client) based on the config.
-// If the LLM config is disabled (missing API key), it returns nil for both clients.
+// If the LLM config is disabled (missing GCP project), it returns nil for both clients.
 func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *slog.Logger) (model.LLM, *GeminiClient) {
 	if !cfg.Enabled() {
-		logger.Info("worker.gemini_disabled", "reason", "no api key")
+		logger.Info("worker.gemini_disabled", "reason", "no gcp project")
 		return nil, nil
 	}
 
@@ -36,24 +36,15 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *s
 	return adkModel, embedder
 }
 
-// buildClientConfig selects the Vertex AI backend in production (uses GCP SA
-// auth via GCP_PROJECT + VERTEX_LOCATION) and falls back to the Gemini API key
-// flow for local development. Vertex is preferred when configured because the
-// Gemini API free tier (20 req/day per model) is too restrictive even for low
-// production traffic.
+// buildClientConfig selects the Vertex AI backend. Project and location may be
+// configured explicitly for local runs; production detects them from Cloud Run
+// metadata when env vars are omitted.
 func buildClientConfig(cfg config.LLM, logger *slog.Logger) *genai.ClientConfig {
-	if cfg.UseVertex() {
-		logger.Info("worker.llm_backend", "backend", "vertex_ai",
-			"project", cfg.GCPProject, "location", cfg.VertexLocation, "model", cfg.GeminiModel)
-		return &genai.ClientConfig{
-			Backend:  genai.BackendVertexAI,
-			Project:  cfg.GCPProject,
-			Location: cfg.VertexLocation,
-		}
-	}
-	logger.Info("worker.llm_backend", "backend", "gemini_api", "model", cfg.GeminiModel)
+	logger.Info("worker.llm_backend", "backend", "vertex_ai",
+		"project", cfg.GCPProject, "location", cfg.VertexLocation, "model", cfg.GeminiModel)
 	return &genai.ClientConfig{
-		APIKey:  cfg.GeminiAPIKey,
-		Backend: genai.BackendGeminiAPI,
+		Backend:  genai.BackendVertexAI,
+		Project:  cfg.GCPProject,
+		Location: cfg.VertexLocation,
 	}
 }

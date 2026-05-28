@@ -14,9 +14,9 @@ import (
 	"github.com/synthify/backend/apps/eval/artifact"
 	"github.com/synthify/backend/apps/eval/report"
 	"github.com/synthify/backend/apps/eval/runner"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
-	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 )
 
 func main() {
@@ -55,7 +55,7 @@ func main() {
 
 	cfg := config.LoadLLM()
 	if !cfg.Enabled() {
-		fmt.Fprintln(os.Stderr, "configure either GEMINI_API_KEY/GOOGLE_API_KEY (Gemini API) or GCP_PROJECT+VERTEX_LOCATION (Vertex AI)")
+		fmt.Fprintln(os.Stderr, "configure GCP_PROJECT/GOOGLE_CLOUD_PROJECT for Vertex AI, or run on Cloud Run with metadata available")
 		os.Exit(2)
 	}
 

@@ -62,10 +62,6 @@ module "service" {
       secret = var.secret_ids["database-dsn"]
     },
     {
-      name   = "GEMINI_API_KEY"
-      secret = var.secret_ids["gemini-api-key"]
-    },
-    {
       name   = "STRIPE_SECRET_KEY"
       secret = var.secret_ids["stripe-secret-key"]
     },

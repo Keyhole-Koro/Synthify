@@ -90,7 +90,6 @@ module "artifact_registry" {
 locals {
   api_secrets = toset([
     "database-dsn",
-    "gemini-api-key",
     "stripe-secret-key",
     "stripe-webhook-secret",
     "new-relic-license-key",
@@ -99,14 +98,11 @@ locals {
 
   worker_secrets = toset([
     "database-dsn",
-    "gemini-api-key",
     "internal-worker-token",
     "new-relic-license-key",
   ])
 
-  eval_secrets = toset([
-    "gemini-api-key",
-  ])
+  eval_secrets = toset([])
 
   all_secrets = toset(concat(tolist(local.api_secrets), tolist(local.worker_secrets), tolist(local.eval_secrets)))
 }
@@ -187,7 +183,7 @@ resource "google_project_iam_member" "worker_firestore_user" {
   member  = "serviceAccount:${module.worker_service_account.email}"
 }
 
-# Vertex AI access for Gemini inference (replaces the Gemini API key path).
+# Vertex AI access for Gemini inference.
 # The worker SA calls aiplatform.googleapis.com via the genai client; eval
 # uses the same path when run in CI / Cloud Run. Without this binding the
 # Vertex backend returns PERMISSION_DENIED at the first request.

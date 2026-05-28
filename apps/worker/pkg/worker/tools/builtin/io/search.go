@@ -40,7 +40,7 @@ func NewSearchTool(b *base.Context) (core.Tool, error) {
 			return nil, core.Usage{}, fmt.Errorf("repository is not configured")
 		}
 		if b.Embedder == nil {
-			return nil, core.Usage{}, fmt.Errorf("embedder is required: configure GEMINI_API_KEY")
+			return nil, core.Usage{}, fmt.Errorf("embedder is required: configure Vertex AI")
 		}
 		vec, err := b.Embedder.EmbedText(ctx, args.Query)
 		if err != nil {

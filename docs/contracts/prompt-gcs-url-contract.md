@@ -153,7 +153,7 @@ synthify-eval-{environment}@...
 | Resource | Role | 理由 |
 | :--- | :--- | :--- |
 | uploads bucket | `roles/storage.objectCreator` | run artifact を新規作成する |
-| Secret Manager `synthify-gemini-api-key` | `roles/secretmanager.secretAccessor` | eval LLM call に必要 |
+| project | `roles/aiplatform.user` | Vertex AI Gemini inference に必要 |
 
 `roles/storage.objectAdmin` は付与しない。object overwrite / delete / latest pointer 更新をしないため不要。
 

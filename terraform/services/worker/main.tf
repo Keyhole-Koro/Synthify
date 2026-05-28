@@ -39,8 +39,6 @@ module "service" {
     GCS_FUSE_MOUNT_PATH          = local.gcs_fuse_mount_path
     FIREBASE_PROJECT_ID          = var.firebase_project_id
     GEMINI_MODEL                 = var.gemini_model
-    GCP_PROJECT                  = var.project_id
-    VERTEX_LOCATION              = var.vertex_location
     API_BASE_URL                 = var.api_base_url
     NEW_RELIC_APP_NAME           = var.new_relic_app_name
   }
@@ -53,10 +51,6 @@ module "service" {
     {
       name   = "DATABASE_DSN"
       secret = var.secret_ids["database-dsn"]
-    },
-    {
-      name   = "GEMINI_API_KEY"
-      secret = var.secret_ids["gemini-api-key"]
     },
     {
       name   = "INTERNAL_WORKER_TOKEN"

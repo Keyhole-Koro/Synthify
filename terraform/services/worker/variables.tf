@@ -35,12 +35,6 @@ variable "gemini_model" {
   type = string
 }
 
-variable "vertex_location" {
-  description = "Region for Vertex AI Gemini inference. The worker reaches Vertex via the genai client using GCP_PROJECT + this location."
-  type        = string
-  default     = "asia-northeast1"
-}
-
 variable "api_base_url" {
   description = "Base URL the worker uses to call back into the API (usage metering, etc.)"
   type        = string

@@ -70,7 +70,6 @@ case $COMMAND in
         log "Ensuring secrets have at least one version..."
         SECRETS=(
             "database-dsn"
-            "gemini-api-key"
             "stripe-secret-key"
             "stripe-webhook-secret"
             "new-relic-license-key"

@@ -173,7 +173,7 @@ synthify-eval-{environment}@...
 | Resource | Role | 理由 |
 | :--- | :--- | :--- |
 | uploads bucket | `roles/storage.objectCreator` | run artifact を新規作成する |
-| Secret Manager `synthify-gemini-api-key` | `roles/secretmanager.secretAccessor` | eval LLM call に必要 |
+| project | `roles/aiplatform.user` | Vertex AI Gemini inference に必要 |
 
 `roles/storage.objectAdmin` は付与しない。初期実装では object の上書き・削除・latest 更新を行わないため不要。
 
@@ -192,7 +192,6 @@ Cloud Run Job env:
 | Env | 値 |
 | :--- | :--- |
 | `GEMINI_MODEL` | `var.gemini_model` |
-| `GEMINI_API_KEY` | Secret Manager |
 | `EVAL_OUTPUT_GCS_URI` | `gs://{uploads_bucket}/eval/{environment}/runs` |
 
 Cloud Run Job args は GCS の有無に関わらず変えない。

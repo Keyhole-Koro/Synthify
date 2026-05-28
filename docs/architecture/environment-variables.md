@@ -7,7 +7,7 @@
 | 分類 | 格納場所 | 内容の例 | 管理方法 |
 | :--- | :--- | :--- | :--- |
 | **デプロイ用機密情報** | **GitHub Actions Secrets** | WIF プロバイダー ID、サービスアカウント、GCP プロジェクト ID | GitHub リポジトリの設定画面で管理 |
-| **アプリ用機密情報** | **Google Secret Manager** | API キー、DB 接続文字列、Webhook シークレット | Terraform で器を作成し、値は `gcloud` コマンド等で手動投入 |
+| **アプリ用機密情報** | **Google Secret Manager** | DB 接続文字列、Webhook シークレット | Terraform で器を作成し、値は `gcloud` コマンド等で手動投入 |
 | **アプリ用一般設定** | **Terraform (`.tfvars`)** | モデル名、CORS 許可ドメイン、各種 ID | `terraform/tfvars/` 配下のファイルでコード管理 |
 
 ---
@@ -20,7 +20,6 @@
 | 変数名 | 説明 | 備考 |
 | :--- | :--- | :--- |
 | `DATABASE_DSN` | CockroachDB/Postgres の接続文字列 | CockroachDB Serverless の DSN。例: `postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full` |
-| `GEMINI_API_KEY` | Google AI (Gemini) の API キー | |
 | `STRIPE_SECRET_KEY` | Stripe のシークレットキー | `sk_test_...` 等 |
 | `STRIPE_WEBHOOK_SECRET` | Stripe Webhook の署名検証用 | |
 | `INTERNAL_WORKER_TOKEN` | API と Worker 間の認証トークン | 任意の共有文字列 |
@@ -54,16 +53,13 @@
 ### ローカル開発環境
 ルートディレクトリの `.env` ファイルで一括管理します。
 1. `.env.example` を `.env` にコピー
-2. 必要なキー（Stripe, Gemini 等）を記入
+2. 必要なキー（Stripe 等）を記入
 3. `docker compose up` で起動
 
 ### ステージング・本番環境 (GCP)
 #### ① Secret Manager への値の投入
 Terraform でリソースを作成した後、以下のコマンドで値を設定します。
 ```bash
-# 例: Gemini API Key を設定する場合
-echo -n "YOUR_API_KEY" | gcloud secrets versions add synthify-gemini-api-key --data-file=-
-
 # CockroachDB Serverless の DSN を設定する場合
 echo -n "postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full" \
   | gcloud secrets versions add synthify-database-dsn --data-file=-

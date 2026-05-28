@@ -98,7 +98,7 @@ jobs:
             -target=module.bootstrap
 
       # Fail fast if any secret has no version. We deliberately do NOT inject
-      # a placeholder: every one of these is load-bearing (DB, LLM, Stripe,
+      # a placeholder: every one of these is load-bearing (DB, Stripe,
       # inter-service auth, APM) and a placeholder makes Cloud Run start
       # "successfully" while silently broken — exactly the failure mode that
       # took stage down (a missing billing value the app couldn't run without).
@@ -109,7 +109,7 @@ jobs:
       - name: Verify all secrets have a version
         run: |
           missing=()
-          for s in database-dsn gemini-api-key stripe-secret-key \
+          for s in database-dsn stripe-secret-key \
                    stripe-webhook-secret new-relic-license-key internal-worker-token; do
             name="synthify-${s}"
             existing=$(gcloud secrets versions list "$name" --project "${{ vars.GCP_PROJECT_ID }}" --format="value(name)" --limit=1 2>/dev/null || echo "")

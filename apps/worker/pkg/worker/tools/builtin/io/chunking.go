@@ -53,7 +53,7 @@ func NewChunkingTool(b *base.Context) (core.Tool, error) {
 
 		if b != nil && b.Repo != nil {
 			if b.Embedder == nil {
-				return nil, core.Usage{}, fmt.Errorf("embedder is required: configure GEMINI_API_KEY")
+				return nil, core.Usage{}, fmt.Errorf("embedder is required: configure Vertex AI")
 			}
 			domainChunks := make([]*domain.DocumentChunk, 0, len(chunks))
 			for _, chunk := range chunks {
