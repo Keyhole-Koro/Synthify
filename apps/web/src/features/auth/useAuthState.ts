@@ -17,9 +17,10 @@ export function useAuthState() {
   const fetchWorkspaces = useCallback(async () => {
     setWorkspaceError(null);
     try {
-      // サーバ側で users / accounts を provision してから workspace を取りに行く。
-      await signInUser();
-      const ws = await listWorkspaces();
+      // signInUser はサーバ側 users/accounts プロビジョニング (冪等)。
+      // ListWorkspaces は workspaces テーブルだけを引くので users/accounts を待つ必要がなく、
+      // 並列化することでリロード時のクリティカルパスを 1 往復分短縮できる。
+      const [, ws] = await Promise.all([signInUser(), listWorkspaces()]);
       setWorkspaces(ws);
     } catch (err) {
       console.error('Failed to provision/list workspaces:', err);

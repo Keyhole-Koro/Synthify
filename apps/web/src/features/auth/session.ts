@@ -29,8 +29,32 @@ export function getInitialAuthUser(): AuthUser | null {
   return fromFirebaseUser(auth.currentUser);
 }
 
+// onAuthStateChanged が走るまで Firebase のセッションが存在するかは分からないが、
+// 「直前のロードで authed だったか」は同期的に判定したい場面がある (例: SSR-like
+// 初期描画で anonymous default を出すか、loading を待つかの判断)。Firebase の
+// IndexedDB を覗くより、ログイン/ログアウトに同期して localStorage のマーカーを
+// 更新する方が単純で確実なため、このフラグを用意している。
+const SESSION_HINT_KEY = 'synthify:has_session';
+
+export function hasPersistedSessionHint(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(SESSION_HINT_KEY) === '1';
+}
+
+function writeSessionHint(present: boolean) {
+  if (typeof window === 'undefined') return;
+  if (present) {
+    window.localStorage.setItem(SESSION_HINT_KEY, '1');
+  } else {
+    window.localStorage.removeItem(SESSION_HINT_KEY);
+  }
+}
+
 export function subscribeAuthUser(callback: (user: AuthUser | null) => void): Unsubscribe {
-  return onAuthStateChanged(auth, (user) => callback(fromFirebaseUser(user)));
+  return onAuthStateChanged(auth, (user) => {
+    writeSessionHint(user !== null);
+    callback(fromFirebaseUser(user));
+  });
 }
 
 export async function signInWithGoogleSession(): Promise<void> {
@@ -47,6 +71,6 @@ export async function getAuthHeaders(): Promise<Record<string, string>> {
     console.warn('getAuthHeaders: no currentUser');
     return {};
   }
-  const token = await auth.currentUser.getIdToken(true);
+  const token = await auth.currentUser.getIdToken();
   return { Authorization: `Bearer ${token}` };
 }

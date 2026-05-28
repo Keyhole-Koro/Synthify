@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-paper';
 import type { AuthUser } from '@/features/auth/session';
+import { hasPersistedSessionHint } from '@/features/auth/session';
 import type { Workspace } from '@/features/workspaces/api';
 import { clearOpenState, loadOpenState, saveOpenState } from '@/features/paperMap/expansionPersistence';
 import { computeDefaultOpenState } from '@/features/paperMap/defaultOpenState';
@@ -34,9 +35,16 @@ export function usePersistentPaperOpenState({
   const latestFocusedNodeIdRef = useRef<string | null>(null);
   const resolvedScopeRef = useRef<string | null>(null);
   const currentScope = user?.id ?? 'anonymous';
+  // 直前ロードでログインしていたユーザーがリロードした場合は、Firebase の auth
+  // 復元 (loading=false) を待ってから localStorage を読まないと、anonymous スコープの
+  // 状態が一瞬描画されてからユーザー固有の状態に差し替わるチラつきが出る。
+  // 逆にセッション hint が無いなら anonymous で確定なので即解決して LCP を稼ぐ。
+  // useState の初期化関数で評価することで、SSR と CSR で表示が揺れないようにする。
+  const [shouldWaitForAuth] = useState(() => hasPersistedSessionHint());
+  const blockResolution = shouldWaitForAuth && loading;
 
   useEffect(() => {
-    if (loading) return;
+    if (blockResolution) return;
     if (resolvedScopeRef.current === null) {
       resolvedScopeRef.current = currentScope;
       return;
@@ -45,10 +53,10 @@ export function usePersistentPaperOpenState({
       resolvedScopeRef.current = currentScope;
       setCanvasKey((prev) => prev + 1);
     }
-  }, [currentScope, loading]);
+  }, [currentScope, blockResolution]);
 
   useEffect(() => {
-    if (loading) return;
+    if (blockResolution) return;
     // Persisted state is authoritative: an absent entry means the user
     // explicitly closed everything there, not "show the default". Merging
     // with defaults would resurrect papers the user has closed, because
@@ -62,10 +70,11 @@ export function usePersistentPaperOpenState({
     setExpansionMap(resolved.expansionMap ?? new Map());
     setFocusedNodeId(resolved.focusedNodeId ?? null);
     latestFocusedNodeIdRef.current = resolved.focusedNodeId ?? null;
-  // Re-resolve only on canvasKey bump (user switch / explicit reset) or once loading clears.
-  // workspaces mutations should not reset canvas open-state.
+  // Re-resolve only on canvasKey bump (user switch / explicit reset) or once auth
+  // resolves (when we had to wait for it). workspaces mutations should not reset
+  // canvas open-state.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasKey, loading]);
+  }, [canvasKey, blockResolution]);
 
   const handleExpansionMapChange = useCallback((map: ExpansionMap) => {
     setExpansionMap(map);
