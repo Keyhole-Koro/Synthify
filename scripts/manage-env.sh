@@ -126,8 +126,8 @@ case $COMMAND in
 
     reset-db)
         if [ "$ENVIRONMENT" = "prod" ]; then
-            warn "Production database reset is disabled. Refusing to continue."
-            exit 1
+            bash scripts/reset-prod-db.sh
+            exit 0
         fi
 
         log "WARNING: This will DROP ALL DATA in the $ENVIRONMENT database and rebuild it from db/migrations/."

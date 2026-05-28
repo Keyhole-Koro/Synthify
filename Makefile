@@ -47,5 +47,4 @@ infra-prod-plan:
 	bash scripts/manage-env.sh prod plan
 
 db-prod-reset:
-	@echo "db-prod-reset is disabled. Refusing to reset the production database."
-	@exit 1
+	bash scripts/reset-prod-db.sh
