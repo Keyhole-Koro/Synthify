@@ -15,7 +15,12 @@ func TestSignInUser_NewUser_CreatesAccountAndGrantsCredit(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	billing := &userTestBilling{}
-	svc := NewUserService(store, store, billing, nil)
+	svc := NewUserService(UserServiceDeps{
+		Users:    store,
+		Accounts: store,
+		Billing:  billing,
+		Logger:   nil,
+	})
 
 	now := time.Now().UTC()
 	svc.now = func() time.Time { return now }
@@ -48,7 +53,12 @@ func TestSignInUser_ExistingUser_UpdatesLastLoginAndNoNewCredit(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	billing := &userTestBilling{}
-	svc := NewUserService(store, store, billing, nil)
+	svc := NewUserService(UserServiceDeps{
+		Users:    store,
+		Accounts: store,
+		Billing:  billing,
+		Logger:   nil,
+	})
 
 	userID := "user-1"
 	email := "user1@example.com"
@@ -85,7 +95,12 @@ func TestSignInUser_OrphanUserRow_RecoversByCreatingAccount(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	billing := &userTestBilling{}
-	svc := NewUserService(store, store, billing, nil)
+	svc := NewUserService(UserServiceDeps{
+		Users:    store,
+		Accounts: store,
+		Billing:  billing,
+		Logger:   nil,
+	})
 
 	userID := "user-1"
 	email := "user1@example.com"

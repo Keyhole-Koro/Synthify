@@ -15,7 +15,7 @@ func TestTreeService_GetTree_ReturnsItems(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	items, err := svc.GetTree(ctx, fixture.Workspace.WorkspaceID, "owner")
 	require.NoError(t, err)
@@ -24,7 +24,7 @@ func TestTreeService_GetTree_ReturnsItems(t *testing.T) {
 
 func TestTreeService_GetTree_EmptyWorkspaceID_ReturnsError(t *testing.T) {
 	store := mock.NewStore()
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	_, err := svc.GetTree(context.Background(), "", "owner")
 	require.Error(t, err)
@@ -35,7 +35,7 @@ func TestTreeService_GetTree_OtherUser_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	_, err := svc.GetTree(ctx, fixture.Workspace.WorkspaceID, "stranger")
 	require.Error(t, err)
@@ -47,7 +47,7 @@ func TestTreeService_GetSubtree_ItemInWorkspace_ReturnsItems(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	items, err := svc.GetSubtree(ctx, fixture.Workspace.WorkspaceID, "nd_root", "owner", 3)
 	require.NoError(t, err)
@@ -66,7 +66,7 @@ func TestTreeService_GetSubtree_ItemInOtherWorkspace_ReturnsForbidden(t *testing
 	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "stranger") // → ws-stranger (owner が membership 持つ)
 	_, err := store.GetOrCreateTree(ctx, "ws-owner")
 	require.NoError(t, err)
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	// nd_root は ws-owner 配下だが、ws-stranger の workspaceID で問い合わせ → Forbidden
 	_, err = svc.GetSubtree(ctx, "ws-stranger", "nd_root", "owner", 3)
@@ -76,7 +76,7 @@ func TestTreeService_GetSubtree_ItemInOtherWorkspace_ReturnsForbidden(t *testing
 
 func TestTreeService_GetSubtree_MissingArgs_ReturnsError(t *testing.T) {
 	store := mock.NewStore()
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	_, err := svc.GetSubtree(context.Background(), "", "i", "owner", 3)
 	require.Error(t, err)
@@ -91,7 +91,7 @@ func TestTreeService_FindPaths_AutoCreatesTree(t *testing.T) {
 	store := mock.NewStore()
 	// fixture を作って owner にアクセス権を付与
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	items, _, err := svc.FindPaths(ctx, fixture.Workspace.WorkspaceID, "a", "b", "owner", 3, 5)
 	require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestTreeService_FindPaths_AutoCreatesTree(t *testing.T) {
 
 func TestTreeService_FindPaths_MissingArgs_ReturnsError(t *testing.T) {
 	store := mock.NewStore()
-	svc := NewTreeService(store, store, nil)
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	_, _, err := svc.FindPaths(context.Background(), "", "a", "b", "owner", 3, 5)
 	require.Error(t, err)

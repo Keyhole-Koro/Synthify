@@ -54,15 +54,22 @@ type billingService struct {
 	now      func() time.Time
 }
 
-// NewBillingService wires the billing usecase. usage may be nil during early local dev
-// (before the postgres-backed implementation lands); RecordUsage will then fall back
-// to a logging-only stub so the worker pipeline keeps running.
-func NewBillingService(accounts repository.AccountRepository, usage repository.UsageRepository, provider BillingProvider, logger *slog.Logger) BillingUsecase {
+type BillingServiceDeps struct {
+	Accounts repository.AccountRepository
+	// Usage may be nil during early local dev (before the postgres-backed
+	// implementation lands); RecordUsage will then fall back to a logging-only
+	// stub so the worker pipeline keeps running.
+	Usage    repository.UsageRepository
+	Provider BillingProvider
+	Logger   *slog.Logger
+}
+
+func NewBillingService(deps BillingServiceDeps) BillingUsecase {
 	return &billingService{
-		accounts: accounts,
-		usage:    usage,
-		provider: provider,
-		logger:   logger,
+		accounts: deps.Accounts,
+		usage:    deps.Usage,
+		provider: deps.Provider,
+		logger:   deps.Logger,
 		now:      time.Now,
 	}
 }

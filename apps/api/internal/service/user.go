@@ -18,17 +18,28 @@ type UserUsecase interface {
 type UserService struct {
 	users    repository.UserRepository
 	accounts repository.AccountRepository
-	billing  BillingUsecase
+	billing  UserBillingUsecase
 	logger   *slog.Logger
 	now      func() time.Time
 }
 
-func NewUserService(users repository.UserRepository, accounts repository.AccountRepository, billing BillingUsecase, logger *slog.Logger) *UserService {
+type UserBillingUsecase interface {
+	GrantFreeSignupCredit(ctx context.Context, accountID string) error
+}
+
+type UserServiceDeps struct {
+	Users    repository.UserRepository
+	Accounts repository.AccountRepository
+	Billing  UserBillingUsecase
+	Logger   *slog.Logger
+}
+
+func NewUserService(deps UserServiceDeps) *UserService {
 	return &UserService{
-		users:    users,
-		accounts: accounts,
-		billing:  billing,
-		logger:   logger,
+		users:    deps.Users,
+		accounts: deps.Accounts,
+		billing:  deps.Billing,
+		logger:   deps.Logger,
 		now:      time.Now,
 	}
 }

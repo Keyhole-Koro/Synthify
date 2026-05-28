@@ -53,39 +53,37 @@ type DocumentService struct {
 	nrApp            *newrelic.Application
 }
 
-func NewDocumentService(
-	repo repository.DocumentRepository,
-	jobs repository.JobRepository,
-	lifecycleRepo joblifecycle.Repository,
-	workspaces repository.WorkspaceRepository,
-	tree repository.TreeRepository,
-	transactor repository.Transactor,
-	sourceURLBuilder repository.DocumentSourceURLBuilder,
-	objectMetadata ObjectMetadataFetcher,
-	objectStore repository.DocumentObjectStore,
-	dispatcher WorkerDispatcher,
-	notifier jobstatus.Notifier,
-	logger *slog.Logger,
-	nrApp ...*newrelic.Application,
-) *DocumentService {
-	var app *newrelic.Application
-	if len(nrApp) > 0 {
-		app = nrApp[0]
-	}
+type DocumentServiceDeps struct {
+	Repo             repository.DocumentRepository
+	Jobs             repository.JobRepository
+	LifecycleRepo    joblifecycle.Repository
+	Workspaces       repository.WorkspaceRepository
+	Tree             repository.TreeRepository
+	Transactor       repository.Transactor
+	SourceURLBuilder repository.DocumentSourceURLBuilder
+	ObjectMetadata   ObjectMetadataFetcher
+	ObjectStore      repository.DocumentObjectStore
+	Dispatcher       WorkerDispatcher
+	Notifier         jobstatus.Notifier
+	Logger           *slog.Logger
+	NRApp            *newrelic.Application
+}
+
+func NewDocumentService(deps DocumentServiceDeps) *DocumentService {
 	return &DocumentService{
-		repo:             repo,
-		jobs:             jobs,
-		workspaces:       workspaces,
-		tree:             tree,
-		transactor:       transactor,
-		sourceURLBuilder: sourceURLBuilder,
-		objectMetadata:   objectMetadata,
-		objectStore:      objectStore,
-		dispatcher:       dispatcher,
-		lifecycle:        joblifecycle.New(lifecycleRepo, notifier, logger, nrApp...),
-		notifier:         notifier,
-		logger:           logger,
-		nrApp:            app,
+		repo:             deps.Repo,
+		jobs:             deps.Jobs,
+		workspaces:       deps.Workspaces,
+		tree:             deps.Tree,
+		transactor:       deps.Transactor,
+		sourceURLBuilder: deps.SourceURLBuilder,
+		objectMetadata:   deps.ObjectMetadata,
+		objectStore:      deps.ObjectStore,
+		dispatcher:       deps.Dispatcher,
+		lifecycle:        joblifecycle.New(deps.LifecycleRepo, deps.Notifier, deps.Logger, deps.NRApp),
+		notifier:         deps.Notifier,
+		logger:           deps.Logger,
+		nrApp:            deps.NRApp,
 	}
 }
 

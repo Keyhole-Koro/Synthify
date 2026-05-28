@@ -39,7 +39,7 @@ func NewJobHandler(
 		jobLogs:    jobLogRepo,
 		workspaces: workspaceRepo,
 		documents:  documentRepo,
-		lifecycle:  joblifecycle.New(lifecycleRepo, nil, logger),
+		lifecycle:  joblifecycle.New(lifecycleRepo, nil, logger, nil),
 	}
 }
 

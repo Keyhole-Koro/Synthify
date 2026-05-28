@@ -14,7 +14,11 @@ func TestGetWorkspace_NonMember_ReturnsErrForbidden(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	wsID := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner").Workspace.WorkspaceID
-	svc := NewWorkspaceService(store, store, nil)
+	svc := NewWorkspaceService(WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 
 	_, err := svc.GetWorkspace(ctx, wsID, "stranger")
 	assert.ErrorIs(t, err, domain.ErrForbidden, "GetWorkspace non-member")
@@ -24,7 +28,11 @@ func TestGetWorkspace_Member_ReturnsWorkspace(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	wsID := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner").Workspace.WorkspaceID
-	svc := NewWorkspaceService(store, store, nil)
+	svc := NewWorkspaceService(WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 
 	got, err := svc.GetWorkspace(ctx, wsID, "owner")
 	require.NoError(t, err, "GetWorkspace")
@@ -35,7 +43,11 @@ func TestGetWorkspace_Member_ReturnsWorkspace(t *testing.T) {
 func TestGetWorkspace_UnknownID_ReturnsErrForbidden(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
-	svc := NewWorkspaceService(store, store, nil)
+	svc := NewWorkspaceService(WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 
 	_, err := svc.GetWorkspace(ctx, "nonexistent_ws", "anyone")
 	assert.ErrorIs(t, err, domain.ErrForbidden, "GetWorkspace unknown ID")
@@ -44,7 +56,11 @@ func TestGetWorkspace_UnknownID_ReturnsErrForbidden(t *testing.T) {
 func TestCreateWorkspace_NoAccount_ReturnsError(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
-	svc := NewWorkspaceService(store, store, nil)
+	svc := NewWorkspaceService(WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 
 	_, err := svc.CreateWorkspace(ctx, "my-workspace", "new_user")
 	assert.ErrorIs(t, err, domain.ErrNotFound, "CreateWorkspace no account")
@@ -54,7 +70,11 @@ func TestCreateWorkspace_Success_CreatesWorkspace(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	_, _ = store.CreateAccount(ctx, "owner")
-	svc := NewWorkspaceService(store, store, nil)
+	svc := NewWorkspaceService(WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 
 	ws, err := svc.CreateWorkspace(ctx, "my-workspace", "owner")
 	require.NoError(t, err, "CreateWorkspace")

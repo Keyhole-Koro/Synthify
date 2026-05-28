@@ -25,8 +25,18 @@ type WorkspaceService struct {
 	logger     *slog.Logger
 }
 
-func NewWorkspaceService(accounts repository.AccountRepository, workspaces repository.WorkspaceRepository, logger *slog.Logger) *WorkspaceService {
-	return &WorkspaceService{accounts: accounts, workspaces: workspaces, logger: logger}
+type WorkspaceServiceDeps struct {
+	Accounts   repository.AccountRepository
+	Workspaces repository.WorkspaceRepository
+	Logger     *slog.Logger
+}
+
+func NewWorkspaceService(deps WorkspaceServiceDeps) *WorkspaceService {
+	return &WorkspaceService{
+		accounts:   deps.Accounts,
+		workspaces: deps.Workspaces,
+		logger:     deps.Logger,
+	}
 }
 
 func (s *WorkspaceService) ListWorkspaces(ctx context.Context, userID string) ([]*domain.Workspace, error) {

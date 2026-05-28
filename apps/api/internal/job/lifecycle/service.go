@@ -26,12 +26,11 @@ type Service struct {
 	nrApp    *newrelic.Application
 }
 
-func New(repo Repository, notifier jobstatus.Notifier, logger *slog.Logger, nrApp ...*newrelic.Application) *Service {
-	var app *newrelic.Application
-	if len(nrApp) > 0 {
-		app = nrApp[0]
-	}
-	return &Service{repo: repo, notifier: notifier, logger: logger, nrApp: app}
+// New constructs a lifecycle Service. Pass nrApp=nil when New Relic reporting
+// is not configured; the Service handles nil safely (incident reporting becomes
+// a no-op rather than panicking).
+func New(repo Repository, notifier jobstatus.Notifier, logger *slog.Logger, nrApp *newrelic.Application) *Service {
+	return &Service{repo: repo, notifier: notifier, logger: logger, nrApp: nrApp}
 }
 
 func (s *Service) NotifyQueued(ctx context.Context, payload jobstatus.Payload) {

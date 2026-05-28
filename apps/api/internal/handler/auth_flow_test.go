@@ -110,7 +110,11 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	handler := NewTreeHandler(service.NewTreeService(store, store, nil))
+	handler := NewTreeHandler(service.NewTreeService(service.TreeServiceDeps{
+		Tree:       store,
+		Workspaces: store,
+		Logger:     nil,
+	}))
 
 	t.Run("get tree requires authentication", func(t *testing.T) {
 		resp, err := handler.GetTree(ctx, connect.NewRequest(&appv1.GetTreeRequest{
@@ -230,7 +234,11 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 }
 
 func newTestWorkspaceHandler(store *mock.Store) *WorkspaceHandler {
-	svc := service.NewWorkspaceService(store, store, nil)
+	svc := service.NewWorkspaceService(service.WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 	return NewWorkspaceHandler(svc)
 }
 
@@ -238,11 +246,24 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 	sourceURL := func(workspaceID, documentID string) string {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
-	svc := service.NewDocumentService(store, store, store, store, store, store, sourceURL, nil, nil, nil, nil, nil)
+	svc := service.NewDocumentService(service.DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: sourceURL,
+	})
 	return NewDocumentHandler(svc, store)
 }
 
 func newTestItemHandler(store *mock.Store) *ItemHandler {
-	svc := service.NewItemService(store, store, store, nil)
+	svc := service.NewItemService(service.ItemServiceDeps{
+		Repo:       store,
+		Tree:       store,
+		Workspaces: store,
+		Logger:     nil,
+	})
 	return NewItemHandler(svc)
 }

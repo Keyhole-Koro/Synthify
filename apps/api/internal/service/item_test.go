@@ -13,7 +13,12 @@ import (
 func TestCreateItem_CreatesItem(t *testing.T) {
 	ctx := context.Background()
 	repo := mock.NewStore()
-	svc := NewItemService(repo, repo, repo, nil)
+	svc := NewItemService(ItemServiceDeps{
+		Repo:       repo,
+		Tree:       repo,
+		Workspaces: repo,
+		Logger:     nil,
+	})
 
 	// fixture: owner ユーザーで workspace を作る (acct id == user id)。
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
@@ -26,7 +31,12 @@ func TestCreateItem_CreatesItem(t *testing.T) {
 func TestCreateItem_NonMember_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	repo := mock.NewStore()
-	svc := NewItemService(repo, repo, repo, nil)
+	svc := NewItemService(ItemServiceDeps{
+		Repo:       repo,
+		Tree:       repo,
+		Workspaces: repo,
+		Logger:     nil,
+	})
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
 
 	_, err := svc.CreateItem(ctx, fixture.Workspace.WorkspaceID, "root", "", "", "stranger")
@@ -37,7 +47,12 @@ func TestCreateItem_NonMember_ReturnsForbidden(t *testing.T) {
 func TestGetItem_OtherWorkspaceID_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	repo := mock.NewStore()
-	svc := NewItemService(repo, repo, repo, nil)
+	svc := NewItemService(ItemServiceDeps{
+		Repo:       repo,
+		Tree:       repo,
+		Workspaces: repo,
+		Logger:     nil,
+	})
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
 	// item を作って別 workspaceID を query で渡す
 	item, err := repo.CreateItem(ctx, fixture.Workspace.WorkspaceID, "x", "", "", "owner")

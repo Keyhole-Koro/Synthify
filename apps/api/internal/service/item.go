@@ -24,8 +24,20 @@ type ItemService struct {
 	logger     *slog.Logger
 }
 
-func NewItemService(repo repository.ItemRepository, tree repository.TreeRepository, workspaces repository.WorkspaceRepository, logger *slog.Logger) *ItemService {
-	return &ItemService{repo: repo, tree: tree, workspaces: workspaces, logger: logger}
+type ItemServiceDeps struct {
+	Repo       repository.ItemRepository
+	Tree       repository.TreeRepository
+	Workspaces repository.WorkspaceRepository
+	Logger     *slog.Logger
+}
+
+func NewItemService(deps ItemServiceDeps) *ItemService {
+	return &ItemService{
+		repo:       deps.Repo,
+		tree:       deps.Tree,
+		workspaces: deps.Workspaces,
+		logger:     deps.Logger,
+	}
 }
 
 func (s *ItemService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {

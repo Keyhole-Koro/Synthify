@@ -73,15 +73,51 @@ func main() {
 	if err != nil {
 		log.Fatalf("stripe provider init: %v", err)
 	}
-	billingSvc := service.NewBillingService(store, store, stripeProvider, appLogger)
+	billingSvc := service.NewBillingService(service.BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: stripeProvider,
+		Logger:   appLogger,
+	})
 
-	documentSvc := service.NewDocumentService(
-		store, store, store, store, store, store, sourceURLBuilder, objectMetadata, objectStore, dispatcher, notifier, appLogger, nrApp,
-	)
-	itemSvc := service.NewItemService(store, store, store, appLogger)
-	workspaceSvc := service.NewWorkspaceService(store, store, appLogger)
-	userSvc := service.NewUserService(store, store, billingSvc, appLogger)
-	treeSvc := service.NewTreeService(store, store, appLogger)
+	documentSvc := service.NewDocumentService(service.DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: sourceURLBuilder,
+		ObjectMetadata:   objectMetadata,
+		ObjectStore:      objectStore,
+		Dispatcher:       dispatcher,
+		Notifier:         notifier,
+		Logger:           appLogger,
+		NRApp:            nrApp,
+	})
+	itemSvc := service.NewItemService(service.ItemServiceDeps{
+		Repo:       store,
+		Tree:       store,
+		Workspaces: store,
+		Logger:     appLogger,
+	})
+	workspaceSvc := service.NewWorkspaceService(service.WorkspaceServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Logger:     appLogger,
+	})
+	userSvc := service.NewUserService(service.UserServiceDeps{
+		Users:    store,
+		Accounts: store,
+		Billing:  billingSvc,
+		Logger:   appLogger,
+	})
+	treeSvc := service.NewTreeService(service.TreeServiceDeps{
+		Tree:       store,
+		Workspaces: store,
+		Logger:     appLogger,
+	})
+
 	authenticator, err := apiauth.NewFirebaseAuthenticator(apiauth.FirebaseAuthenticatorConfig{
 		ProjectID:        cfg.FirebaseProjectID,
 		ServiceToken:     cfg.Auth.ServiceToken,

@@ -17,7 +17,12 @@ func TestUserHandler_SignInUser(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	// Mock billing as nil for simplicity here
-	userSvc := service.NewUserService(store, store, nil, nil)
+	userSvc := service.NewUserService(service.UserServiceDeps{
+		Users:    store,
+		Accounts: store,
+		Billing:  nil,
+		Logger:   nil,
+	})
 	h := NewUserHandler(userSvc)
 
 	t.Run("requires authentication", func(t *testing.T) {

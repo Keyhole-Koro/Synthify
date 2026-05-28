@@ -25,8 +25,18 @@ type TreeService struct {
 	logger     *slog.Logger
 }
 
-func NewTreeService(tree repository.TreeRepository, workspaces repository.WorkspaceRepository, logger *slog.Logger) *TreeService {
-	return &TreeService{tree: tree, workspaces: workspaces, logger: logger}
+type TreeServiceDeps struct {
+	Tree       repository.TreeRepository
+	Workspaces repository.WorkspaceRepository
+	Logger     *slog.Logger
+}
+
+func NewTreeService(deps TreeServiceDeps) *TreeService {
+	return &TreeService{
+		tree:       deps.Tree,
+		workspaces: deps.Workspaces,
+		logger:     deps.Logger,
+	}
 }
 
 func (s *TreeService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
