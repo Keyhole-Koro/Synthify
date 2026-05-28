@@ -40,7 +40,15 @@ export function RootUploadPaper({
 
   return (
     <div className="flex h-full flex-col justify-center gap-3 p-5">
-      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        onChange={handleFileChange}
+        onClick={(e) => {
+          (e.target as HTMLInputElement).value = '';
+        }}
+      />
       <WorkspaceDropzone
         isTreeMissing
         hasChildItems={false}

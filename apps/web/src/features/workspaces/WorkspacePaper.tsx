@@ -155,7 +155,15 @@ export function WorkspacePaper({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        onChange={handleFileChange}
+        onClick={(e) => {
+          (e.target as HTMLInputElement).value = '';
+        }}
+      />
 
       {/* Compact header (populated mode only) */}
       {isPopulated && (
