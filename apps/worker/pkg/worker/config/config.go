@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -41,10 +40,11 @@ type LLM struct {
 	VertexLocation string
 }
 
-// defaultVertexLocation is used when neither VERTEX_LOCATION nor the Cloud Run
-// instance region (queried from the metadata server) is available. Pinned to
-// the deployment region so colocated traffic stays cheap and low-latency.
-const defaultVertexLocation = "asia-northeast1"
+// defaultVertexLocation targets Vertex AI's global Gemini endpoint. Preview
+// Gemini models can be unavailable in regional endpoints even when Cloud Run is
+// deployed there, so production should not infer Vertex location from runtime
+// region unless explicitly overridden.
+const defaultVertexLocation = "global"
 
 func LoadWorker() Worker {
 	return Worker{
@@ -74,18 +74,12 @@ func LoadLLM() LLM {
 		os.Getenv("GOOGLE_CLOUD_PROJECT"),
 		os.Getenv("GCP_PROJECT_ID"),
 	)
-	location := os.Getenv("VERTEX_LOCATION")
-	if project == "" || location == "" {
-		mdProject, mdLocation := detectFromMetadata()
+	location := get("VERTEX_LOCATION", defaultVertexLocation)
+	if project == "" {
+		mdProject := detectProjectFromMetadata()
 		if project == "" {
 			project = mdProject
 		}
-		if location == "" {
-			location = mdLocation
-		}
-	}
-	if location == "" {
-		location = defaultVertexLocation
 	}
 	return LLM{
 		GeminiModel:    get("GEMINI_MODEL", "gemini-3-flash-preview"),
@@ -102,29 +96,20 @@ func (c LLM) Enabled() bool {
 	return c.GCPProject != ""
 }
 
-// detectFromMetadata reads project/region from the Cloud Run metadata server
-// so production deploys don't have to plumb GCP_PROJECT/VERTEX_LOCATION through
-// terraform. Off-GCE callers (laptops, CI without ADC) get empty strings and
-// must set env vars explicitly.
-func detectFromMetadata() (project, location string) {
+// detectProjectFromMetadata reads project from the Cloud Run metadata server
+// so production deploys don't have to plumb GCP_PROJECT through terraform.
+// Off-GCE callers (laptops, CI without ADC) get an empty string and must set an
+// env var explicitly.
+func detectProjectFromMetadata() string {
 	if !metadata.OnGCE() {
-		return "", ""
+		return ""
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	if id, err := metadata.ProjectIDWithContext(ctx); err == nil {
-		project = id
+		return id
 	}
-	// instance/region is reported as "projects/<num>/regions/<region>"; the
-	// region is the final segment, which is what Vertex expects as Location.
-	if region, err := metadata.GetWithContext(ctx, "instance/region"); err == nil {
-		if idx := strings.LastIndex(region, "/"); idx >= 0 && idx+1 < len(region) {
-			location = region[idx+1:]
-		} else {
-			location = region
-		}
-	}
-	return project, location
+	return ""
 }
 
 func get(key, fallback string) string {
