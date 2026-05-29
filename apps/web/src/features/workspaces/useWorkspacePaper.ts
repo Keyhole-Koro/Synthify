@@ -51,7 +51,7 @@ export function useWorkspacePaper({
   const [savingName, setSavingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
-  const { status: jobStatus, error: jobStatusError } = useJobStatus(workspaceId, activeJobId);
+  const { status: rawJobStatus, error: jobStatusError } = useJobStatus(workspaceId, activeJobId);
   const { jobs: workspaceJobs } = useWorkspaceJobStatuses(workspaceId);
 
   // After a reload, in-memory runtime state (initialActiveJobId) is gone, so
@@ -69,6 +69,15 @@ export function useWorkspacePaper({
     if (completedJobRef.current === inFlight.jobId) return;
     setActiveJobId(inFlight.jobId);
   }, [activeJobId, workspaceJobs]);
+
+  // useJobStatus subscribes to a single job doc once activeJobId is set,
+  // but its first emission is null while the snapshot is still in flight.
+  // useWorkspaceJobStatuses is already streaming the same workspace's job
+  // collection, so use its copy as a fallback so the progress UI does not
+  // blink off between "activeJobId resolved" and "useJobStatus's first
+  // snapshot arrived".
+  const jobStatus = rawJobStatus
+    ?? (activeJobId ? workspaceJobs.find((job) => job.jobId === activeJobId) : undefined);
 
   const isPopulated = hasTree && childItemsCount > 0;
   const isRunning = !!activeJobId && jobStatus?.status === 'running';
