@@ -59,6 +59,22 @@ export function WorkspacePaper({
   const { status: jobStatus, error: jobStatusError } = useJobStatus(workspaceId, activeJobId);
   const { jobs: workspaceJobs } = useWorkspaceJobStatuses(workspaceId);
 
+  // After a reload, in-memory runtime state (initialActiveJobId) is gone, so
+  // a job that was still running pre-reload would lose its progress UI. The
+  // Firestore subscription is authoritative here: if the workspace has any
+  // non-terminal job, adopt the most recent one as the active job so
+  // useJobStatus picks up its progress and the completion effect fires.
+  useEffect(() => {
+    if (activeJobId) return;
+    if (workspaceJobs.length === 0) return;
+    const inFlight = workspaceJobs.find(
+      (job) => job.status === 'queued' || job.status === 'running',
+    );
+    if (!inFlight) return;
+    if (completedJobRef.current === inFlight.jobId) return;
+    setActiveJobId(inFlight.jobId);
+  }, [activeJobId, workspaceJobs]);
+
   const isTreeMissing = !hasTree;
   const isPopulated = hasTree && childItems.length > 0;
   const isExpanded = !isPopulated || isHovered || isPinned;
