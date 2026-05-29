@@ -38,6 +38,11 @@ export declare type User = Message<"synthify.app.v1.User"> & {
    * @generated from field: string last_login_at = 5;
    */
   lastLoginAt: string;
+
+  /**
+   * @generated from field: string account_id = 6;
+   */
+  accountId: string;
 };
 
 /**

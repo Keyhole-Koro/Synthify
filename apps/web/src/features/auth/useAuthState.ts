@@ -20,7 +20,13 @@ export function useAuthState() {
       // signInUser はサーバ側 users/accounts プロビジョニング (冪等)。
       // ListWorkspaces は workspaces テーブルだけを引くので users/accounts を待つ必要がなく、
       // 並列化することでリロード時のクリティカルパスを 1 往復分短縮できる。
-      const [, ws] = await Promise.all([signInUser(), listWorkspaces()]);
+      const [provision, ws] = await Promise.all([signInUser(), listWorkspaces()]);
+      
+      const accountId = provision.user?.accountId;
+      if (accountId) {
+        setUser((prev) => prev ? { ...prev, accountId } : null);
+      }
+      
       setWorkspaces(ws);
     } catch (err) {
       console.error('Failed to provision/list workspaces:', err);

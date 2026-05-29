@@ -73,6 +73,8 @@ func (s *UserService) SignInUser(ctx context.Context, userID, email, displayName
 		return nil, err
 	}
 
+	user.AccountID = account.AccountID
+
 	if isNewAccount {
 		s.grantSignupCreditIfFirstTime(ctx, userID, account.AccountID)
 	}

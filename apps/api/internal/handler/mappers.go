@@ -40,6 +40,7 @@ func toProtoUser(user *domain.User) *appv1.User {
 	}
 	return &appv1.User{
 		UserId:      user.UserID,
+		AccountId:   user.AccountID,
 		Email:       user.Email,
 		DisplayName: user.DisplayName,
 		CreatedAt:   user.CreatedAt,

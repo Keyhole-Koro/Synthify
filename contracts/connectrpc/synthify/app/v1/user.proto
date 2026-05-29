@@ -18,6 +18,7 @@ message User {
   string display_name = 3;
   string created_at = 4;
   string last_login_at = 5;
+  string account_id = 6;
 }
 
 message SignInUserRequest {}  // ID トークンはヘッダで渡す

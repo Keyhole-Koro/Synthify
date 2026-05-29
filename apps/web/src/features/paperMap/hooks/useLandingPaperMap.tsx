@@ -696,7 +696,8 @@ export function useLandingPaperMap({
     }
 
     const map = new Map<string, Paper>();
-    const hasBilling = user != null && workspaces.length > 0;
+    const accountId = user?.accountId;
+    const hasBilling = user != null && accountId != null;
     const rootChildIds = [
       AUTH_ID,
       'synthify:about',
@@ -799,7 +800,6 @@ export function useLandingPaperMap({
         ),
       });
 
-      const accountId = workspaces[0]?.ownerId;
       if (accountId) {
         map.set('billing', {
           id: 'billing',

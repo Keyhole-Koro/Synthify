@@ -14,6 +14,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  accountId?: string;
 };
 
 function fromFirebaseUser(user: User | null): AuthUser | null {
