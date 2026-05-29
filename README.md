@@ -2,9 +2,13 @@
 
 ### API と worker の分担
 
-OLTP 系の処理は API でやっています。具体的には、認証、認可、課金、workspace/document/job の作成などです。ドキュメント処理、chunking、LLM 呼び出し、tree 生成などの時間がかかるものは worker に渡します。
+認証、認可、課金、workspace/document/job の作成などは API が担当します。ドキュメント処理、chunking、LLM 呼び出し、tree 生成などの重い処理は worker に渡します。
 
-worker は Cloud Run の内部向けサービスとして動かしていて、API から Connect RPC で呼びます。worker から API に戻す内部呼び出しは service token で認証します。ブラウザから直接叩ける経路とは分けています。
+worker は内部向け Cloud Run service です。stage/prod では API が Cloud Tasks に積み、起動・retry・backoff は Cloud Tasks に任せます。Cloud Scheduler は document 処理ではなく、LLM eval 用 Cloud Run Job の定期実行に使います。
+
+worker から API への内部呼び出しは service token で認証し、ブラウザから直接叩ける経路とは分けています。
+
+LLM 呼び出しの一時的な失敗も worker 側で指数 backoff して retry します。
 
 ### Firestore による完了通知
 
@@ -35,3 +39,9 @@ New Relic は API / worker の処理時間、Connect RPC、DB 呼び出し、err
 frontend には New Relic Browser を入れています。ブラウザ内で起きた JavaScript error、error boundary で捕捉した error、画面表示・遷移の遅さ、API 通信時間を New Relic に送ります。token、cookie、document 本文、アップロード内容、個人情報の本文値は送らず、カスタム属性は `user_id` など調査に必要な ID に限定します。
 
 worker の job 実行ログは、Cloud Logging とは別に DB の `job_logs` / `job_mutation_logs` にも残します。これは job 単位の進行表示、失敗理由の確認、監査用です。
+
+### 課金は Stripe とクレジット制
+
+課金 provider は Stripe です。Checkout、Billing Portal、webhook、従量課金の外部連携は API 側に寄せています。
+
+LLM usage はまず内部クレジットから消費し、クレジットを超えた分だけ Stripe に流します。モデルごとの重みは別に持っていて、Flash 系は軽く、Pro 系は重く扱えるようにしています。
