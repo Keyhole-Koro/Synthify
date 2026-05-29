@@ -27,6 +27,12 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *s
 	if adkErr != nil {
 		logger.Error("worker.adk_model_init_failed", "error", adkErr.Error(), "model", cfg.GeminiModel)
 	}
+	if adkModel != nil {
+		q := QuotaFor(cfg.GeminiModel)
+		logger.Info("worker.llm_quota_reference",
+			"model", q.Model, "tier", q.Tier, "rpm", q.RPM, "tpm", q.TPM, "rpd", q.RPD)
+		adkModel = NewRetryingModel(adkModel, RetryConfig{}, logger)
+	}
 
 	embedder, err := NewGeminiClient(ctx, cfg, fs)
 	if err != nil {
