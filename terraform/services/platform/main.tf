@@ -199,6 +199,27 @@ resource "google_project_iam_member" "eval_aiplatform_user" {
   member  = "serviceAccount:${module.eval_service_account.email}"
 }
 
+# Cloud Tasks dispatch (apps/api -> worker). The API enqueues onto
+# pipeline_queue with an OIDC token minted for its own service account;
+# Cloud Tasks then pushes the task to worker as that SA. roles/run.invoker
+# on the worker is already granted at the environment level
+# (google_cloud_run_v2_service_iam_member.api_invokes_worker), so the SA
+# only needs:
+#   1. cloudtasks.enqueuer to call CreateTask, and
+#   2. iam.serviceAccountTokenCreator on itself so Cloud Tasks can mint an
+#      OIDC token with the API SA as the audience-target identity.
+resource "google_project_iam_member" "api_cloudtasks_enqueuer" {
+  project = var.project_id
+  role    = "roles/cloudtasks.enqueuer"
+  member  = "serviceAccount:${module.api_service_account.email}"
+}
+
+resource "google_service_account_iam_member" "api_self_token_creator" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.api_service_account.email}"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${module.api_service_account.email}"
+}
+
 # TTL policy: Firestore deletes workspaces/{ws}/jobs/{job} documents
 # automatically once their expiresAt timestamp passes. The notifier writes
 # expiresAt = now + 7d on Completed and Failed, so finished jobs are kept

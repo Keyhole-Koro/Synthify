@@ -911,7 +911,7 @@ SET status = 'running',
     error_message = '',
     plan_status = CASE WHEN plan_status IN ('', 'approved', 'none') THEN 'executing' ELSE plan_status END,
     updated_at = $2
-WHERE job_id = $1
+WHERE job_id = $1 AND status IN ('queued', 'running')
 `
 
 type MarkProcessingJobRunningParams struct {
@@ -919,6 +919,9 @@ type MarkProcessingJobRunningParams struct {
 	UpdatedAt time.Time
 }
 
+// The WHERE clause makes this transition idempotent under at-least-once
+// delivery: a second Cloud Tasks attempt for the same job_id sees status
+// already 'running' and updates 0 rows, which the caller treats as success.
 func (q *Queries) MarkProcessingJobRunning(ctx context.Context, arg MarkProcessingJobRunningParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, markProcessingJobRunning, arg.JobID, arg.UpdatedAt)
 	if err != nil {

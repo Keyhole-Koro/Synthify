@@ -97,6 +97,24 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 	}, nil
 }
 
+// shouldSkipJobStatus encodes the idempotency rules for at-least-once
+// delivery via Cloud Tasks. A terminal job (succeeded / failed) must not
+// be re-run: its outputs already exist and re-running risks producing
+// duplicates. An already-running job is also skipped; the in-progress
+// invocation will record its own completion, so a parallel second pass
+// would race the first against the same document. Anything else (queued,
+// unspecified) is allowed through.
+func shouldSkipJobStatus(status appv1.JobLifecycleState) (bool, string) {
+	switch status {
+	case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
+		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED:
+		return true, "worker.skip_terminal_job"
+	case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING:
+		return true, "worker.skip_running_job"
+	}
+	return false, ""
+}
+
 func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("invalid request: %w", err)
@@ -114,6 +132,14 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 	job, err := w.repo.GetProcessingJob(ctx, req.JobID)
 	if err != nil {
 		return fmt.Errorf("get job %s: %w", req.JobID, err)
+	}
+
+	if skip, reason := shouldSkipJobStatus(job.Status); skip {
+		w.logger.Info(reason,
+			"job_id", req.JobID,
+			"status", job.Status.String(),
+		)
+		return nil
 	}
 
 	if _, err := w.repo.GetDocument(ctx, req.DocumentID); err != nil {

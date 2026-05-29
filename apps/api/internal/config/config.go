@@ -18,10 +18,26 @@ type API struct {
 	FirebaseProjectID        string
 	FirebaseAuthEmulatorHost string
 	WorkerBaseURL            string
+	WorkerDispatch           WorkerDispatch
 	Auth                     Auth
 	Stripe                   Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+}
+
+// WorkerDispatch controls how the API hands jobs to the worker. When
+// CloudTasksQueue is set the API enqueues onto Cloud Tasks (push delivery
+// to the dispatch URL); otherwise it falls back to the legacy synchronous
+// Connect dispatcher driven by WorkerBaseURL.
+//
+// Cloud Tasks variant is preferred in stage/prod because Cloud Tasks
+// handles cold-start retries and decouples the API response from worker
+// startup latency.
+type WorkerDispatch struct {
+	CloudTasksQueue string // "projects/X/locations/Y/queues/Z"
+	DispatchURL     string // "https://worker-host/internal/dispatch-job"
+	InvokerSA       string // service account Cloud Tasks impersonates to mint OIDC tokens
+	OIDCAudience    string // optional; defaults to scheme+host of DispatchURL
 }
 
 type Auth struct {
@@ -71,6 +87,12 @@ func LoadAPI() API {
 		FirebaseProjectID:        os.Getenv("FIREBASE_PROJECT_ID"),
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
+		WorkerDispatch: WorkerDispatch{
+			CloudTasksQueue: os.Getenv("WORKER_CLOUDTASKS_QUEUE"),
+			DispatchURL:     os.Getenv("WORKER_DISPATCH_URL"),
+			InvokerSA:       os.Getenv("WORKER_INVOKER_SA"),
+			OIDCAudience:    os.Getenv("WORKER_OIDC_AUDIENCE"),
+		},
 		Auth: Auth{
 			ServiceToken:     os.Getenv("SYNTHIFY_INTERNAL_SERVICE_TOKEN"),
 			AdminEmailsCSV:   os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"),

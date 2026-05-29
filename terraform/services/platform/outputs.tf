@@ -26,6 +26,12 @@ output "pipeline_queue_name" {
   value = module.pipeline_queue.name
 }
 
+# Full Cloud Tasks queue resource path (projects/X/locations/Y/queues/Z),
+# what cloud.google.com/go/cloudtasks expects as the CreateTask Parent.
+output "pipeline_queue_path" {
+  value = module.pipeline_queue.id
+}
+
 output "artifact_registry_url" {
   value = module.artifact_registry.repository_url
 }

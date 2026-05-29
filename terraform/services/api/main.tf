@@ -16,6 +16,13 @@ module "service" {
     SERVICE_MODE    = "api"
     ENV             = var.env
     WORKER_BASE_URL = var.worker_base_url
+    # Cloud Tasks dispatch. When WORKER_CLOUDTASKS_QUEUE is non-empty the
+    # API skips its synchronous Connect dispatcher and enqueues onto the
+    # queue instead; Cloud Tasks then pushes the task to WORKER_DISPATCH_URL
+    # using an OIDC token minted for WORKER_INVOKER_SA.
+    WORKER_CLOUDTASKS_QUEUE = var.worker_cloudtasks_queue
+    WORKER_DISPATCH_URL     = var.worker_dispatch_url
+    WORKER_INVOKER_SA       = var.worker_invoker_sa
     # Base URL is scheme+host only (no bucket path). ValidateBaseURL rejects
     # a path, and BuildDocumentUploadURL inserts the bucket from GCS_BUCKET.
     GCS_BUCKET                   = var.uploads_bucket_name

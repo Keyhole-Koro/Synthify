@@ -29,6 +29,10 @@ output "pipeline_queue_name" {
   value = module.platform.pipeline_queue_name
 }
 
+output "pipeline_queue_path" {
+  value = module.platform.pipeline_queue_path
+}
+
 output "artifact_registry_url" {
   value = module.platform.artifact_registry_url
 }

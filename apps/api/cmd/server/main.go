@@ -46,10 +46,29 @@ func main() {
 	store := appCtx.Store
 	notifier := appCtx.Notifier
 
-	// Document pipeline wiring. The dispatcher talks to the worker service
-	// over Connect; object metadata + source URLs are derived from the
-	// internal GCS upload base.
-	dispatcher := apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, appLogger, observability.ConnectClientOptions(nrApp)...)
+	// Document pipeline wiring. In stage/prod the dispatcher pushes jobs
+	// through Cloud Tasks (set via WORKER_CLOUDTASKS_QUEUE +
+	// WORKER_DISPATCH_URL + WORKER_INVOKER_SA), so the API responds
+	// immediately and Cloud Tasks handles cold-start retries on the
+	// worker side. Local runs that leave these unset still get the
+	// legacy synchronous Connect dispatcher driven by WORKER_BASE_URL.
+	var dispatcher service.WorkerDispatcher
+	if cfg.WorkerDispatch.CloudTasksQueue != "" {
+		ctDispatcher, err := apiworker.NewCloudTasksDispatcher(ctx, apiworker.CloudTasksDispatcherConfig{
+			QueuePath:    cfg.WorkerDispatch.CloudTasksQueue,
+			DispatchURL:  cfg.WorkerDispatch.DispatchURL,
+			InvokerSA:    cfg.WorkerDispatch.InvokerSA,
+			OIDCAudience: cfg.WorkerDispatch.OIDCAudience,
+			Logger:       appLogger,
+		})
+		if err != nil {
+			log.Fatalf("cloud tasks dispatcher init: %v", err)
+		}
+		defer ctDispatcher.Close()
+		dispatcher = ctDispatcher
+	} else {
+		dispatcher = apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, appLogger, observability.ConnectClientOptions(nrApp)...)
+	}
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	objectStore := storage.NewDocumentObjectStore(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)

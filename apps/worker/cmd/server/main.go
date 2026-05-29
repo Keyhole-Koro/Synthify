@@ -64,6 +64,13 @@ func main() {
 		worker.NewConnectHandler(workerService, store, planner, evaluator, appLogger),
 		handlerOpts...,
 	))
+	// Cloud Tasks delivers job dispatches here as plain JSON POSTs. The
+	// Connect RPCs above still exist for direct API->worker calls in local
+	// runs that bypass Cloud Tasks. Authentication is enforced upstream by
+	// Cloud Run (allow_unauthenticated=false + run.invoker on the Cloud
+	// Tasks SA).
+	mux.Handle("POST /internal/dispatch-job",
+		worker.NewInternalDispatchHandler(workerService, planner, appLogger))
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)

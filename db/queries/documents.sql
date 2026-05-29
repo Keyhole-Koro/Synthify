@@ -84,12 +84,15 @@ INSERT INTO document_processing_jobs (
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $16);
 
 -- name: MarkProcessingJobRunning :execrows
+-- The WHERE clause makes this transition idempotent under at-least-once
+-- delivery: a second Cloud Tasks attempt for the same job_id sees status
+-- already 'running' and updates 0 rows, which the caller treats as success.
 UPDATE document_processing_jobs
 SET status = 'running',
     error_message = '',
     plan_status = CASE WHEN plan_status IN ('', 'approved', 'none') THEN 'executing' ELSE plan_status END,
     updated_at = $2
-WHERE job_id = $1;
+WHERE job_id = $1 AND status IN ('queued', 'running');
 
 -- name: CompleteProcessingJob :execrows
 UPDATE document_processing_jobs

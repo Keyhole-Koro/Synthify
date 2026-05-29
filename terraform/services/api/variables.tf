@@ -22,6 +22,24 @@ variable "worker_base_url" {
   type = string
 }
 
+variable "worker_cloudtasks_queue" {
+  description = "Cloud Tasks queue path 'projects/X/locations/Y/queues/Z'. Empty falls back to synchronous Connect dispatch."
+  type        = string
+  default     = ""
+}
+
+variable "worker_dispatch_url" {
+  description = "Worker URL Cloud Tasks pushes to (the worker's /internal/dispatch-job endpoint)."
+  type        = string
+  default     = ""
+}
+
+variable "worker_invoker_sa" {
+  description = "Service account Cloud Tasks impersonates to mint the OIDC token sent to the worker."
+  type        = string
+  default     = ""
+}
+
 variable "uploads_bucket_name" {
   type = string
 }

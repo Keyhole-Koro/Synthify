@@ -53,12 +53,19 @@ module "eval" {
 module "api" {
   source = "../services/api"
 
-  project_id                = var.project_id
-  region                    = var.region
-  name                      = "synthify-api-${var.environment}"
-  image                     = var.api_image
-  service_account_email     = module.bootstrap.api_service_account_email
-  worker_base_url           = module.worker.uri
+  project_id            = var.project_id
+  region                = var.region
+  name                  = "synthify-api-${var.environment}"
+  image                 = var.api_image
+  service_account_email = module.bootstrap.api_service_account_email
+  worker_base_url       = module.worker.uri
+  # Cloud Tasks dispatch: enqueue onto pipeline_queue, push to the
+  # worker's /internal/dispatch-job endpoint with an OIDC token minted
+  # for the API SA (Cloud Tasks impersonates it because the SA has
+  # iam.serviceAccountTokenCreator on itself).
+  worker_cloudtasks_queue   = module.bootstrap.pipeline_queue_path
+  worker_dispatch_url       = "${module.worker.uri}/internal/dispatch-job"
+  worker_invoker_sa         = module.bootstrap.api_service_account_email
   uploads_bucket_name       = module.bootstrap.uploads_bucket_name
   secret_ids                = module.bootstrap.secret_ids
   firebase_project_id       = local.firebase_project_id
