@@ -12,14 +12,8 @@ const treeClient = createRPCClient(TreeService);
 const itemClient = createRPCClient(ItemService);
 const jobClient = createRPCClient(JobService);
 
-export async function getTree(
-  workspaceId: string,
-  opts: { levelFilters?: number[] } = {},
-) {
-  const res = await treeClient.getTree({
-    workspaceId,
-    levelFilters: opts.levelFilters ?? [],
-  });
+export async function getTree(workspaceId: string) {
+  const res = await treeClient.getTree({ workspaceId });
   return res.tree!;
 }
 

@@ -11,11 +11,15 @@ export function buildProjectedPaper(
   const it = treeItems.get(itemId)?.item;
   if (!it || it.id === workspaceRootItemId) return null;
 
-  const projectedChildIds = (it.childIds ?? []).filter(
+  const projectedChildIds = it.childIds.filter(
     (childId) => childId !== workspaceRootItemId && treeItems.has(childId),
   );
+  // The workspace_root paper is hidden from the projection; rewrite items
+  // whose parent is the workspace_root so they appear under the workspace
+  // paper itself. Every other item has a non-empty parentId by schema
+  // invariant (only workspace_root has parentId IS NULL).
   const projectedParentId =
-    it.parentId === workspaceRootItemId ? workspaceId : (it.parentId ?? null);
+    it.parentId === workspaceRootItemId ? workspaceId : it.parentId;
 
   return {
     ...it,

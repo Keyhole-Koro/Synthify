@@ -184,10 +184,16 @@ export function useWorkspaceTree(
     return projectWorkspacePapers(workspaceId, workspaceRootItemId, treeItems, documentRootIds, buildWsPaper);
   }
 
+  // rebuildWorkspacePaper repaints a workspace from the cached tree state.
+  // workspaceRootItemRef and workspaceDocumentRootIdsRef are written together
+  // by refreshWorkspaceTree, so the document-root list is present whenever
+  // the root id is. The empty-children branch only fires before the first
+  // refresh — i.e. while the workspace card is rendered but its tree has not
+  // been fetched yet.
   const rebuildWorkspacePaper = useCallback((workspaceId: string) => {
     const rootItemId = workspaceRootItemRef.current.get(workspaceId);
     const childPapers = rootItemId
-      ? (workspaceDocumentRootIdsRef.current.get(workspaceId) ?? []).map((id) => ({ id }))
+      ? workspaceDocumentRootIdsRef.current.get(workspaceId)!.map((id) => ({ id }))
       : [];
     setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, childPapers)]);
   }, [buildWsPaper, setWorkspacePapers]);
@@ -265,17 +271,13 @@ export function useWorkspaceTree(
     opts: { revealNewDocumentRoots?: boolean } = {},
   ) {
     const tree = await getTree(workspaceId);
-    const items = tree?.items ?? [];
-    if (items.length === 0) {
-      workspaceRootItemRef.current.delete(workspaceId);
-      workspaceDocumentRootIdsRef.current.set(workspaceId, []);
-      workspaceTreeItemsRef.current.set(workspaceId, new Map());
-      fullyLoadedWorkspacesRef.current.delete(workspaceId);
-      setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
-      return;
-    }
+    const items = tree.items;
+    // workspace_root is created atomically with the workspace, so a missing
+    // root or an empty items array means an upstream invariant is broken.
     const rootItemId = findRootItemId(items);
-    if (!rootItemId) return;
+    if (!rootItemId) {
+      throw new Error(`workspace ${workspaceId} has no workspace_root item`);
+    }
 
     const previousDocumentRootIds = workspaceDocumentRootIdsRef.current.get(workspaceId) ?? [];
     const documentRootIds = findDocumentRootItemIds(items);
@@ -287,7 +289,7 @@ export function useWorkspaceTree(
     const treeItems = new Map<string, SubtreeItem>();
     workspaceTreeItemsRef.current.set(workspaceId, treeItems);
     for (const item of items) {
-      const hasChildren = (item.childIds?.length ?? 0) > 0;
+      const hasChildren = item.childIds.length > 0;
       itemWorkspaceRef.current.set(item.id, workspaceId);
       itemHasChildrenRef.current.set(item.id, hasChildren);
       treeItems.set(item.id, create(SubtreeItemSchema, { item, hasChildren }));
