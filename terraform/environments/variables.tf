@@ -205,6 +205,10 @@ variable "deployer_principal" {
 # was hand-added after a 403, and prod still lacks it. Managing them here makes
 # every environment identical and self-bootstrapping. resourcemanager.projectIamAdmin
 # (in this set) is what lets the deployer grant itself the rest.
+#
+# datastore.indexAdmin is required for google_firestore_field (TTL policy on
+# jobs.expiresAt). The Firestore Field API enforces datastore.indexes.* even
+# when the field-level config only declares ttl_config.
 variable "deployer_project_roles" {
   description = "Project-level roles bound to deployer_principal so the deployer can manage all resources in this config. Empty deployer_principal => no bindings."
   type        = list(string)
@@ -212,6 +216,7 @@ variable "deployer_project_roles" {
     "roles/artifactregistry.admin",
     "roles/cloudscheduler.admin",
     "roles/cloudtasks.admin",
+    "roles/datastore.indexAdmin",
     "roles/firebasehosting.admin",
     "roles/firebaserules.admin",
     "roles/iam.serviceAccountAdmin",

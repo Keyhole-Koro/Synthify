@@ -12,6 +12,13 @@ module "platform" {
   environment                 = var.environment
   uploads_bucket_name         = var.uploads_bucket_name
   uploads_bucket_cors_origins = var.uploads_bucket_cors_origins
+
+  # Platform owns google_firestore_field.jobs_expires_at_ttl, which the
+  # Firestore Field API gates behind datastore.indexes.create. Make sure
+  # the deployer's project-level role bindings (which include
+  # datastore.indexAdmin) are applied first; otherwise the first apply on
+  # a fresh project hits 403 before IAM propagation catches up.
+  depends_on = [google_project_iam_member.deployer_project_roles]
 }
 
 # Signed upload URLs use IAM SignBlob when no private key is provided
