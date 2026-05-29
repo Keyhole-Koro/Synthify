@@ -1,19 +1,21 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { useAuthState } from '@/features/auth/useAuthState';
-import { signOutSession } from '@/features/auth/session';
-import { createWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
-import { useWorkspaceTree, type WorkspacePaperRuntimeState } from '@/features/workspaces/useWorkspaceTree';
+import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
 import { usePersistentPaperOpenState } from '@/features/paperMap/hooks/usePersistentPaperOpenState';
 import { useViewportSize } from '@/features/landing/useViewportSize';
-import { toAppError } from '@/lib/error_normalize';
+import { useWorkspaceRuntimeState } from './useWorkspaceRuntimeState';
+import { useWorkspaceCRUD } from './useWorkspaceCRUD';
+import { useRootUpload } from './useRootUpload';
 
-const NEW_WORKSPACE_NAME = '新規ワークスペース';
-
+// useLandingPageController is the orchestrator for the landing page. It
+// wires the auth state, paper map persistence, the workspace tree, and the
+// per-workspace CRUD + root upload flows together. All non-trivial logic
+// lives in the specialized hooks under landing/ and workspaces/tree/.
 export function useLandingPageController() {
   const {
     user,
@@ -64,38 +66,26 @@ export function useLandingPageController() {
     setPendingRevealNodeId(null);
   }, []);
 
-  const applyWorkspaceUpdate = useCallback((workspace: Workspace) => {
-    setWorkspaces((prev) => prev.map((candidate) => (
-      candidate.workspaceId === workspace.workspaceId ? workspace : candidate
-    )));
-  }, [setWorkspaces]);
+  // The runtime-state hook needs rebuildWorkspacePaper, which is produced by
+  // useWorkspaceTree. They reference each other (the tree's
+  // onWorkspaceRuntimeStateComplete clears the runtime state, and the
+  // runtime state's injectRuntimeState calls rebuildWorkspacePaper). Break
+  // the cycle with a ref that points to whichever value is current.
+  const rebuildWorkspacePaperRef = useRef<(workspaceId: string) => void>(() => {});
+  const runtimeState = useWorkspaceRuntimeState({
+    rebuildWorkspacePaper: useCallback((workspaceId: string) => {
+      rebuildWorkspacePaperRef.current(workspaceId);
+     
+    }, []),
+  });
 
-  const handleRenameWorkspace = useCallback(async (workspaceId: string, name: string) => {
-    const updated = await updateWorkspace(workspaceId, name);
-    applyWorkspaceUpdate(updated);
-    return updated;
-  }, [applyWorkspaceUpdate]);
+  // The CRUD hook also depends on rename, which is what we want to feed
+  // into useWorkspaceTree. Construct rename callbacks early and pass the
+  // same closures everywhere.
+  const renameRef = useRef<(workspaceId: string, name: string) => Promise<unknown>>(async () => undefined);
+  const autoNameRef = useRef<(workspaceId: string, suggestedName: string) => Promise<void>>(async () => {});
 
-  const handleAutoNameWorkspace = useCallback(async (workspaceId: string, suggestedName: string) => {
-    const current = workspaces.find((workspace) => workspace.workspaceId === workspaceId);
-    if (!current || current.name !== NEW_WORKSPACE_NAME) return;
-    const trimmed = suggestedName.trim();
-    if (!trimmed || trimmed === current.name) return;
-    await handleRenameWorkspace(workspaceId, trimmed.slice(0, 64));
-  }, [handleRenameWorkspace, workspaces]);
-
-  const workspacePaperRuntimeStateRef = useRef<Map<string, WorkspacePaperRuntimeState>>(new Map());
-  const getWorkspacePaperRuntimeState = useCallback((workspaceId: string): WorkspacePaperRuntimeState => {
-    return workspacePaperRuntimeStateRef.current.get(workspaceId) ?? {};
-  }, []);
-  const clearWorkspacePaperRuntimeState = useCallback((workspaceId: string) => {
-    if (!workspacePaperRuntimeStateRef.current.has(workspaceId)) return;
-    const nextRuntimeState = new Map(workspacePaperRuntimeStateRef.current);
-    nextRuntimeState.delete(workspaceId);
-    workspacePaperRuntimeStateRef.current = nextRuntimeState;
-  }, []);
-
-  const { handleOpenWorkspace, resetTree, buildWsPaper, rebuildWorkspacePaper, uploadWorkspaceFile } = useWorkspaceTree(
+  const tree = useWorkspaceTree(
     getWorkspaceName,
     expansionMap,
     handleExpansionMapChange,
@@ -103,59 +93,43 @@ export function useLandingPageController() {
     setWorkspacePapers,
     clearWorkspacePapers,
     workspaces,
-    handleRenameWorkspace,
-    handleAutoNameWorkspace,
-    getWorkspacePaperRuntimeState,
-    clearWorkspacePaperRuntimeState,
+    useCallback((workspaceId: string, name: string) => renameRef.current(workspaceId, name) as Promise<import('@/features/workspaces/api').Workspace>, []),
+    useCallback((workspaceId: string, suggestedName: string) => autoNameRef.current(workspaceId, suggestedName), []),
+    runtimeState.getRuntimeState,
+    runtimeState.clearRuntimeState,
   );
 
+  useEffect(() => {
+    rebuildWorkspacePaperRef.current = tree.rebuildWorkspacePaper;
+  }, [tree.rebuildWorkspacePaper]);
+
+  const crud = useWorkspaceCRUD({
+    user,
+    workspaces,
+    setWorkspaces,
+    setPendingRevealNodeId,
+    handleOpenWorkspace: tree.handleOpenWorkspace,
+    resetTree: tree.resetTree,
+    resetRuntimeState: runtimeState.resetAll,
+    resetToLoggedOutDefaults,
+  });
+
+  useEffect(() => {
+    renameRef.current = crud.handleRenameWorkspace;
+  }, [crud.handleRenameWorkspace]);
+  useEffect(() => {
+    autoNameRef.current = crud.handleAutoNameWorkspace;
+  }, [crud.handleAutoNameWorkspace]);
+
+  const handleRootUpload = useRootUpload({
+    setWorkspaces,
+    setPendingRevealNodeId,
+    handleOpenWorkspace: tree.handleOpenWorkspace,
+    uploadWorkspaceFile: tree.uploadWorkspaceFile,
+    injectRuntimeState: runtimeState.injectRuntimeState,
+  });
+
   const { isFullscreen } = useHomeCanvasViewState(expansionMap, canvasFullscreen);
-
-  const injectWorkspaceRuntimeState = useCallback((workspaceId: string, state: WorkspacePaperRuntimeState) => {
-    workspacePaperRuntimeStateRef.current = new Map(workspacePaperRuntimeStateRef.current).set(workspaceId, state);
-    rebuildWorkspacePaper(workspaceId);
-  }, [rebuildWorkspacePaper]);
-
-  const handleLogout = useCallback(async () => {
-    const previousUser = user;
-    await signOutSession();
-    workspacePaperRuntimeStateRef.current = new Map();
-    resetTree();
-    resetToLoggedOutDefaults(previousUser);
-  }, [resetToLoggedOutDefaults, resetTree, user]);
-
-  const handleCreateWorkspace = useCallback(async (name: string) => {
-    const ws = await createWorkspace(name);
-    setWorkspaces((prev) => [ws, ...prev]);
-    void handleOpenWorkspace(ws.workspaceId, ws);
-    setPendingRevealNodeId(ws.workspaceId);
-  }, [handleOpenWorkspace, setWorkspaces]);
-
-  const handleRootUpload = useCallback(async (file: File) => {
-    const ws = await createWorkspace(NEW_WORKSPACE_NAME);
-    setWorkspaces((prev) => [ws, ...prev]);
-    await handleOpenWorkspace(ws.workspaceId, ws);
-    setPendingRevealNodeId(ws.workspaceId);
-    injectWorkspaceRuntimeState(ws.workspaceId, { initialUploading: true, initialUploadMessage: null });
-    void (async () => {
-      try {
-        const uploaded = await uploadWorkspaceFile(ws.workspaceId, file);
-        injectWorkspaceRuntimeState(ws.workspaceId, {
-          initialActiveJobId: uploaded.jobId,
-          initialDocumentId: uploaded.documentId,
-          initialUploading: false,
-          initialUploadMessage: 'アップロードしました。解析を開始します。',
-        });
-      } catch (err) {
-        console.error('Root upload failed after workspace creation:', err);
-        const appError = toAppError(err);
-        injectWorkspaceRuntimeState(ws.workspaceId, {
-          initialUploading: false,
-          initialUploadMessage: `アップロードに失敗しました。${appError.message}`,
-        });
-      }
-    })();
-  }, [handleOpenWorkspace, injectWorkspaceRuntimeState, setWorkspaces, uploadWorkspaceFile]);
 
   const { paperMap } = useLandingPaperMap({
     user,
@@ -165,11 +139,11 @@ export function useLandingPageController() {
     authError,
     workspacePaperGroups,
     handleGoogleSubmit,
-    handleLogout,
-    handleCreateWorkspace,
+    handleLogout: crud.handleLogout,
+    handleCreateWorkspace: crud.handleCreateWorkspace,
     handleRootUpload,
-    handleOpenWorkspace,
-    buildWsPaper,
+    handleOpenWorkspace: tree.handleOpenWorkspace,
+    buildWsPaper: tree.buildWsPaper,
     onRetryWorkspaces: retryWorkspaces,
   });
 
