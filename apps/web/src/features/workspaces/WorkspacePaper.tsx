@@ -309,8 +309,10 @@ export function WorkspacePaper({
               </div>
             )}
 
-            {/* Progress: populated mode only (empty mode shows it inline inside the drop zone) */}
-            {isPopulated && (jobStatus || jobStatusError) && (
+            {/* Progress: populated mode only (empty mode shows it inline inside the drop zone).
+                Hide once succeeded so the bar disappears after completion; the
+                completion toast / Recent jobs list takes over from there. */}
+            {isPopulated && (jobStatusError || (jobStatus && jobStatus.status !== 'succeeded')) && (
               <WorkspaceJobProgress
                 message={jobStatusError?.message ?? jobStatus?.message}
                 progress={jobStatus?.progress}

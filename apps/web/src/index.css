@@ -36,3 +36,27 @@ a {
   color: inherit;
   text-decoration: none;
 }
+
+/* Job progress: indeterminate stripe used by WorkspaceJobProgress when the
+ * worker has not yet reported a numeric progress. A diagonal stripe pattern
+ * slides leftward; the colors are tinted at the .progress-stripe level so the
+ * indigo (running) / red (failed) variants share the animation. */
+@keyframes progress-stripe-slide {
+  from { background-position: 0 0; }
+  to   { background-position: -32px 0; }
+}
+
+.progress-stripe-indeterminate {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.35) 25%,
+    transparent              25%,
+    transparent              50%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.35) 75%,
+    transparent              75%,
+    transparent
+  );
+  background-size: 32px 32px;
+  animation: progress-stripe-slide 900ms linear infinite;
+}
