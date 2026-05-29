@@ -80,7 +80,8 @@ export function useWorkspacePaper({
     ?? (activeJobId ? workspaceJobs.find((job) => job.jobId === activeJobId) : undefined);
 
   const isPopulated = hasTree && childItemsCount > 0;
-  const isRunning = !!activeJobId && jobStatus?.status === 'running';
+  const isRunning = !!activeJobId && (jobStatus?.status === 'running' || jobStatus?.status === 'queued');
+  const isFailed = jobStatus?.status === 'failed';
 
   const handleUpload = useCallback(async (file: File) => {
     setUploading(true);
@@ -170,6 +171,7 @@ export function useWorkspacePaper({
     workspaceJobs,
     activeJobId,
     isRunning,
+    isFailed,
     // upload
     uploading,
     uploadMessage,

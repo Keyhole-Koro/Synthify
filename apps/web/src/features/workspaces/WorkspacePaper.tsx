@@ -50,6 +50,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     workspaceJobs,
     activeJobId,
     isRunning,
+    isFailed,
     uploading,
     uploadMessage,
     isJustCompleted,
@@ -83,7 +84,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const [isPinned, setIsPinned] = useState(false);
 
   const isTreeMissing = !hasTree;
-  const isExpanded = !isPopulated || isHovered || isPinned;
+  const isExpanded = !isPopulated || isHovered || isPinned || isFailed;
 
   const handleMouseEnter = useCallback(() => setIsHovered(true), []);
   const handleMouseLeave = useCallback(() => setIsHovered(false), []);
@@ -140,6 +141,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             savingName={savingName}
             childItemsCount={childItems.length}
             isRunning={isRunning}
+            isFailed={isFailed}
             jobProgress={jobStatus?.progress}
             isJustCompleted={isJustCompleted}
             isPinned={isPinned}

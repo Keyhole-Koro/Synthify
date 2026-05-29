@@ -7,6 +7,7 @@ interface WorkspaceHeaderProps {
   savingName: boolean;
   childItemsCount: number;
   isRunning: boolean;
+  isFailed: boolean;
   jobProgress?: number;
   isJustCompleted: boolean;
   isPinned: boolean;
@@ -24,6 +25,7 @@ export function WorkspaceHeader({
   savingName,
   childItemsCount,
   isRunning,
+  isFailed,
   jobProgress,
   isJustCompleted,
   isPinned,
@@ -77,9 +79,14 @@ export function WorkspaceHeader({
         )}
         <div className="mt-0.5 flex items-center gap-2">
           <span className="text-[11px] text-stone-400">{childItemsCount} docs</span>
-          {isRunning && typeof jobProgress === 'number' && (
+          {isRunning && (
             <span className="text-[11px] font-semibold text-indigo-500">
-              running {jobProgress}%
+              {typeof jobProgress === 'number' ? `running ${jobProgress}%` : 'analyzing...'}
+            </span>
+          )}
+          {isFailed && (
+            <span className="text-[11px] font-semibold text-red-500">
+              failed
             </span>
           )}
           {isJustCompleted && !isRunning && (

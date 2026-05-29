@@ -155,12 +155,46 @@ case $COMMAND in
             exit 1
         fi
 
-        log "Dropping and recreating public schema (and cluster-level roles)..."
-        psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 <<'SQL'
-DROP SCHEMA public CASCADE;
-CREATE SCHEMA public;
-DROP ROLE IF EXISTS monitor;
+        # CockroachDB Cloud DSNs may either pin sslrootcert to a local file path
+        # or omit it while sslmode=verify-full makes libpq look for the default
+        # ~/.postgresql/root.crt. Use the OS trust store instead.
+        if echo "$DATABASE_DSN" | grep -q "sslrootcert="; then
+            DATABASE_DSN="$(echo "$DATABASE_DSN" | sed -E 's#sslrootcert=[^&]*#sslrootcert=system#')"
+        elif echo "$DATABASE_DSN" | grep -q "?"; then
+            DATABASE_DSN="${DATABASE_DSN}&sslrootcert=system"
+        else
+            DATABASE_DSN="${DATABASE_DSN}?sslrootcert=system"
+        fi
+
+        log "Dropping public schema objects (and cluster-level roles)..."
+        DROP_SQL="$(psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 -At <<'SQL'
+SELECT COALESCE(
+  'DROP VIEW IF EXISTS ' || string_agg(quote_ident(table_schema) || '.' || quote_ident(table_name), ', ') || ' CASCADE;',
+  ''
+)
+FROM information_schema.views
+WHERE table_schema = 'public';
+
+SELECT COALESCE(
+  'DROP TABLE IF EXISTS ' || string_agg(quote_ident(table_schema) || '.' || quote_ident(table_name), ', ') || ' CASCADE;',
+  ''
+)
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_type = 'BASE TABLE';
+
+SELECT COALESCE(
+  'DROP SEQUENCE IF EXISTS ' || string_agg(quote_ident(sequence_schema) || '.' || quote_ident(sequence_name), ', ') || ' CASCADE;',
+  ''
+)
+FROM information_schema.sequences
+WHERE sequence_schema = 'public';
 SQL
+)"
+        if [ -n "$DROP_SQL" ]; then
+            printf '%s\n' "$DROP_SQL" | psql "$DATABASE_DSN" -v ON_ERROR_STOP=1
+        fi
+        psql "$DATABASE_DSN" -v ON_ERROR_STOP=1 -c "DROP ROLE IF EXISTS monitor;"
 
         log "Applying migrations from db/migrations/ in version order..."
         for f in $(ls db/migrations/*.up.sql | sort); do
