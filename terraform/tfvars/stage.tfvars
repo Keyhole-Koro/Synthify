@@ -11,3 +11,8 @@ allowed_user_emails = "korokororin47@gmail.com"
 # CI/WIF SA that runs terraform apply (GCP_WIF_SA_EMAIL). Needs actAs on
 # the api/worker runtime SAs to attach them to Cloud Run.
 deployer_principal = "serviceAccount:github-deploy@synthify-stage-491705.iam.gserviceaccount.com"
+
+# Debug: log raw LLM payloads and raw agent responses (per-turn text +
+# functionCall presence) to diagnose stuck jobs. Revert to "false" once the
+# investigation is done — response bodies end up in logs while this is on.
+log_llm_payload = "true"

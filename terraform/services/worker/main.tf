@@ -44,6 +44,7 @@ module "service" {
     GEMINI_MODEL                 = var.gemini_model
     API_BASE_URL                 = var.api_base_url
     NEW_RELIC_APP_NAME           = var.new_relic_app_name
+    LOG_LLM_PAYLOAD              = var.log_llm_payload
   }
 
   sensitive_env_vars = {

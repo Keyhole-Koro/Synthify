@@ -31,6 +31,7 @@ module "worker" {
   api_base_url          = var.api_base_url
   readiness_api_key     = var.readiness_api_key
   new_relic_app_name    = local.new_relic_worker_app_name
+  log_llm_payload       = var.log_llm_payload
   deletion_protection   = local.deletion_protection
 }
 

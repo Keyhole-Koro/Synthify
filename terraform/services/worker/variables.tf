@@ -51,6 +51,12 @@ variable "readiness_api_key" {
   sensitive = true
 }
 
+variable "log_llm_payload" {
+  description = "Set to \"true\" to log raw LLM payloads, including raw agent responses (debug only)."
+  type        = string
+  default     = "false"
+}
+
 variable "deletion_protection" {
   description = "Cloud Run delete guard. false in non-prod so a tainted service can be replaced."
   type        = bool

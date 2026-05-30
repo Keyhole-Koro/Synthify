@@ -13,8 +13,8 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/agents"
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
-	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
@@ -24,6 +24,7 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
+	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 	"google.golang.org/adk/agent/llmagent"
@@ -87,7 +88,14 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 	// The agent path drives the model directly through ADK, bypassing the
 	// metering.LLMClient wrapper, so usage is metered via an after-model
 	// callback instead. See metering.NewAfterModelCallback.
-	afterModelCBs := []llmagent.AfterModelCallback{metering.NewAfterModelCallback(reporter, logger)}
+	// LOG_LLM_PAYLOAD also turns on raw agent-response logging (text +
+	// functionCall presence per turn), which the GeminiClient flag does not
+	// cover because the agent path drives the model through ADK.
+	logPayload := config.LoadLLM().LogPayload
+	afterModelCBs := []llmagent.AfterModelCallback{
+		metering.NewAfterModelCallback(reporter, logger),
+		agents.NewPayloadLoggingCallback(logPayload, logger),
+	}
 	orch, err := agents.NewOrchestrator(m, b, repo, fs, dynSrc, dynEngine, afterModelCBs)
 	if err != nil {
 		return nil, err
