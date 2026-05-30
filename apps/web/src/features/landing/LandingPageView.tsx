@@ -83,7 +83,6 @@ function BrandHeader() {
 function HeroCopy() {
   return (
     <div className="absolute left-1/2 top-[11%] z-10 -translate-x-1/2 text-center select-none whitespace-nowrap">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-indigo-500/70 mb-2">Document Intelligence</p>
       <h1 className="text-3xl font-bold tracking-tight text-stone-800 sm:text-4xl">
         ドキュメントから、<span className="text-indigo-500">知識構造</span>へ
       </h1>

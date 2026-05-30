@@ -97,13 +97,18 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
       <Section title="支払い方法">
         {defaultMethod ? (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', border: '1px solid var(--link-border)', borderRadius: 6, background: 'var(--surface-alt)' }}>
-            <div>
-              <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
-                {defaultMethod.brand || 'Card'} •••• {defaultMethod.last4 || '----'}
-              </p>
-              <p style={{ margin: '2px 0 0', fontSize: '0.7rem', color: 'var(--muted)' }}>
-                有効期限 {String(defaultMethod.expMonth).padStart(2, '0')}/{String(defaultMethod.expYear).slice(-2)}
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 32, height: 20, borderRadius: 3, background: '#fff', border: '1px solid var(--link-border)', display: 'flex', alignItems: 'center', justifyItems: 'center', overflow: 'hidden' }}>
+                <PaymentBrandIcon brand={defaultMethod.brand} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>
+                  {defaultMethod.brand || 'Card'} •••• {defaultMethod.last4 || '----'}
+                </p>
+                <p style={{ margin: '2px 0 0', fontSize: '0.7rem', color: 'var(--muted)' }}>
+                  有効期限 {String(defaultMethod.expMonth).padStart(2, '0')}/{String(defaultMethod.expYear).slice(-2)}
+                </p>
+              </div>
             </div>
             {state.portalUrl && (
               <a
@@ -188,5 +193,32 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </p>
       {children}
     </div>
+  );
+}
+
+function PaymentBrandIcon({ brand }: { brand?: string }) {
+  const b = (brand || '').toLowerCase();
+  if (b === 'visa') {
+    return (
+      <svg viewBox="0 0 24 15" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto', padding: '2px' }}>
+        <path d="M11.5 0.5H15L13 14.5H9.5L11.5 0.5Z" fill="#1A1F71" />
+        <path d="M21.5 0.5C20.5 0.5 19.5 1 19 2L16 14.5H19.5L20.5 11H24L24.5 14.5H28L25.5 0.5H21.5ZM21.5 8.5L22.5 4L23.5 8.5H21.5Z" fill="#1A1F71" />
+        <path d="M0 0.5L3.5 14.5H7L3.5 0.5H0Z" fill="#1A1F71" />
+        <path d="M6 0.5L4 10.5C4 12 5 13 6.5 13H10L10.5 9.5H8.5C7.5 9.5 7 9 7 8L8.5 0.5H6Z" fill="#1A1F71" />
+      </svg>
+    );
+  }
+  if (b === 'mastercard') {
+    return (
+      <svg viewBox="0 0 24 15" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto', padding: '2px' }}>
+        <circle cx="7" cy="7.5" r="7" fill="#EB001B" fillOpacity="0.8" />
+        <circle cx="15" cy="7.5" r="7" fill="#F79E1B" fillOpacity="0.8" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 15" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: 'auto', padding: '4px', opacity: 0.3 }}>
+      <rect width="24" height="15" rx="2" fill="var(--muted)" />
+    </svg>
   );
 }

@@ -12,7 +12,6 @@ interface Props {
   onOpenWorkspace: (workspaceId: string) => void;
   onCreateWorkspace: (name: string) => Promise<void>;
   onRetry: () => void;
-  onLogout: () => void;
 }
 
 export function WorkspaceListContent({
@@ -22,7 +21,6 @@ export function WorkspaceListContent({
   onOpenWorkspace,
   onCreateWorkspace,
   onRetry,
-  onLogout,
 }: Props) {
   const [creating, setCreating] = useState(false);
 
@@ -38,7 +36,7 @@ export function WorkspaceListContent({
   }
 
   if (error) {
-    return <WorkspaceError error={error} onRetry={onRetry} onLogout={onLogout} />;
+    return <WorkspaceError error={error} onRetry={onRetry} />;
   }
 
   return (
@@ -53,16 +51,6 @@ export function WorkspaceListContent({
         loading={loading}
         onCreate={handleCreate}
       />
-
-      {/* Logout */}
-      <button
-        type="button"
-        onPointerDown={stop} onPointerUp={stop}
-        onClick={onLogout}
-        className="w-full rounded-lg border border-stone-200 py-2 text-xs font-medium text-stone-400 transition-colors hover:bg-stone-50 hover:text-stone-600"
-      >
-        ログアウト
-      </button>
     </div>
   );
 }

@@ -708,7 +708,7 @@ export function useLandingPaperMap({
     map.set(ROOT_ID, {
       id: ROOT_ID,
       title: 'Synthify',
-      description: 'Document Intelligence Platform',
+      description: 'Knowledge Synthesis',
       hue: CATEGORY_HUES.overview,
       parentId: null,
       childIds: rootChildIds,
@@ -795,7 +795,6 @@ export function useLandingPaperMap({
             onOpenWorkspace={handleOpenWorkspace}
             onCreateWorkspace={handleCreateWorkspace}
             onRetry={onRetryWorkspaces}
-            onLogout={handleLogout}
           />
         ),
       });

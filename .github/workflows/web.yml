@@ -38,6 +38,10 @@ jobs:
         working-directory: apps/web
         run: bun run lint
 
+      - name: Test
+        working-directory: apps/web
+        run: bun run test
+
       - name: Build
         working-directory: apps/web
         run: bun run build
