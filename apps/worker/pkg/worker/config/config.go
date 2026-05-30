@@ -83,7 +83,7 @@ func LoadLLM() LLM {
 		}
 	}
 	return LLM{
-		GeminiModel:    get("GEMINI_MODEL", "gemini-3-flash-preview"),
+		GeminiModel:    get("GEMINI_MODEL", "gemini-3.5-flash"),
 		APIKey:         util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		LogPayload:     os.Getenv("LOG_LLM_PAYLOAD") == "true",
 		GCPProject:     project,

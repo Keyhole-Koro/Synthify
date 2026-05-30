@@ -30,6 +30,9 @@ var modelQuotas = map[string]ModelQuota{
 	"gemini-2.5-flash":      {Model: "gemini-2.5-flash", RPM: 300, Tier: "tier1"},
 	"gemini-2.5-flash-lite": {Model: "gemini-2.5-flash-lite", RPM: 300, Tier: "tier1"},
 
+	// --- Gemini 3.5 series (Tier1 paid) ---
+	"gemini-3.5-flash": {Model: "gemini-3.5-flash", RPM: 300, Tier: "tier1"},
+
 	// --- Gemini 2.0 series — Vertex AI 公式表に固定値が無いので 2.5 同等で暫定 ---
 	"gemini-2.0-flash":      {Model: "gemini-2.0-flash", RPM: 300, Tier: "tier1"},
 	"gemini-2.0-flash-lite": {Model: "gemini-2.0-flash-lite", RPM: 300, Tier: "tier1"},

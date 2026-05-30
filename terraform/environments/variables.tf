@@ -58,7 +58,7 @@ variable "cors_allowed_origins" {
 
 variable "gemini_model" {
   type    = string
-  default = "gemini-3-flash-preview"
+  default = "gemini-3.5-flash"
 }
 
 variable "eval_schedule" {
