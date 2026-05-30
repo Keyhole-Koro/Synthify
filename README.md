@@ -1,3 +1,7 @@
+LLM を使うと情報は大量に出せますが、縦スクロールの画面では一度に見渡せる範囲が狭く、必要な情報を探し続ける負担が残ります。
+
+Synthify は、アップロードしたドキュメントから知識ツリーを作り、情報を抽象から具体へ辿れるようにするアプリです。paper-in-paper で全体像を見ながら必要な paper だけを展開できるので、人間が知りたい情報を見つけやすくなります。
+
 ちょっと特殊な実装にしているところがいくつかあるので、ここにまとめておきます。
 
 ### API と worker の分担
@@ -18,7 +22,7 @@ Firestore は通知と表示用の状態で、workspace/document/tree の正本�
 
 ### paper-in-paper の iframe
 
-paper-in-paper の HTML 本文は iframe の中で表示します。各 paper の CSS や script を親画面から隔離しつつ、paper link の open / drag / resize だけを `postMessage` で親に戻します。
+paper-in-paper の HTML 本文は iframe の中で表示します。各 paper の CSS や script を親画面から隔離しています。
 
 ### ブラウザから GCS へ直接アップロード
 
