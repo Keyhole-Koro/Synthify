@@ -27,7 +27,7 @@ if (!getApps().length) {
   });
 
   if (isBrowser) {
-    const win = window as any;
+    const win = window as Window & { _firebaseEmulatorsConnected?: boolean };
     // Emulator connection attempts also fail if executed multiple times during HMR module re-evaluation.
     // We use a window-level global flag to ensure emulators are connected only once per session.
     if (!win._firebaseEmulatorsConnected) {

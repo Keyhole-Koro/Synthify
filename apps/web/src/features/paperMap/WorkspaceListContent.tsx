@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { type Workspace } from '@/features/workspaces/api';
 import { WorkspaceItemList } from './components/WorkspaceItemList';
 import { CreateWorkspaceForm } from './components/CreateWorkspaceForm';
@@ -23,8 +23,6 @@ export function WorkspaceListContent({
   onRetry,
 }: Props) {
   const [creating, setCreating] = useState(false);
-
-  function stop(e: React.PointerEvent) { e.stopPropagation(); }
 
   async function handleCreate() {
     setCreating(true);
