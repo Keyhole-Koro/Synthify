@@ -116,55 +116,27 @@ func (c *GeminiClient) generate(ctx context.Context, systemPrompt, userPrompt st
 	res, err := c.client.Models.GenerateContent(ctx, c.model, contents, config)
 	durationMs := time.Since(start).Milliseconds()
 	log.Printf("gemini: model=%s duration=%dms err=%v", c.model, durationMs, err)
-
-	// Count every attempt — success or failure — per (model, outcome) so we can
-	// see how hard we are actually hitting Vertex. Without this, a job that 429s
-	// on every retry produces no usage signal at all and "are we even close to
-	// the quota?" is unanswerable.
-	count := recordCall(c.model, err)
-
-	if err != nil {
-		// Emit token/outcome detail on failure too. UsageMetadata is usually
-		// absent on an error response, so input_tokens may be 0; the value is
-		// the call count and the error classification.
-		joblog.FromContext(ctx).Log(ctx, joblog.Event{
-			Level:   joblog.WARN,
-			Event:   "llm.call.failed",
-			Message: fmt.Sprintf("gemini call failed: model=%s duration=%dms calls=%d err=%v", c.model, durationMs, count.Total, err),
-			Detail: map[string]any{
-				"model":           c.model,
-				"duration_ms":     durationMs,
-				"error":           err.Error(),
-				"calls_total":     count.Total,
-				"calls_succeeded": count.Succeeded,
-				"calls_failed":    count.Failed,
-			},
-		})
-		return res, err
-	}
-
-	usage := geminiUsage(c.model, res)
-	detail := map[string]any{
-		"model":           c.model,
-		"duration_ms":     durationMs,
-		"input_tokens":    usage.InputTokens,
-		"output_tokens":   usage.OutputTokens,
-		"total_tokens":    usage.InputTokens + usage.OutputTokens,
-		"calls_total":     count.Total,
-		"calls_succeeded": count.Succeeded,
-		"calls_failed":    count.Failed,
-	}
-	if c.logPayload {
-		if len(res.Candidates) > 0 && len(res.Candidates[0].Content.Parts) > 0 {
-			detail["response"] = res.Candidates[0].Content.Parts[0].Text
+	if err == nil {
+		usage := geminiUsage(c.model, res)
+		detail := map[string]any{
+			"model":         c.model,
+			"duration_ms":   durationMs,
+			"input_tokens":  usage.InputTokens,
+			"output_tokens": usage.OutputTokens,
+			"total_tokens":  usage.InputTokens + usage.OutputTokens,
 		}
+		if c.logPayload {
+			if len(res.Candidates) > 0 && len(res.Candidates[0].Content.Parts) > 0 {
+				detail["response"] = res.Candidates[0].Content.Parts[0].Text
+			}
+		}
+		joblog.FromContext(ctx).Log(ctx, joblog.Event{
+			Level:   joblog.INFO,
+			Event:   "llm.call.completed",
+			Message: fmt.Sprintf("gemini call completed: model=%s duration=%dms tokens=%d", c.model, durationMs, usage.InputTokens+usage.OutputTokens),
+			Detail:  detail,
+		})
 	}
-	joblog.FromContext(ctx).Log(ctx, joblog.Event{
-		Level:   joblog.INFO,
-		Event:   "llm.call.completed",
-		Message: fmt.Sprintf("gemini call completed: model=%s duration=%dms tokens=%d calls=%d", c.model, durationMs, usage.InputTokens+usage.OutputTokens, count.Total),
-		Detail:  detail,
-	})
 	return res, err
 }
 
