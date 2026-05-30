@@ -13,6 +13,7 @@ interface DefaultOpenStateOptions {
 
 const aboutDefaultChildren = [
   'synthify:about:promise',
+  'synthify:about:getting-started',
   'synthify:about:fit',
   'synthify:overview',
   'synthify:documents',

@@ -35,6 +35,7 @@ interface UseLandingPaperMapProps {
 
 const ABOUT_CHILD_IDS = [
   'synthify:about:promise',
+  'synthify:about:getting-started',
   'synthify:about:fit',
   'synthify:overview',
   'synthify:documents',
@@ -278,12 +279,12 @@ function NodePreview() {
     <div style={{ ...panelStyle, padding: 12, display: 'grid', gap: 9 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <span style={{ color: 'var(--accent)', fontSize: '0.72rem', fontWeight: 800 }}>paper node</span>
-        <span style={{ color: 'var(--muted)', fontSize: '0.68rem' }}>title / source / relation</span>
+        <span style={{ color: 'var(--muted)', fontSize: '0.68rem' }}>見出し / 根拠 / つながり</span>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 7 }}>
         {[
           ['主張', '市場変化の仮説'],
-          ['根拠', 'source chunk 12'],
+          ['根拠', '資料の該当箇所'],
           ['反論', '前提条件の制約'],
           ['関連', 'supports / measured_by'],
         ].map(([label, value]) => (
@@ -300,7 +301,7 @@ function NodePreview() {
 function buildIntroCards(user: AuthUser | null, hasBilling: boolean) {
   return [
     { id: AUTH_ID, title: user ? 'アカウント' : 'ログイン', body: user ? '利用中のユーザーとセッション' : 'Google アカウントで開始', hue: CATEGORY_HUES.auth },
-    { id: 'synthify:about', title: 'Synthifyについて', body: '価値、全体像、入力、処理、知識ツリー', hue: CATEGORY_HUES.about },
+    { id: 'synthify:about', title: 'Synthifyについて', body: '何ができて、どう使うのか', hue: CATEGORY_HUES.about },
     ...(user ? [{ id: WORKSPACES_ID, title: 'ワークスペース', body: '資料と知識ツリーの管理', hue: CATEGORY_HUES.workspaces }] : []),
     ...(hasBilling ? [{ id: 'billing', title: 'プラン・課金', body: '予算、使用量、支払い', hue: CATEGORY_HUES.billing }] : []),
   ];
@@ -311,47 +312,68 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:about',
       title: 'Synthifyについて',
-      description: 'ドキュメントを知識構造に変える理由',
+      description: '長い資料を、あとから辿れる形にする',
       hue: CATEGORY_HUES.about,
       parentId: ROOT_ID,
       childIds: ABOUT_CHILD_IDS,
       content: (
-        <PaperSection eyebrow="About" title="Synthifyは、資料を読む作業を探索可能にする">
+        <PaperSection eyebrow="About" title="Synthifyは、資料を読みっぱなしにしないための場所です">
           <HeroPanel
-            title="要約ではなく、後から辿れる知識構造を作る"
-            body="長い資料から概念、主張、根拠、反論を取り出し、paper node として接続します。読む人は結論だけでなく、根拠や関連論点まで同じ画面で開いて確認できます。"
+            title="要約だけで終わらせず、根拠まで戻れるようにする"
+            body="資料を読んでいると、結論だけでなく「なぜそう言えるのか」「どの話とつながるのか」も残したくなります。Synthifyは、その手がかりを paper node として並べ、あとから開いて辿れるようにします。"
             metrics={[
-              { label: 'Problem', value: '長文資料が再利用しづらい' },
-              { label: 'Method', value: 'AI worker が構造化' },
-              { label: 'Result', value: '探索できる knowledge tree' },
+              { label: 'Problem', value: '読んだ内容が散らばる' },
+              { label: 'Method', value: '資料から論点を取り出す' },
+              { label: 'Result', value: 'あとから辿れる地図にする' },
             ]}
           />
           <div style={cardGridStyle}>
-            <PaperLinkCard id="synthify:about:promise" title="提供価値" body="読む、検証する、共有する" />
-            <PaperLinkCard id="synthify:about:fit" title="向いている用途" body="調査、仕様、研究、議事録" />
-            <PaperLinkCard id="synthify:overview" title="全体像" body="入力から探索までの流れ" hue={CATEGORY_HUES.overview} />
-            <PaperLinkCard id="synthify:documents" title="入力" body="ファイル、抽出、チャンク化" hue={CATEGORY_HUES.documents} />
-            <PaperLinkCard id="synthify:worker" title="処理" body="worker と job lifecycle" hue={CATEGORY_HUES.worker} />
-            <PaperLinkCard id="synthify:tree" title="知識ツリー" body="item、出典、関係リンク" hue={CATEGORY_HUES.tree} />
-            <PaperLinkCard id="synthify:operations" title="運用" body="共有、ログ、使用量" hue={CATEGORY_HUES.operations} />
+            <PaperLinkCard id="synthify:about:promise" title="できること" body="読む、確かめる、共有する" />
+            <PaperLinkCard id="synthify:about:getting-started" title="はじめかた" body="ログインして、資料を置く" />
+            <PaperLinkCard id="synthify:about:fit" title="向いている資料" body="何度も読み返す資料" />
+            <PaperLinkCard id="synthify:overview" title="全体の流れ" body="入れる、読ませる、辿る" hue={CATEGORY_HUES.overview} />
+            <PaperLinkCard id="synthify:documents" title="資料の取り込み" body="アップロードして処理へ渡す" hue={CATEGORY_HUES.documents} />
+            <PaperLinkCard id="synthify:worker" title="AIの処理" body="時間のかかる読み取りを任せる" hue={CATEGORY_HUES.worker} />
+            <PaperLinkCard id="synthify:tree" title="知識ツリー" body="論点と根拠をつなぐ" hue={CATEGORY_HUES.tree} />
+            <PaperLinkCard id="synthify:operations" title="共有と運用" body="チームで使い続ける" hue={CATEGORY_HUES.operations} />
           </div>
         </PaperSection>
       ),
     },
     {
       id: 'synthify:about:promise',
-      title: '提供価値',
-      description: '資料理解をチームで再利用できる形にする',
+      title: 'できること',
+      description: '読んだ内容を、あとで使える形にする',
       hue: CATEGORY_HUES.about,
       parentId: 'synthify:about',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Value" title="読むだけで終わらせない">
+        <PaperSection eyebrow="Value" title="読んだ後に、もう一度使える形で残す">
           <SignalGrid
             items={[
-              { label: '探索', value: '概念から根拠、反論、関連論点へ移動できる' },
-              { label: '検証', value: 'source chunk を使って生成結果の由来を確認する' },
-              { label: '共有', value: 'workspace 単位で同じ知識ツリーを扱う' },
+              { label: '探す', value: '気になる論点から、根拠や関連する話へ移動できる' },
+              { label: '確かめる', value: 'AIが出した内容を、元の資料に戻って確認できる' },
+              { label: '共有する', value: '同じ資料の理解を、チームで同じ形で見られる' },
+            ]}
+          />
+        </PaperSection>
+      ),
+    },
+    {
+      id: 'synthify:about:getting-started',
+      title: 'はじめかた',
+      description: 'まずは資料をひとつ置いてみる',
+      hue: CATEGORY_HUES.about,
+      parentId: 'synthify:about',
+      childIds: [],
+      content: (
+        <PaperSection eyebrow="Start" title="最初は、小さな資料から始めるのがおすすめです">
+          <StageRail
+            stages={[
+              { label: '1', title: 'Googleでログインする', body: 'アカウントを作ると、ワークスペースを使えるようになります。' },
+              { label: '2', title: 'ワークスペースを作る', body: '調査テーマやプロジェクトごとに、資料を置く場所を分けます。' },
+              { label: '3', title: '資料をアップロードする', body: 'まずはPDFやメモをひとつ置いて、処理の進み方を見ます。' },
+              { label: '4', title: '知識ツリーを開く', body: '気になる論点から根拠へ戻りながら、資料を読み直します。' },
             ]}
           />
         </PaperSection>
@@ -360,18 +382,18 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:about:fit',
       title: '向いている用途',
-      description: '複数回読み返す資料や複数人で扱う資料',
+      description: '一度読んで終わりにしたくない資料',
       hue: CATEGORY_HUES.about,
       parentId: 'synthify:about',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Use cases" title="あとから根拠を辿りたい資料に向いている">
+        <PaperSection eyebrow="Use cases" title="読み返すたびに迷子になりやすい資料に向いています">
           <PlainList
             items={[
-              '調査レポートや市場分析の論点整理',
-              '仕様書、設計書、RFC の理解とレビュー',
-              '研究資料や論文メモの関係整理',
-              '会議録やヒアリング記録からの知識化',
+              '調査レポートや市場分析を、あとから説明できる形にしたいとき',
+              '仕様書や設計書を読み、レビューの論点を整理したいとき',
+              '研究資料や論文メモのつながりを残したいとき',
+              '会議録やヒアリングから、次に見るべき論点を拾いたいとき',
             ]}
           />
         </PaperSection>
@@ -380,22 +402,22 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:overview',
       title: '全体像',
-      description: '資料を知識キャンバスに変える流れ',
+      description: '資料を入れてから、辿れる形になるまで',
       hue: CATEGORY_HUES.overview,
       parentId: 'synthify:about',
       childIds: ['synthify:overview:workflow', 'synthify:overview:reading'],
       content: (
-        <PaperSection eyebrow="Product" title="読む順番を固定しない調査環境">
+        <PaperSection eyebrow="Product" title="最初から最後まで読むだけではなく、気になる場所から開いていけます">
           <StageRail
             stages={[
-              { label: 'Input', title: '資料を入れる', body: 'workspace にファイルを置き、document と job を作る。' },
-              { label: 'Process', title: 'AI worker が読む', body: 'chunk、brief、item、relation に変換する。' },
-              { label: 'Explore', title: 'paper node で辿る', body: '全体像から根拠や反論へ開いて読む。' },
+              { label: 'Input', title: '資料を入れる', body: '読みたいファイルをワークスペースに置きます。' },
+              { label: 'Process', title: 'AIが読み解く', body: '大事な論点、根拠、関連する話を取り出します。' },
+              { label: 'Explore', title: '地図のように辿る', body: '全体像から、根拠や反論へ開いて読めます。' },
             ]}
           />
           <div style={cardGridStyle}>
-            <PaperLinkCard id="synthify:overview:workflow" title="ワークフロー" body="upload から tree 探索まで" />
-            <PaperLinkCard id="synthify:overview:reading" title="読み方" body="親子関係と横断リンクで読む" />
+            <PaperLinkCard id="synthify:overview:workflow" title="ワークフロー" body="資料を入れてから読むまで" />
+            <PaperLinkCard id="synthify:overview:reading" title="読み方" body="文脈を残したまま深掘りする" />
           </div>
         </PaperSection>
       ),
@@ -403,18 +425,18 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:overview:workflow',
       title: '基本ワークフロー',
-      description: 'workspace -> upload -> job -> tree',
+      description: '資料を置き、AIに読ませ、結果を辿る',
       hue: CATEGORY_HUES.overview,
       parentId: 'synthify:overview',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Flow" title="処理はワークスペースから始まる">
+        <PaperSection eyebrow="Flow" title="まず資料を置く場所を作ります">
           <StageRail
             stages={[
-              { label: 'Workspace', title: '読みたい資料を置く', body: '資料、tree、member、billing の境界を作る。' },
-              { label: 'Upload', title: 'document と job を作る', body: '保存先と処理状態を分け、UI は進捗を追う。' },
-              { label: 'Synthesis', title: 'AI worker が構造化する', body: 'chunk、brief、item、relation を生成する。' },
-              { label: 'Explore', title: 'paper node として読む', body: '文脈を保ったまま論点を開いていく。' },
+              { label: 'Workspace', title: '資料をまとめる場所を作る', body: 'プロジェクトや調査テーマごとに資料を分けます。' },
+              { label: 'Upload', title: 'ファイルをアップロードする', body: '処理の進み具合は画面上で追えます。' },
+              { label: 'Synthesis', title: 'AIが論点を組み立てる', body: '長い資料を、見出しや根拠のある単位へ整理します。' },
+              { label: 'Explore', title: 'paper node として読む', body: '気になる論点を開きながら読み進めます。' },
             ]}
           />
         </PaperSection>
@@ -423,7 +445,7 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:overview:reading',
       title: '探索体験',
-      description: '文脈を保ったまま paper node を展開',
+      description: 'どこから読んでいたかを見失いにくい',
       hue: CATEGORY_HUES.overview,
       parentId: 'synthify:overview',
       childIds: [],
@@ -431,30 +453,30 @@ function addProductPapers(map: Map<string, Paper>) {
         <PaperSection eyebrow="Reading" title="閉じたページではなく、広がる地図として読む">
           <NodePreview />
           <p style={{ margin: 0, color: 'var(--muted)' }}>
-            開いた node は親の文脈の中に残るため、全体像から詳細へ進んでも、どこから来たかを見失いにくい構造です。
+            詳細を開いても、元の文脈は画面に残ります。全体像を見ながら、必要なところだけ深掘りできます。
           </p>
         </PaperSection>
       ),
     },
     {
       id: 'synthify:documents',
-      title: 'ドキュメント入力',
-      description: 'ファイルを処理可能な単位へ変換',
+      title: '資料の取り込み',
+      description: 'ファイルを読みやすい材料に変える',
       hue: CATEGORY_HUES.documents,
       parentId: 'synthify:about',
       childIds: ['synthify:documents:intake', 'synthify:documents:chunks'],
       content: (
-        <PaperSection eyebrow="Input" title="資料を worker が扱える形に整える">
+        <PaperSection eyebrow="Input" title="まずは、資料を安心して預けられる形にします">
           <SignalGrid
             items={[
-              { label: 'Storage', value: 'アップロード先と内部処理URLを分ける' },
-              { label: 'Document', value: 'ファイル単位の metadata と状態' },
-              { label: 'Job', value: '非同期処理の進捗と結果' },
+              { label: '保存', value: 'アップロードしたファイルを安全に保管する' },
+              { label: '資料', value: 'ファイルごとに状態や情報を持つ' },
+              { label: '処理', value: '読み取りの進み具合を追えるようにする' },
             ]}
           />
           <div style={cardGridStyle}>
-            <PaperLinkCard id="synthify:documents:intake" title="取り込み" body="保存URLと document record" />
-            <PaperLinkCard id="synthify:documents:chunks" title="分割" body="source chunk と出典追跡" />
+            <PaperLinkCard id="synthify:documents:intake" title="取り込み" body="ファイルを受け取り、処理を始める" />
+            <PaperLinkCard id="synthify:documents:chunks" title="分割" body="長い資料を根拠に戻れる単位へ" />
           </div>
         </PaperSection>
       ),
@@ -462,29 +484,29 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:documents:intake',
       title: '取り込み',
-      description: 'アップロードURLと内部処理URLを分離',
+      description: 'アップロードと読み取りを分けて扱う',
       hue: CATEGORY_HUES.documents,
       parentId: 'synthify:documents',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Storage" title="保存と処理の境界を分ける">
-          <MetricRow label="UI" value="ファイル選択、drag and drop、upload status" />
-          <MetricRow label="API" value="document 作成、upload URL 発行、job 起動" />
-          <MetricRow label="worker" value="内部URLまたは mount path から読み込み" />
+        <PaperSection eyebrow="Storage" title="画面は軽く、重い処理は裏側で進めます">
+          <MetricRow label="画面" value="ファイルを選ぶ、落とす、進捗を見る" />
+          <MetricRow label="API" value="保存先を用意し、処理を開始する" />
+          <MetricRow label="worker" value="保存された資料を読み、構造化する" />
         </PaperSection>
       ),
     },
     {
       id: 'synthify:documents:chunks',
       title: 'チャンク分割',
-      description: '根拠へ戻れる処理単位',
+      description: '元の資料へ戻れる小さな単位',
       hue: CATEGORY_HUES.documents,
       parentId: 'synthify:documents',
       childIds: [],
       content: (
         <PaperSection eyebrow="Chunks" title="長い資料を意味単位に分ける">
           <p style={{ margin: 0 }}>
-            見出し、段落、ファイル境界を使って source chunk を作ります。tree item は chunk を参照するため、生成結果から元の資料断片に戻れる設計です。
+            見出しや段落を手がかりに、長い資料を小さな断片に分けます。あとでAIの出力を見たときに、どの部分の資料から来た話なのかを辿れるようにするためです。
           </p>
         </PaperSection>
       ),
@@ -492,41 +514,41 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:worker',
       title: 'AI worker',
-      description: '抽出・要約・構造化を実行',
+      description: '時間のかかる読み取りを担当する',
       hue: CATEGORY_HUES.worker,
       parentId: 'synthify:about',
       childIds: ['synthify:worker:pipeline', 'synthify:worker:lifecycle'],
       content: (
-        <PaperSection eyebrow="Worker" title="重い処理は job として非同期に進む">
+        <PaperSection eyebrow="Worker" title="長い資料を読む仕事は、裏側のworkerに任せます">
           <StageRail
             stages={[
-              { label: 'Extract', title: 'テキストと構造を取り出す', body: 'ファイルを読み、処理しやすい入力へ変換する。' },
-              { label: 'Brief', title: '重要点を圧縮する', body: '長い文脈を後続処理に渡せる粒度へ整える。' },
-              { label: 'Tree', title: 'item と relation を生成', body: '概念、主張、根拠、反論を接続する。' },
+              { label: 'Extract', title: '本文を取り出す', body: 'ファイルから読めるテキストと構造を取り出します。' },
+              { label: 'Brief', title: '重要点をつかむ', body: '長い文脈を、次に扱いやすい粒度へ整えます。' },
+              { label: 'Tree', title: '論点をつなぐ', body: '概念、主張、根拠、反論の関係を作ります。' },
             ]}
           />
           <div style={cardGridStyle}>
-            <PaperLinkCard id="synthify:worker:pipeline" title="pipeline" body="抽出から永続化まで" />
-            <PaperLinkCard id="synthify:worker:lifecycle" title="lifecycle" body="queued/running/succeeded/failed" />
+            <PaperLinkCard id="synthify:worker:pipeline" title="処理の流れ" body="抽出から保存まで" />
+            <PaperLinkCard id="synthify:worker:lifecycle" title="処理状態" body="待機中、実行中、完了、失敗" />
           </div>
         </PaperSection>
       ),
     },
     {
       id: 'synthify:worker:pipeline',
-      title: '処理 pipeline',
-      description: 'tool 実行を組み合わせる',
+      title: '処理の流れ',
+      description: '資料を少しずつ読みやすい形へ変える',
       hue: CATEGORY_HUES.worker,
       parentId: 'synthify:worker',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Pipeline" title="同じ job の中で複数段階を進める">
+        <PaperSection eyebrow="Pipeline" title="一度に全部を決めず、段階ごとに整えます">
           <PlainList
             items={[
-              'テキスト抽出と正規化',
-              'semantic chunk と brief の生成',
-              '概念・主張・根拠・反論の構造化',
-              'tree item と relation の永続化',
+              'まず本文を取り出し、読みやすい形に整える',
+              '長い資料を意味のあるまとまりに分ける',
+              '概念、主張、根拠、反論を見つける',
+              'あとから開ける paper node として保存する',
             ]}
           />
         </PaperSection>
@@ -534,82 +556,82 @@ function addProductPapers(map: Map<string, Paper>) {
     },
     {
       id: 'synthify:worker:lifecycle',
-      title: 'job lifecycle',
-      description: '進捗、失敗、再取得の基準',
+      title: '処理状態',
+      description: '今どこまで進んでいるかを見る',
       hue: CATEGORY_HUES.worker,
       parentId: 'synthify:worker',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Status" title="UI に返すべき状態を job に集める">
-          <MetricRow label="queued" value="処理待ち。アップロード後の初期状態" />
-          <MetricRow label="running" value="進捗とメッセージを workspace paper に表示" />
-          <MetricRow label="succeeded" value="tree を再取得し、新しい document root を開く" />
-          <MetricRow label="failed" value="失敗理由を残し、再試行判断に使う" />
+        <PaperSection eyebrow="Status" title="待っている間も、何が起きているか分かるようにします">
+          <MetricRow label="queued" value="処理待ち。アップロード直後の状態です" />
+          <MetricRow label="running" value="読み取り中。進捗とメッセージを表示します" />
+          <MetricRow label="succeeded" value="完了。新しい知識ツリーを開けます" />
+          <MetricRow label="failed" value="失敗。理由を残し、やり直しの判断に使います" />
         </PaperSection>
       ),
     },
     {
       id: 'synthify:tree',
       title: '知識ツリー',
-      description: '概念・主張・根拠を paper node に投影',
+      description: '論点と根拠を、開ける形で並べる',
       hue: CATEGORY_HUES.tree,
       parentId: 'synthify:about',
       childIds: ['synthify:tree:item', 'synthify:tree:sources', 'synthify:tree:links'],
       content: (
-        <PaperSection eyebrow="Tree" title="API の item を paper node として読む">
+        <PaperSection eyebrow="Tree" title="資料の中身を、紙片のように開いて読めます">
           <NodePreview />
           <div style={cardGridStyle}>
-            <PaperLinkCard id="synthify:tree:item" title="item model" body="title, description, content" />
-            <PaperLinkCard id="synthify:tree:sources" title="source" body="根拠 chunk を追跡" />
-            <PaperLinkCard id="synthify:tree:links" title="relation" body="supports / contradicts など" />
+            <PaperLinkCard id="synthify:tree:item" title="paper node" body="ひとつの論点や根拠" />
+            <PaperLinkCard id="synthify:tree:sources" title="出典" body="元資料へ戻る手がかり" />
+            <PaperLinkCard id="synthify:tree:links" title="つながり" body="支える、反論する、関連する" />
           </div>
         </PaperSection>
       ),
     },
     {
       id: 'synthify:tree:item',
-      title: 'item model',
-      description: 'paper node の最小単位',
+      title: 'paper node',
+      description: '知識ツリーの小さな読み物',
       hue: CATEGORY_HUES.tree,
       parentId: 'synthify:tree',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Item" title="一覧性と本文を分けて持つ">
-          <MetricRow label="title" value="node header と breadcrumb に表示" />
-          <MetricRow label="description" value="縮小表示や一覧で読める短い説明" />
-          <MetricRow label="content" value="本文 HTML。data-paper-id で関連 node を開ける" />
+        <PaperSection eyebrow="Item" title="短い見出しと本文を分けて持ちます">
+          <MetricRow label="title" value="何についての紙片かを示す見出し" />
+          <MetricRow label="description" value="一覧で読める短い説明" />
+          <MetricRow label="content" value="詳しい本文。関連する紙片へも移動できます" />
         </PaperSection>
       ),
     },
     {
       id: 'synthify:tree:sources',
-      title: 'source chunk',
-      description: '生成結果から元資料へ戻る',
+      title: '出典',
+      description: 'AIの出力から元資料へ戻る',
       hue: CATEGORY_HUES.tree,
       parentId: 'synthify:tree',
       childIds: [],
       content: (
         <PaperSection eyebrow="Evidence" title="AI の出力に根拠の足場を残す">
           <p style={{ margin: 0 }}>
-            各 item は source chunk ids を持てます。要約や主張がどの資料断片に由来するのかを辿れるため、後から検証する読み方に向いています。
+            要約や主張だけを見ると、どこまで信じてよいか判断しづらくなります。Synthifyでは、元の資料のどのあたりから来た話なのかを辿れるようにしておきます。
           </p>
         </PaperSection>
       ),
     },
     {
       id: 'synthify:tree:links',
-      title: '関係リンク',
-      description: '階層以外の読み筋',
+      title: 'つながり',
+      description: '親子関係だけではない読み筋',
       hue: CATEGORY_HUES.tree,
       parentId: 'synthify:tree',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Relations" title="親子関係だけでは表せないつながり">
+        <PaperSection eyebrow="Relations" title="話と話の関係も残します">
           <PlainList
             items={[
-              'supports: ある主張を支える根拠',
-              'contradicts: 反論や制約になる情報',
-              'measured_by: 指標やデータに接続する関係',
+              'ある主張を支える根拠',
+              '反論や制約になる情報',
+              '指標やデータに接続する関係',
             ]}
           />
         </PaperSection>
@@ -618,37 +640,37 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:operations',
       title: '共有と運用',
-      description: 'ワークスペース、権限、ログ、使用量',
+      description: 'チームで使い続けるための仕組み',
       hue: CATEGORY_HUES.operations,
       parentId: 'synthify:about',
       childIds: ['synthify:operations:workspace', 'synthify:operations:observability'],
       content: (
-        <PaperSection eyebrow="Operations" title="探索体験と運用管理を同じ単位で扱う">
+        <PaperSection eyebrow="Operations" title="資料を読む体験だけでなく、使い続けるための管理も持ちます">
           <SignalGrid
             items={[
-              { label: 'Workspace', value: '資料、tree、member の共有境界' },
-              { label: 'Access', value: 'owner / editor / viewer で操作を分ける' },
-              { label: 'Metering', value: 'LLM token とコストを説明可能にする' },
+              { label: 'Workspace', value: '資料と知識ツリーをまとめる単位' },
+              { label: 'Access', value: '役割ごとにできる操作を分ける' },
+              { label: 'Metering', value: 'AIの使用量とコストを見えるようにする' },
             ]}
           />
           <div style={cardGridStyle}>
-            <PaperLinkCard id="synthify:operations:workspace" title="workspace" body="共有と権限の境界" />
-            <PaperLinkCard id="synthify:operations:observability" title="observability" body="job log と使用量" />
+            <PaperLinkCard id="synthify:operations:workspace" title="ワークスペース" body="共有と権限のまとまり" />
+            <PaperLinkCard id="synthify:operations:observability" title="ログと使用量" body="処理とコストを見える化" />
           </div>
         </PaperSection>
       ),
     },
     {
       id: 'synthify:operations:workspace',
-      title: 'workspace',
+      title: 'ワークスペース',
       description: '資料と知識ツリーの共有単位',
       hue: CATEGORY_HUES.operations,
       parentId: 'synthify:operations',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Boundary" title="権限とデータのまとまり">
+        <PaperSection eyebrow="Boundary" title="同じテーマの資料を、同じ場所で扱います">
           <p style={{ margin: 0 }}>
-            owner、editor、viewer のロールで操作範囲を分け、アップロード、閲覧、招待、管理を workspace 単位で扱います。
+            誰が資料を追加できるか、誰が読めるか、誰を招待できるかをワークスペース単位で分けます。調査テーマやプロジェクトごとに切り分けやすい形です。
           </p>
         </PaperSection>
       ),
@@ -656,14 +678,14 @@ function addProductPapers(map: Map<string, Paper>) {
     {
       id: 'synthify:operations:observability',
       title: 'ログと使用量',
-      description: '処理状況とコストの見える化',
+      description: '処理の様子とコストを見る',
       hue: CATEGORY_HUES.operations,
       parentId: 'synthify:operations',
       childIds: [],
       content: (
-        <PaperSection eyebrow="Visibility" title="job と LLM 使用量を追跡する">
+        <PaperSection eyebrow="Visibility" title="裏側で何が起きたかを後から確認できます">
           <p style={{ margin: 0 }}>
-            job log は処理の進行と失敗原因を残し、LLM metering はモデル、token、コストの把握に使います。探索だけでなく運用判断にも必要な層です。
+            処理がどこまで進んだか、どこで失敗したか、どのくらいAIを使ったかを残します。うまくいかなかった時の確認や、予算管理に使います。
           </p>
         </PaperSection>
       ),
@@ -708,14 +730,14 @@ export function useLandingPaperMap({
     map.set(ROOT_ID, {
       id: ROOT_ID,
       title: 'Synthify',
-      description: 'Knowledge Synthesis',
+      description: '資料を、あとから辿れる知識にする',
       hue: CATEGORY_HUES.overview,
       parentId: null,
       childIds: rootChildIds,
       content: (
-        <PaperSection eyebrow="Synthify" title="ドキュメントから、知識構造へ">
+        <PaperSection eyebrow="Synthify" title="資料を読んで、使える形で残す">
           <p style={{ margin: 0, color: 'var(--muted)' }}>
-            まずはログイン、プロダクト説明、処理の仕組み、ワークスペースへ進めます。
+            Synthifyは、長い資料から論点や根拠を取り出し、あとから開いて辿れる地図のように整理します。まずはプロダクトの考え方を見るか、ワークスペースに資料を置いて始めてください。
           </p>
           <div style={cardGridStyle}>
             {buildIntroCards(user, hasBilling).map((card) => (
