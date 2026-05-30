@@ -46,8 +46,22 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *s
 // configured explicitly for local runs; production detects them from Cloud Run
 // metadata when env vars are omitted.
 func buildClientConfig(cfg config.LLM, logger *slog.Logger) *genai.ClientConfig {
+	if cfg.APIKey != "" {
+		logger.Info("worker.llm_backend", "backend", "gemini_api", "model", cfg.GeminiModel, "api_key_configured", true)
+		return clientConfig(cfg)
+	}
 	logger.Info("worker.llm_backend", "backend", "vertex_ai",
 		"project", cfg.GCPProject, "location", cfg.VertexLocation, "model", cfg.GeminiModel)
+	return clientConfig(cfg)
+}
+
+func clientConfig(cfg config.LLM) *genai.ClientConfig {
+	if cfg.APIKey != "" {
+		return &genai.ClientConfig{
+			Backend: genai.BackendGeminiAPI,
+			APIKey:  cfg.APIKey,
+		}
+	}
 	return &genai.ClientConfig{
 		Backend:  genai.BackendVertexAI,
 		Project:  cfg.GCPProject,

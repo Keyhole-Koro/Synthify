@@ -35,6 +35,7 @@ type Store struct {
 
 type LLM struct {
 	GeminiModel    string
+	APIKey         string
 	LogPayload     bool
 	GCPProject     string
 	VertexLocation string
@@ -83,6 +84,7 @@ func LoadLLM() LLM {
 	}
 	return LLM{
 		GeminiModel:    get("GEMINI_MODEL", "gemini-3-flash-preview"),
+		APIKey:         util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
 		LogPayload:     os.Getenv("LOG_LLM_PAYLOAD") == "true",
 		GCPProject:     project,
 		VertexLocation: location,
@@ -93,7 +95,7 @@ func LoadLLM() LLM {
 // the genai backend without a project ID, so init must fail fast in that case;
 // location falls back to a constant so it is never the blocker.
 func (c LLM) Enabled() bool {
-	return c.GCPProject != ""
+	return c.GCPProject != "" || c.APIKey != ""
 }
 
 // detectProjectFromMetadata reads project from the Cloud Run metadata server

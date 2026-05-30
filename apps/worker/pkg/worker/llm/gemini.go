@@ -28,11 +28,7 @@ type GeminiClient struct {
 }
 
 func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem) (*GeminiClient, error) {
-	clientCfg := &genai.ClientConfig{
-		Backend:  genai.BackendVertexAI,
-		Project:  cfg.GCPProject,
-		Location: cfg.VertexLocation,
-	}
+	clientCfg := clientConfig(cfg)
 	client, err := genai.NewClient(ctx, clientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("init gemini client: %w", err)
