@@ -16,6 +16,10 @@ worker は job の進捗と完了状態を Firestore に書きます。frontend 
 
 Firestore は通知と表示用の状態で、workspace/document/tree の正本は Postgres/API 側にあります。この構成により、frontend から API への progress polling をなくしています。
 
+### paper-in-paper の iframe
+
+paper-in-paper の HTML 本文は iframe の中で表示します。各 paper の CSS や script を親画面から隔離しつつ、paper link の open / drag / resize だけを `postMessage` で親に戻します。
+
 ### ブラウザから GCS へ直接アップロード
 
 ドキュメントの実体は API を経由しません。API は `CreateDocument` で document record、upload reservation、quota check、signed upload URL 発行をまとめてやります。frontend は返ってきた signed URL に対して、GCS へ直接アップロードします。
