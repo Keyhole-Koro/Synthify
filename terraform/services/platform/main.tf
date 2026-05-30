@@ -206,12 +206,23 @@ resource "google_project_iam_member" "eval_aiplatform_user" {
 # (google_cloud_run_v2_service_iam_member.api_invokes_worker), so the SA
 # only needs:
 #   1. cloudtasks.enqueuer to call CreateTask, and
-#   2. iam.serviceAccountTokenCreator on itself so Cloud Tasks can mint an
-#      OIDC token with the API SA as the audience-target identity.
+#   2. iam.serviceAccountUser on itself: CreateTask with an OidcToken whose
+#      ServiceAccountEmail is the API SA requires the caller to actAs that SA,
+#      and iam.serviceAccounts.actAs lives only in serviceAccountUser (NOT in
+#      serviceAccountTokenCreator). Without it CreateTask returns
+#      PermissionDenied and the job is stuck in queued.
+#   3. iam.serviceAccountTokenCreator on itself so Cloud Tasks can later mint
+#      the OIDC token (getOpenIdToken) when it pushes to the worker.
 resource "google_project_iam_member" "api_cloudtasks_enqueuer" {
   project = var.project_id
   role    = "roles/cloudtasks.enqueuer"
   member  = "serviceAccount:${module.api_service_account.email}"
+}
+
+resource "google_service_account_iam_member" "api_self_user" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.api_service_account.email}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${module.api_service_account.email}"
 }
 
 resource "google_service_account_iam_member" "api_self_token_creator" {
