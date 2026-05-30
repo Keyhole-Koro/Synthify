@@ -30,7 +30,7 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *s
 	if adkModel != nil {
 		q := QuotaFor(cfg.GeminiModel)
 		logger.Info("worker.llm_quota_reference",
-			"model", q.Model, "tier", q.Tier, "rpm", q.RPM, "tpm", q.TPM, "rpd", q.RPD)
+			"model", q.Model, "tier", q.Tier, "rpm", q.RPM)
 		adkModel = NewRetryingModel(adkModel, RetryConfig{}, logger)
 	}
 
