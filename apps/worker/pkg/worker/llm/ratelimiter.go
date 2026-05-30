@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/time/rate"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -43,17 +44,48 @@ func (c RetryConfig) withDefaults() RetryConfig {
 // RetryingModel は 429 / 5xx / UNAVAILABLE を捕捉して指数バックオフで
 // 再試行する model.LLM ラッパー。successful response がひとつでも
 // yield された後の error は再試行せずそのまま通す。
+//
+// 加えて、クライアント側の流量制御として model 固有の RPM (QuotaFor) を
+// 上限とする rate limiter を持つ。これが無いと agent ループが連続で Vertex
+// を叩き、preview 帯の極小 RPM を即超過して 429 が多発する。limiter で
+// 呼び出しを平滑化し、リトライ/バックオフはあくまで保険として残す。
 type RetryingModel struct {
-	inner  model.LLM
-	cfg    RetryConfig
-	logger *slog.Logger
+	inner   model.LLM
+	cfg     RetryConfig
+	limiter *rate.Limiter
+	logger  *slog.Logger
 }
 
 func NewRetryingModel(inner model.LLM, cfg RetryConfig, logger *slog.Logger) *RetryingModel {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &RetryingModel{inner: inner, cfg: cfg.withDefaults(), logger: logger}
+	return &RetryingModel{
+		inner:   inner,
+		cfg:     cfg.withDefaults(),
+		limiter: newRateLimiter(inner.Name()),
+		logger:  logger,
+	}
+}
+
+// newRateLimiter builds a per-minute limiter from the model's reference RPM.
+// We allow a small burst (up to the full minute's budget, capped) so short
+// bursts are not serialized to a crawl, while the steady-state rate stays
+// under the quota.
+func newRateLimiter(model string) *rate.Limiter {
+	rpm := QuotaFor(model).RPM
+	if rpm <= 0 {
+		rpm = defaultQuota.RPM
+	}
+	perSecond := rate.Limit(float64(rpm) / 60.0)
+	burst := rpm
+	if burst > 10 {
+		burst = 10
+	}
+	if burst < 1 {
+		burst = 1
+	}
+	return rate.NewLimiter(perSecond, burst)
 }
 
 func (m *RetryingModel) Name() string { return m.inner.Name() }
@@ -63,6 +95,15 @@ func (m *RetryingModel) GenerateContent(ctx context.Context, req *model.LLMReque
 		for attempt := 1; attempt <= m.cfg.MaxAttempts; attempt++ {
 			yielded := false
 			var finalErr error
+
+			// Smooth the call rate under the model's RPM before every attempt
+			// (the retry itself also consumes a token, so a backoff storm is
+			// bounded by the limiter too). A cancelled context here surfaces as
+			// the call error rather than a retryable failure.
+			if err := m.limiter.Wait(ctx); err != nil {
+				yield(nil, err)
+				return
+			}
 
 			for resp, err := range m.inner.GenerateContent(ctx, req, stream) {
 				if err == nil {
