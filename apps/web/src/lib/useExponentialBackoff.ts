@@ -31,15 +31,18 @@ export function useExponentialBackoff({
     }
   }, []);
 
-  // Initialize the countdown whenever a backoff episode (re)starts — i.e. when
-  // the error appears/changes or a retry advances retryCount — and reset it when
-  // the error clears. Adjusting state during render (instead of in an effect)
-  // avoids the cascading re-render that synchronous setState in useEffect causes.
-  const [prevError, setPrevError] = useState(error);
-  const [prevRetryCount, setPrevRetryCount] = useState(retryCount);
-  if (error !== prevError || retryCount !== prevRetryCount) {
-    setPrevError(error);
-    if (error) {
+  // Initialize the countdown whenever a backoff episode (re)starts — i.e. when an
+  // error first appears or a retry advances retryCount — and reset it when the
+  // error clears. Adjusting state during render (instead of in an effect) avoids
+  // the cascading re-render that synchronous setState in useEffect causes. We key
+  // off a boolean rather than the error's identity, since callers may pass a fresh
+  // error object on every render.
+  const hasError = !!error;
+  const [prevHasError, setPrevHasError] = useState(false);
+  const [prevRetryCount, setPrevRetryCount] = useState(0);
+  if (hasError !== prevHasError || retryCount !== prevRetryCount) {
+    setPrevHasError(hasError);
+    if (hasError) {
       setPrevRetryCount(retryCount);
       setNextRetryInMs(Math.min(initialDelayMs * Math.pow(2, retryCount), maxDelayMs));
     } else {
