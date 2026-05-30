@@ -112,6 +112,26 @@ func (l *UsageLimiter) increment(ctx context.Context, llmCalls, toolRuns, itemCr
 	counters.transformCreations += transformCreations
 	counters.transformRuns += transformRuns
 	capability := counters.capability
+
+	// Surface the running model-call count for every model invocation. This is
+	// the only place the count lives (it drives MaxLLMCalls enforcement), and
+	// it sits on the ADK agent path — the path that actually drives Vertex — so
+	// it answers "how many calls did this job make before the 429?", which the
+	// success-only GeminiClient logging could not.
+	if llmCalls > 0 {
+		maxLLM := 0
+		if capability != nil {
+			maxLLM = capability.MaxLLMCalls
+		}
+		joblog.FromContext(ctx).Log(ctx, joblog.Event{
+			JobID:   jobID,
+			Level:   joblog.INFO,
+			Event:   "llm.call",
+			Message: fmt.Sprintf("model call #%d (max %d)", counters.llmCalls, maxLLM),
+			Detail:  map[string]any{"llm_calls": counters.llmCalls, "max_llm_calls": maxLLM},
+		})
+	}
+
 	if capability == nil {
 		return nil
 	}
