@@ -3,12 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /workspaces/{workspaceId}/jobs/{jobId} {
-      allow get: if request.auth != null;
+      // get = 単一ドキュメント取得 (useJobStatus), list = コレクションクエリ
+      // (useWorkspaceJobStatuses)。list 権限はドキュメントワイルドカードの
+      // match 内で宣言しないと list クエリに適用されないため、両方をここに置く。
+      allow get, list: if request.auth != null;
       allow write: if false;
-    }
-
-    match /workspaces/{workspaceId}/jobs {
-      allow list: if request.auth != null;
     }
 
     match /{document=**} {
