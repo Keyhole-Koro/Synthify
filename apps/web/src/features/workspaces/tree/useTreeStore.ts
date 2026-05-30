@@ -6,6 +6,7 @@ import { SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import { findDocumentRootItemIds, findRootItemId } from '@/features/tree/buildTree';
 import { getSubtree, getTree, type SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
+import { log } from '@/lib/observability/log';
 
 export interface RefreshResult {
   rootItemId: string;
@@ -131,7 +132,7 @@ export function useTreeStore(workspaces: Workspace[]): TreeStore {
       loadedSubtreeItemsRef.current.add(itemId);
       return items;
     } catch (err) {
-      console.error('Failed to load subtree:', err);
+      log.error('Failed to load subtree', { source: 'tree_load_subtree', workspaceId, itemId }, err);
       return [];
     } finally {
       loadingSubtreeItemsRef.current.delete(itemId);

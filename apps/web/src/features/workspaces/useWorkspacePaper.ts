@@ -5,6 +5,7 @@ import { useJobStatus } from '@/features/jobs/useJobStatus';
 import { useWorkspaceJobStatuses } from '@/features/jobs/useWorkspaceJobStatuses';
 import type { Workspace } from '@/features/workspaces/api';
 import { toAppError } from '@/lib/error_normalize';
+import { log } from '@/lib/observability/log';
 import type { WorkspacePaperRuntimeState } from './WorkspacePaper';
 
 const COMPLETION_MESSAGE = '解析が完了しました。';
@@ -93,13 +94,13 @@ export function useWorkspacePaper({
       suggestedNameRef.current = null;
       setUploadMessage('アップロードしました。解析を開始します。');
     } catch (err) {
-      console.error('Upload failed:', err);
+      log.error('Upload failed', { source: 'workspace_upload', workspaceId }, err);
       const appErr = toAppError(err);
       setUploadMessage(appErr.message);
     } finally {
       setUploading(false);
     }
-  }, [onUploadFile]);
+  }, [onUploadFile, workspaceId]);
 
   useEffect(() => {
     if (!jobStatus || !activeJobId) return;
@@ -144,13 +145,13 @@ export function useWorkspacePaper({
       await onRenameWorkspace(nextName);
       setEditingName(false);
     } catch (err) {
-      console.error('Rename workspace failed:', err);
+      log.error('Rename workspace failed', { source: 'workspace_rename', workspaceId }, err);
       const appErr = toAppError(err);
       setNameError(appErr.message);
     } finally {
       setSavingName(false);
     }
-  }, [draftName, onRenameWorkspace, workspaceName]);
+  }, [draftName, onRenameWorkspace, workspaceName, workspaceId]);
 
   const startRename = useCallback(() => {
     setDraftName(workspaceName);

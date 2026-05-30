@@ -1,4 +1,5 @@
 import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-paper';
+import { log } from '@/lib/observability/log';
 
 const STORAGE_KEY = 'synthify_expansion_map';
 const FOCUS_KEY = 'synthify_focused_item_id';
@@ -24,11 +25,7 @@ function saveExpansionMap(map: ExpansionMap, scope: string) {
     const serialized = JSON.stringify(entries);
     localStorage.setItem(storageKey(STORAGE_KEY, scope), serialized);
   } catch (e) {
-    console.error(
-      'Failed to save expansion map to localStorage',
-      e,
-      'mapSize=', map.size,
-    );
+    log.error('Failed to save expansion map to localStorage', { source: 'expansion_persistence', mapSize: map.size }, e);
   }
 }
 
@@ -40,7 +37,7 @@ function loadExpansionMap(scope: string): ExpansionMap | null {
     const entries = JSON.parse(serialized);
     return new Map(entries);
   } catch (e) {
-    console.error('Failed to load expansion map from localStorage', e);
+    log.error('Failed to load expansion map from localStorage', { source: 'expansion_persistence' }, e);
     return null;
   }
 }

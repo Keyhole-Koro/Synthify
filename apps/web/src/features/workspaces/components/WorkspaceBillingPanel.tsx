@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createCheckoutSession, createPortalSession, type BillingCurrency } from '@/features/billing/api';
 import { type Workspace } from '@/features/workspaces/api';
 import { WorkspacePlan } from '@/gen/proto/synthify/app/v1/workspace_pb';
+import { log } from '@/lib/observability/log';
 
 interface WorkspaceBillingPanelProps {
   workspace: Workspace;
@@ -24,7 +25,7 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
       const url = await createCheckoutSession(workspace.ownerId, currency);
       window.location.assign(url);
     } catch (err) {
-      console.error('Checkout failed:', err);
+      log.error('Checkout failed', { source: 'billing_checkout', ownerId: workspace.ownerId }, err);
       setError('決済画面を開けませんでした。');
       setPendingAction(null);
     }
@@ -37,7 +38,7 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
       const url = await createPortalSession(workspace.ownerId);
       window.location.assign(url);
     } catch (err) {
-      console.error('Billing portal failed:', err);
+      log.error('Billing portal failed', { source: 'billing_portal', ownerId: workspace.ownerId }, err);
       setError('課金管理画面を開けませんでした。');
       setPendingAction(null);
     }

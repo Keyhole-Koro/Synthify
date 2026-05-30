@@ -6,6 +6,7 @@ import { signInUser } from '@/features/auth/userApi';
 import { getInitialAuthUser, signInWithGoogleSession, subscribeAuthUser, type AuthUser } from '@/features/auth/session';
 import { type AppError } from '@/lib/errors';
 import { toAppError } from '@/lib/error_normalize';
+import { log } from '@/lib/observability/log';
 
 export function useAuthState() {
   const [user, setUser] = useState<AuthUser | null>(getInitialAuthUser);
@@ -29,7 +30,7 @@ export function useAuthState() {
       
       setWorkspaces(ws);
     } catch (err) {
-      console.error('Failed to provision/list workspaces:', err);
+      log.error('Failed to provision/list workspaces', { source: 'auth_fetch_workspaces' }, err);
       setWorkspaceError(toAppError(err));
     }
   }, []);
@@ -56,7 +57,7 @@ export function useAuthState() {
     try {
       await signInWithGoogleSession();
     } catch (err) {
-      console.error(err);
+      log.error('Google sign-in failed', { source: 'auth_google_signin' }, err);
       setAuthError(toAppError(err));
       setLoading(false);
     }

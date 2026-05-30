@@ -9,6 +9,7 @@ import {
   type User,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { log } from '@/lib/observability/log';
 
 export type AuthUser = {
   id: string;
@@ -69,7 +70,7 @@ export async function signOutSession(): Promise<void> {
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   if (!auth.currentUser) {
-    console.warn('getAuthHeaders: no currentUser');
+    log.warn('getAuthHeaders called with no currentUser', { source: 'auth_headers' });
     return {};
   }
   const token = await auth.currentUser.getIdToken();

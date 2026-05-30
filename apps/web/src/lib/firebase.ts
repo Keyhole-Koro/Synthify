@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
 import { initializeFirestore, connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
 import { env } from '@/config/env';
+import { log } from '@/lib/observability/log';
 
 let app: FirebaseApp;
 let auth: Auth;
@@ -35,14 +36,14 @@ if (!getApps().length) {
         try {
           connectAuthEmulator(auth, env.firebase.authEmulatorUrl, { disableWarnings: true });
         } catch (e) {
-          console.warn('[Firebase] Auth emulator connection error:', e);
+          log.warn('[Firebase] Auth emulator connection error', { source: 'firebase_auth_emulator', error: String(e) });
         }
       }
       if (env.firebase.firestoreEmulatorHost && env.firebase.firestoreEmulatorPort) {
         try {
           connectFirestoreEmulator(db, env.firebase.firestoreEmulatorHost, env.firebase.firestoreEmulatorPort);
         } catch (e) {
-          console.warn('[Firebase] Firestore emulator connection error:', e);
+          log.warn('[Firebase] Firestore emulator connection error', { source: 'firebase_firestore_emulator', error: String(e) });
         }
       }
       win._firebaseEmulatorsConnected = true;

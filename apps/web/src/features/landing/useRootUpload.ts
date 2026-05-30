@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { createWorkspace, type Workspace } from '@/features/workspaces/api';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
 import { toAppError } from '@/lib/error_normalize';
+import { log } from '@/lib/observability/log';
 
 const NEW_WORKSPACE_NAME = '新規ワークスペース';
 
@@ -43,7 +44,7 @@ export function useRootUpload({
           initialUploadMessage: 'アップロードしました。解析を開始します。',
         });
       } catch (err) {
-        console.error('Root upload failed after workspace creation:', err);
+        log.error('Root upload failed after workspace creation', { source: 'root_upload', workspaceId: ws.workspaceId }, err);
         const appError = toAppError(err);
         injectRuntimeState(ws.workspaceId, {
           initialUploading: false,

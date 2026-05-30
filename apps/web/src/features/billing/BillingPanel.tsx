@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { getBillingAccount, createCheckoutSession, createPortalSession, type BillingAccount, type BillingCurrency } from '@/features/billing/api';
+import { log } from '@/lib/observability/log';
 
 interface BillingPanelProps {
   accountId: string;
@@ -14,7 +15,10 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getBillingAccount(accountId).then(setAccount).catch(() => setError('課金情報を取得できませんでした。'));
+    getBillingAccount(accountId).then(setAccount).catch((err) => {
+      log.error('Failed to load billing account', { source: 'billing_load_account', accountId }, err);
+      setError('課金情報を取得できませんでした。');
+    });
   }, [accountId]);
 
   if (!account) {
@@ -37,7 +41,8 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
     try {
       const url = await createCheckoutSession(accountId, currency);
       window.location.assign(url);
-    } catch {
+    } catch (err) {
+      log.error('Checkout failed', { source: 'billing_checkout', accountId }, err);
       setError('決済画面を開けませんでした。');
       setPendingAction(null);
     }
@@ -49,7 +54,8 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
     try {
       const url = await createPortalSession(accountId);
       window.location.assign(url);
-    } catch {
+    } catch (err) {
+      log.error('Billing portal failed', { source: 'billing_portal', accountId }, err);
       setError('課金管理画面を開けませんでした。');
       setPendingAction(null);
     }

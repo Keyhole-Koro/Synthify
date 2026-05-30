@@ -16,6 +16,7 @@ import { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
 import { AUTH_ID, ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 
 import { type AppError } from '@/lib/errors';
+import { log } from '@/lib/observability/log';
 
 interface UseLandingPaperMapProps {
   user: AuthUser | null;
@@ -714,7 +715,7 @@ export function useLandingPaperMap({
 }: UseLandingPaperMapProps) {
   const paperMap = useMemo<PaperMap>(() => {
     if (typeof window !== 'undefined' && (window as { __pipDebug?: boolean }).__pipDebug) {
-      console.log('[pip-debug] useLandingPaperMap regenerate', { loading, userId: user?.id, workspacesCount: workspaces.length });
+      log.debug('[pip-debug] useLandingPaperMap regenerate', { source: 'pip_debug', loading, userId: user?.id, workspacesCount: workspaces.length });
     }
 
     const map = new Map<string, Paper>();

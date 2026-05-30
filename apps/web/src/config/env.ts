@@ -14,6 +14,18 @@ const rawEnvSchema = z.object({
   NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: z.string().url().optional(),
   NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: z.string().min(1).optional(),
   NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: z.coerce.number().int().positive().optional(),
+  // New Relic Browser. All optional — absent license/app id means the agent is
+  // simply not initialized (no-op), so dev / preview builds don't break.
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY: z.string().min(1).optional(),
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID: z.string().min(1).optional(),
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID: z.string().min(1).optional(),
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY: z.string().min(1).optional(),
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID: z.string().min(1).optional(),
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_BEACON: z.string().min(1).optional(),
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_ERROR_BEACON: z.string().min(1).optional(),
+  // Force verbose console output regardless of NODE_ENV (e.g. a preview deploy
+  // where NODE_ENV=production but you still want debug logs).
+  NEXT_PUBLIC_DEBUG_LOGS: z.enum(['true', 'false']).optional(),
 });
 
 const rawEnv = rawEnvSchema.parse({
@@ -29,6 +41,14 @@ const rawEnv = rawEnvSchema.parse({
   NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL,
   NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST,
   NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: process.env.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_BEACON: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_BEACON,
+  NEXT_PUBLIC_NEW_RELIC_BROWSER_ERROR_BEACON: process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_ERROR_BEACON,
+  NEXT_PUBLIC_DEBUG_LOGS: process.env.NEXT_PUBLIC_DEBUG_LOGS,
 });
 
 function normalizeBaseUrl(url: string): string {
@@ -58,6 +78,33 @@ function browserReachableHost(host: string): string {
   return host;
 }
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+const newRelicBeacon = rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_BEACON ?? 'bam.nr-data.net';
+const newRelic = {
+  // Without a license key + application id the agent can't initialize, so treat
+  // observability as disabled and skip console wrapping / NR calls entirely.
+  enabled: Boolean(
+    rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY &&
+      rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID,
+  ),
+  beacon: newRelicBeacon,
+  errorBeacon: rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_ERROR_BEACON ?? newRelicBeacon,
+  licenseKey: rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY,
+  applicationID: rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID,
+  accountID: rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID,
+  trustKey: rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY,
+  agentID:
+    rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID ??
+    rawEnv.NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID,
+} as const;
+
+const consoleLevel: LogLevel = rawEnv.NEXT_PUBLIC_DEBUG_LOGS === 'true'
+  ? 'debug'
+  : rawEnv.NODE_ENV === 'production'
+    ? 'warn'
+    : 'debug';
+
 export const env = {
   nodeEnv: rawEnv.NODE_ENV,
   apiBaseUrl: normalizeBaseUrl(
@@ -79,5 +126,15 @@ export const env = {
       ? browserReachableHost(rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST)
       : undefined,
     firestoreEmulatorPort: rawEnv.NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT,
+  },
+  observability: {
+    newRelic,
+    // Minimum level written to the browser console. NR delivery is independent
+    // of this (handled in log.ts / wrapLogger), so quieting the console in prod
+    // does not lose telemetry.
+    consoleLevel,
+    // Mirror every console.error/warn (incl. third-party) into NR via wrapLogger
+    // as the catch-all backstop. Pointless without an agent, so tie to enabled.
+    wrapConsole: newRelic.enabled,
   },
 } as const;

@@ -1,6 +1,6 @@
 import { type AppError } from '@/lib/errors';
 import { toAppError } from '@/lib/error_normalize';
-import { noticeBrowserError, recordBrowserPageAction } from '@/lib/newrelic/browser';
+import { log } from '@/lib/observability/log';
 
 export type ClassifiedSnapshotError =
   | { kind: 'transient' }
@@ -28,33 +28,25 @@ export function classifyFirestoreSnapshotError(err: unknown): ClassifiedSnapshot
   return { kind: 'fatal', error: toAppError(err) };
 }
 
-// reportSnapshotError は分類結果に応じて観測チャネルを振り分ける。
-// - 共通: dev では console.warn（本番 console はユーザー端末に出るだけで我々は
-//   見られないため dev 限定）
-// - transient: PageAction で送る（握りつぶすが本番でも気づけるように。noticeError
-//   ではないので JS エラー率/アラートは汚さない）
-// - fatal: UI にも出るが、アラート対象として noticeError でも拾う
+// reportSnapshotError は分類結果に応じて観測レベルを振り分ける（log.ts 経由で
+// NR Logs + console。console レベルは env.observability.consoleLevel で制御）。
+// - transient: UI からは隠すが warn として残す（permission-denied 等のルール
+//   不整合に気づけるように。error ではないので JS エラー率は汚さない）
+// - fatal: UI にも出る handled error として error レベルで残す
 export function reportSnapshotError(
   err: unknown,
   classified: ClassifiedSnapshotError,
   context: { label?: string } = {},
 ) {
-  const code = firestoreErrorCode(err);
-  const message = err instanceof Error ? err.message : String(err);
-  const label = context.label ?? null;
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.warn(`[firestore] snapshot ${classified.kind} error`, { code, label, err });
-  }
+  const attributes = {
+    source: 'firestore_snapshot',
+    code: firestoreErrorCode(err),
+    label: context.label ?? null,
+  };
 
   if (classified.kind === 'transient') {
-    recordBrowserPageAction('firestore_snapshot_swallowed', { code, label, message });
+    log.warn('firestore snapshot error swallowed', attributes);
     return;
   }
-
-  noticeBrowserError(err instanceof Error ? err : new Error(message), {
-    source: 'firestore_snapshot',
-    code,
-    label,
-  });
+  log.error('firestore snapshot error', attributes, err);
 }

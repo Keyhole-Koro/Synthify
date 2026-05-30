@@ -1,6 +1,13 @@
+import { env, type LogLevel } from '@/config/env';
+
+type NrLogLevel = 'ERROR' | 'TRACE' | 'DEBUG' | 'INFO' | 'WARN';
+type NrLogOptions = { customAttributes?: object; level?: NrLogLevel };
+
 type BrowserAgent = {
   noticeError(error: Error | string, customAttributes?: object): unknown;
   addPageAction(name: string, attributes?: object): unknown;
+  log(message: string, options?: NrLogOptions): unknown;
+  wrapLogger(parent: object, functionName: string, options?: NrLogOptions): unknown;
   setUserId(value: string | null, resetSession?: boolean): unknown;
 };
 
@@ -10,17 +17,19 @@ declare global {
   }
 }
 
-const beacon = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_BEACON || 'bam.nr-data.net';
-const errorBeacon = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_ERROR_BEACON || beacon;
-const licenseKey = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY;
-const applicationID = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID;
-const accountID = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID;
-const trustKey = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY;
-const agentID = process.env.NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID || applicationID;
+const nr = env.observability.newRelic;
+const NR_LEVEL: Record<LogLevel, NrLogLevel> = {
+  debug: 'DEBUG',
+  info: 'INFO',
+  warn: 'WARN',
+  error: 'ERROR',
+};
 
 let pendingInit: Promise<BrowserAgent | null> | null = null;
 
 export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
+  const { licenseKey, applicationID } = nr;
+  // Narrow to string for the agent config below; also the real enablement gate.
   if (typeof window === 'undefined' || !licenseKey || !applicationID) return Promise.resolve(null);
   if (window.__synthifyNewRelicBrowserAgent) return Promise.resolve(window.__synthifyNewRelicBrowserAgent);
   if (pendingInit) return pendingInit;
@@ -34,6 +43,7 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
     import('@newrelic/browser-agent/features/page_view_timing'),
     import('@newrelic/browser-agent/features/soft_navigations'),
     import('@newrelic/browser-agent/features/generic_events'),
+    import('@newrelic/browser-agent/features/logging'),
   ]).then(([
     { Agent },
     { Ajax },
@@ -43,19 +53,20 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
     { PageViewTiming },
     { SoftNav },
     { GenericEvents },
+    { Logging },
   ]) => {
     const loaderConfig = {
-      accountID,
-      trustKey,
-      agentID,
+      accountID: nr.accountID,
+      trustKey: nr.trustKey,
+      agentID: nr.agentID,
       licenseKey,
       applicationID,
     };
 
     const agent = new Agent({
       info: {
-        beacon,
-        errorBeacon,
+        beacon: nr.beacon,
+        errorBeacon: nr.errorBeacon,
         licenseKey,
         applicationID,
       },
@@ -79,8 +90,9 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
         jserrors: {
           enabled: true,
         },
+        // Backs log()/wrapLogger so handled errors + warnings reach NR Logs.
         logging: {
-          enabled: false,
+          enabled: true,
         },
         metrics: {
           enabled: true,
@@ -125,13 +137,28 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
         PageViewTiming,
         SoftNav,
         GenericEvents,
+        Logging,
       ],
     });
 
     window.__synthifyNewRelicBrowserAgent = agent;
+
+    // Catch-all backstop: mirror every console.error/warn — including
+    // third-party output and anything not yet routed through log.ts — into NR
+    // Logs. log.ts writes via the original console refs it captured before this
+    // ran, so first-party structured logs are not double-counted here.
+    if (env.observability.wrapConsole && typeof console !== 'undefined') {
+      try {
+        agent.wrapLogger(console, 'error', { level: 'ERROR' });
+        agent.wrapLogger(console, 'warn', { level: 'WARN' });
+      } catch {
+        // wrapLogger is best-effort; never let it break agent init.
+      }
+    }
     return agent;
   }).catch((error) => {
     pendingInit = null;
+    // Raw console: the agent failed to load, so log.ts/NR can't capture this.
     console.error('New Relic Browser initialization failed:', error);
     return null;
   });
@@ -166,6 +193,25 @@ export function recordBrowserPageAction(name: string, attributes?: Record<string
   }
   void initNewRelicBrowser().then((initializedAgent) => {
     initializedAgent?.addPageAction(name, attributes);
+  });
+}
+
+// recordBrowserLog sends a structured log line to NR Logs at the given level.
+// This is the first-party path used by log.ts (separate from the wrapLogger
+// backstop) so handled errors / warnings carry queryable customAttributes.
+export function recordBrowserLog(
+  level: LogLevel,
+  message: string,
+  attributes?: Record<string, unknown>,
+) {
+  const options: NrLogOptions = { level: NR_LEVEL[level], customAttributes: attributes };
+  const agent = getNewRelicBrowserAgent();
+  if (agent) {
+    agent.log(message, options);
+    return;
+  }
+  void initNewRelicBrowser().then((initializedAgent) => {
+    initializedAgent?.log(message, options);
   });
 }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getBillingAccount, updateBudget } from './api';
+import { log } from '@/lib/observability/log';
 
 interface BudgetSettingsPaperProps {
   accountId: string;
@@ -40,7 +41,8 @@ export function BudgetSettingsPaper({ accountId }: BudgetSettingsPaperProps) {
           });
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        log.error('Failed to load budget settings', { source: 'budget_load', accountId }, err);
         if (!cancelled) {
           setState({
             accountId,
@@ -67,7 +69,8 @@ export function BudgetSettingsPaper({ accountId }: BudgetSettingsPaperProps) {
       setState((current) => ({ ...current, budget: result }));
       setSavedAt(Date.now());
       setTimeout(() => setSavedAt(null), 2000);
-    } catch {
+    } catch (err) {
+      log.error('Failed to save budget', { source: 'budget_save', accountId }, err);
       setState((current) => ({ ...current, error: '保存に失敗しました。' }));
     } finally {
       setSaving(false);
