@@ -13,6 +13,6 @@ export function useJobStatus(workspaceId: string, jobId: string | null) {
     () => (workspaceId && jobId ? doc(db, 'workspaces', workspaceId, 'jobs', jobId) : null),
     [workspaceId, jobId],
   );
-  const { data, error } = useAuthedDoc<FirestoreJobStatus>(ref);
+  const { data, error } = useAuthedDoc<FirestoreJobStatus>(ref, 'job_status');
   return { status: data, error };
 }

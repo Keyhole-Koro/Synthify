@@ -17,6 +17,6 @@ export function useWorkspaceJobStatuses(workspaceId: string, maxItems = 6) {
       : null),
     [workspaceId, maxItems],
   );
-  const { data } = useAuthedCollection<FirestoreJobStatus>(q);
+  const { data } = useAuthedCollection<FirestoreJobStatus>(q, 'workspace_jobs');
   return { jobs: data ?? [] };
 }

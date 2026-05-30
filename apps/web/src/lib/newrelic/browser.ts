@@ -1,5 +1,6 @@
 type BrowserAgent = {
   noticeError(error: Error | string, customAttributes?: object): unknown;
+  addPageAction(name: string, attributes?: object): unknown;
   setUserId(value: string | null, resetSession?: boolean): unknown;
 };
 
@@ -32,6 +33,7 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
     import('@newrelic/browser-agent/features/page_view_event'),
     import('@newrelic/browser-agent/features/page_view_timing'),
     import('@newrelic/browser-agent/features/soft_navigations'),
+    import('@newrelic/browser-agent/features/generic_events'),
   ]).then(([
     { Agent },
     { Ajax },
@@ -40,6 +42,7 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
     { PageViewEvent },
     { PageViewTiming },
     { SoftNav },
+    { GenericEvents },
   ]) => {
     const loaderConfig = {
       accountID,
@@ -67,8 +70,11 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
         distributed_tracing: {
           enabled: false,
         },
+        // Powers addPageAction (recordBrowserPageAction). Used for non-error
+        // operational signals we still want to observe in prod — e.g. swallowed
+        // Firestore snapshot errors — without inflating the JS error rate.
         generic_events: {
-          enabled: false,
+          enabled: true,
         },
         jserrors: {
           enabled: true,
@@ -118,6 +124,7 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
         PageViewEvent,
         PageViewTiming,
         SoftNav,
+        GenericEvents,
       ],
     });
 
@@ -145,6 +152,20 @@ export function noticeBrowserError(error: Error | string, customAttributes?: Rec
   }
   void initNewRelicBrowser().then((initializedAgent) => {
     initializedAgent?.noticeError(error, customAttributes);
+  });
+}
+
+// recordBrowserPageAction emits a custom PageAction event. Prefer this over
+// noticeBrowserError for things that are worth observing but are not user-facing
+// JS errors (so they stay out of the error rate / alerting feeds).
+export function recordBrowserPageAction(name: string, attributes?: Record<string, unknown>) {
+  const agent = getNewRelicBrowserAgent();
+  if (agent) {
+    agent.addPageAction(name, attributes);
+    return;
+  }
+  void initNewRelicBrowser().then((initializedAgent) => {
+    initializedAgent?.addPageAction(name, attributes);
   });
 }
 
