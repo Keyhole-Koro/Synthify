@@ -103,6 +103,31 @@ func TestValidateFirestoreJobStatus_AcceptsFullDocument(t *testing.T) {
 	}
 }
 
+// Failed/Completed write expiresAt as a native time.Time so the Firestore TTL
+// policy can match it. The JSON-schema validator cannot introspect a Go struct
+// and used to reject the whole document ("cannot validate against a struct"),
+// which silently dropped the terminal status from Firestore.
+func TestValidateFirestoreJobStatus_AcceptsTimeExpiresAt(t *testing.T) {
+	doc := map[string]any{
+		FirestoreJobStatusFieldJobID:        "job_1",
+		FirestoreJobStatusFieldJobType:      "JOB_TYPE_PROCESS_DOCUMENT",
+		FirestoreJobStatusFieldDocumentID:   "doc_1",
+		FirestoreJobStatusFieldWorkspaceID:  "ws_1",
+		FirestoreJobStatusFieldTreeID:       "ws_1",
+		FirestoreJobStatusFieldStatus:       string(FirestoreJobStatusStateFailed),
+		FirestoreJobStatusFieldCurrentStage: "",
+		FirestoreJobStatusFieldMessage:      "Failed",
+		FirestoreJobStatusFieldErrorMessage: "boom",
+		FirestoreJobStatusFieldUpdatedAt:    nowRFC3339(),
+		FirestoreJobStatusFieldCompletedAt:  nowRFC3339(),
+		FirestoreJobStatusFieldExpiresAt:    ttlFromNow(),
+	}
+
+	if err := validateFirestoreJobStatus(doc); err != nil {
+		t.Fatalf("validateFirestoreJobStatus() error = %v", err)
+	}
+}
+
 func TestValidateFirestoreJobStatus_RejectsInvalidStatus(t *testing.T) {
 	doc := map[string]any{
 		FirestoreJobStatusFieldJobID:        "job_1",
