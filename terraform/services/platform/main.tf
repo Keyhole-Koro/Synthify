@@ -100,9 +100,12 @@ locals {
     "database-dsn",
     "internal-worker-token",
     "new-relic-license-key",
+    "gemini-api-key",
   ])
 
-  eval_secrets = toset([])
+  eval_secrets = toset([
+    "gemini-api-key",
+  ])
 
   all_secrets = toset(concat(tolist(local.api_secrets), tolist(local.worker_secrets), tolist(local.eval_secrets)))
 }

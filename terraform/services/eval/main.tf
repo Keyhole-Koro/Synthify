@@ -38,6 +38,16 @@ resource "google_cloud_run_v2_job" "this" {
           name  = "EVAL_OUTPUT_GCS_URI"
           value = var.output_gcs_uri
         }
+
+        env {
+          name = "GEMINI_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = var.secret_ids["gemini-api-key"]
+              version = "latest"
+            }
+          }
+        }
       }
     }
   }

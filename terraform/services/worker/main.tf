@@ -60,5 +60,9 @@ module "service" {
       name   = "NEW_RELIC_LICENSE_KEY"
       secret = var.secret_ids["new-relic-license-key"]
     },
+    {
+      name   = "GEMINI_API_KEY"
+      secret = var.secret_ids["gemini-api-key"]
+    },
   ]
 }

@@ -110,7 +110,8 @@ jobs:
         run: |
           missing=()
           for s in database-dsn stripe-secret-key \
-                   stripe-webhook-secret new-relic-license-key internal-worker-token; do
+                   stripe-webhook-secret new-relic-license-key internal-worker-token \
+                   gemini-api-key; do
             name="synthify-${s}"
             existing=$(gcloud secrets versions list "$name" --project "${{ vars.GCP_PROJECT_ID }}" --format="value(name)" --limit=1 2>/dev/null || echo "")
             if [ -z "$existing" ]; then
