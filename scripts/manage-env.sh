@@ -13,7 +13,7 @@ success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 usage() {
-    echo "Usage: $0 <stage|prod> {up|down|plan|reset-db}"
+    echo "Usage: $0 <stage|prod> {up|down|plan|reset-db|reset-firestore}"
     exit 1
 }
 
@@ -203,6 +203,40 @@ SQL
         done
 
         success "$ENVIRONMENT database reset and rebuilt from db/migrations/."
+        ;;
+
+    reset-firestore)
+        if [ "$ENVIRONMENT" = "prod" ]; then
+            warn "Production Firestore reset is disabled. Refusing to continue."
+            exit 1
+        fi
+
+        # Top-level collections owned by the app. Keep in sync with the
+        # collections referenced in apps/ (currently "jobs" and "workspaces").
+        COLLECTIONS=(jobs workspaces)
+
+        log "WARNING: This will recursively DELETE all documents in the $ENVIRONMENT Firestore collections: ${COLLECTIONS[*]}."
+        read -p "Type the environment name ('$ENVIRONMENT') to confirm: " -r
+        echo
+        if [[ "$REPLY" != "$ENVIRONMENT" ]]; then
+            warn "Confirmation did not match. Aborting."
+            exit 1
+        fi
+
+        tf_init
+
+        log "Resolving project from Terraform outputs..."
+        PROJECT_ID=$(terraform -chdir=$TF_DIR output -raw project_id)
+
+        for c in "${COLLECTIONS[@]}"; do
+            log "Deleting Firestore collection '$c' (recursive)..."
+            firebase firestore:delete "$c" \
+                --project "$PROJECT_ID" \
+                --recursive \
+                --force
+        done
+
+        success "$ENVIRONMENT Firestore collections reset (${COLLECTIONS[*]})."
         ;;
 
     *)
