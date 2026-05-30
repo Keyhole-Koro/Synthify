@@ -39,6 +39,27 @@ func (o *Orchestrator) beforeModelCallbacks() []llmagent.BeforeModelCallback {
 func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 	return []llmagent.BeforeToolCallback{
 		func(ctx tool.Context, t tool.Tool, args map[string]any) (map[string]any, error) {
+			// Loop guard: if the agent keeps re-issuing the same tool call with
+			// the same args, short-circuit with a nudge instead of running the
+			// tool again. Returning a non-nil map makes ADK skip the tool and use
+			// this map as the result, so the agent sees feedback rather than an
+			// error and can change course. Runs before the budget increments so a
+			// throttled call does not consume the tool-run quota.
+			if guard := o.repeatGuard.Load(); guard != nil {
+				if nudge, count := guard.observe(t.Name(), args); nudge {
+					o.base.Logger.Warn("orchestrator.repeated_tool_call",
+						"tool", t.Name(), "consecutive_calls", count)
+					return map[string]any{
+						"error": "repeated_call_detected",
+						"message": "You have called this tool with the same arguments " +
+							"several times in a row without making progress. Do not call it " +
+							"again the same way. Either change the arguments, use a different " +
+							"tool, or proceed to the next step of your workflow with the " +
+							"information you already have.",
+					}, nil
+				}
+			}
+
 			if err := o.base.IncrementToolRuns(ctx); err != nil {
 				return nil, err
 			}

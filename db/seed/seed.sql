@@ -37,7 +37,13 @@ VALUES
   ('gemini-2.5-pro-preview-05-06',   250, 1500,'usd', 5.0, NOW(), 'Gemini 2.5 Pro — x5'),
   ('gemini-2.5-pro',                 250, 1500,'usd', 5.0, NOW(), 'Gemini 2.5 Pro stable — x5'),
   ('gemini-2.0-flash',               10,  40,  'usd', 1.0, NOW(), 'Gemini 2.0 Flash — x1'),
-  ('gemini-3-flash-preview',         30,  250, 'usd', 1.0, NOW(), 'Gemini 3 Flash preview — x1')
+  ('gemini-3-flash-preview',         30,  250, 'usd', 1.0, NOW(), 'Gemini 3 Flash preview — x1'),
+  -- Default worker model (GEMINI_MODEL). Image input is billed as prompt
+  -- tokens, so no separate image dimension is needed — but the row must
+  -- exist or usage records at cost 0 (see usage.Recorder: unknown model =>
+  -- cost 0 + warn). Rate mirrors the Flash tier; confirm against official.
+  ('gemini-3.5-flash',               30,  250, 'usd', 1.0, NOW(), 'Gemini 3.5 Flash (worker default) — x1; rate TBD-confirm'),
+  ('gemini-3-pro-preview',           250, 1500,'usd', 5.0, NOW(), 'Gemini 3 Pro preview — x5; rate TBD-confirm')
 ON CONFLICT (model) DO UPDATE SET
   input_cost_per_mtoken_minor  = EXCLUDED.input_cost_per_mtoken_minor,
   output_cost_per_mtoken_minor = EXCLUDED.output_cost_per_mtoken_minor,

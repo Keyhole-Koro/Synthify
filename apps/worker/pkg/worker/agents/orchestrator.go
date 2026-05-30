@@ -38,9 +38,13 @@ type Orchestrator struct {
 	// the current job, used by beforeToolCallbacks to count transform runs
 	// separately from builtin tool runs. Rebuilt per job alongside currentJobID.
 	dynamicToolNames atomic.Pointer[map[string]struct{}]
-	base             *base.Context
-	repo             Repo
-	fs               *storage.FileSystem
+	// repeatGuard tracks consecutive identical (tool, args) calls within a job so
+	// a stuck agent that keeps re-issuing the same tool call is nudged off the
+	// loop before it burns the whole request budget. Rebuilt per job.
+	repeatGuard atomic.Pointer[repeatTracker]
+	base        *base.Context
+	repo        Repo
+	fs          *storage.FileSystem
 
 	// model and the inputs to per-job llmagent.New rebuilt by buildAgent.
 	model          model.LLM
@@ -99,6 +103,7 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, w
 		o.base.BeginJob(ctx, jobID, workspaceID, documentID)
 	}
 	o.currentJobID.Store(&jobID)
+	o.repeatGuard.Store(newRepeatTracker())
 
 	// Per-job agent: builtin + workspace-resolved dynamic tools merged.
 	dyn := o.resolveDynamicTools(ctx, workspaceID)

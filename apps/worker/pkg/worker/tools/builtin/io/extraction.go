@@ -111,6 +111,9 @@ func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (E
 	if isMediaFile(source.MimeType) {
 		return processMedia(ctx, b, source, fileRecord)
 	}
+	if isImageFile(source.MimeType) {
+		return processImage(ctx, b, source, fileRecord)
+	}
 	return processSingleTextFile(ctx, b, source, fileRecord)
 }
 
@@ -122,6 +125,10 @@ func isZip(mimeType, filename string) bool {
 
 func isMediaFile(mimeType string) bool {
 	return strings.HasPrefix(mimeType, "audio/") || strings.HasPrefix(mimeType, "video/")
+}
+
+func isImageFile(mimeType string) bool {
+	return strings.HasPrefix(mimeType, "image/")
 }
 
 func processSingleTextFile(ctx context.Context, b *base.Context, source domain.SourceFile, record *domain.DocumentFile) (ExtractionResult, error) {
@@ -163,6 +170,39 @@ func processMedia(ctx context.Context, b *base.Context, source domain.SourceFile
 	resultText := strings.TrimSpace(text)
 	if fileID != "" {
 		resultText = fmt.Sprintf("--- Media File: %s (ID: %s) ---\n%s", source.Filename, fileID, resultText)
+	}
+
+	return ExtractionResult{RawText: resultText}, nil
+}
+
+// processImage extracts text from an image (PNG, JPEG, diagrams, screenshots)
+// by handing the raw bytes to the vision-capable LLM. Without this branch images
+// fall through to processSingleTextFile, which stringifies the binary and returns
+// noise — the agent then re-calls extract_text in a loop trying to get usable
+// text, hitting the Cloud Run request timeout. Mirrors processMedia: same
+// SourceFiles plumbing, same fileID labeling, only the prompt differs.
+func processImage(ctx context.Context, b *base.Context, source domain.SourceFile, record *domain.DocumentFile) (ExtractionResult, error) {
+	if b == nil || b.LLM == nil {
+		return ExtractionResult{}, fmt.Errorf("%w: LLM client not configured for image extraction", domain.ErrCritical)
+	}
+
+	text, _, err := b.LLM.GenerateText(ctx, llm.TextRequest{
+		SystemPrompt: "You are an expert at reading images. Extract all legible text verbatim. If the image is a diagram, chart, or screenshot, also describe its structure (nodes, edges, labels, relationships) in plain text so the content can be reconstructed. Do not invent content that is not visible.",
+		UserPrompt:   "Extract the text and structural content from this image.",
+		SourceFiles:  []domain.SourceFile{source},
+	})
+	if err != nil {
+		return ExtractionResult{}, fmt.Errorf("image extraction failed: %w", err)
+	}
+
+	fileID := ""
+	if record != nil {
+		fileID = record.FileID
+	}
+
+	resultText := strings.TrimSpace(text)
+	if fileID != "" {
+		resultText = fmt.Sprintf("--- Image File: %s (ID: %s) ---\n%s", source.Filename, fileID, resultText)
 	}
 
 	return ExtractionResult{RawText: resultText}, nil

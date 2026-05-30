@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/mock"
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
@@ -143,6 +145,75 @@ func TestExtractionTool_SingleFile(t *testing.T) {
 			t.Errorf("single file not saved to FS: %v", err)
 		}
 	})
+}
+
+// fakeLLM is a minimal base.LLMClient for exercising the vision/media branches
+// without a real provider. It records the request it received.
+type fakeLLM struct {
+	text    string
+	gotReq  llm.TextRequest
+	callErr error
+}
+
+func (f *fakeLLM) GenerateStructured(context.Context, llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {
+	return nil, llm.Usage{}, nil
+}
+
+func (f *fakeLLM) GenerateText(_ context.Context, req llm.TextRequest) (string, llm.Usage, error) {
+	f.gotReq = req
+	return f.text, llm.Usage{}, f.callErr
+}
+
+func TestExtractionTool_Image(t *testing.T) {
+	tmpDir := t.TempDir()
+	fs := storage.NewFileSystem(tmpDir)
+	store := mock.NewStore()
+	wsID := "ws_img"
+	docID := "doc_img"
+
+	t.Run("PNG is routed through the vision LLM", func(t *testing.T) {
+		fake := &fakeLLM{text: "  Diagram: A -> B  "}
+		b := &base.Context{
+			Repo: store,
+			FS:   fs,
+			LLM:  fake,
+			Job:  &base.JobContext{WorkspaceID: wsID, DocumentID: docID},
+		}
+		source := domain.SourceFile{
+			Filename:    "diagram.png",
+			URI:         "mock://diagram.png",
+			MimeType:    "image/png",
+			Content:     []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a},
+			WorkspaceID: wsID,
+			DocumentID:  docID,
+		}
+
+		record, _ := store.CreateDocumentFile(context.Background(), docID, source.Filename, source.MimeType, int64(len(source.Content)))
+		res, err := processImage(context.Background(), b, source, record)
+		require.NoError(t, err)
+
+		// The raw image bytes must reach the LLM as a source file, not be
+		// stringified into the prompt.
+		require.Len(t, fake.gotReq.SourceFiles, 1)
+		assert.Equal(t, "image/png", fake.gotReq.SourceFiles[0].MimeType)
+
+		// Result is the trimmed LLM text, labeled with the file ID.
+		assert.Contains(t, res.RawText, "Diagram: A -> B")
+		assert.Contains(t, res.RawText, "--- Image File: diagram.png (ID:")
+	})
+
+	t.Run("missing LLM is a critical error", func(t *testing.T) {
+		b := &base.Context{Repo: store, FS: fs, Job: &base.JobContext{WorkspaceID: wsID, DocumentID: docID}}
+		_, err := processImage(context.Background(), b, domain.SourceFile{MimeType: "image/png"}, nil)
+		require.Error(t, err)
+	})
+}
+
+func TestIsImageFile(t *testing.T) {
+	assert.True(t, isImageFile("image/png"))
+	assert.True(t, isImageFile("image/jpeg"))
+	assert.False(t, isImageFile("application/pdf"))
+	assert.False(t, isImageFile("audio/mpeg"))
 }
 
 func TestIsLikelyText(t *testing.T) {
