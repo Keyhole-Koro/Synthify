@@ -28,7 +28,7 @@ REVOKE INSERT, UPDATE, DELETE ON documents FROM monitor;
 
 -- センシティブカラムを含むテーブルは view 経由で公開する。
 -- v_job_logs: job_logs から直接公開してよい列をフィルタする (現状は全列)
-CREATE VIEW v_job_logs AS
+CREATE OR REPLACE VIEW v_job_logs AS
   SELECT
     id,
     job_id,
@@ -44,7 +44,7 @@ CREATE VIEW v_job_logs AS
 GRANT SELECT ON v_job_logs TO monitor;
 
 -- v_processing_jobs: 課金や internal flags を含まない最小のジョブ一覧
-CREATE VIEW v_processing_jobs AS
+CREATE OR REPLACE VIEW v_processing_jobs AS
   SELECT
     job_id,
     document_id,
@@ -62,7 +62,7 @@ GRANT SELECT ON v_processing_jobs TO monitor;
 
 -- BI ダッシュボード用 view
 -- usage_events: PII なし (account_id は ID のみ)
-CREATE VIEW v_usage_events AS
+CREATE OR REPLACE VIEW v_usage_events AS
   SELECT
     event_id,
     account_id,
@@ -83,7 +83,7 @@ GRANT SELECT ON usage_events TO monitor;
 GRANT SELECT ON v_usage_events TO monitor;
 
 -- account_usage_daily: 日次ロールアップ (PII なし)
-CREATE VIEW v_account_usage_daily AS
+CREATE OR REPLACE VIEW v_account_usage_daily AS
   SELECT
     account_id,
     usage_date,
@@ -99,7 +99,7 @@ GRANT SELECT ON account_usage_daily TO monitor;
 GRANT SELECT ON v_account_usage_daily TO monitor;
 
 -- v_workspaces: workspace 活動量に使う (name は管理目的で公開)
-CREATE VIEW v_workspaces AS
+CREATE OR REPLACE VIEW v_workspaces AS
   SELECT
     workspace_id,
     name,
@@ -110,7 +110,7 @@ CREATE VIEW v_workspaces AS
 GRANT SELECT ON v_workspaces TO monitor;
 
 -- v_documents: uploaded_by (ユーザー識別子) を除外
-CREATE VIEW v_documents AS
+CREATE OR REPLACE VIEW v_documents AS
   SELECT
     document_id,
     workspace_id,
@@ -124,7 +124,7 @@ GRANT SELECT ON documents TO monitor;
 GRANT SELECT ON v_documents TO monitor;
 
 -- v_tree_items: コンテンツ列を除外してカウント用途のみ公開
-CREATE VIEW v_tree_items AS
+CREATE OR REPLACE VIEW v_tree_items AS
   SELECT
     id,
     workspace_id,
@@ -138,7 +138,7 @@ GRANT SELECT ON tree_items TO monitor;
 GRANT SELECT ON v_tree_items TO monitor;
 
 -- v_job_mutation_logs: ツール呼び出しトレース用 (PII なし)
-CREATE VIEW v_job_mutation_logs AS
+CREATE OR REPLACE VIEW v_job_mutation_logs AS
   SELECT
     mutation_id,
     job_id,
