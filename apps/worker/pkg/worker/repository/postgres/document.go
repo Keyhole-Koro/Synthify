@@ -421,16 +421,18 @@ func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.Job
 	_ = json.Unmarshal([]byte(row.AllowedOperationsJson), &allowedOperations)
 
 	return &domain.JobCapability{
-		CapabilityID:       row.CapabilityID,
-		JobID:              row.JobID,
-		WorkspaceID:        row.WorkspaceID,
-		MaxLLMCalls:        int(row.MaxLlmCalls),
-		MaxToolRuns:        int(row.MaxToolRuns),
-		MaxItemCreations:   int(row.MaxItemCreations),
-		AllowedDocumentIDs: allowedDocs,
-		AllowedItemIDs:     allowedItems,
-		AllowedOperations:  allowedOperations,
-		ExpiresAt:          row.ExpiresAt.UTC().Format(time.RFC3339),
+		CapabilityID:          row.CapabilityID,
+		JobID:                 row.JobID,
+		WorkspaceID:           row.WorkspaceID,
+		MaxLLMCalls:           int(row.MaxLlmCalls),
+		MaxToolRuns:           int(row.MaxToolRuns),
+		MaxItemCreations:      int(row.MaxItemCreations),
+		MaxTransformCreations: int(row.MaxTransformCreations),
+		MaxTransformRuns:      int(row.MaxTransformRuns),
+		AllowedDocumentIDs:    allowedDocs,
+		AllowedItemIDs:        allowedItems,
+		AllowedOperations:     allowedOperations,
+		ExpiresAt:             row.ExpiresAt.UTC().Format(time.RFC3339),
 	}, nil
 }
 
@@ -730,6 +732,8 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		MaxLlmCalls:            int32(capability.MaxLLMCalls),
 		MaxToolRuns:            int32(capability.MaxToolRuns),
 		MaxItemCreations:       int32(capability.MaxItemCreations),
+		MaxTransformCreations:  int32(capability.MaxTransformCreations),
+		MaxTransformRuns:       int32(capability.MaxTransformRuns),
 		AllowedDocumentIdsJson: string(allowedDocumentIDsJSON),
 		AllowedItemIdsJson:     string(allowedItemIDsJSON),
 		AllowedOperationsJson:  string(allowedOperationsJSON),

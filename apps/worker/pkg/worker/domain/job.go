@@ -241,6 +241,10 @@ const (
 	ActionStatusFailed    ActionStatus = "failed"
 )
 
+// DefaultJobCapability must stay byte-for-byte in sync with the API copy
+// (apps/api/internal/domain/job.go). The API writes the row at job creation;
+// the worker reads it back to enforce limits, so divergent defaults would
+// silently change enforcement. Update both together.
 func DefaultJobCapability(jobID, workspaceID, documentID string, createdAt time.Time) *JobCapability {
 	return &JobCapability{
 		CapabilityID:       "cap_" + jobID,
@@ -257,7 +261,12 @@ func DefaultJobCapability(jobID, workspaceID, documentID string, createdAt time.
 		MaxLLMCalls:      128,
 		MaxToolRuns:      0,
 		MaxItemCreations: 4096,
-		ExpiresAt:        createdAt.Add(24 * time.Hour).UTC().Format(time.RFC3339),
-		CreatedAt:        createdAt.UTC().Format(time.RFC3339),
+		// Bound below MaxLLMCalls: each create_transform consumes LLM calls, so
+		// 64 creations is already generous. Runs are higher because one created
+		// transform executes per item.
+		MaxTransformCreations: 64,
+		MaxTransformRuns:      512,
+		ExpiresAt:             createdAt.Add(24 * time.Hour).UTC().Format(time.RFC3339),
+		CreatedAt:             createdAt.UTC().Format(time.RFC3339),
 	}
 }

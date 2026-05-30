@@ -34,9 +34,13 @@ type Repo interface {
 
 type Orchestrator struct {
 	currentJobID atomic.Pointer[string]
-	base         *base.Context
-	repo         Repo
-	fs           *storage.FileSystem
+	// dynamicToolNames is the set of dynamic (transform-backed) tool names for
+	// the current job, used by beforeToolCallbacks to count transform runs
+	// separately from builtin tool runs. Rebuilt per job alongside currentJobID.
+	dynamicToolNames atomic.Pointer[map[string]struct{}]
+	base             *base.Context
+	repo             Repo
+	fs               *storage.FileSystem
 
 	// model and the inputs to per-job llmagent.New rebuilt by buildAgent.
 	model          model.LLM
@@ -98,6 +102,11 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, w
 
 	// Per-job agent: builtin + workspace-resolved dynamic tools merged.
 	dyn := o.resolveDynamicTools(ctx, workspaceID)
+	dynNames := make(map[string]struct{}, len(dyn))
+	for _, t := range dyn {
+		dynNames[t.Name] = struct{}{}
+	}
+	o.dynamicToolNames.Store(&dynNames)
 	jobAgent, err := o.buildAgent(dyn)
 	if err != nil {
 		return fmt.Errorf("build per-job agent: %w", err)

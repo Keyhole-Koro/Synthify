@@ -42,6 +42,16 @@ func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 			if err := o.base.IncrementToolRuns(ctx); err != nil {
 				return nil, err
 			}
+			// Dynamic (transform-backed) tools also count against the separate
+			// MaxTransformRuns cap so transform execution is bounded
+			// independently of builtin tool runs.
+			if names := o.dynamicToolNames.Load(); names != nil {
+				if _, ok := (*names)[t.Name()]; ok {
+					if err := o.base.IncrementTransformRuns(ctx); err != nil {
+						return nil, err
+					}
+				}
+			}
 
 			stage := stageTools[t.Name()]
 			if stage == "" || o.repo == nil || o.fs == nil {

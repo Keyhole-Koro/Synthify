@@ -222,6 +222,8 @@ type JobCapability struct {
 	MaxItemCreations       int32
 	ExpiresAt              time.Time
 	CreatedAt              time.Time
+	MaxTransformCreations  int32
+	MaxTransformRuns       int32
 }
 
 type JobExecutionPlan struct {

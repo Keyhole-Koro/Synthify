@@ -267,9 +267,10 @@ func (q *Queries) CreateJobApprovalRequest(ctx context.Context, arg CreateJobApp
 const createJobCapability = `-- name: CreateJobCapability :exec
 INSERT INTO job_capabilities (
   capability_id, job_id, workspace_id, allowed_document_ids_json, allowed_item_ids_json,
-  allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations, expires_at, created_at
+  allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations,
+  max_transform_creations, max_transform_runs, expires_at, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 `
 
 type CreateJobCapabilityParams struct {
@@ -282,6 +283,8 @@ type CreateJobCapabilityParams struct {
 	MaxLlmCalls            int32
 	MaxToolRuns            int32
 	MaxItemCreations       int32
+	MaxTransformCreations  int32
+	MaxTransformRuns       int32
 	ExpiresAt              time.Time
 	CreatedAt              time.Time
 }
@@ -297,6 +300,8 @@ func (q *Queries) CreateJobCapability(ctx context.Context, arg CreateJobCapabili
 		arg.MaxLlmCalls,
 		arg.MaxToolRuns,
 		arg.MaxItemCreations,
+		arg.MaxTransformCreations,
+		arg.MaxTransformRuns,
 		arg.ExpiresAt,
 		arg.CreatedAt,
 	)
@@ -491,14 +496,31 @@ func (q *Queries) GetJobApprovalPlanID(ctx context.Context, arg GetJobApprovalPl
 
 const getJobCapability = `-- name: GetJobCapability :one
 SELECT capability_id, job_id, workspace_id, allowed_document_ids_json, allowed_item_ids_json,
-       allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations, expires_at, created_at
+       allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations,
+       max_transform_creations, max_transform_runs, expires_at, created_at
 FROM job_capabilities
 WHERE job_id = $1
 `
 
-func (q *Queries) GetJobCapability(ctx context.Context, jobID string) (JobCapability, error) {
+type GetJobCapabilityRow struct {
+	CapabilityID           string
+	JobID                  string
+	WorkspaceID            string
+	AllowedDocumentIdsJson string
+	AllowedItemIdsJson     string
+	AllowedOperationsJson  string
+	MaxLlmCalls            int32
+	MaxToolRuns            int32
+	MaxItemCreations       int32
+	MaxTransformCreations  int32
+	MaxTransformRuns       int32
+	ExpiresAt              time.Time
+	CreatedAt              time.Time
+}
+
+func (q *Queries) GetJobCapability(ctx context.Context, jobID string) (GetJobCapabilityRow, error) {
 	row := q.db.QueryRowContext(ctx, getJobCapability, jobID)
-	var i JobCapability
+	var i GetJobCapabilityRow
 	err := row.Scan(
 		&i.CapabilityID,
 		&i.JobID,
@@ -509,6 +531,8 @@ func (q *Queries) GetJobCapability(ctx context.Context, jobID string) (JobCapabi
 		&i.MaxLlmCalls,
 		&i.MaxToolRuns,
 		&i.MaxItemCreations,
+		&i.MaxTransformCreations,
+		&i.MaxTransformRuns,
 		&i.ExpiresAt,
 		&i.CreatedAt,
 	)

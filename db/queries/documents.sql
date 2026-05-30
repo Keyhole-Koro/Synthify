@@ -173,16 +173,18 @@ VALUES ($1, $2, $3, $4, $5, $6, sqlc.narg(embedding)::vector);
 
 -- name: GetJobCapability :one
 SELECT capability_id, job_id, workspace_id, allowed_document_ids_json, allowed_item_ids_json,
-       allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations, expires_at, created_at
+       allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations,
+       max_transform_creations, max_transform_runs, expires_at, created_at
 FROM job_capabilities
 WHERE job_id = $1;
 
 -- name: CreateJobCapability :exec
 INSERT INTO job_capabilities (
   capability_id, job_id, workspace_id, allowed_document_ids_json, allowed_item_ids_json,
-  allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations, expires_at, created_at
+  allowed_operations_json, max_llm_calls, max_tool_runs, max_item_creations,
+  max_transform_creations, max_transform_runs, expires_at, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
 -- name: GetJobExecutionPlan :one
 SELECT plan_id, job_id, status, summary, plan_json, created_by, created_at, updated_at
