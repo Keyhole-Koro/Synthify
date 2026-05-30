@@ -24,6 +24,9 @@ module "service" {
   gcs_volume = {
     bucket     = var.uploads_bucket_name
     mount_path = local.gcs_fuse_mount_path
+    # The worker writes job checkpoints under the mount (.checkpoints/), so it
+    # needs a writable gcsfuse mount, unlike the read-only consumers.
+    read_only = false
   }
 
   # PORT is a Cloud Run reserved env var: it is injected automatically from

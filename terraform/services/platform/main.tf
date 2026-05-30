@@ -161,12 +161,20 @@ resource "google_storage_bucket_iam_member" "api_uploads_reader" {
   member = "serviceAccount:${module.api_service_account.email}"
 }
 
-# The worker mounts this bucket read-only via gcsfuse and reads uploaded
-# source files as local files. Without object-read access the mount exists
-# but every read fails, so this binding is required, not optional.
+# The worker mounts this bucket read-write via gcsfuse: it reads uploaded
+# source files as local files and writes job checkpoints under .checkpoints/.
+# objectViewer alone makes the mount read-only and every checkpoint write fails
+# ("read-only file system"), so objectAdmin is required — checkpoints are
+# created, overwritten, and deleted, which objectCreator cannot do.
 resource "google_storage_bucket_iam_member" "worker_uploads_reader" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${module.worker_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "worker_uploads_writer" {
+  bucket = module.uploads_bucket.name
+  role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${module.worker_service_account.email}"
 }
 

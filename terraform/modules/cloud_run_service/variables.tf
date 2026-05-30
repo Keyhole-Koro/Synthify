@@ -39,12 +39,15 @@ variable "secret_env_vars" {
 }
 
 # GCS bucket mounted into the container via Cloud Run's gcsfuse integration.
-# When set, the bucket is mounted read-only at mount_path so the app can read
-# uploaded objects as local files (no signed URLs / HTTP fetch). Null = no mount.
+# When set, the bucket is mounted at mount_path so the app can read uploaded
+# objects as local files (no signed URLs / HTTP fetch). read_only defaults to
+# true; the worker sets it false so it can write job checkpoints under the
+# mount. Null = no mount.
 variable "gcs_volume" {
   type = object({
     bucket     = string
     mount_path = string
+    read_only  = optional(bool, true)
   })
   default = null
 }

@@ -23,7 +23,7 @@ resource "google_cloud_run_v2_service" "this" {
         name = "gcs"
         gcs {
           bucket    = volumes.value.bucket
-          read_only = true
+          read_only = volumes.value.read_only
         }
       }
     }
