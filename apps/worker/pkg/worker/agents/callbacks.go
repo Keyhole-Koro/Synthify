@@ -45,11 +45,9 @@ func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 			// Dynamic (transform-backed) tools also count against the separate
 			// MaxTransformRuns cap so transform execution is bounded
 			// independently of builtin tool runs.
-			if names := o.dynamicToolNames.Load(); names != nil {
-				if _, ok := (*names)[t.Name()]; ok {
-					if err := o.base.IncrementTransformRuns(ctx); err != nil {
-						return nil, err
-					}
+			if o.isDynamicTool(t.Name()) {
+				if err := o.base.IncrementTransformRuns(ctx); err != nil {
+					return nil, err
 				}
 			}
 

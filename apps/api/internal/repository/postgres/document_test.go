@@ -64,6 +64,8 @@ func TestCreateProcessingJobCreatesJobBeforeCapability(t *testing.T) {
 			int32(128),
 			int32(0),
 			int32(4096),
+			int32(64),
+			int32(512),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 		).

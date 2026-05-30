@@ -35,3 +35,15 @@ func (o *Orchestrator) resolveDynamicTools(ctx context.Context, workspaceID stri
 	}
 	return out
 }
+
+// isDynamicTool reports whether name is one of the current job's dynamic
+// (transform-backed) tools. The set is rebuilt per job in ProcessDocument;
+// when no job is active (nil set) nothing is dynamic.
+func (o *Orchestrator) isDynamicTool(name string) bool {
+	names := o.dynamicToolNames.Load()
+	if names == nil {
+		return false
+	}
+	_, ok := (*names)[name]
+	return ok
+}
