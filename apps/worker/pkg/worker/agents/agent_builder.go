@@ -42,6 +42,7 @@ func (o *Orchestrator) buildAgent(dyn []core.Tool) (agent.Agent, error) {
 		Instruction:          o.instruction,
 		Tools:                toolList,
 		BeforeModelCallbacks: o.beforeModelCBs,
+		AfterModelCallbacks:  o.afterModelCBs,
 		BeforeToolCallbacks:  o.beforeToolCBs,
 		AfterToolCallbacks:   o.afterToolCBs,
 	})

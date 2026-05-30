@@ -26,6 +26,7 @@ import (
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
+	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/genai"
@@ -66,7 +67,7 @@ func (d dynamicSource) ResolveActive(ctx context.Context, workspaceID string) ([
 	return d.repo.ResolveActiveTools(ctx, workspaceID)
 }
 
-func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, fs *storage.FileSystem, logger *slog.Logger, nrApp *newrelic.Application) (*Worker, error) {
+func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, reporter llm.UsageReporter, fs *storage.FileSystem, logger *slog.Logger, nrApp *newrelic.Application) (*Worker, error) {
 	usage := base.NewUsageLimiter(treeRepo, logger)
 	b := &base.Context{
 		Repo:     treeRepo,
@@ -83,7 +84,11 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 	// later phase.
 	dynSrc := dynamicSource{repo: repo}
 	dynEngine := transform.NewStarlarkEngine(10 * time.Second)
-	orch, err := agents.NewOrchestrator(m, b, repo, fs, dynSrc, dynEngine)
+	// The agent path drives the model directly through ADK, bypassing the
+	// metering.LLMClient wrapper, so usage is metered via an after-model
+	// callback instead. See metering.NewAfterModelCallback.
+	afterModelCBs := []llmagent.AfterModelCallback{metering.NewAfterModelCallback(reporter, logger)}
+	orch, err := agents.NewOrchestrator(m, b, repo, fs, dynSrc, dynEngine, afterModelCBs)
 	if err != nil {
 		return nil, err
 	}

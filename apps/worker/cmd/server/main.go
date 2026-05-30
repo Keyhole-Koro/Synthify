@@ -46,9 +46,13 @@ func main() {
 	jobLogger := postgres.NewDBLogger(store)
 
 	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger)
-	llmClient := metering.NewWrappedClient(embedder, cfg, appLogger, observability.ConnectClientOptions(nrApp)...)
+	// One reporter feeds both metering paths: the llm.Client wrapper (embedding
+	// + custom-client calls) and the agent's after-model callback (ADK
+	// generation calls, which never cross the llm.Client surface).
+	reporter := metering.NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken, observability.ConnectClientOptions(nrApp)...)
+	llmClient := metering.NewLLMClient(embedder, reporter, appLogger)
 
-	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, fs, appLogger, nrApp)
+	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, reporter, fs, appLogger, nrApp)
 	if err != nil {
 		log.Fatal(err)
 	}

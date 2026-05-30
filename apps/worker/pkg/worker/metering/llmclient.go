@@ -6,10 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	connect "connectrpc.com/connect"
 	"github.com/oklog/ulid/v2"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
@@ -36,17 +34,6 @@ func NewLLMClient(inner llm.Client, reporter llm.UsageReporter, logger *slog.Log
 	return &LLMClient{inner: inner, reporter: reporter, logger: logger}
 }
 
-// NewWrappedClient returns a client wrapped with a Connect-based metering reporter.
-// It uses the APIBaseURL and InternalServiceToken from the worker config to
-// ship usage events. If inner is nil, it returns nil.
-func NewWrappedClient(inner llm.Client, cfg config.Worker, logger *slog.Logger, opts ...connect.ClientOption) llm.Client {
-	if inner == nil {
-		return nil
-	}
-	reporter := NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken, opts...)
-	return NewLLMClient(inner, reporter, logger)
-}
-
 func (c *LLMClient) GenerateStructured(ctx context.Context, req llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {
 	raw, usage, err := c.inner.GenerateStructured(ctx, req)
 	if err == nil {
@@ -64,7 +51,17 @@ func (c *LLMClient) GenerateText(ctx context.Context, req llm.TextRequest) (stri
 }
 
 func (c *LLMClient) report(ctx context.Context, usage llm.Usage) {
-	if c.reporter == nil {
+	reportUsage(ctx, c.reporter, c.logger, usage)
+}
+
+// reportUsage ships a single usage measurement to the billing reporter,
+// attributing it to the account/workspace/job carried by the context tag.
+// It is shared by the llm.Client wrapper (embedding + custom-client paths) and
+// the ADK agent's after-model callback so both paths attribute usage
+// identically. A nil reporter or a zero-token measurement is a no-op; a missing
+// tag is logged and dropped rather than failing the call.
+func reportUsage(ctx context.Context, reporter llm.UsageReporter, logger *slog.Logger, usage llm.Usage) {
+	if reporter == nil {
 		return
 	}
 	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
@@ -72,7 +69,7 @@ func (c *LLMClient) report(ctx context.Context, usage llm.Usage) {
 	}
 	tag, ok := TagFromContext(ctx)
 	if !ok {
-		c.logger.Warn("metering.tag_missing",
+		logger.Warn("metering.tag_missing",
 			"model", usage.Model,
 			"input_tokens", usage.InputTokens,
 			"output_tokens", usage.OutputTokens,
@@ -89,8 +86,8 @@ func (c *LLMClient) report(ctx context.Context, usage llm.Usage) {
 		OutputTokens: usage.OutputTokens,
 		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
 	}
-	if err := c.reporter.RecordUsage(ctx, event); err != nil {
-		c.logger.Warn("metering.record_usage_failed",
+	if err := reporter.RecordUsage(ctx, event); err != nil {
+		logger.Warn("metering.record_usage_failed",
 			"error", err.Error(),
 			"event_id", event.EventID,
 			"account_id", event.AccountID,

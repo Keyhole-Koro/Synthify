@@ -43,6 +43,7 @@ type Orchestrator struct {
 	instruction    string
 	builtinTools   []core.Tool
 	beforeModelCBs []llmagent.BeforeModelCallback
+	afterModelCBs  []llmagent.AfterModelCallback
 	beforeToolCBs  []llmagent.BeforeToolCallback
 	afterToolCBs   []llmagent.AfterToolCallback
 	dynamicSource  core.DynamicToolSource // optional; nil = builtin-only
@@ -61,7 +62,9 @@ const currentCheckpointVersion = 1
 // (nil means "builtin tools only"). When non-nil, ProcessDocument resolves
 // active dynamic tools for the job's workspace and merges them into the
 // agent's tool set before running.
-func NewOrchestrator(m model.LLM, b *base.Context, repo Repo, fs *storage.FileSystem, dynSrc core.DynamicToolSource, dynEngine transform.Engine) (*Orchestrator, error) {
+// afterModelCBs are appended to the agent's after-model callback chain (e.g.
+// billing usage metering). nil is fine — builtin-only runs pass no extras.
+func NewOrchestrator(m model.LLM, b *base.Context, repo Repo, fs *storage.FileSystem, dynSrc core.DynamicToolSource, dynEngine transform.Engine, afterModelCBs []llmagent.AfterModelCallback) (*Orchestrator, error) {
 	builtins, err := builtin.Build(b)
 	if err != nil {
 		return nil, err
@@ -77,6 +80,7 @@ func NewOrchestrator(m model.LLM, b *base.Context, repo Repo, fs *storage.FileSy
 		builtinTools:  builtins.Tools,
 		dynamicSource: dynSrc,
 		dynamicEngine: dynEngine,
+		afterModelCBs: afterModelCBs,
 	}
 
 	orch.beforeModelCBs = orch.beforeModelCallbacks()
