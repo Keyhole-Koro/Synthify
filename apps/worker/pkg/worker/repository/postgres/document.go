@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 func (s *Store) ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error) {
@@ -714,8 +714,8 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 		JobID:        jobID,
 		DocumentID:   docID,
 		WorkspaceID:  doc.WorkspaceID,
-		JobType:      strconv.Itoa(int(jobType)),
-		Status:       strconv.Itoa(int(appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED)),
+		JobType:      jobstatus.JobTypeToDB(jobType),
+		Status:       jobstatus.LifecycleStateToDB(appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED),
 		RequestedBy:  requestedBy,
 		CapabilityID: capability.CapabilityID,
 		CreatedAt:    createdAt,
@@ -977,16 +977,14 @@ func toDocument(row sqlcgen.Document) *domain.Document {
 }
 
 func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
-	jobType, _ := strconv.Atoi(row.JobType)
-	status, _ := strconv.Atoi(row.Status)
 	return &domain.DocumentProcessingJob{
 		JobID:            row.JobID,
 		DocumentID:       row.DocumentID,
 		WorkspaceID:      row.WorkspaceID,
 		CapabilityID:     row.CapabilityID,
 		ExecutionPlanID:  row.ExecutionPlanID,
-		JobType:          appv1.JobType(jobType),
-		Status:           appv1.JobLifecycleState(status),
+		JobType:          jobstatus.JobTypeFromDB(row.JobType),
+		Status:           jobstatus.LifecycleStateFromDB(row.Status),
 		CurrentStage:     row.CurrentStage,
 		PlanStatus:       row.PlanStatus,
 		EvaluationStatus: row.EvaluationStatus,

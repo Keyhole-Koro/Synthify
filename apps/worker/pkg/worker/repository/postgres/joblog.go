@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/internal/platform/job/log"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
 type DBLogger struct {
@@ -297,8 +298,7 @@ type jobLogRow struct {
 }
 
 func parseJobStatus(s string) appv1.JobLifecycleState {
-	status, _ := strconv.Atoi(s)
-	return appv1.JobLifecycleState(status)
+	return jobstatus.LifecycleStateFromDB(s)
 }
 
 func encodeJobLogCursor(ts time.Time, sourceID string) string {
