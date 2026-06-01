@@ -16,6 +16,7 @@ var lifecycleStateToDB = map[appv1.JobLifecycleState]string{
 	appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING:   "running",
 	appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED: "succeeded",
 	appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED:    "failed",
+	appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RETRYABLE: "retryable",
 }
 
 var dbToLifecycleState = reverseStateMap(lifecycleStateToDB)

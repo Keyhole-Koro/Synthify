@@ -97,6 +97,7 @@ type DocumentRepository interface {
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
 	FailProcessingJob(ctx context.Context, jobID, errorMessage string) error
+	RequeueProcessingJobForRetry(ctx context.Context, jobID string) error
 	CompleteProcessingJob(ctx context.Context, jobID string) error
 	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
 	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error)

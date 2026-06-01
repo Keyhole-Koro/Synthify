@@ -111,6 +111,17 @@ SET status = 'failed',
     updated_at = $3
 WHERE job_id = $1;
 
+-- name: RequeueProcessingJobForRetry :execrows
+-- Marks a job RETRYABLE after the worker aborted it on its own wall-clock
+-- budget (not a real failure). Bumps retry_count so the caller can cap retries.
+-- Status is set to 'retryable', which shouldSkipJobStatus lets through so a
+-- Cloud Tasks redelivery re-runs the job and resumes from checkpoints.
+UPDATE document_processing_jobs
+SET status = 'retryable',
+    retry_count = retry_count + 1,
+    updated_at = $2
+WHERE job_id = $1;
+
 -- name: UpdateProcessingJobStage :exec
 UPDATE document_processing_jobs
 SET current_stage = $2, updated_at = $3

@@ -72,7 +72,10 @@ func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 				}
 			}
 
-			stage := stageTools[t.Name()]
+			// stage doubles as the checkpoint key; for per-item tools
+			// (generate_html_summary) it carries an item suffix so each item
+			// resumes independently.
+			stage := checkpointKey(t.Name(), args)
 			if stage == "" || o.repo == nil || o.fs == nil {
 				return nil, nil
 			}
@@ -125,7 +128,9 @@ func (o *Orchestrator) afterToolCallbacks() []llmagent.AfterToolCallback {
 				_ = o.repo.LogToolCall(ctx, jobID, t.Name(), string(argJSON), string(resJSON), time.Since(start).Milliseconds())
 			}
 
-			stage := stageTools[t.Name()]
+			// Same key function as the read path so the recorded checkpoint is
+			// the one a resume will look for (per-item suffix for html_summary).
+			stage := checkpointKey(t.Name(), args)
 			if err == nil && stage != "" && jobID != "" && o.repo != nil && o.fs != nil {
 				docID := ""
 				wsID := ""

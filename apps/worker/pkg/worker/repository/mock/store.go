@@ -727,6 +727,7 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error        { return nil }
 func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error { return nil }
 func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error { return nil }
+func (s *Store) RequeueProcessingJobForRetry(ctx context.Context, jobID string) error    { return nil }
 func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error           { return nil }
 
 // CheckpointRepository

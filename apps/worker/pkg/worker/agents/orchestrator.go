@@ -66,10 +66,51 @@ type Orchestrator struct {
 var stageTools = map[string]string{
 	"generate_brief":          "briefing",
 	"generate_knowledge_tree": "knowledge_tree",
+	"generate_html_summary":   "html_summary",
 	"persist_knowledge_tree":  "persistence",
 }
 
+// perItemStageTools are stage tools invoked once *per item* within a job, so a
+// single fixed stage name would make every call overwrite the same checkpoint.
+// Their checkpoint key is suffixed with the item's local_id so each item's
+// generated output is checkpointed independently and a resumed job can skip the
+// ones already done (the expensive generate_html_summary pass).
+var perItemStageTools = map[string]bool{
+	"generate_html_summary": true,
+}
+
 const currentCheckpointVersion = 1
+
+// checkpointKey resolves the per-job checkpoint key for a tool call. For most
+// stage tools it is just the fixed stage name; for per-item tools it appends
+// the item's local_id so each item checkpoints separately. Returns "" when the
+// tool is not a stage tool. The same function feeds both the read (resume) and
+// write (record) paths so the keys can never diverge.
+func checkpointKey(toolName string, args map[string]any) string {
+	stage := stageTools[toolName]
+	if stage == "" {
+		return ""
+	}
+	if perItemStageTools[toolName] {
+		if id := itemLocalID(args); id != "" {
+			return stage + "/" + id
+		}
+		// No identifiable item — fall back to the bare stage so we at least do
+		// not collide across tools, accepting that such calls share one slot.
+	}
+	return stage
+}
+
+// itemLocalID digs the item.local_id out of a generate_html_summary arg map.
+// Args arrive as decoded JSON (map[string]any), so the item is a nested map.
+func itemLocalID(args map[string]any) string {
+	item, ok := args["item"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	id, _ := item["local_id"].(string)
+	return id
+}
 
 // NewOrchestrator wires the worker agent. dynSrc and dynEngine are optional
 // (nil means "builtin tools only"). When non-nil, ProcessDocument resolves

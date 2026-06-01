@@ -1,5 +1,12 @@
 # Worker agent ループの暴走と timeout 固着
 
+> **Status: L1 / L2 / L3 / L4-a / L4-b 実装済み（2026-06-01）。**
+> L1=Document Map 自動注入、L2=wall-clock budget、L3=env var 一本化の timeout 整合、
+> L4-a=`context.WithoutCancel` で必ず FAILED、L4-b=per-item checkpoint +
+> RETRYABLE 状態での自動再開（[worker-budget-retry-state.md](worker-budget-retry-state.md)）。
+> persist 冪等化（L4-c の前提）のみ未着手
+> （[persist-knowledge-tree-idempotency.md](persist-knowledge-tree-idempotency.md)）。
+
 ## TL;DR
 
 2026-06-01、stage 環境で 3 chunk しかない小さな Mermaid ドキュメントの処理が

@@ -11,7 +11,8 @@
 
 ## P1 — 設計上の問題
 
-- [worker-agent-loop-timeout.md](worker-agent-loop-timeout.md) — **High Priority**: agent が `extract_text` で迷子になり 300s timeout、さらに job が `RUNNING` のまま固着する問題。L1(探索ループ)〜L4(固着) の4層構造を実ログで分析し、層ごとの解決策を検討
+- [worker-agent-loop-timeout.md](worker-agent-loop-timeout.md) — **Done (L1〜L4-b)**: agent が `extract_text` で迷子になり 300s timeout、さらに job が `RUNNING` のまま固着する問題。L1(探索ループ)〜L4(固着) の4層を実ログで分析し実装。persist 冪等化のみ残
+- [worker-budget-retry-state.md](worker-budget-retry-state.md) — **Done**: budget timeout で中断した job を RETRYABLE 状態にして自動再実行（checkpoint resume）。proto に `JOB_LIFECYCLE_STATE_RETRYABLE` 追加。L4-b の状態設計
 - [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: monitor (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
 - [security-hardening-audit.md](security-hardening-audit.md) — **High Priority**: upload URL 発行、Firestore rules、CORS、CI/IAM 権限のセキュリティ監査メモ
 - [remove-shared-package.md](remove-shared-package.md) — shared package 解体後の境界整理メモ

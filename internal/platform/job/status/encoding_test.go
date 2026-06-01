@@ -14,6 +14,7 @@ func TestLifecycleStateDBValues(t *testing.T) {
 		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING:   "running",
 		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED: "succeeded",
 		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_FAILED:    "failed",
+		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RETRYABLE: "retryable",
 	}
 	for state, want := range cases {
 		if got := LifecycleStateToDB(state); got != want {

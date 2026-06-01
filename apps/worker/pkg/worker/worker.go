@@ -120,8 +120,9 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 // be re-run: its outputs already exist and re-running risks producing
 // duplicates. An already-running job is also skipped; the in-progress
 // invocation will record its own completion, so a parallel second pass
-// would race the first against the same document. Anything else (queued,
-// unspecified) is allowed through.
+// would race the first against the same document. Anything else — queued,
+// unspecified, and RETRYABLE (a job the worker aborted on its own budget and
+// deliberately requeued) — is allowed through so it runs / resumes.
 func shouldSkipJobStatus(status appv1.JobLifecycleState) (bool, string) {
 	switch status {
 	case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED,
@@ -207,12 +208,29 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		defer cancel()
 	}
 	if err := w.orchestrator.ProcessDocument(agentCtx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
+		// Distinguish a self-imposed budget abort (retryable) from a real
+		// failure. A budget abort is: the agent ctx hit its deadline while the
+		// parent request ctx is still alive. If the parent is also done, Cloud
+		// Run hard-cancelled us — that is not safely retryable from here, so it
+		// falls through to failJob (L4-a止血).
+		if w.isBudgetAbort(ctx, agentCtx) && job.RetryCount < maxBudgetRetries {
+			if rqErr := w.repo.RequeueProcessingJobForRetry(ctx, req.JobID); rqErr != nil {
+				// If we cannot even mark it retryable, fail it so it does not
+				// wedge in RUNNING.
+				w.logger.Error("worker.requeue_failed", "error", rqErr.Error(), "job_id", req.JobID)
+				w.failJob(ctx, req, payload, fmt.Errorf("%w: %w", domain.ErrAgentExecution, err))
+				return err
+			}
+			w.logger.Info("worker.budget_abort_requeued",
+				"job_id", req.JobID, "retry_count", job.RetryCount+1, "max", maxBudgetRetries)
+			// Return the error so internal_dispatch responds 500 and Cloud Tasks
+			// redelivers; the re-run resumes from checkpoints.
+			return fmt.Errorf("agent budget exceeded, requeued for retry: %w", err)
+		}
 		// Wrap with ErrAgentExecution so classifyFailure can route this
 		// path to agent_error via errors.Is. If the cause is itself a
-		// Vertex APIError, errors.As still finds it through the wrap. A budget
-		// timeout surfaces as context.DeadlineExceeded, which classifyFailure
-		// maps to "cancelled". failJob runs on the parent ctx (still live), so
-		// the FAILED transition lands.
+		// Vertex APIError, errors.As still finds it through the wrap. failJob
+		// runs on the parent ctx (still live), so the FAILED transition lands.
 		wrapped := fmt.Errorf("%w: %w", domain.ErrAgentExecution, err)
 		w.failJob(ctx, req, payload, wrapped)
 		return err
@@ -258,6 +276,23 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 	}
 
 	return nil
+}
+
+// maxBudgetRetries caps how many times a single job may be requeued after a
+// wall-clock budget abort. Beyond this the job is failed for real, so a
+// genuinely-too-slow document cannot loop forever. This is a worker-side backstop
+// in addition to the Cloud Tasks queue's own max_attempts.
+const maxBudgetRetries = 3
+
+// isBudgetAbort reports whether the agent run ended because the worker's own
+// wall-clock budget (agentCtx) expired while the request ctx is still live.
+// That is the retryable case: we stopped ourselves, cleanly, before Cloud Run's
+// hard cancel. If the parent ctx is also done, Cloud Run cancelled the request
+// and we must not treat it as a clean self-abort.
+func (w *Worker) isBudgetAbort(parent, agentCtx context.Context) bool {
+	return w.agentBudget > 0 &&
+		errors.Is(agentCtx.Err(), context.DeadlineExceeded) &&
+		parent.Err() == nil
 }
 
 // failJobTimeout bounds the detached failure-transition work. A job that timed

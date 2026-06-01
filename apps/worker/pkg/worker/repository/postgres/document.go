@@ -796,6 +796,23 @@ func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage strin
 	return nil
 }
 
+// RequeueProcessingJobForRetry marks a job RETRYABLE and bumps retry_count. Used
+// when the worker aborts on its own wall-clock budget so a Cloud Tasks
+// redelivery re-runs the job and resumes from checkpoints.
+func (s *Store) RequeueProcessingJobForRetry(ctx context.Context, jobID string) error {
+	rowsAffected, err := s.q().RequeueProcessingJobForRetry(ctx, sqlcgen.RequeueProcessingJobForRetryParams{
+		JobID:     jobID,
+		UpdatedAt: nowTime(),
+	})
+	if err != nil {
+		return fmt.Errorf("requeue job for retry: %w", err)
+	}
+	if rowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error {
 	rowsAffected, err := s.q().CompleteProcessingJob(ctx, sqlcgen.CompleteProcessingJobParams{
 		JobID:     jobID,

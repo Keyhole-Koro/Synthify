@@ -17,7 +17,10 @@ func DeriveLifecycleState(latestJob *DocumentProcessingJob) appv1.DocumentLifecy
 	}
 	switch latestJob.Status {
 	case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
-		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING:
+		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING,
+		// RETRYABLE = interrupted mid-run by the worker's budget and requeued;
+		// still in flight from the user's view.
+		appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RETRYABLE:
 		return appv1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_PROCESSING
 	case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_SUCCEEDED:
 		return appv1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_COMPLETED

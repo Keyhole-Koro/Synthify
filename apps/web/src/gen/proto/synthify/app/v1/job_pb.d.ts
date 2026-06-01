@@ -910,6 +910,17 @@ export enum JobLifecycleState {
    * @generated from enum value: JOB_LIFECYCLE_STATE_FAILED = 4;
    */
   FAILED = 4,
+
+  /**
+   * RETRYABLE marks a job that was interrupted mid-run by the worker's own
+   * wall-clock budget (not a real failure) and should be re-dispatched. On
+   * re-run the worker resumes from per-stage / per-item checkpoints. It is
+   * distinct from QUEUED (never started) and FAILED (terminal); the UI maps it
+   * to "processing".
+   *
+   * @generated from enum value: JOB_LIFECYCLE_STATE_RETRYABLE = 5;
+   */
+  RETRYABLE = 5,
 }
 
 /**

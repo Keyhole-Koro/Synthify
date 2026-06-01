@@ -41,6 +41,11 @@ func TestShouldSkipJobStatus(t *testing.T) {
 			skip:   true,
 			reason: "worker.skip_terminal_job",
 		},
+		{
+			name:   "retryable is processed (deliberately requeued, must re-run)",
+			status: appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RETRYABLE,
+			skip:   false,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

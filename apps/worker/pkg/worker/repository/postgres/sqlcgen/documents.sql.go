@@ -985,6 +985,31 @@ func (q *Queries) RejectJobApproval(ctx context.Context, arg RejectJobApprovalPa
 	return result.RowsAffected()
 }
 
+const requeueProcessingJobForRetry = `-- name: RequeueProcessingJobForRetry :execrows
+UPDATE document_processing_jobs
+SET status = 'retryable',
+    retry_count = retry_count + 1,
+    updated_at = $2
+WHERE job_id = $1
+`
+
+type RequeueProcessingJobForRetryParams struct {
+	JobID     string
+	UpdatedAt time.Time
+}
+
+// Marks a job RETRYABLE after the worker aborted it on its own wall-clock
+// budget (not a real failure). Bumps retry_count so the caller can cap retries.
+// Status is set to 'retryable', which shouldSkipJobStatus lets through so a
+// Cloud Tasks redelivery re-runs the job and resumes from checkpoints.
+func (q *Queries) RequeueProcessingJobForRetry(ctx context.Context, arg RequeueProcessingJobForRetryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, requeueProcessingJobForRetry, arg.JobID, arg.UpdatedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const searchWorkspaceDocumentChunksByVector = `-- name: SearchWorkspaceDocumentChunksByVector :many
 SELECT c.chunk_id, c.document_id, c.file_id, f.path AS sub_path, c.heading, c.text, c.source_page,
        1 - vector_cosine_distance(c.embedding, $1) AS similarity
