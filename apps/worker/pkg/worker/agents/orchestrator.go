@@ -8,6 +8,8 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin"
+	toolsio "github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/io"
+	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/memory"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
@@ -45,6 +47,9 @@ type Orchestrator struct {
 	base        *base.Context
 	repo        Repo
 	fs          *storage.FileSystem
+	// documentMap is the Working Memory block the deterministic extract+chunk
+	// pre-pass populates at the start of each job (see ProcessDocument).
+	documentMap *memory.DocumentMap
 
 	// model and the inputs to per-job llmagent.New rebuilt by buildAgent.
 	model          model.LLM
@@ -83,6 +88,7 @@ func NewOrchestrator(m model.LLM, b *base.Context, repo Repo, fs *storage.FileSy
 		base:          b,
 		repo:          repo,
 		fs:            fs,
+		documentMap:   builtins.DocumentMap,
 		model:         m,
 		instruction:   orchestratorInstruction,
 		builtinTools:  builtins.Tools,
@@ -104,6 +110,15 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, w
 	}
 	o.currentJobID.Store(&jobID)
 	o.repeatGuard.Store(newRepeatTracker())
+
+	// Deterministic extract + chunk pre-pass. Reading the source is not a
+	// judgement call — file_uri is already known — so we do it in code rather
+	// than letting the agent discover it by guessing extract_text args (the
+	// loop that burned ~3 min and tripped the request timeout). The resulting
+	// chunk map is auto-injected as Working Memory, matching the
+	// "reads are injected, not tools" contract. Best-effort: on failure we log
+	// and let the agent fall back to calling extract_text itself.
+	o.prepareDocumentMap(ctx, documentID, fileURI, mimeType)
 
 	// Per-job agent: builtin + workspace-resolved dynamic tools merged.
 	dyn := o.resolveDynamicTools(ctx, workspaceID)
@@ -127,7 +142,7 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, w
 	}
 
 	msg := fmt.Sprintf(
-		"Process this document and build a knowledge tree.\n\njob_id: %s\ndocument_id: %s\nworkspace_id: %s\nfile_uri: %s\nfilename: %s\nmime_type: %s\n\nFollow your workflow: extract text, chunk, generate brief, generate tree items, critique, then persist.",
+		"Process this document and build a knowledge tree.\n\njob_id: %s\ndocument_id: %s\nworkspace_id: %s\nfile_uri: %s\nfilename: %s\nmime_type: %s\n\nThe source has already been extracted and chunked for you — see the Document Map in Working Memory for the chunk_ids and outline. Do NOT call extract_text or re-chunk unless the Document Map is empty. Start from: generate brief, generate tree items, critique, then persist.",
 		jobID, documentID, workspaceID, fileURI, filename, mimeType,
 	)
 	for event, err := range jobRunner.Run(ctx, "worker", jobID, genai.NewContentFromText(msg, genai.RoleUser), agent.RunConfig{}) {
@@ -139,4 +154,36 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, w
 		}
 	}
 	return nil
+}
+
+// prepareDocumentMap extracts and chunks the source up front, persists the
+// chunks, and populates the Document Map Working Memory block so the agent
+// starts with the outline already in context. Best-effort by design: any
+// failure here (extraction error, no map handle) is logged and the agent falls
+// back to calling extract_text / semantic_chunking itself, so this pre-pass can
+// only help, never block. Empty extracted text (e.g. an image with no OCR text)
+// leaves the map empty and the agent proceeds via its own tools.
+func (o *Orchestrator) prepareDocumentMap(ctx context.Context, documentID, fileURI, mimeType string) {
+	if o.documentMap == nil || o.base == nil || o.base.Job == nil {
+		return
+	}
+	logger := o.base.Logger
+	rawText, err := toolsio.Extract(ctx, o.base, fileURI, mimeType, o.base.Job.WorkspaceID, documentID)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("orchestrator.document_map_extract_failed", "error", err.Error(), "document_id", documentID)
+		}
+		return
+	}
+	_, _, chunks, err := toolsio.ChunkAndSave(ctx, o.base, documentID, "", rawText)
+	if err != nil {
+		if logger != nil {
+			logger.Warn("orchestrator.document_map_chunk_failed", "error", err.Error(), "document_id", documentID)
+		}
+		return
+	}
+	o.documentMap.Set(chunks)
+	if logger != nil {
+		logger.Info("orchestrator.document_map_ready", "document_id", documentID, "chunks", len(chunks))
+	}
 }

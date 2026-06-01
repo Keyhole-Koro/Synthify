@@ -56,6 +56,23 @@ func NewExtractionTool(b *base.Context) (core.Tool, error) {
 	}, nil
 }
 
+// Extract runs the extraction logic outside the tool wrapper so the
+// orchestrator can perform a deterministic extract pass at the start of a job
+// (the agent no longer discovers the source by guessing extract_text args). It
+// is the same code path the extract_text tool drives.
+func Extract(ctx context.Context, b *base.Context, fileURI, mimeType, workspaceID, documentID string) (string, error) {
+	res, err := runExtraction(ctx, b, ExtractionArgs{
+		FileURI:     fileURI,
+		MimeType:    mimeType,
+		WorkspaceID: workspaceID,
+		DocumentID:  documentID,
+	})
+	if err != nil {
+		return "", err
+	}
+	return res.RawText, nil
+}
+
 // runExtraction is the unwrapped extraction logic. Split from the factory so
 // the 道A Run closure stays small and the existing per-file-shape branches
 // (zip / media / text) remain testable independently.

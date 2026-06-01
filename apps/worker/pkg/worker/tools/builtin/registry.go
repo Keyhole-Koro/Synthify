@@ -27,6 +27,9 @@ import (
 type Set struct {
 	Tools    []core.Tool
 	Memories []base.PromptMemory
+	// DocumentMap is populated by the orchestrator's deterministic extract+chunk
+	// pre-pass (not by a tool), so the orchestrator needs a direct handle.
+	DocumentMap *memory.DocumentMap
 }
 
 // Build constructs the builtin tools in the production order and returns the
@@ -35,6 +38,7 @@ func Build(b *base.Context) (Set, error) {
 	glossary := memory.NewGlossary()
 	journal := memory.NewJournal()
 	brief := memory.NewBrief()
+	documentMap := memory.NewDocumentMap()
 
 	reg := NewRegistry()
 	reg.Register("semantic_chunking", toolsio.NewChunkingTool)
@@ -92,8 +96,11 @@ func Build(b *base.Context) (Set, error) {
 		return Set{}, err
 	}
 	return Set{
-		Tools:    tools,
-		Memories: []base.PromptMemory{brief, glossary, journal},
+		Tools: tools,
+		// Document Map first: the agent should see "what the source contains"
+		// before the derived state (brief/glossary/journal).
+		Memories:    []base.PromptMemory{documentMap, brief, glossary, journal},
+		DocumentMap: documentMap,
 	}, nil
 }
 

@@ -125,7 +125,11 @@ func TestBuildReturnsProductionOrder(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("tool order = %#v, want %#v", got, want)
 	}
-	if len(set.Memories) != 3 {
-		t.Fatalf("memories = %d, want 3", len(set.Memories))
+	// Document Map + Brief + Glossary + Journal.
+	if len(set.Memories) != 4 {
+		t.Fatalf("memories = %d, want 4", len(set.Memories))
+	}
+	if set.DocumentMap == nil {
+		t.Fatal("DocumentMap handle is nil; orchestrator cannot populate it")
 	}
 }
