@@ -3,10 +3,6 @@ resource "google_cloud_tasks_queue" "this" {
   location = var.location
   name     = var.name
 
-  # Must be >= the consumer's request timeout so a retry never overlaps a
-  # still-running first attempt. null keeps the API default (600s).
-  dispatch_deadline = var.dispatch_deadline
-
   rate_limits {
     max_concurrent_dispatches = var.max_concurrent_dispatches
     max_dispatches_per_second = var.max_dispatches_per_second

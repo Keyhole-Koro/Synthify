@@ -23,6 +23,9 @@ module "service" {
     WORKER_CLOUDTASKS_QUEUE = var.worker_cloudtasks_queue
     WORKER_DISPATCH_URL     = var.worker_dispatch_url
     WORKER_INVOKER_SA       = var.worker_invoker_sa
+    # >= the worker request timeout; set per-task at enqueue (the queue resource
+    # has no dispatch_deadline). Same source as the worker timeout (locals).
+    WORKER_DISPATCH_DEADLINE_SECONDS = tostring(var.worker_dispatch_deadline_seconds)
     # Base URL is scheme+host only (no bucket path). ValidateBaseURL rejects
     # a path, and BuildDocumentUploadURL inserts the bucket from GCS_BUCKET.
     GCS_BUCKET                   = var.uploads_bucket_name

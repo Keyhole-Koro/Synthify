@@ -8,11 +8,18 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	taskspb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
 	"github.com/synthify/backend/apps/api/internal/domain"
+	"google.golang.org/protobuf/types/known/durationpb"
 )
+
+// defaultDispatchDeadline is used when the config leaves DispatchDeadline at
+// zero. See config.WorkerDispatch.DispatchDeadline for the rationale (must be >=
+// the worker's request timeout). 15m is the Cloud Tasks max for HTTP targets.
+const defaultDispatchDeadline = 15 * time.Minute
 
 // CloudTasksDispatcher enqueues worker invocations onto a Cloud Tasks queue
 // instead of calling the worker synchronously. Cloud Tasks then drives the
@@ -23,12 +30,13 @@ import (
 // endpoint (NOT the Connect RPCs) because Cloud Tasks delivers a raw HTTP
 // body that does not match Connect's framing.
 type CloudTasksDispatcher struct {
-	client        *cloudtasks.Client
-	queuePath     string // "projects/X/locations/Y/queues/Z"
-	dispatchURL   string // "https://worker-host/internal/dispatch-job"
-	invokerSA     string // service account email Cloud Tasks should impersonate to mint the OIDC token
-	oidcAudience  string // audience the OIDC token must claim. Defaults to dispatchURL's scheme+host.
-	logger        *slog.Logger
+	client           *cloudtasks.Client
+	queuePath        string // "projects/X/locations/Y/queues/Z"
+	dispatchURL      string // "https://worker-host/internal/dispatch-job"
+	invokerSA        string // service account email Cloud Tasks should impersonate to mint the OIDC token
+	oidcAudience     string // audience the OIDC token must claim. Defaults to dispatchURL's scheme+host.
+	dispatchDeadline time.Duration
+	logger           *slog.Logger
 }
 
 type CloudTasksDispatcherConfig struct {
@@ -36,7 +44,10 @@ type CloudTasksDispatcherConfig struct {
 	DispatchURL  string
 	InvokerSA    string
 	OIDCAudience string // optional; defaults to scheme+host of DispatchURL
-	Logger       *slog.Logger
+	// DispatchDeadline is the per-task response deadline. Zero falls back to
+	// defaultDispatchDeadline.
+	DispatchDeadline time.Duration
+	Logger           *slog.Logger
 }
 
 // NewCloudTasksDispatcher wires up the dispatcher and the underlying Cloud
@@ -61,19 +72,25 @@ func NewCloudTasksDispatcher(ctx context.Context, cfg CloudTasksDispatcherConfig
 	if audience == "" {
 		audience = audienceFromURL(cfg.DispatchURL)
 	}
+	deadline := cfg.DispatchDeadline
+	if deadline <= 0 {
+		deadline = defaultDispatchDeadline
+	}
 	cfg.Logger.Info("worker.cloudtasks_dispatcher_init",
 		"queue", cfg.QueuePath,
 		"dispatch_url", cfg.DispatchURL,
 		"invoker_sa", cfg.InvokerSA,
 		"oidc_audience", audience,
+		"dispatch_deadline", deadline.String(),
 	)
 	return &CloudTasksDispatcher{
-		client:       client,
-		queuePath:    cfg.QueuePath,
-		dispatchURL:  cfg.DispatchURL,
-		invokerSA:    cfg.InvokerSA,
-		oidcAudience: audience,
-		logger:       cfg.Logger,
+		client:           client,
+		queuePath:        cfg.QueuePath,
+		dispatchURL:      cfg.DispatchURL,
+		invokerSA:        cfg.InvokerSA,
+		oidcAudience:     audience,
+		dispatchDeadline: deadline,
+		logger:           cfg.Logger,
 	}, nil
 }
 
@@ -107,7 +124,8 @@ func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, re
 	taskName := fmt.Sprintf("%s/tasks/%s", d.queuePath, taskID(req.JobID, procedure))
 
 	task := &taskspb.Task{
-		Name: taskName,
+		Name:             taskName,
+		DispatchDeadline: durationpb.New(d.dispatchDeadline),
 		MessageType: &taskspb.Task_HttpRequest{
 			HttpRequest: &taskspb.HttpRequest{
 				HttpMethod: taskspb.HttpMethod_POST,

@@ -40,6 +40,17 @@ variable "worker_invoker_sa" {
   default     = ""
 }
 
+variable "worker_dispatch_deadline_seconds" {
+  description = <<-EOT
+    Per-task Cloud Tasks dispatch deadline (set by the API at enqueue time, not
+    on the queue resource). Must be >= the worker's request timeout so a retry
+    never overlaps a still-running attempt. Derived in environments/ from the
+    worker timeout. Cloud Tasks max is 1800s.
+  EOT
+  type        = number
+  default     = 900
+}
+
 variable "uploads_bucket_name" {
   type = string
 }

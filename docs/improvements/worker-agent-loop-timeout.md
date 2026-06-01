@@ -189,10 +189,11 @@ Cloud Tasks リトライは `shouldSkipJobStatus` が `RUNNING` を見て skip �
 ### L3 への対策 — deadline を現実に合わせる【補助】
 
 - worker の Cloud Run `timeout` を 300 → 900s 程度に上げる（services/worker で明示）
-- Cloud Tasks queue の `dispatch_deadline` を明示設定し、Cloud Run timeout と整合させる
-  （dispatch_deadline ≤ 1800s が上限。Cloud Run timeout > dispatch_deadline にすると
-  二重ディスパッチで古いリクエストがキャンセルされるので、**dispatch_deadline ≥ Cloud Run
-  timeout** になるよう設計）
+- Cloud Tasks の `dispatch_deadline` を **タスク単位**で設定し、Cloud Run timeout と
+  整合させる（dispatch_deadline ≤ 1800s が上限。Cloud Run timeout > dispatch_deadline に
+  すると二重ディスパッチで古いリクエストがキャンセルされるので、**dispatch_deadline ≥
+  Cloud Run timeout** になるよう設計）。
+  注: キューリソースには `dispatch_deadline` が無いので enqueue 時にタスクへ設定する
 - ただし L1 が効けば主役ではない。**青天井の入力には延長では追いつかない**
 
 ### L4 への対策 — 何があっても FAILED に落とす【必須・固着を消す】
@@ -355,13 +356,19 @@ terraform の単一の変数**にし、そこから:
 
 値の階層（**内 < 中 ≤ 外**）:
 
+値の階層（**内 < 中 ≤ 外**）:
+
 | 層 | 値 | 役割 |
 |---|---|---|
 | worker の AgentBudget | 540s（=600×0.9） | 一番内。worker が自分で打ち切り FAILED |
 | Cloud Run timeout | 600s（10 分） | その外。worker が自打ちできなかった時のハードキャンセル |
-| Cloud Tasks dispatch_deadline | 900s | 一番外。これより短いとリトライ二重実行 |
+| Cloud Tasks task DispatchDeadline | 900s（15 分） | 一番外。これより短いとリトライ二重実行 |
 
 Cloud Run 既定の 300s は「意図でなくモジュールのデフォルト放置」だったため、
-worker module に `timeout` を明示して 600s に。Cloud Tasks queue には
-`dispatch_deadline` 変数を新設し pipeline_queue で 900s に設定
-（未設定時の API 既定 600s だと Cloud Run 600s と並んで際どいため）。
+worker module に `timeout` を明示して 600s に。
+
+`dispatch_deadline` は **キューリソースではなくタスク単位**で設定する
+（google provider 6.x の `google_cloud_tasks_queue` には `dispatch_deadline`
+引数が存在しない）。API が enqueue する際に `taskspb.Task.DispatchDeadline` を
+15m に設定（[cloudtasks_dispatcher.go](../../apps/api/internal/infrastructure/worker/cloudtasks_dispatcher.go)）。
+これで未設定時の API 既定 600s を上回り、Cloud Run 600s と並ぶ事故を避ける。

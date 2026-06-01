@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/synthify/backend/internal/platform/storage"
 )
@@ -38,6 +40,12 @@ type WorkerDispatch struct {
 	DispatchURL     string // "https://worker-host/internal/dispatch-job"
 	InvokerSA       string // service account Cloud Tasks impersonates to mint OIDC tokens
 	OIDCAudience    string // optional; defaults to scheme+host of DispatchURL
+	// DispatchDeadline is how long Cloud Tasks waits for the worker to respond
+	// to one attempt. It must be >= the worker's Cloud Run request timeout, or a
+	// retry can overlap a still-running attempt and double-dispatch the job.
+	// Set per-task at enqueue time (the queue resource has no such field). Fed
+	// from terraform off the same worker timeout so the two never drift.
+	DispatchDeadline time.Duration
 }
 
 type Auth struct {
@@ -88,10 +96,11 @@ func LoadAPI() API {
 		FirebaseAuthEmulatorHost: os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
 		WorkerBaseURL:            os.Getenv("WORKER_BASE_URL"),
 		WorkerDispatch: WorkerDispatch{
-			CloudTasksQueue: os.Getenv("WORKER_CLOUDTASKS_QUEUE"),
-			DispatchURL:     os.Getenv("WORKER_DISPATCH_URL"),
-			InvokerSA:       os.Getenv("WORKER_INVOKER_SA"),
-			OIDCAudience:    os.Getenv("WORKER_OIDC_AUDIENCE"),
+			CloudTasksQueue:  os.Getenv("WORKER_CLOUDTASKS_QUEUE"),
+			DispatchURL:      os.Getenv("WORKER_DISPATCH_URL"),
+			InvokerSA:        os.Getenv("WORKER_INVOKER_SA"),
+			OIDCAudience:     os.Getenv("WORKER_OIDC_AUDIENCE"),
+			DispatchDeadline: getDurationSeconds("WORKER_DISPATCH_DEADLINE_SECONDS", defaultDispatchDeadline),
 		},
 		Auth: Auth{
 			ServiceToken:     os.Getenv("SYNTHIFY_INTERNAL_SERVICE_TOKEN"),
@@ -124,6 +133,25 @@ func LoadAPI() API {
 
 func LoadStore() Store {
 	return Store{DatabaseDSN: os.Getenv("DATABASE_DSN")}
+}
+
+// defaultDispatchDeadline is the fallback when WORKER_DISPATCH_DEADLINE_SECONDS
+// is unset (local / tests). 15m is the Cloud Tasks max for HTTP targets and
+// comfortably exceeds the worker's default request timeout.
+const defaultDispatchDeadline = 15 * time.Minute
+
+// getDurationSeconds reads an integer-seconds env var, falling back rather than
+// failing on missing / unparseable / non-positive values.
+func getDurationSeconds(key string, fallback time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	secs, err := strconv.Atoi(raw)
+	if err != nil || secs <= 0 {
+		return fallback
+	}
+	return time.Duration(secs) * time.Second
 }
 
 func get(key, fallback string) string {

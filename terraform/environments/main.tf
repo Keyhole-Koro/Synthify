@@ -19,20 +19,21 @@ module "bootstrap" {
 module "worker" {
   source = "../services/worker"
 
-  project_id            = var.project_id
-  region                = var.region
-  name                  = "synthify-worker-${var.environment}"
-  image                 = var.worker_image
-  service_account_email = module.bootstrap.worker_service_account_email
-  uploads_bucket_name   = module.bootstrap.uploads_bucket_name
-  secret_ids            = module.bootstrap.secret_ids
-  firebase_project_id   = local.firebase_project_id
-  gemini_model          = var.gemini_model
-  api_base_url          = var.api_base_url
-  readiness_api_key     = var.readiness_api_key
-  new_relic_app_name    = local.new_relic_worker_app_name
-  log_llm_payload       = var.log_llm_payload
-  deletion_protection   = local.deletion_protection
+  project_id              = var.project_id
+  region                  = var.region
+  name                    = "synthify-worker-${var.environment}"
+  image                   = var.worker_image
+  service_account_email   = module.bootstrap.worker_service_account_email
+  uploads_bucket_name     = module.bootstrap.uploads_bucket_name
+  secret_ids              = module.bootstrap.secret_ids
+  firebase_project_id     = local.firebase_project_id
+  gemini_model            = var.gemini_model
+  api_base_url            = var.api_base_url
+  readiness_api_key       = var.readiness_api_key
+  new_relic_app_name      = local.new_relic_worker_app_name
+  log_llm_payload         = var.log_llm_payload
+  deletion_protection     = local.deletion_protection
+  request_timeout_seconds = local.worker_request_timeout_seconds
 }
 
 module "eval" {
@@ -64,26 +65,27 @@ module "api" {
   # worker's /internal/dispatch-job endpoint with an OIDC token minted
   # for the API SA (Cloud Tasks impersonates it because the SA has
   # iam.serviceAccountTokenCreator on itself).
-  worker_cloudtasks_queue   = module.bootstrap.pipeline_queue_path
-  worker_dispatch_url       = "${module.worker.uri}/internal/dispatch-job"
-  worker_invoker_sa         = module.bootstrap.api_service_account_email
-  uploads_bucket_name       = module.bootstrap.uploads_bucket_name
-  secret_ids                = module.bootstrap.secret_ids
-  firebase_project_id       = local.firebase_project_id
-  cors_allowed_origins      = local.cors_allowed_origins
-  gemini_model              = var.gemini_model
-  env                       = local.env
-  stripe_pro_price_id       = var.stripe_pro_price_id
-  stripe_pro_price_id_jpy   = var.stripe_pro_price_id_jpy
-  stripe_pro_price_id_usd   = var.stripe_pro_price_id_usd
-  stripe_default_currency   = var.stripe_default_currency
-  stripe_meter_input_event  = var.stripe_meter_input_event
-  stripe_meter_output_event = var.stripe_meter_output_event
-  billing_success_url       = local.billing_success_url
-  billing_cancel_url        = local.billing_cancel_url
-  billing_portal_return_url = local.billing_portal_return_url
-  new_relic_app_name        = local.new_relic_app_name
-  readiness_api_key         = var.readiness_api_key
+  worker_cloudtasks_queue          = module.bootstrap.pipeline_queue_path
+  worker_dispatch_url              = "${module.worker.uri}/internal/dispatch-job"
+  worker_invoker_sa                = module.bootstrap.api_service_account_email
+  worker_dispatch_deadline_seconds = local.worker_dispatch_deadline_seconds
+  uploads_bucket_name              = module.bootstrap.uploads_bucket_name
+  secret_ids                       = module.bootstrap.secret_ids
+  firebase_project_id              = local.firebase_project_id
+  cors_allowed_origins             = local.cors_allowed_origins
+  gemini_model                     = var.gemini_model
+  env                              = local.env
+  stripe_pro_price_id              = var.stripe_pro_price_id
+  stripe_pro_price_id_jpy          = var.stripe_pro_price_id_jpy
+  stripe_pro_price_id_usd          = var.stripe_pro_price_id_usd
+  stripe_default_currency          = var.stripe_default_currency
+  stripe_meter_input_event         = var.stripe_meter_input_event
+  stripe_meter_output_event        = var.stripe_meter_output_event
+  billing_success_url              = local.billing_success_url
+  billing_cancel_url               = local.billing_cancel_url
+  billing_portal_return_url        = local.billing_portal_return_url
+  new_relic_app_name               = local.new_relic_app_name
+  readiness_api_key                = var.readiness_api_key
 
   gcs_upload_issuer                 = var.gcs_upload_issuer
   gcs_signing_service_account_email = var.gcs_signing_service_account_email == "" ? module.bootstrap.api_service_account_email : var.gcs_signing_service_account_email

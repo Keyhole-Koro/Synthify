@@ -55,11 +55,12 @@ func main() {
 	var dispatcher service.WorkerDispatcher
 	if cfg.WorkerDispatch.CloudTasksQueue != "" {
 		ctDispatcher, err := apiworker.NewCloudTasksDispatcher(ctx, apiworker.CloudTasksDispatcherConfig{
-			QueuePath:    cfg.WorkerDispatch.CloudTasksQueue,
-			DispatchURL:  cfg.WorkerDispatch.DispatchURL,
-			InvokerSA:    cfg.WorkerDispatch.InvokerSA,
-			OIDCAudience: cfg.WorkerDispatch.OIDCAudience,
-			Logger:       appLogger,
+			QueuePath:        cfg.WorkerDispatch.CloudTasksQueue,
+			DispatchURL:      cfg.WorkerDispatch.DispatchURL,
+			InvokerSA:        cfg.WorkerDispatch.InvokerSA,
+			OIDCAudience:     cfg.WorkerDispatch.OIDCAudience,
+			DispatchDeadline: cfg.WorkerDispatch.DispatchDeadline,
+			Logger:           appLogger,
 		})
 		if err != nil {
 			log.Fatalf("cloud tasks dispatcher init: %v", err)

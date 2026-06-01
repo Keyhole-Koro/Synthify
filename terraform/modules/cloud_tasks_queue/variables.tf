@@ -48,15 +48,3 @@ variable "max_doublings" {
   type    = number
   default = 4
 }
-
-variable "dispatch_deadline" {
-  description = <<-EOT
-    How long Cloud Tasks waits for the worker to respond before treating the
-    attempt as failed and (eventually) retrying. Must be >= the worker's Cloud
-    Run request timeout, otherwise a retry can fire while the first attempt is
-    still running and double-dispatch the job. Cloud Tasks allows 15s..1800s;
-    null leaves the API default (600s).
-  EOT
-  type        = string
-  default     = null
-}

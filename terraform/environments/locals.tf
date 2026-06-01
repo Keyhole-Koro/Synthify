@@ -33,6 +33,14 @@ locals {
   # tainted/failed revision can be recreated without manual intervention.
   deletion_protection = var.environment == "prod"
 
+  # Single source of truth for the worker request budget. Feeds the worker's
+  # Cloud Run timeout + its own agent budget, and the API's Cloud Tasks
+  # dispatch deadline. The dispatch deadline must be >= the worker timeout so a
+  # retry never overlaps a still-running attempt; we give it headroom (1.5x,
+  # capped at the Cloud Tasks 1800s max).
+  worker_request_timeout_seconds   = 600
+  worker_dispatch_deadline_seconds = min(1800, local.worker_request_timeout_seconds * 3 / 2)
+
   # Web origin drives CORS + billing redirect URLs. Trim any trailing slash
   # so concatenation below is predictable.
   web_base_url = trimsuffix(var.web_base_url, "/")
