@@ -211,24 +211,42 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 	// the repository so the Firestore notification carries them. Both lookups
 	// must succeed: persistence is the same transaction that just completed,
 	// so a missing row here means the schema invariants are broken.
+	//
+	// These run AFTER MarkRunning, so a bare `return err` here would leave the
+	// job wedged in RUNNING forever (no FAILED transition). Route every
+	// post-MarkRunning error through failJob so the job always reaches a
+	// terminal state.
 	rootID, err := w.repo.GetDocumentRootItemID(ctx, req.DocumentID)
 	if err != nil {
-		return fmt.Errorf("get document root item id for completion: %w", err)
+		wrapped := fmt.Errorf("get document root item id for completion: %w", err)
+		w.failJob(ctx, req, payload, wrapped)
+		return wrapped
 	}
 	wsRoot, err := w.repo.GetWorkspaceRootItemID(ctx, req.WorkspaceID)
 	if err != nil {
-		return fmt.Errorf("get workspace root item id for completion: %w", err)
+		wrapped := fmt.Errorf("get workspace root item id for completion: %w", err)
+		w.failJob(ctx, req, payload, wrapped)
+		return wrapped
 	}
 	outcome := joblifecycle.CompletionOutcome{
 		CreatedDocumentRootItemID:   rootID,
 		AffectedWorkspaceRootItemID: wsRoot,
 	}
 	if err := w.lifecycle.Complete(ctx, payload, outcome); err != nil {
-		return fmt.Errorf("complete job in repo: %w", err)
+		wrapped := fmt.Errorf("complete job in repo: %w", err)
+		w.failJob(ctx, req, payload, wrapped)
+		return wrapped
 	}
 
 	return nil
 }
+
+// failJobTimeout bounds the detached failure-transition work. A job that timed
+// out had its request ctx cancelled by Cloud Run; the DB + Firestore writes that
+// move it to FAILED must run on a ctx that is NOT already cancelled, or they fail
+// too and the job wedges in RUNNING forever (the "Processing started" stall). We
+// give those writes a fresh, short-lived ctx derived via WithoutCancel.
+const failJobTimeout = 30 * time.Second
 
 func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jobstatus.Payload, cause error) {
 	reason := classifyFailure(cause)
@@ -241,7 +259,12 @@ func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jo
 		Message:     fmt.Sprintf("Agent execution failed: %v", cause),
 		Detail:      map[string]any{"error": cause.Error(), "reason": string(reason)},
 	})
-	w.lifecycle.TryFailWith(ctx, payload, joblifecycle.Failure{Cause: cause, Reason: reason})
+	// Detach from the (possibly cancelled) request ctx so the FAILED transition
+	// always lands. Keep the values (logging, tracing, metering tags) but drop
+	// the cancellation, then bound it with our own timeout.
+	failCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failJobTimeout)
+	defer cancel()
+	w.lifecycle.TryFailWith(failCtx, payload, joblifecycle.Failure{Cause: cause, Reason: reason})
 }
 
 // classifyFailure maps a raw error from the agent / pipeline onto the

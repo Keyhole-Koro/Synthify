@@ -11,6 +11,7 @@
 
 ## P1 — 設計上の問題
 
+- [worker-agent-loop-timeout.md](worker-agent-loop-timeout.md) — **High Priority**: agent が `extract_text` で迷子になり 300s timeout、さらに job が `RUNNING` のまま固着する問題。L1(探索ループ)〜L4(固着) の4層構造を実ログで分析し、層ごとの解決策を検討
 - [admin-dashboard-security.md](admin-dashboard-security.md) — **High Priority**: monitor (Admin Dashboard) の無認証状態の解消と GrantCredit 等の管理者機能の実装計画
 - [security-hardening-audit.md](security-hardening-audit.md) — **High Priority**: upload URL 発行、Firestore rules、CORS、CI/IAM 権限のセキュリティ監査メモ
 - [remove-shared-package.md](remove-shared-package.md) — shared package 解体後の境界整理メモ
@@ -29,6 +30,7 @@
 
 - [worker-tools-stub.md](worker-tools-stub.md) — synthesis/merging/briefing/critique ツールが簡易実装のまま（詳細設計: [process-tools-llm-implementation.md](process-tools-llm-implementation.md)）
 - [resume-processing-stub.md](resume-processing-stub.md) — ResumeProcessing がダミー job_id を返すだけで実際の再開ロジックがない
+- [persist-knowledge-tree-idempotency.md](persist-knowledge-tree-idempotency.md) — `persist_knowledge_tree` が冪等でなく（item 個別 tx・document_id UNIQUE・cleanup なし）、timeout で死んだ job の自動再開（worker-agent-loop-timeout L4-c）の障壁。1 tx 化 + checkpoint スキップ案を推奨
 
 ## P3 — 仕様ドラフト（実装前に設計が必要）
 
