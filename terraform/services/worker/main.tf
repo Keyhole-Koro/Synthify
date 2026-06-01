@@ -21,6 +21,10 @@ module "service" {
   # service account.
   deletion_protection = var.deletion_protection
 
+  # One number drives both the Cloud Run hard cancel and the app's agent budget
+  # (WORKER_REQUEST_TIMEOUT_SECONDS below) so they can never drift apart.
+  timeout = "${var.request_timeout_seconds}s"
+
   gcs_volume = {
     bucket     = var.uploads_bucket_name
     mount_path = local.gcs_fuse_mount_path
@@ -45,6 +49,9 @@ module "service" {
     API_BASE_URL                 = var.api_base_url
     NEW_RELIC_APP_NAME           = var.new_relic_app_name
     LOG_LLM_PAYLOAD              = var.log_llm_payload
+    # Same value as the Cloud Run timeout above; the app derives its agent
+    # wall-clock budget (90%) from this and aborts itself before the hard cancel.
+    WORKER_REQUEST_TIMEOUT_SECONDS = tostring(var.request_timeout_seconds)
   }
 
   sensitive_env_vars = {

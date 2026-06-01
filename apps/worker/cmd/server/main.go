@@ -52,7 +52,7 @@ func main() {
 	reporter := metering.NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken, observability.ConnectClientOptions(nrApp)...)
 	llmClient := metering.NewLLMClient(embedder, reporter, appLogger)
 
-	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, reporter, fs, appLogger, nrApp)
+	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, reporter, fs, appLogger, nrApp, cfg.AgentBudget())
 	if err != nil {
 		log.Fatal(err)
 	}

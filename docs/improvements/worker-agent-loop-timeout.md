@@ -316,7 +316,45 @@ agent は必要な chunk だけを id で引く（chunk 本体取得は既存の
 - **Document Map の粒度:** **見出し + 各 chunk の冒頭 1〜2 行**。
   弱い見出し（"Section 1" 等）の文書でも agent が往復なしで判断できるように。
   100 chunk でも 5〜10KB に収まる
-- **L2 予算の強制点:** **既存の `IncrementLLMCalls`**
-  （[callbacks.go](../../apps/worker/pkg/worker/agents/callbacks.go)）に capability の
-  `max_llm_calls` 超過チェックを足す。ADK 非依存・最小変更で、
-  [capability-limits-not-enforced.md](capability-limits-not-enforced.md) の本体そのもの
+- **L2 予算の強制点:** **実装時に前提が覆った。** 調査の結果、`max_llm_calls`
+  enforcement は**既に完全実装・稼働中**だった
+  （[usage.go](../../apps/worker/pkg/worker/tools/core/base/usage.go) の `increment` が
+  上限超過で `reportExceeded` を返し、`IncrementLLMCalls` 経由でループを止める。
+  `MaxLLMCalls=128` が [api/domain/job.go](../../apps/api/internal/domain/job.go) で
+  発行済み）。`capability-limits-not-enforced.md` も実体が無い（README のリンク切れ）。
+  そして **128 回上限は今回の問題に効かない** — timeout job は 37 往復で、回数ではなく
+  **wall-clock 時間**が制約だった。repeat_guard も「同 tool + 同 args」連続のみ検知する
+  ため、毎回 args が違う探索ループ（`extract_text(document_id)` →
+  `extract_text(".png")` → …）はすり抜けた。
+  → **L2 で足したのは「時間予算」**（下記実装ノート参照）
+
+## 実装ノート（2026-06-01 着手分）
+
+L4-a / L1 / L2 / L3 を実装。ポイントと、設計から変わった点:
+
+### env var 一本化（L2 + L3 を統合）
+
+タイムアウト系の値が複数箇所でズレる事故を防ぐため、**`request_timeout_seconds` を
+terraform の単一の変数**にし、そこから:
+
+- Cloud Run の `timeout`（ハードキャンセル境界）
+- 環境変数 `WORKER_REQUEST_TIMEOUT_SECONDS`（worker が読む）
+
+を**両方導出**する（[services/worker](../../terraform/services/worker/)）。worker は
+起動時にこの env を読み（[config.go](../../apps/worker/pkg/worker/config/config.go)）、
+`AgentBudget() = RequestTimeout × 0.9` を計算。`Process` が `ProcessDocument` を
+この budget の `context.WithTimeout` でラップするので、worker は **Cloud Run の
+ハードキャンセルより先に自分で打ち切り → failJob（親 ctx は生存中なので必ず FAILED に）**。
+
+値の階層（**内 < 中 ≤ 外**）:
+
+| 層 | 値 | 役割 |
+|---|---|---|
+| worker の AgentBudget | 540s（=600×0.9） | 一番内。worker が自分で打ち切り FAILED |
+| Cloud Run timeout | 600s（10 分） | その外。worker が自打ちできなかった時のハードキャンセル |
+| Cloud Tasks dispatch_deadline | 900s | 一番外。これより短いとリトライ二重実行 |
+
+Cloud Run 既定の 300s は「意図でなくモジュールのデフォルト放置」だったため、
+worker module に `timeout` を明示して 600s に。Cloud Tasks queue には
+`dispatch_deadline` 変数を新設し pipeline_queue で 900s に設定
+（未設定時の API 既定 600s だと Cloud Run 600s と並んで際どいため）。

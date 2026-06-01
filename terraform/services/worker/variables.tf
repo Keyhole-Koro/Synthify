@@ -62,3 +62,16 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "request_timeout_seconds" {
+  description = <<-EOT
+    Single source of truth for the worker request budget. Feeds BOTH the Cloud
+    Run request timeout and the app's WORKER_REQUEST_TIMEOUT_SECONDS env var, so
+    the app's self-imposed agent budget (90% of this) and Cloud Run's hard
+    cancel stay derived from one number. Must be <= the Cloud Tasks queue
+    dispatch_deadline, or a retry can fire before the request finishes and
+    double-dispatch the job. Default 600s (10 min); Cloud Run max is 3600s.
+  EOT
+  type        = number
+  default     = 600
+}

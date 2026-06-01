@@ -67,6 +67,10 @@ module "pipeline_queue" {
   location   = var.region
   name       = "synthify-pipeline-${var.environment}"
 
+  # >= the worker's request_timeout_seconds (600s) so a Cloud Tasks retry cannot
+  # overlap a still-running first attempt and double-dispatch a job.
+  dispatch_deadline = "900s"
+
   depends_on = [google_project_service.required]
 }
 

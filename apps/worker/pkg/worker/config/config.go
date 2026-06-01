@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -22,6 +23,24 @@ type Worker struct {
 	APIBaseURL               string
 	InternalServiceToken     string
 	NewRelic                 NewRelic
+	// RequestTimeout mirrors the Cloud Run request timeout (same env value feeds
+	// both, set in terraform). The worker derives its own, slightly shorter
+	// wall-clock budget from this so it can fail a job cleanly *before* Cloud Run
+	// hard-cancels the request ctx — a hard cancel risks wedging the job in
+	// RUNNING. See AgentBudget.
+	RequestTimeout time.Duration
+}
+
+// defaultRequestTimeout is the fallback when WORKER_REQUEST_TIMEOUT_SECONDS is
+// unset (local / tests). Matches Cloud Run's own default so behaviour does not
+// change silently when the env var is missing.
+const defaultRequestTimeout = 300 * time.Second
+
+// AgentBudget is the wall-clock the agent loop is allowed before the
+// orchestrator aborts it itself. Kept at 90% of the request timeout so the abort
+// + FAILED transition land inside the request, ahead of Cloud Run's hard cancel.
+func (w Worker) AgentBudget() time.Duration {
+	return time.Duration(float64(w.RequestTimeout) * 0.9)
 }
 
 type NewRelic struct {
@@ -62,7 +81,23 @@ func LoadWorker() Worker {
 			AppName:    get("NEW_RELIC_APP_NAME", "synthify-worker"),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
+		RequestTimeout: getDurationSeconds("WORKER_REQUEST_TIMEOUT_SECONDS", defaultRequestTimeout),
 	}
+}
+
+// getDurationSeconds reads an integer-seconds env var. A missing, empty, or
+// unparseable value falls back rather than panicking, so a misconfigured env
+// never blocks startup — the worker just runs on the default budget.
+func getDurationSeconds(key string, fallback time.Duration) time.Duration {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	secs, err := strconv.Atoi(raw)
+	if err != nil || secs <= 0 {
+		return fallback
+	}
+	return time.Duration(secs) * time.Second
 }
 
 func LoadStore() Store {

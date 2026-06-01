@@ -54,6 +54,10 @@ type Worker struct {
 	lifecycle    joblifecycle.RuntimeController
 	status       jobstatus.Notifier
 	logger       *slog.Logger
+	// agentBudget bounds the agent run's wall-clock so the worker aborts and
+	// fails the job itself, ahead of Cloud Run's hard request-ctx cancel (which
+	// risks a RUNNING stall). Zero means "no internal budget" (local/tests).
+	agentBudget time.Duration
 }
 
 type ExecutePlanRequest = domain.ExecutePlanRequest
@@ -68,7 +72,7 @@ func (d dynamicSource) ResolveActive(ctx context.Context, workspaceID string) ([
 	return d.repo.ResolveActiveTools(ctx, workspaceID)
 }
 
-func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, reporter llm.UsageReporter, fs *storage.FileSystem, logger *slog.Logger, nrApp *newrelic.Application) (*Worker, error) {
+func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, reporter llm.UsageReporter, fs *storage.FileSystem, logger *slog.Logger, nrApp *newrelic.Application, agentBudget time.Duration) (*Worker, error) {
 	usage := base.NewUsageLimiter(treeRepo, logger)
 	b := &base.Context{
 		Repo:     treeRepo,
@@ -107,6 +111,7 @@ func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobsta
 		lifecycle:    joblifecycle.New(repo, notifier, logger, nrApp),
 		status:       notifier,
 		logger:       logger,
+		agentBudget:  agentBudget,
 	}, nil
 }
 
@@ -190,10 +195,24 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		return fmt.Errorf("mark job running: %w", err)
 	}
 
-	if err := w.orchestrator.ProcessDocument(ctx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
+	// Bound the agent run by our own wall-clock budget (derived from the Cloud
+	// Run request timeout, kept shorter) so we abort and fail the job ourselves
+	// before Cloud Run hard-cancels the request ctx. A self-imposed deadline
+	// here keeps the FAILED transition inside a still-live request, whereas a
+	// Cloud Run hard cancel would also kill the failJob writes (the stall).
+	agentCtx := ctx
+	if w.agentBudget > 0 {
+		var cancel context.CancelFunc
+		agentCtx, cancel = context.WithTimeout(ctx, w.agentBudget)
+		defer cancel()
+	}
+	if err := w.orchestrator.ProcessDocument(agentCtx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
 		// Wrap with ErrAgentExecution so classifyFailure can route this
 		// path to agent_error via errors.Is. If the cause is itself a
-		// Vertex APIError, errors.As still finds it through the wrap.
+		// Vertex APIError, errors.As still finds it through the wrap. A budget
+		// timeout surfaces as context.DeadlineExceeded, which classifyFailure
+		// maps to "cancelled". failJob runs on the parent ctx (still live), so
+		// the FAILED transition lands.
 		wrapped := fmt.Errorf("%w: %w", domain.ErrAgentExecution, err)
 		w.failJob(ctx, req, payload, wrapped)
 		return err
