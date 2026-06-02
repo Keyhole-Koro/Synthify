@@ -55,6 +55,7 @@ func TestUpdateFieldsMapKeysExistInJSONSchema(t *testing.T) {
 		CurrentStage:                 String("briefing"),
 		Progress:                     &progress,
 		Message:                      String("Working"),
+		LatestActivity:               String("概要を作成しています"),
 		ErrorMessage:                 String(""),
 		SuggestedWorkspaceName:       String("Clinical Trial Protocol"),
 		SuggestedWorkspaceNameSource: String("brief.topic"),

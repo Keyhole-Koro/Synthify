@@ -63,6 +63,11 @@ const FirestoreJobStatusJSONSchema = `{
     "message": {
       "type": "string"
     },
+    "latestActivity": {
+      "description": "A short human-readable line describing what the worker is doing right now (e.g. which tool it just ran). Throttled by the worker and overwritten in place. Optional and best-effort; absence is normal.",
+      "type": "string",
+      "maxLength": 200
+    },
     "errorMessage": {
       "type": "string"
     },
@@ -167,6 +172,7 @@ const (
 	FirestoreJobStatusFieldCurrentStage = "currentStage"
 	FirestoreJobStatusFieldProgress = "progress"
 	FirestoreJobStatusFieldMessage = "message"
+	FirestoreJobStatusFieldLatestActivity = "latestActivity"
 	FirestoreJobStatusFieldErrorMessage = "errorMessage"
 	FirestoreJobStatusFieldSuggestedWorkspaceName = "suggestedWorkspaceName"
 	FirestoreJobStatusFieldSuggestedWorkspaceNameSource = "suggestedWorkspaceNameSource"
@@ -191,6 +197,7 @@ type FirestoreJobStatus struct {
 	CurrentStage string `firestore:"currentStage" json:"currentStage"`
 	Progress *int `firestore:"progress,omitempty" json:"progress,omitempty"`
 	Message *string `firestore:"message,omitempty" json:"message,omitempty"`
+	LatestActivity *string `firestore:"latestActivity,omitempty" json:"latestActivity,omitempty"`
 	ErrorMessage string `firestore:"errorMessage" json:"errorMessage"`
 	SuggestedWorkspaceName *string `firestore:"suggestedWorkspaceName,omitempty" json:"suggestedWorkspaceName,omitempty"`
 	SuggestedWorkspaceNameSource *FirestoreJobStatusSuggestedWorkspaceNameSource `firestore:"suggestedWorkspaceNameSource,omitempty" json:"suggestedWorkspaceNameSource,omitempty"`

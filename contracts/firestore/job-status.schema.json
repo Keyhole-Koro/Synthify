@@ -51,6 +51,11 @@
     "message": {
       "type": "string"
     },
+    "latestActivity": {
+      "description": "A short human-readable line describing what the worker is doing right now (e.g. which tool it just ran). Throttled by the worker and overwritten in place. Optional and best-effort; absence is normal.",
+      "type": "string",
+      "maxLength": 200
+    },
     "errorMessage": {
       "type": "string"
     },

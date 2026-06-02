@@ -158,6 +158,16 @@ func (o *Orchestrator) afterToolCallbacks() []llmagent.AfterToolCallback {
 				_ = o.repo.MarkStageFailed(ctx, jobID, stage, err.Error())
 			}
 
+			// Surface progress to the user. Stage progress uses the fixed stage
+			// name (no per-item suffix); activity is a per-tool human-readable
+			// line, throttled. Both are fire-and-forget and only on success.
+			if err == nil && jobID != "" {
+				if fixedStage := stageTools[t.Name()]; fixedStage != "" {
+					o.reportStageProgress(ctx, fixedStage)
+				}
+				o.writeActivity(ctx, t.Name())
+			}
+
 			return result, err
 		},
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync/atomic"
+	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
@@ -13,6 +14,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
+	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 	"google.golang.org/adk/agent"
 	"google.golang.org/adk/agent/llmagent"
 	"google.golang.org/adk/model"
@@ -44,9 +46,16 @@ type Orchestrator struct {
 	// a stuck agent that keeps re-issuing the same tool call is nudged off the
 	// loop before it burns the whole request budget. Rebuilt per job.
 	repeatGuard atomic.Pointer[repeatTracker]
-	base        *base.Context
-	repo        Repo
-	fs          *storage.FileSystem
+	// htmlSummaryCount counts generate_html_summary completions within a job so
+	// the per-item progress message ("N件目...") advances without rewinding the
+	// fixed stage percent. Reset per job.
+	htmlSummaryCount atomic.Int64
+	// lastActivityWrite is the unix-nano timestamp of the last latestActivity
+	// Firestore write, used to throttle activity updates (see writeActivity).
+	lastActivityWrite atomic.Int64
+	base              *base.Context
+	repo              Repo
+	fs                *storage.FileSystem
 	// documentMap is the Working Memory block the deterministic extract+chunk
 	// pre-pass populates at the start of each job (see ProcessDocument).
 	documentMap *memory.DocumentMap
@@ -78,6 +87,49 @@ var stageTools = map[string]string{
 var perItemStageTools = map[string]bool{
 	"generate_html_summary": true,
 }
+
+// stageProgress maps a fixed stage name to the progress% to report on the
+// stage's completion and a human-readable message. The values sit between
+// Running (5%) and Completed (100%) and increase monotonically so the Firestore
+// progress bar advances through the pipeline. Written fire-and-forget from the
+// after-tool callback; missing stages just don't emit progress.
+var stageProgress = map[string]struct {
+	percent int
+	message string
+}{
+	"briefing":       {25, "ドキュメントの概要を作成しました"},
+	"knowledge_tree": {55, "ナレッジツリーを構築しています"},
+	"html_summary":   {80, "各項目の要約を生成しています"},
+	"persistence":    {95, "結果を保存しています"},
+}
+
+// toolActivity maps a tool name to a short human-readable line shown to the
+// user as "what the worker is doing now". Tools not listed emit no activity.
+// Kept deliberately vague (no document content) — these are status lines, not
+// LLM output.
+var toolActivity = map[string]string{
+	"extract_text":            "ドキュメントを読み込んでいます",
+	"semantic_chunking":       "ドキュメントを分割しています",
+	"generate_brief":          "概要を作成しています",
+	"analyze_dependencies":    "構成を分析しています",
+	"semantic_search":         "関連箇所を検索しています",
+	"grep_search":             "ドキュメント内を検索しています",
+	"extract_table_data":      "表を解析しています",
+	"repair_encoding":         "文字化けを修復しています",
+	"glossary_register":       "用語を登録しています",
+	"journal_add_task":        "作業計画を立てています",
+	"journal_update_task":     "進捗を更新しています",
+	"generate_knowledge_tree": "ナレッジツリーを構築しています",
+	"generate_html_summary":   "項目の要約を生成しています",
+	"quality_critique":        "品質をチェックしています",
+	"deduplicate_and_merge":   "重複する概念を統合しています",
+	"create_transform":        "データ変換を準備しています",
+	"persist_knowledge_tree":  "結果を保存しています",
+}
+
+// activityThrottle bounds how often latestActivity is written to Firestore, so a
+// fast burst of tool calls does not hammer the document.
+const activityThrottle = 2 * time.Second
 
 const currentCheckpointVersion = 1
 
@@ -151,6 +203,8 @@ func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, w
 	}
 	o.currentJobID.Store(&jobID)
 	o.repeatGuard.Store(newRepeatTracker())
+	o.htmlSummaryCount.Store(0)
+	o.lastActivityWrite.Store(0)
 
 	// Deterministic extract + chunk pre-pass. Reading the source is not a
 	// judgement call — file_uri is already known — so we do it in code rather
@@ -226,5 +280,60 @@ func (o *Orchestrator) prepareDocumentMap(ctx context.Context, documentID, fileU
 	o.documentMap.Set(chunks)
 	if logger != nil {
 		logger.Info("orchestrator.document_map_ready", "document_id", documentID, "chunks", len(chunks))
+	}
+}
+
+// reportStageProgress writes the pipeline stage's progress to Firestore on stage
+// completion. stage is the fixed stage name (per-item suffix already stripped).
+// For the per-item html_summary stage the percent stays fixed and only the
+// message advances ("N件目...") so the bar does not rewind. Fire-and-forget:
+// notifier failures are non-fatal to the job.
+func (o *Orchestrator) reportStageProgress(ctx context.Context, stage string) {
+	if o.base == nil || o.base.Status == nil || o.base.Job == nil {
+		return
+	}
+	sp, ok := stageProgress[stage]
+	if !ok {
+		return
+	}
+	message := sp.message
+	if stage == "html_summary" {
+		n := o.htmlSummaryCount.Add(1)
+		message = fmt.Sprintf("%d件目の要約を生成しています", n)
+	}
+	fields := jobstatus.UpdateFields{
+		CurrentStage: jobstatus.String(stage),
+		Progress:     jobstatus.Int(sp.percent),
+		Message:      jobstatus.String(message),
+	}
+	if err := o.base.Status.UpdateFields(ctx, o.base.Job.WorkspaceID, o.base.Job.JobID, fields); err != nil && o.base.Logger != nil {
+		o.base.Logger.Warn("orchestrator.stage_progress_write_failed", "error", err.Error(), "stage", stage)
+	}
+}
+
+// writeActivity publishes a per-tool human-readable activity line to Firestore,
+// throttled to activityThrottle so a burst of tool calls does not hammer the
+// document. toolName with no mapping is skipped. Fire-and-forget.
+func (o *Orchestrator) writeActivity(ctx context.Context, toolName string) {
+	if o.base == nil || o.base.Status == nil || o.base.Job == nil {
+		return
+	}
+	msg, ok := toolActivity[toolName]
+	if !ok {
+		return
+	}
+	now := time.Now().UnixNano()
+	last := o.lastActivityWrite.Load()
+	if last != 0 && now-last < int64(activityThrottle) {
+		return
+	}
+	// Best-effort CAS: if another goroutine won the slot, skip. (Tool callbacks
+	// are sequential within a job, but guard anyway.)
+	if !o.lastActivityWrite.CompareAndSwap(last, now) {
+		return
+	}
+	fields := jobstatus.UpdateFields{LatestActivity: jobstatus.String(msg)}
+	if err := o.base.Status.UpdateFields(ctx, o.base.Job.WorkspaceID, o.base.Job.JobID, fields); err != nil && o.base.Logger != nil {
+		o.base.Logger.Warn("orchestrator.activity_write_failed", "error", err.Error(), "tool", toolName)
 	}
 }

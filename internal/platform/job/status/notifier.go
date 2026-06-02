@@ -22,6 +22,7 @@ type UpdateFields struct {
 	CurrentStage                 *string
 	Progress                     *int
 	Message                      *string
+	LatestActivity               *string
 	ErrorMessage                 *string
 	SuggestedWorkspaceName       *string
 	SuggestedWorkspaceNameSource *string
@@ -47,6 +48,9 @@ func (f UpdateFields) mapWithUpdatedAt() map[string]any {
 	}
 	if f.Message != nil {
 		fields[FirestoreJobStatusFieldMessage] = *f.Message
+	}
+	if f.LatestActivity != nil {
+		fields[FirestoreJobStatusFieldLatestActivity] = *f.LatestActivity
 	}
 	if f.ErrorMessage != nil {
 		fields[FirestoreJobStatusFieldErrorMessage] = *f.ErrorMessage
