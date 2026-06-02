@@ -134,6 +134,16 @@ export function useWorkspaceTree(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildWsPaper]);
 
+  const refreshWorkspaceTree = useCallback(async (
+    workspaceId: string,
+    opts: { revealNewDocumentRoots?: boolean } = {},
+  ) => {
+    const { rootItemId, newDocumentRootIds } = await store.refreshWorkspaceTree(workspaceId);
+    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, rootItemId));
+    updateWorkspaceExpansion(workspaceId, newDocumentRootIds, opts.revealNewDocumentRoots === true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
+
   // mergeDocumentRootIntoTree handles a PROCESS_DOCUMENT completion: store
   // merges the new subtree, orchestrator re-projects and reveals the new
   // document_root in the expansion map.
@@ -141,12 +151,19 @@ export function useWorkspaceTree(
     workspaceId: string,
     createdDocumentRootItemId: string,
   ) => {
+    if (!store.getRootItemId(workspaceId)) {
+      await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+      return;
+    }
     const merged = await store.mergeDocumentRoot(workspaceId, createdDocumentRootItemId);
-    if (!merged) return;
+    if (!merged) {
+      await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+      return;
+    }
     setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, merged.workspaceRootItemId));
     updateWorkspaceExpansion(workspaceId, [createdDocumentRootItemId], true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
+  }, [refreshWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
 
   useEffect(() => {
     mergeDocumentRootIntoTreeRef.current = mergeDocumentRootIntoTree;
@@ -194,16 +211,6 @@ export function useWorkspaceTree(
     loadSubtreeAndProjectRef.current = loadSubtreeAndProject;
   }, [loadSubtreeAndProject]);
 
-  const refreshWorkspaceTree = useCallback(async (
-    workspaceId: string,
-    opts: { revealNewDocumentRoots?: boolean } = {},
-  ) => {
-    const { rootItemId, newDocumentRootIds } = await store.refreshWorkspaceTree(workspaceId);
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, rootItemId));
-    updateWorkspaceExpansion(workspaceId, newDocumentRootIds, opts.revealNewDocumentRoots === true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
-
   const handleOpenWorkspace = useCallback(async (workspaceId: string, overrideWorkspace?: Workspace) => {
     if (overrideWorkspace) {
       store.rememberNewlyCreated(overrideWorkspace);
@@ -248,6 +255,8 @@ export function useWorkspaceTree(
   return {
     handleOpenWorkspace,
     refreshWorkspaceTree,
+    mergeDocumentRootIntoTree,
+    getDebugSnapshot: store.debugSnapshot,
     resetTree,
     buildWsPaper,
     rebuildWorkspacePaper,

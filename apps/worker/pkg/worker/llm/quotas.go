@@ -38,13 +38,13 @@ var modelQuotas = map[string]ModelQuota{
 	"gemini-2.0-flash-lite": {Model: "gemini-2.0-flash-lite", RPM: 300, Tier: "tier1"},
 
 	// --- Gemini 3 preview — preview 帯は限度が更にきついので Free 並みに見積もる ---
-	"gemini-3-pro-preview":   {Model: "gemini-3-pro-preview", RPM: 10, Tier: "free"},
-	"gemini-3-flash-preview": {Model: "gemini-3-flash-preview", RPM: 10, Tier: "free"},
+	"gemini-3-pro-preview":   {Model: "gemini-3-pro-preview", RPM: 5, Tier: "free"},
+	"gemini-3-flash-preview": {Model: "gemini-3-flash-preview", RPM: 5, Tier: "free"},
 }
 
 // defaultQuota は未登録モデル用フォールバック。バックオフ計算が止まらない
 // 程度の保守的な値にしてある（=preview 系 free tier 相当）。
-var defaultQuota = ModelQuota{Model: "unknown", RPM: 10, Tier: "fallback"}
+var defaultQuota = ModelQuota{Model: "unknown", RPM: 5, Tier: "fallback"}
 
 // QuotaFor は指定モデルに紐づくクォータ参照値を返す。完全一致 → preview
 // サフィックス剥がし → defaultQuota の順で解決する。

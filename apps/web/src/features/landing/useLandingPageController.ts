@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
+import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { useAuthState } from '@/features/auth/useAuthState';
+import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
@@ -11,6 +13,17 @@ import { useViewportSize } from '@/features/landing/useViewportSize';
 import { useWorkspaceRuntimeState } from './useWorkspaceRuntimeState';
 import { useWorkspaceCRUD } from './useWorkspaceCRUD';
 import { useRootUpload } from './useRootUpload';
+import { db } from '@/lib/firebase';
+
+declare global {
+  interface Window {
+    __synthifyDebug?: {
+      dumpWorkspace: (workspaceId: string) => Promise<unknown>;
+      refreshWorkspaceTree: (workspaceId: string) => Promise<void>;
+      mergeDocumentRoot: (workspaceId: string, documentRootItemId: string) => Promise<void>;
+    };
+  }
+}
 
 // useLandingPageController is the orchestrator for the landing page. It
 // wires the auth state, paper map persistence, the workspace tree, and the
@@ -146,6 +159,57 @@ export function useLandingPageController() {
     buildWsPaper: tree.buildWsPaper,
     onRetryWorkspaces: retryWorkspaces,
   });
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production' || typeof window === 'undefined') return;
+
+    const debugApi = {
+      dumpWorkspace: async (workspaceId: string) => {
+        const latestJobsSnap = await getDocs(query(
+          collection(db, 'workspaces', workspaceId, 'jobs'),
+          orderBy('updatedAt', 'desc'),
+          limit(5),
+        ));
+        const latestJobs = latestJobsSnap.docs.map((doc) => doc.data() as FirestoreJobStatus);
+        const workspacePapers = workspacePaperGroups.get(workspaceId) ?? [];
+        const treeSnapshot = tree.getDebugSnapshot(workspaceId);
+        const documentRootPaperPresence = treeSnapshot.documentRootIds.map((id) => ({
+          id,
+          inPaperMap: paperMap.has(id),
+          inWorkspacePaperGroup: workspacePapers.some((paper) => paper.id === id),
+        }));
+
+        const dump = {
+          workspaceId,
+          tree: treeSnapshot,
+          workspacePaperGroup: {
+            paperIds: workspacePapers.map((paper) => paper.id),
+            paperCount: workspacePapers.length,
+          },
+          paperMap: {
+            hasWorkspacePaper: paperMap.has(workspaceId),
+            documentRootPaperPresence,
+          },
+          latestJobs,
+        };
+        console.info('[synthify-debug] workspace dump', dump);
+        return dump;
+      },
+      refreshWorkspaceTree: async (workspaceId: string) => {
+        await tree.refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+      },
+      mergeDocumentRoot: async (workspaceId: string, documentRootItemId: string) => {
+        await tree.mergeDocumentRootIntoTree(workspaceId, documentRootItemId);
+      },
+    };
+
+    window.__synthifyDebug = debugApi;
+    return () => {
+      if (window.__synthifyDebug === debugApi) {
+        delete window.__synthifyDebug;
+      }
+    };
+  }, [paperMap, tree, workspacePaperGroups]);
 
   return {
     isReady: hasMounted && hasDefaultOpenState,

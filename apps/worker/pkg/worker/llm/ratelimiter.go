@@ -69,9 +69,9 @@ func NewRetryingModel(inner model.LLM, cfg RetryConfig, logger *slog.Logger) *Re
 }
 
 // newRateLimiter builds a per-minute limiter from the model's reference RPM.
-// We allow a small burst (up to the full minute's budget, capped) so short
-// bursts are not serialized to a crawl, while the steady-state rate stays
-// under the quota.
+// Free/preview quotas are strict enough that even a small burst can consume
+// the minute's whole budget and make the next agent step fail with 429. Keep
+// burst=1 for low-RPM models so calls are smoothed across the full minute.
 func newRateLimiter(model string) *rate.Limiter {
 	rpm := QuotaFor(model).RPM
 	if rpm <= 0 {
@@ -79,7 +79,9 @@ func newRateLimiter(model string) *rate.Limiter {
 	}
 	perSecond := rate.Limit(float64(rpm) / 60.0)
 	burst := rpm
-	if burst > 10 {
+	if rpm <= 5 {
+		burst = 1
+	} else if burst > 10 {
 		burst = 10
 	}
 	if burst < 1 {

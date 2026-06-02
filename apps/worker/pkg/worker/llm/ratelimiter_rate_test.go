@@ -7,14 +7,15 @@ import (
 )
 
 func TestNewRateLimiterFromQuota(t *testing.T) {
-	// gemini-3-flash-preview is RPM 10 in quotas.go.
+	// gemini-3-flash-preview is RPM 5 in quotas.go; free-tier models use
+	// burst=1 so they are smoothed across the whole minute.
 	l := newRateLimiter("gemini-3-flash-preview")
-	wantPerSec := rate.Limit(10.0 / 60.0)
+	wantPerSec := rate.Limit(5.0 / 60.0)
 	if l.Limit() != wantPerSec {
 		t.Errorf("limit = %v, want %v", l.Limit(), wantPerSec)
 	}
-	if l.Burst() != 10 {
-		t.Errorf("burst = %d, want 10", l.Burst())
+	if l.Burst() != 1 {
+		t.Errorf("burst = %d, want 1", l.Burst())
 	}
 }
 
@@ -32,8 +33,11 @@ func TestNewRateLimiterBurstCappedForHighRPM(t *testing.T) {
 
 func TestNewRateLimiterUnknownModelUsesDefault(t *testing.T) {
 	l := newRateLimiter("totally-unknown-model")
-	// Unknown models resolve to defaultQuota (RPM 10) via QuotaFor.
+	// Unknown models resolve to defaultQuota via QuotaFor.
 	if l.Limit() != rate.Limit(float64(defaultQuota.RPM)/60.0) {
 		t.Errorf("limit = %v, want default %v", l.Limit(), rate.Limit(float64(defaultQuota.RPM)/60.0))
+	}
+	if l.Burst() != 1 {
+		t.Errorf("burst = %d, want 1", l.Burst())
 	}
 }

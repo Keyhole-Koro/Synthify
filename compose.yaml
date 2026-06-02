@@ -151,7 +151,7 @@ services:
       start_period: 120s
     volumes:
       - .:/workspace
-      - gcs-data:/mnt/gcs:ro
+      - gcs-data:/mnt/gcs
       - go-pkg-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
       - gemini-cache:/workspace/.gemini-cache
@@ -272,6 +272,8 @@ services:
       - -external-url
       - http://localhost:${GCS_PORT:-4443}
       - -data
+      - /data
+      - -filesystem-root
       - /data
       - -cors-headers
       - Content-Type

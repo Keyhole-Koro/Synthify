@@ -19,6 +19,18 @@ export interface MergeDocumentRootResult {
   items: SubtreeItem[];
 }
 
+export interface TreeStoreDebugSnapshot {
+  workspaceId: string;
+  workspaceRootItemId?: string;
+  documentRootIds: string[];
+  initialized: boolean;
+  fullyLoaded: boolean;
+  itemCount: number;
+  treeItems: SubtreeItem[];
+  loadedItemIds: string[];
+  loadingItemIds: string[];
+}
+
 export interface TreeStore {
   // getters
   getRootItemId: (workspaceId: string) => string | undefined;
@@ -42,6 +54,7 @@ export interface TreeStore {
     workspaceId: string,
     createdDocumentRootItemId: string,
   ) => Promise<MergeDocumentRootResult | null>;
+  debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;
 }
 
@@ -193,6 +206,21 @@ export function useTreeStore(workspaces: Workspace[]): TreeStore {
     refreshWorkspaceTree,
     loadSubtree,
     mergeDocumentRoot,
+    debugSnapshot: (workspaceId) => {
+      const treeItems = workspaceTreeItemsRef.current.get(workspaceId) ?? new Map<string, SubtreeItem>();
+      const workspaceItemIds = new Set(treeItems.keys());
+      return {
+        workspaceId,
+        workspaceRootItemId: workspaceRootItemRef.current.get(workspaceId),
+        documentRootIds: workspaceDocumentRootIdsRef.current.get(workspaceId) ?? [],
+        initialized: initializedWorkspacesRef.current.has(workspaceId),
+        fullyLoaded: fullyLoadedWorkspacesRef.current.has(workspaceId),
+        itemCount: treeItems.size,
+        treeItems: Array.from(treeItems.values()),
+        loadedItemIds: Array.from(loadedSubtreeItemsRef.current).filter((id) => workspaceItemIds.has(id)),
+        loadingItemIds: Array.from(loadingSubtreeItemsRef.current).filter((id) => workspaceItemIds.has(id)),
+      };
+    },
     reset,
   };
 }
