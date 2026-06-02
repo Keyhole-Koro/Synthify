@@ -6,8 +6,9 @@
 **冪等でない**。同じ job が persist を 2 回実行すると、item が重複作成されるか
 制約違反で失敗する。
 
-これが [worker-agent-loop-timeout.md](worker-agent-loop-timeout.md) の L4
-（timeout で死んだ job の自動再開）の障壁になっている。再開で persist が再実行
+これが worker のエージェントループ timeout 対策（L4: timeout で死んだ job の
+自動再開。実装済み・ドキュメントは削除済み、git 履歴参照）の障壁になっている。
+再開で persist が再実行
 されると tree が壊れるため、現状は「persist 手前で死んだ job だけ再開、persist 以降は
 FAILED 確定（手動再投稿）」に留めている。フルの自動再開を可能にするには persist の
 冪等化が前提。
@@ -70,7 +71,8 @@ persist 全体（全 item 作成 + Phase 2）を 1 つの DB transaction にし�
 
 ## 関連
 
-- [worker-agent-loop-timeout.md](worker-agent-loop-timeout.md) — L4-c（フル自動再開）の前提
+- worker エージェントループ timeout 対策の L4-c（フル自動再開）の前提
+  （実装済み・ドキュメント削除済み、git 履歴参照）
 - [resume-processing-stub.md](resume-processing-stub.md) — ResumeProcessing 本体の実装と統合
 - [job-checkpoint-spec](../architecture/job-checkpoint-spec.md) — checkpoint 機構の正式仕様
 
