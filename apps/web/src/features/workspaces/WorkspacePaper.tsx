@@ -209,6 +209,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
                 message={jobStatusError?.message ?? jobStatus?.message}
                 progress={jobStatus?.progress}
                 isFailed={jobStatus?.status === 'failed'}
+                startedAt={jobStatus?.startedAt}
+                completedAt={jobStatus?.completedAt}
+                isTerminal={
+                  jobStatus?.status === 'succeeded' || jobStatus?.status === 'failed'
+                }
+                latestActivity={jobStatus?.latestActivity}
               />
             )}
 

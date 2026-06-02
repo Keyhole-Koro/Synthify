@@ -1,9 +1,15 @@
 import React from 'react';
 
+import { useElapsedTime } from '../../jobs/useElapsedTime';
+
 interface WorkspaceJobProgressProps {
   message?: string | null;
   progress?: number;
   isFailed: boolean;
+  startedAt?: string;
+  completedAt?: string;
+  isTerminal?: boolean;
+  latestActivity?: string;
 }
 
 // WorkspaceJobProgress is the in-place status bar for the currently active
@@ -16,10 +22,15 @@ export function WorkspaceJobProgress({
   message,
   progress,
   isFailed,
+  startedAt,
+  completedAt,
+  isTerminal = false,
+  latestActivity,
 }: WorkspaceJobProgressProps) {
   const hasProgress = typeof progress === 'number';
   const clampedProgress = hasProgress ? Math.max(0, Math.min(100, progress)) : 100;
   const label = message ?? (isFailed ? '解析に失敗しました' : '解析中');
+  const elapsed = useElapsedTime(startedAt, completedAt, isTerminal || isFailed);
 
   return (
     <div className="mt-3">
@@ -32,11 +43,10 @@ export function WorkspaceJobProgress({
         >
           {label}
         </span>
-        {hasProgress && !isFailed && (
-          <span className="font-mono text-[10px] tabular-nums text-stone-400">
-            {clampedProgress}%
-          </span>
-        )}
+        <span className="flex items-baseline gap-2 font-mono text-[10px] tabular-nums text-stone-400">
+          {elapsed && <span>{elapsed}</span>}
+          {hasProgress && !isFailed && <span>{clampedProgress}%</span>}
+        </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-stone-100">
         <div
@@ -51,6 +61,9 @@ export function WorkspaceJobProgress({
           style={{ width: `${clampedProgress}%` }}
         />
       </div>
+      {latestActivity && !isFailed && (
+        <p className="mt-1.5 truncate text-[10px] text-stone-400">{latestActivity}</p>
+      )}
     </div>
   );
 }
