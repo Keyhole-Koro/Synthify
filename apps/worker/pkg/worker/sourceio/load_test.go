@@ -12,11 +12,12 @@ import (
 
 func TestLoadReadsFromMount(t *testing.T) {
 	mount := t.TempDir()
-	docDir := filepath.Join(mount, "ws-1")
-	if err := os.MkdirAll(docDir, 0o755); err != nil {
+	// New layout: the original lives under {ws}/{doc}/source/.
+	sourceDir := filepath.Join(mount, "ws-1", "doc-1", "source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(docDir, "doc-1"), []byte("hello"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(sourceDir, "original.txt"), []byte("hello"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 

@@ -21,7 +21,19 @@ func NewFileSystem(mountPath string) *FileSystem {
 	return &FileSystem{MountPath: mountPath}
 }
 
-// DocPath returns the absolute local path to a document within the mount.
+// Document layout under the mount. {ws}/{doc}/ is ALWAYS a directory with two
+// role-separated subtrees, so the path can never collide with a same-named file
+// (the bug that made every extract fail). See
+// docs/improvements/gcs-storage-layout-redesign.md.
+//
+//	{ws}/{doc}/source/     uploaded original (API writes, worker reads)
+//	{ws}/{doc}/extracted/  worker's working tree (single file copy / zip expansion)
+const (
+	sourceSubdir    = "source"
+	extractedSubdir = "extracted"
+)
+
+// DocPath returns the document's root directory within the mount: {ws}/{doc}/.
 // Returns an empty string if MountPath is not set or IDs are missing.
 func (fs *FileSystem) DocPath(workspaceID, documentID string) string {
 	if fs.MountPath == "" || workspaceID == "" || documentID == "" {
@@ -30,63 +42,96 @@ func (fs *FileSystem) DocPath(workspaceID, documentID string) string {
 	return filepath.Join(fs.MountPath, workspaceID, documentID)
 }
 
-// Open attempts to open a document from the mount.
+// SourceDir returns {ws}/{doc}/source/ — where the uploaded original lives.
+func (fs *FileSystem) SourceDir(workspaceID, documentID string) string {
+	root := fs.DocPath(workspaceID, documentID)
+	if root == "" {
+		return ""
+	}
+	return filepath.Join(root, sourceSubdir)
+}
+
+// ExtractedDir returns {ws}/{doc}/extracted/ — the worker's working tree.
+func (fs *FileSystem) ExtractedDir(workspaceID, documentID string) string {
+	root := fs.DocPath(workspaceID, documentID)
+	if root == "" {
+		return ""
+	}
+	return filepath.Join(root, extractedSubdir)
+}
+
+// sourceFilePath returns the single original file under source/. The uploader
+// writes exactly one object there (original.{ext} or archive.zip), so we read
+// whichever file is present rather than depending on its exact name.
+func (fs *FileSystem) sourceFilePath(workspaceID, documentID string) (string, error) {
+	dir := fs.SourceDir(workspaceID, documentID)
+	if dir == "" {
+		return "", nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			return filepath.Join(dir, e.Name()), nil
+		}
+	}
+	return "", nil
+}
+
+// Open attempts to open the uploaded original under source/.
 func (fs *FileSystem) Open(workspaceID, documentID string) (io.ReadCloser, error) {
-	path := fs.DocPath(workspaceID, documentID)
+	path, err := fs.sourceFilePath(workspaceID, documentID)
+	if err != nil {
+		return nil, err
+	}
 	if path == "" {
 		return nil, nil
 	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if info.IsDir() {
-		return nil, nil
-	}
-
 	return os.Open(path)
 }
 
-// ReadAll attempts to read the entire content of a document from the mount.
+// ReadAll reads the uploaded original under source/. Returns nil content when
+// nothing is present yet (the upload may still be in flight).
 func (fs *FileSystem) ReadAll(workspaceID, documentID string) ([]byte, error) {
-	path := fs.DocPath(workspaceID, documentID)
+	path, err := fs.sourceFilePath(workspaceID, documentID)
+	if err != nil {
+		return nil, err
+	}
 	if path == "" {
 		return nil, nil
 	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	if info.IsDir() {
-		return nil, nil
-	}
-
 	return os.ReadFile(path)
 }
 
-// PopulateSourceFile attempts to fill the Content and MimeType of a SourceFile using the mount.
+// PopulateSourceFile fills Content and MimeType of a SourceFile from the
+// original under source/. It also adopts the on-disk filename so MIME sniffing
+// by extension works even when the caller only knew the document_id.
 func (fs *FileSystem) PopulateSourceFile(file *domain.SourceFile) (bool, error) {
 	if file == nil {
 		return false, nil
 	}
 
-	body, err := fs.ReadAll(file.WorkspaceID, file.DocumentID)
+	path, err := fs.sourceFilePath(file.WorkspaceID, file.DocumentID)
 	if err != nil {
 		return false, err
 	}
-	if body == nil {
+	if path == "" {
 		return false, nil
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
 	}
 
 	file.Content = body
+	if strings.TrimSpace(file.Filename) == "" {
+		file.Filename = filepath.Base(path)
+	}
 	if strings.TrimSpace(file.MimeType) == "" {
 		file.MimeType = mime.TypeByExtension(filepath.Ext(file.Filename))
 	}

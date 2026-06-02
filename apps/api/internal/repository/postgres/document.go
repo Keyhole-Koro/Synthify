@@ -14,6 +14,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
+	sharedstorage "github.com/synthify/backend/internal/platform/storage"
 )
 
 func (s *Store) ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error) {
@@ -150,7 +151,10 @@ VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 		s.logger.Error("repository.create_upload_reservation_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
-	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, docID, mimeType, fileSize)
+	// Upload the original to {doc}/source/original.{ext}. The document root is a
+	// directory; the worker reads from source/ and expands into extracted/.
+	objectName := sharedstorage.SourceObjectName(docID, filename)
+	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, objectName, mimeType, fileSize)
 	if err != nil {
 		s.logger.Error("repository.issue_document_upload_url_failed", "error", err.Error(), "workspace_id", wsID, "document_id", docID)
 		return nil, repository.DocumentUploadTarget{}, err

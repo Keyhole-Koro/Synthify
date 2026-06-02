@@ -20,7 +20,8 @@ func TestGrepTool_FileIDPopulation(t *testing.T) {
 
 	wsID := "ws_123"
 	docID := "doc_456"
-	docDir := filepath.Join(tmpDir, wsID, docID)
+	// grep searches the extracted/ working tree; fixtures go there.
+	docDir := filepath.Join(tmpDir, wsID, docID, "extracted")
 	err := os.MkdirAll(docDir, 0755)
 	require.NoError(t, err)
 
@@ -117,8 +118,9 @@ func TestGrepTool(t *testing.T) {
 
 	wsID := "test-ws"
 	docID := "test-doc"
-	wsPath := filepath.Join(tmpDir, wsID)
-	err := os.MkdirAll(wsPath, 0755)
+	// grep searches the extracted/ working tree; place the file there.
+	extractedDir := filepath.Join(tmpDir, wsID, docID, "extracted")
+	err := os.MkdirAll(extractedDir, 0755)
 	require.NoError(t, err)
 
 	content := `Line 1: Hello World
@@ -128,7 +130,7 @@ Line 4: Another line here.
 Line 5: Case Insensitive Test.
 Line 6: Goodbye.`
 
-	err = os.WriteFile(filepath.Join(wsPath, docID), []byte(content), 0644)
+	err = os.WriteFile(filepath.Join(extractedDir, "content.txt"), []byte(content), 0644)
 	require.NoError(t, err)
 
 	// 2. Initialize FS handler
@@ -185,7 +187,7 @@ Line 6: Goodbye.`
 
 		// Second call (should hit cache)
 		// We'll modify the source file to prove cache is used
-		err = os.WriteFile(filepath.Join(wsPath, docID), []byte("Empty"), 0644)
+		err = os.WriteFile(filepath.Join(extractedDir, "content.txt"), []byte("Empty"), 0644)
 		require.NoError(t, err)
 
 		result, err := grepSearch(ctx, b, args)

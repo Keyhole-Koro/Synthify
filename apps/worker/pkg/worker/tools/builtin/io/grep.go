@@ -95,7 +95,9 @@ func grepSearch(ctx context.Context, b *base.Context, args GrepArgs) (GrepResult
 		return GrepResult{}, fmt.Errorf("FUSE mount is not available for grep_search")
 	}
 
-	targetPath := b.FS.DocPath(wsID, docID)
+	// Search the extracted working tree, not the document root (which also holds
+	// the read-only source/ original).
+	targetPath := b.FS.ExtractedDir(wsID, docID)
 	// We use -r (recursive) to support zip-extracted directories, and -n (line number)
 	// -H (always print filename) for consistent parsing.
 	// -B and -A for context.

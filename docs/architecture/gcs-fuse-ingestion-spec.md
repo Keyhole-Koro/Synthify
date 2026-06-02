@@ -16,10 +16,25 @@ Cloud Storage FUSE を活用することで、大規模ドキュメントの効�
 開発環境: 環境変数 `GCS_FUSE_MOUNT_PATH` で指定されたローカルパス
 
 ### ドキュメントの実体構造
-`{mount_path}/{workspace_id}/{document_id}/{relative_path}`
 
-- **単一ファイル（PDF/TXT等）**: `{document_id}/` フォルダ配下に、アップロードされたファイル名で配置される。
-- **アーカイブ（ZIP等）**: ZIP 内の階層構造を維持したまま `{document_id}/` 配下に展開される。
+`{workspace_id}/{document_id}/` は**常にディレクトリ**であり、役割の異なる2つの
+サブツリーを持つ。原本（アップロード）と作業領域（worker 展開）を分離することで、
+ドキュメントルートが同名ファイルと衝突しない（旧構造ではこの衝突で extract が必ず
+失敗していた。[gcs-storage-layout-redesign](../improvements/gcs-storage-layout-redesign.md)）。
+
+```
+{mount_path}/{workspace_id}/{document_id}/
+├── source/                  ← 原本。API がアップロード、worker は読むだけ
+│   └── original.{ext}          単一ファイル（ZIP は archive.zip）
+└── extracted/               ← 作業領域。worker が展開・書き込み
+    └── {relative_path}         単一: 原本のコピー / ZIP: 展開した階層
+```
+
+- **アップロード先**: `{workspace_id}/{document_id}/source/original.{ext}`。
+  ファイル名はパスに使わず（パス事故防止）、元名は `documents.filename` に保持。
+- **単一ファイル**: worker が `source/` の原本を `extracted/` にコピー。
+- **アーカイブ（ZIP等）**: `source/archive.zip` を `extracted/` 配下に階層を維持して展開。
+- **検索（grep_search）**: `extracted/` を対象に再帰検索する。
 
 ### キャッシュおよびメタデータ構造
 `{mount_path}/.cache/v1/{document_id}/{category}/{key}.json`
@@ -36,20 +51,22 @@ Cloud Storage FUSE を活用することで、大規模ドキュメントの効�
 
 ## 3. インジェクション・フロー (extract_text)
 
-`extract_text` ツールは以下の手順でドキュメントを「ディレクトリ化」し、正規化を行う。
+`extract_text` ツールは以下の手順でドキュメントを正規化する。原本 `source/` は
+読むだけで、書き込みは作業領域 `extracted/` に対して行う。
 
-1.  **確保**: `/mnt/gcs/{wsID}/{docID}/` ディレクトリを作成。
-2.  **展開/配置**:
-    - **ZIPの場合**: FUSE 上に再帰展開し、各ファイルに対して `document_files` レコードを作成。
-    - **単一ファイルの場合**: ディレクトリ内にファイルを保存し、単一の `document_files` レコードを作成。
-3.  **判定 (Heuristics)**:
+1.  **読み出し**: `{wsID}/{docID}/source/` 配下の原本を読む。
+2.  **確保**: `{wsID}/{docID}/extracted/` ディレクトリを作成。
+3.  **展開/配置**:
+    - **ZIPの場合**: `extracted/` 配下に再帰展開し、各ファイルに `document_files` レコードを作成。
+    - **単一ファイルの場合**: `extracted/` に保存し、単一の `document_files` レコードを作成。
+4.  **判定 (Heuristics)**:
     - 先頭 512 バイトの NULL バイトスキャンおよび UTF-8 妥当性チェックにより、拡張子に寄らずテキスト/バイナリを判別。
-4.  **出力**: 各ファイルパスと ID を含んだ構造化テキスト（Marker付き）を LLM に返す。
+5.  **出力**: 各ファイルパスと ID を含んだ構造化テキスト（Marker付き）を LLM に返す。
 
 ## 4. 検索および分析仕様
 
 ### キーワード検索 (grep_search)
-- **実装**: FUSE ディレクトリに対してシステムコマンド `grep -rn -H` を実行。
+- **実装**: `extracted/` ディレクトリに対してシステムコマンド `grep -rn -H` を実行。
 - **ID解決**: ヒットしたパスを `document_files` テーブルで解決し、`file_id` を付加して返す。
 - **キャッシュ**: 検索結果を `.cache/` に保存し、再検索をミリ秒単位で完了させる。
 
@@ -61,7 +78,10 @@ Cloud Storage FUSE を活用することで、大規模ドキュメントの効�
 
 - **Last-writer-wins**: GCS FUSE の `rename` 特性に基づき、キャッシュ競合時は上書きを許容する。
 - **アトミック性**: 書き込み時は常に `.tmp` ファイルを作成し、完了後に `rename` を行う。
-- **ReadOnly マウント**: 本番環境の Worker では、ドキュメント原本（`{workspace_id}/` 直下）は可能な限り ReadOnly でマウントし、書き込みは `.cache/` や `.checkpoints/` に限定することが望ましい。
+- **ReadOnly マウント**: 原本 `{workspace_id}/{document_id}/source/` は worker からは
+  読むだけなので ReadOnly 化が望ましい。一方 worker は `extracted/` `.cache/`
+  `.checkpoints/` に書くため、マウント全体を ReadOnly にはできない（per-path RO は
+  gcsfuse 上の追加検討事項。現状はマウント RW）。
 
 ## 関連ドキュメント
 - [llm-worker-architecture.md](llm-worker-architecture.md)

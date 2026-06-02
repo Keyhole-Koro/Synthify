@@ -86,9 +86,13 @@ func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (E
 		docID = b.Job.DocumentID
 	}
 
+	// Filename is intentionally left empty: the worker reads from the FUSE mount,
+	// not from FileURI, so the authoritative name is the on-disk one under
+	// source/ (original.{ext}). PopulateSourceFile adopts it. Deriving the name
+	// from FileURI would yield "{document_id}" and corrupt the extracted path and
+	// the document_files record.
 	source := domain.SourceFile{
 		URI:         args.FileURI,
-		Filename:    filepath.Base(args.FileURI),
 		MimeType:    args.MimeType,
 		WorkspaceID: wsID,
 		DocumentID:  docID,
@@ -97,10 +101,12 @@ func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (E
 		return ExtractionResult{}, err
 	}
 
+	// Working tree is extracted/, kept separate from the read-only source/ where
+	// the original lives, so the document root is always a directory.
 	if b.FS != nil {
-		dir := b.FS.DocPath(wsID, docID)
+		dir := b.FS.ExtractedDir(wsID, docID)
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return ExtractionResult{}, fmt.Errorf("failed to create document dir: %w", err)
+			return ExtractionResult{}, fmt.Errorf("failed to create extracted dir: %w", err)
 		}
 	}
 
@@ -110,7 +116,7 @@ func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (E
 
 	destPath := ""
 	if b.FS != nil {
-		destPath = filepath.Join(b.FS.DocPath(wsID, docID), source.Filename)
+		destPath = filepath.Join(b.FS.ExtractedDir(wsID, docID), source.Filename)
 		if err := os.WriteFile(destPath, source.Content, 0644); err != nil {
 			b.Logger.Error("extraction.save_single_file_failed", "error", err.Error(), "filename", source.Filename)
 		}
@@ -230,8 +236,10 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 		return ExtractionResult{}, fmt.Errorf("%w: FUSE mount required for ZIP extraction", domain.ErrCritical)
 	}
 
-	// Extraction base path: /mnt/gcs/{wsID}/{docID}/
-	extractDir := b.FS.DocPath(source.WorkspaceID, source.DocumentID)
+	// Expand into extracted/, separate from the source/ archive. Previously this
+	// targeted {ws}/{doc} directly, colliding with the source object of the same
+	// path; the source/extracted split removes that collision.
+	extractDir := b.FS.ExtractedDir(source.WorkspaceID, source.DocumentID)
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
 		return ExtractionResult{}, fmt.Errorf("failed to create extraction dir: %w", err)
 	}

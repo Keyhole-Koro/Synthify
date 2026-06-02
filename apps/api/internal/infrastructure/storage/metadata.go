@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	gcs "cloud.google.com/go/storage"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	sharedstorage "github.com/synthify/backend/internal/platform/storage"
+	"google.golang.org/api/iterator"
 )
 
 type objectMetadataFetcher interface {
@@ -58,7 +60,11 @@ func NewFakeGCSObjectMetadataFetcher(baseURL, bucket string, client *http.Client
 }
 
 func (f *FakeGCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sharedstorage.BuildDocumentObjectMetadataURL(f.baseURL, f.bucket, workspaceID, documentID), nil)
+	// The original lives at {ws}/{doc}/source/original.{ext}; list the source/
+	// prefix and take the single object the uploader placed there.
+	prefix := workspaceID + "/" + sharedstorage.SourcePrefix(documentID)
+	listURL := sharedstorage.BuildObjectListURL(f.baseURL, f.bucket, prefix)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -67,30 +73,32 @@ func (f *FakeGCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, wo
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		return nil, domain.ErrUploadNotConfirmed
-	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("object metadata request failed status=%d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("object list request failed status=%d: %s", resp.StatusCode, string(body))
 	}
 	var raw struct {
-		Size        any    `json:"size"`
-		ContentType string `json:"contentType"`
+		Items []struct {
+			Size        any    `json:"size"`
+			ContentType string `json:"contentType"`
+		} `json:"items"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, err
 	}
-	size, err := parseObjectSize(raw.Size)
+	if len(raw.Items) == 0 {
+		return nil, domain.ErrUploadNotConfirmed
+	}
+	size, err := parseObjectSize(raw.Items[0].Size)
 	if err != nil {
 		return nil, err
 	}
 	return &domain.ObjectMetadata{
 		Size:        size,
-		ContentType: raw.ContentType,
+		ContentType: raw.Items[0].ContentType,
 	}, nil
 }
 
@@ -108,11 +116,16 @@ func (f *GCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, worksp
 	if err != nil {
 		return nil, err
 	}
-	attrs, err := client.Bucket(f.bucket).Object(workspaceID + "/" + documentID).Attrs(ctx)
+	// The uploaded original lives at {ws}/{doc}/source/original.{ext}; we don't
+	// know the extension here, so list the source/ prefix and take the single
+	// object the uploader placed there.
+	prefix := workspaceID + "/" + sharedstorage.SourcePrefix(documentID)
+	it := client.Bucket(f.bucket).Objects(ctx, &gcs.Query{Prefix: prefix})
+	attrs, err := it.Next()
+	if err == iterator.Done {
+		return nil, domain.ErrUploadNotConfirmed
+	}
 	if err != nil {
-		if errors.Is(err, gcs.ErrObjectNotExist) {
-			return nil, domain.ErrUploadNotConfirmed
-		}
 		return nil, fmt.Errorf("get object metadata: %w", err)
 	}
 	return &domain.ObjectMetadata{
@@ -155,22 +168,50 @@ func NewFakeGCSDocumentObjectStore(baseURL, bucket string, client *http.Client) 
 }
 
 func (f *FakeGCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, sharedstorage.BuildDocumentObjectMetadataURL(f.baseURL, f.bucket, workspaceID, documentID), nil)
+	// The document is a subtree now ({doc}/source/ + {doc}/extracted/); list and
+	// delete every object under {ws}/{doc}/.
+	prefix := workspaceID + "/" + sharedstorage.DocumentPrefix(documentID)
+	listURL := sharedstorage.BuildObjectListURL(f.baseURL, f.bucket, prefix)
+	listReq, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := f.client.Do(req)
+	listResp, err := f.client.Do(listReq)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
-		// already gone or never uploaded — treat as success.
-		return nil
+	listBody, _ := io.ReadAll(io.LimitReader(listResp.Body, 1<<20))
+	listResp.Body.Close()
+	if listResp.StatusCode < 200 || listResp.StatusCode >= 300 {
+		return fmt.Errorf("list objects for delete failed status=%d: %s", listResp.StatusCode, string(listBody))
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	var raw struct {
+		Items []struct {
+			Name string `json:"name"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(listBody, &raw); err != nil {
+		return err
+	}
+	root := strings.TrimRight(f.baseURL, "/")
+	for _, item := range raw.Items {
+		delURL := fmt.Sprintf("%s/storage/v1/b/%s/o/%s", root, f.bucket, url.PathEscape(item.Name))
+		req, err := http.NewRequestWithContext(ctx, http.MethodDelete, delURL, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := f.client.Do(req)
+		if err != nil {
+			return err
+		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return fmt.Errorf("delete object failed status=%d: %s", resp.StatusCode, string(body))
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusNotFound {
+			continue
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			return fmt.Errorf("delete object %q failed status=%d: %s", item.Name, resp.StatusCode, string(body))
+		}
 	}
 	return nil
 }
@@ -189,11 +230,22 @@ func (s *GCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, works
 	if err != nil {
 		return err
 	}
-	if err := client.Bucket(s.bucket).Object(workspaceID + "/" + documentID).Delete(ctx); err != nil {
-		if errors.Is(err, gcs.ErrObjectNotExist) {
-			return nil
+	// Delete the whole document subtree ({doc}/source/ + {doc}/extracted/), not a
+	// single object, since the document is now a directory.
+	bucket := client.Bucket(s.bucket)
+	prefix := workspaceID + "/" + sharedstorage.DocumentPrefix(documentID)
+	it := bucket.Objects(ctx, &gcs.Query{Prefix: prefix})
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
 		}
-		return fmt.Errorf("delete document object: %w", err)
+		if err != nil {
+			return fmt.Errorf("list document objects for delete: %w", err)
+		}
+		if err := bucket.Object(attrs.Name).Delete(ctx); err != nil && !errors.Is(err, gcs.ErrObjectNotExist) {
+			return fmt.Errorf("delete document object %q: %w", attrs.Name, err)
+		}
 	}
 	return nil
 }

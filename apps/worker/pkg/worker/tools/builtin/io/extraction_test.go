@@ -19,6 +19,41 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// Extract is the orchestrator's deterministic pre-pass (L1 Document Map). It
+// reads the original from source/ and must NOT collide with the document root.
+// This is the exact path that failed on stage with "mkdir {ws}/{doc}: not a
+// directory" before the source/extracted split.
+func TestExtract_ReadsFromSourceAndExpandsToExtracted(t *testing.T) {
+	mount := t.TempDir()
+	fs := storage.NewFileSystem(mount)
+	store := mock.NewStore()
+	wsID, docID := "ws_e2e", "doc_e2e"
+
+	// Uploader placed the original under source/original.txt.
+	sourceDir := filepath.Join(mount, wsID, docID, "source")
+	require.NoError(t, os.MkdirAll(sourceDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(sourceDir, "original.txt"), []byte("hello from source"), 0o644))
+
+	b := &base.Context{
+		Repo: store,
+		FS:   fs,
+		Job:  &base.JobContext{WorkspaceID: wsID, DocumentID: docID},
+	}
+
+	rawText, err := Extract(context.Background(), b, "", "", wsID, docID)
+	require.NoError(t, err, "Extract must succeed reading from source/ (the stage regression)")
+	require.Contains(t, rawText, "hello from source")
+
+	// Single file is copied into extracted/, not the document root.
+	if _, err := os.Stat(filepath.Join(mount, wsID, docID, "extracted", "original.txt")); err != nil {
+		t.Errorf("expected file under extracted/: %v", err)
+	}
+	// The document root must remain a directory (no same-named file collision).
+	info, err := os.Stat(filepath.Join(mount, wsID, docID))
+	require.NoError(t, err)
+	require.True(t, info.IsDir(), "document root must stay a directory")
+}
+
 func TestExtractionTool_Zip(t *testing.T) {
 	// 1. Setup Mock FS
 	tmpDir := t.TempDir()
@@ -83,8 +118,8 @@ func TestExtractionTool_Zip(t *testing.T) {
 			t.Errorf("missing go content")
 		}
 
-		// Verify files on FS mount
-		extractPath := filepath.Join(tmpDir, wsID, docID)
+		// Verify files on FS mount (zip expands into extracted/)
+		extractPath := filepath.Join(tmpDir, wsID, docID, "extracted")
 		if _, err := os.Stat(filepath.Join(extractPath, "src/main.go")); err != nil {
 			t.Errorf("file not extracted to FS: %v", err)
 		}
@@ -127,8 +162,8 @@ func TestExtractionTool_SingleFile(t *testing.T) {
 			DocumentID:  docID,
 		}
 
-		// Save to FS
-		dir := b.FS.DocPath(wsID, docID)
+		// Save to FS (single files land in extracted/ under the new layout)
+		dir := b.FS.ExtractedDir(wsID, docID)
 		os.MkdirAll(dir, 0755)
 		destPath := filepath.Join(dir, source.Filename)
 		os.WriteFile(destPath, source.Content, 0644)
