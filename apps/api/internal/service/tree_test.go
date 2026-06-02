@@ -49,7 +49,7 @@ func TestTreeService_GetSubtree_ItemInWorkspace_ReturnsItems(t *testing.T) {
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
-	items, err := svc.GetSubtree(ctx, fixture.Workspace.WorkspaceID, "nd_root", "owner", 3)
+	items, err := svc.GetSubtree(ctx, fixture.Workspace.WorkspaceID, fixture.Workspace.RootItemID, "owner", 3)
 	require.NoError(t, err)
 	require.NotEmpty(t, items)
 	assert.Equal(t, fixture.Workspace.WorkspaceID, items[0].WorkspaceID)
@@ -64,12 +64,12 @@ func TestTreeService_GetSubtree_ItemInOtherWorkspace_ReturnsForbidden(t *testing
 	// CreateWorkspace は workspace_root tree_item も同時に作るので、
 	// 追加の GetTree 呼び出しは不要。
 	acct, _ := store.GetOrCreateAccount(ctx, "owner")
-	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "owner")    // → ws-owner
-	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "stranger") // → ws-stranger (owner が membership 持つ)
+	ownerWS, _ := store.CreateWorkspace(ctx, acct.AccountID, "owner") // → ws-owner
+	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "stranger")     // → ws-stranger (owner が membership 持つ)
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
-	// nd_root は ws-owner 配下だが、ws-stranger の workspaceID で問い合わせ → Forbidden
-	_, err := svc.GetSubtree(ctx, "ws-stranger", "nd_root", "owner", 3)
+	// ownerWS.RootItemID は ws-owner 配下だが、ws-stranger の workspaceID で問い合わせ → Forbidden
+	_, err := svc.GetSubtree(ctx, "ws-stranger", ownerWS.RootItemID, "owner", 3)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, domain.ErrForbidden), "expected ErrForbidden, got %v", err)
 }

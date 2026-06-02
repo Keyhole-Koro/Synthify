@@ -360,16 +360,17 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	// Mirror the postgres Store: workspace creation also inserts the
 	// workspace_root tree_item. Tests that exercise tree code rely on the
 	// root existing without an extra setup call.
+	rootItemID := "nd_root_" + strings.ReplaceAll(w.WorkspaceID, " ", "_")
 	s.items[w.WorkspaceID] = map[string]*domain.Item{
-		"nd_root": {
-			ItemID:      "nd_root",
+		rootItemID: {
+			ItemID:      rootItemID,
 			WorkspaceID: w.WorkspaceID,
 			ParentID:    "",
 			Title:       name,
 			Kind:        appv1.ItemKind_ITEM_KIND_WORKSPACE_ROOT,
 		},
 	}
-	w.RootItemID = "nd_root"
+	w.RootItemID = rootItemID
 	return w, nil
 }
 
