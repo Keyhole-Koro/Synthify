@@ -322,25 +322,27 @@ func validateUploadSize(account *domain.Account, fileSize int64) error {
 }
 
 func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {
-	fileID := newID()
-	createdAt := nowTime()
-	if err := s.q().CreateDocumentFile(ctx, sqlcgen.CreateDocumentFileParams{
-		FileID:     fileID,
+	// Idempotent: on (document_id, path) conflict the query returns the existing
+	// file_id, so a re-registration (deterministic pre-pass + agent extract_text)
+	// resolves to a stable id instead of erroring.
+	row, err := s.q().CreateDocumentFile(ctx, sqlcgen.CreateDocumentFileParams{
+		FileID:     newID(),
 		DocumentID: docID,
 		Path:       path,
 		MimeType:   mimeType,
 		FileSize:   fileSize,
-		CreatedAt:  createdAt,
-	}); err != nil {
+		CreatedAt:  nowTime(),
+	})
+	if err != nil {
 		return nil, fmt.Errorf("create document file: %w", err)
 	}
 	return &domain.DocumentFile{
-		FileID:     fileID,
+		FileID:     row.FileID,
 		DocumentID: docID,
 		Path:       path,
 		MimeType:   mimeType,
 		FileSize:   fileSize,
-		CreatedAt:  createdAt.Format(time.RFC3339),
+		CreatedAt:  row.CreatedAt.UTC().Format(time.RFC3339),
 	}, nil
 }
 

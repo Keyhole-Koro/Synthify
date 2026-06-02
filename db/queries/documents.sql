@@ -4,9 +4,18 @@ FROM documents
 WHERE workspace_id = $1
 ORDER BY created_at DESC;
 
--- name: CreateDocumentFile :exec
+-- name: CreateDocumentFile :one
+-- Idempotent on (document_id, path): the orchestrator's deterministic extract
+-- pre-pass and a later agent extract_text can both register the same file, so a
+-- re-insert returns the existing row's file_id rather than violating the unique
+-- index. RETURNING surfaces whichever file_id won (new on first insert, existing
+-- on conflict) so callers always get a stable id for the path.
 INSERT INTO document_files (file_id, document_id, path, mime_type, file_size, created_at)
-VALUES ($1, $2, $3, $4, $5, $6);
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (document_id, path) DO UPDATE
+SET mime_type = EXCLUDED.mime_type,
+    file_size = EXCLUDED.file_size
+RETURNING file_id, created_at;
 
 -- name: ListDocumentFiles :many
 SELECT file_id, document_id, path, mime_type, file_size, created_at

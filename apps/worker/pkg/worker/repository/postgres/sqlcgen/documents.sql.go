@@ -199,9 +199,13 @@ func (q *Queries) CreateDocumentChunk(ctx context.Context, arg CreateDocumentChu
 	return err
 }
 
-const createDocumentFile = `-- name: CreateDocumentFile :exec
+const createDocumentFile = `-- name: CreateDocumentFile :one
 INSERT INTO document_files (file_id, document_id, path, mime_type, file_size, created_at)
 VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (document_id, path) DO UPDATE
+SET mime_type = EXCLUDED.mime_type,
+    file_size = EXCLUDED.file_size
+RETURNING file_id, created_at
 `
 
 type CreateDocumentFileParams struct {
@@ -213,8 +217,18 @@ type CreateDocumentFileParams struct {
 	CreatedAt  time.Time
 }
 
-func (q *Queries) CreateDocumentFile(ctx context.Context, arg CreateDocumentFileParams) error {
-	_, err := q.db.ExecContext(ctx, createDocumentFile,
+type CreateDocumentFileRow struct {
+	FileID    string
+	CreatedAt time.Time
+}
+
+// Idempotent on (document_id, path): the orchestrator's deterministic extract
+// pre-pass and a later agent extract_text can both register the same file, so a
+// re-insert returns the existing row's file_id rather than violating the unique
+// index. RETURNING surfaces whichever file_id won (new on first insert, existing
+// on conflict) so callers always get a stable id for the path.
+func (q *Queries) CreateDocumentFile(ctx context.Context, arg CreateDocumentFileParams) (CreateDocumentFileRow, error) {
+	row := q.db.QueryRowContext(ctx, createDocumentFile,
 		arg.FileID,
 		arg.DocumentID,
 		arg.Path,
@@ -222,7 +236,9 @@ func (q *Queries) CreateDocumentFile(ctx context.Context, arg CreateDocumentFile
 		arg.FileSize,
 		arg.CreatedAt,
 	)
-	return err
+	var i CreateDocumentFileRow
+	err := row.Scan(&i.FileID, &i.CreatedAt)
+	return i, err
 }
 
 const createJobApprovalRequest = `-- name: CreateJobApprovalRequest :exec
