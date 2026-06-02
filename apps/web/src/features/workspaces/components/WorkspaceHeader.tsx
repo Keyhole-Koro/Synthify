@@ -78,7 +78,9 @@ export function WorkspaceHeader({
           </button>
         )}
         <div className="mt-0.5 flex items-center gap-2">
-          <span className="text-[11px] text-stone-400">{childItemsCount} docs</span>
+          <span className="text-[11px] text-stone-400">
+            {childItemsCount} {childItemsCount === 1 ? 'doc' : 'docs'}
+          </span>
           {isRunning && (
             <span className="text-[11px] font-semibold text-indigo-500">
               {typeof jobProgress === 'number' ? `running ${jobProgress}%` : 'analyzing...'}
