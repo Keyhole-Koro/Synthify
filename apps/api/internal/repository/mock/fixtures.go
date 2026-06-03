@@ -14,8 +14,12 @@ type WorkspaceFixture struct {
 	AccountID string
 	Workspace *domain.Workspace
 	Tree      *domain.Tree
-	Document  *domain.Document
-	Job       *domain.DocumentProcessingJob
+	// RootNodeID is a node seeded directly under the workspace (parent_id
+	// IS NULL) by CreateWorkspaceWithTreeFixture. There is no workspace_root
+	// item anymore; this is just a convenient handle to an existing node.
+	RootNodeID string
+	Document   *domain.Document
+	Job        *domain.DocumentProcessingJob
 }
 
 func CreateUserWorkspaceFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
@@ -35,9 +39,9 @@ func CreateUserWorkspaceFixture(t testing.TB, ctx context.Context, store *Store,
 	}
 }
 
-// CreateWorkspaceWithTreeFixture returns a workspace whose root tree_item is
-// already populated by the mock store's CreateWorkspace (mirroring the
-// postgres Store), so callers that need both can just call this.
+// CreateWorkspaceWithTreeFixture returns a workspace that already has one
+// node seeded directly under it (parent_id IS NULL). The workspace itself is
+// the tree root; this seeds a real node so tree-reading tests have content.
 func CreateWorkspaceWithTreeFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
 	t.Helper()
 
@@ -45,6 +49,11 @@ func CreateWorkspaceWithTreeFixture(t testing.TB, ctx context.Context, store *St
 	tree, err := store.GetTree(ctx, fixture.Workspace.WorkspaceID)
 	require.NoError(t, err, "GetTree")
 	fixture.Tree = tree
+
+	rootNode, err := store.CreateItem(ctx, fixture.Workspace.WorkspaceID, "Root node", "", "", "worker")
+	require.NoError(t, err, "CreateItem (root node)")
+	require.NotNil(t, rootNode, "CreateItem returned nil")
+	fixture.RootNodeID = rootNode.ItemID
 	return fixture
 }
 

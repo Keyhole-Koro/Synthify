@@ -70,14 +70,14 @@ export declare type Item = Message<"synthify.app.v1.Item"> & {
   overrideCss: string;
 
   /**
-   * kind identifies the structural role of this item in its workspace
-   * tree. The frontend used to derive this by inspecting parent_id and
-   * walking children of the inferred root; serving it explicitly lets
-   * both backend and frontend reason about the role directly.
+   * cross_document is true when this node integrates knowledge from more than
+   * one source document (i.e. it has item_sources spanning multiple
+   * documents). The tree is a single workspace-owned structure; documents are
+   * sources, not tree nodes, so a node may be backed by many documents.
    *
-   * @generated from field: synthify.app.v1.ItemKind kind = 12;
+   * @generated from field: bool cross_document = 12;
    */
-  kind: ItemKind;
+  crossDocument: boolean;
 };
 
 /**
@@ -197,34 +197,4 @@ export enum ItemGovernanceState {
  * Describes the enum synthify.app.v1.ItemGovernanceState.
  */
 export declare const ItemGovernanceStateSchema: GenEnum<ItemGovernanceState>;
-
-/**
- * @generated from enum synthify.app.v1.ItemKind
- */
-export enum ItemKind {
-  /**
-   * @generated from enum value: ITEM_KIND_UNSPECIFIED = 0;
-   */
-  UNSPECIFIED = 0,
-
-  /**
-   * @generated from enum value: ITEM_KIND_NODE = 1;
-   */
-  NODE = 1,
-
-  /**
-   * @generated from enum value: ITEM_KIND_WORKSPACE_ROOT = 2;
-   */
-  WORKSPACE_ROOT = 2,
-
-  /**
-   * @generated from enum value: ITEM_KIND_DOCUMENT_ROOT = 3;
-   */
-  DOCUMENT_ROOT = 3,
-}
-
-/**
- * Describes the enum synthify.app.v1.ItemKind.
- */
-export declare const ItemKindSchema: GenEnum<ItemKind>;
 

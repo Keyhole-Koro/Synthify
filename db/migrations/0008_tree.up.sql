@@ -1,13 +1,14 @@
 -- Tree (workspace 内の知識構造)
---   tree_items            : ノード本体 (kind で role を明示)
---   document_tree_links   : document <-> document_root_item の 1:1
---   item_sources          : ノードを支えるドキュメント由来の出典
---   item_aliases          : エイリアス正規化のステージング
+--   tree_items            : 知識ノード本体。workspace が持つ 1 本の統合ツリー
+--   item_sources          : ノードを支える document/file/chunk 由来の出典
+--   item_aliases          : ノード統合（dedup/merge）の取り消し・履歴用ステージング
 --
--- tree_items.kind の値:
---   workspace_root  ワークスペースに 1 つ; parent_id IS NULL
---   document_root   document に 1 つ; parent_id = workspace_root
---   node            それ以外
+-- ツリー構造:
+--   workspace 直下の node は parent_id IS NULL（所属は workspace_id）。
+--   それ以外の node は parent_id で親 node を指す（自己参照の隣接リスト）。
+--   document はツリーのノードではなく、item_sources 経由で node の「出典」
+--   として横から紐づく。1 つの node が複数 document を出典に持てる
+--   （cross_document = true で文書横断ノードを表す）。
 
 CREATE TABLE IF NOT EXISTS tree_items (
   id TEXT PRIMARY KEY,
@@ -21,24 +22,15 @@ CREATE TABLE IF NOT EXISTS tree_items (
   created_by TEXT NOT NULL DEFAULT '',
   governance_state TEXT NOT NULL DEFAULT 'system_generated',
   last_mutation_job_id TEXT NOT NULL DEFAULT '',
-  kind TEXT NOT NULL CHECK (kind IN ('workspace_root', 'document_root', 'node')),
+  cross_document BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL,
   updated_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_tree_items_workspace_id ON tree_items(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_tree_items_parent_id ON tree_items(parent_id);
-CREATE INDEX IF NOT EXISTS idx_tree_items_workspace_kind ON tree_items(workspace_id, kind);
-
-CREATE TABLE IF NOT EXISTS document_tree_links (
-  document_id  TEXT NOT NULL UNIQUE REFERENCES documents(document_id) ON DELETE CASCADE,
-  root_item_id TEXT NOT NULL UNIQUE REFERENCES tree_items(id) ON DELETE CASCADE,
-  workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_document_tree_links_workspace_id
-  ON document_tree_links(workspace_id);
+-- Root nodes (workspace 直下) の抽出を支える: WHERE workspace_id=? AND parent_id IS NULL
+CREATE INDEX IF NOT EXISTS idx_tree_items_workspace_parent ON tree_items(workspace_id, parent_id);
 
 CREATE TABLE IF NOT EXISTS item_sources (
   item_id TEXT NOT NULL REFERENCES tree_items(id) ON DELETE CASCADE,

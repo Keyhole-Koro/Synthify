@@ -49,7 +49,7 @@ func TestTreeService_GetSubtree_ItemInWorkspace_ReturnsItems(t *testing.T) {
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
-	items, err := svc.GetSubtree(ctx, fixture.Workspace.WorkspaceID, fixture.Workspace.RootItemID, "owner", 3)
+	items, err := svc.GetSubtree(ctx, fixture.Workspace.WorkspaceID, fixture.RootNodeID, "owner", 3)
 	require.NoError(t, err)
 	require.NotEmpty(t, items)
 	assert.Equal(t, fixture.Workspace.WorkspaceID, items[0].WorkspaceID)
@@ -66,10 +66,11 @@ func TestTreeService_GetSubtree_ItemInOtherWorkspace_ReturnsForbidden(t *testing
 	acct, _ := store.GetOrCreateAccount(ctx, "owner")
 	ownerWS, _ := store.CreateWorkspace(ctx, acct.AccountID, "owner") // → ws-owner
 	_, _ = store.CreateWorkspace(ctx, acct.AccountID, "stranger")     // → ws-stranger (owner が membership 持つ)
+	ownerNode, _ := store.CreateItem(ctx, ownerWS.WorkspaceID, "n", "", "", "worker")
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
-	// ownerWS.RootItemID は ws-owner 配下だが、ws-stranger の workspaceID で問い合わせ → Forbidden
-	_, err := svc.GetSubtree(ctx, "ws-stranger", ownerWS.RootItemID, "owner", 3)
+	// ownerNode は ws-owner 配下だが、ws-stranger の workspaceID で問い合わせ → Forbidden
+	_, err := svc.GetSubtree(ctx, "ws-stranger", ownerNode.ItemID, "owner", 3)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, domain.ErrForbidden), "expected ErrForbidden, got %v", err)
 }
@@ -90,7 +91,7 @@ func TestTreeService_GetSubtree_MissingArgs_ReturnsError(t *testing.T) {
 func TestTreeService_FindPaths_FindsTreeFromWorkspace(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
-	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
 
 	items, _, err := svc.FindPaths(ctx, fixture.Workspace.WorkspaceID, "a", "b", "owner", 3, 5)

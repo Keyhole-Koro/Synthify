@@ -359,7 +359,6 @@ ORDER BY w.created_at DESC
 		if err != nil {
 			return nil, fmt.Errorf("scan workspace: %w", err)
 		}
-		ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, ws.WorkspaceID)
 		workspaces = append(workspaces, ws)
 	}
 	if err := rows.Err(); err != nil {
@@ -384,7 +383,6 @@ WHERE w.workspace_id = $1 AND w.deleted_at IS NULL
 		}
 		return nil, err
 	}
-	ws.RootItemID, _ = s.GetWorkspaceRootItemIDByWorkspace(ctx, id)
 	return ws, nil
 }
 
@@ -405,7 +403,6 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
 	createdAt := nowTime()
 	wsID := newID()
-	rootItemID := newID()
 
 	if err := s.q().CreateWorkspace(ctx, sqlcgen.CreateWorkspaceParams{
 		WorkspaceID: wsID,
@@ -415,29 +412,19 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	}); err != nil {
 		return nil, fmt.Errorf("create workspace: %w", err)
 	}
-	if err := s.q().CreateWorkspaceRootItem(ctx, sqlcgen.CreateWorkspaceRootItemParams{
-		ID:          rootItemID,
-		WorkspaceID: wsID,
-		Title:       name,
-		Description: "Workspace root",
-		CreatedAt:   createdAt,
-	}); err != nil {
-		return nil, fmt.Errorf("create workspace root item: %w", err)
-	}
+	// No workspace_root tree_item is created: the workspace itself is the tree
+	// root. Knowledge nodes are inserted directly under it (parent_id IS NULL)
+	// when a document is processed.
 	ws, err := s.GetWorkspace(ctx, wsID)
 	if err != nil {
 		// 作成直後の読み戻しが失敗した場合は、書き込んだ値を組み立てて返す。
-		// FK 等の整合性は CreateItem の段階で確認済みなので、Internal にせず
-		// 組み立てた表現を返してフォールバック。
 		return &domain.Workspace{
 			WorkspaceID: wsID,
 			AccountID:   accountID,
 			Name:        name,
-			RootItemID:  rootItemID,
 			CreatedAt:   createdAt.Format(time.RFC3339),
 		}, nil
 	}
-	ws.RootItemID = rootItemID
 	return ws, nil
 }
 
@@ -468,17 +455,6 @@ func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 		return domain.ErrNotFound
 	}
 	return nil
-}
-
-func (s *Store) GetWorkspaceRootItemIDByWorkspace(ctx context.Context, workspaceID string) (string, error) {
-	row, err := s.q().GetTreeRoot(ctx, workspaceID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", domain.ErrNotFound
-		}
-		return "", err
-	}
-	return row.ID, nil
 }
 
 func toAccount(row sqlcgen.Account) *domain.Account {

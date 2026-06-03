@@ -54,11 +54,13 @@ func sampleAccountRow(now time.Time) []driver.Value {
 
 // ── CreateWorkspace ──────────────────────────────────────────────────────────
 
-func TestCreateWorkspace_InsertsWorkspaceAndRootItem(t *testing.T) {
+func TestCreateWorkspace_InsertsWorkspace(t *testing.T) {
 	store, mock, cleanup := newStoreWithMock(t)
 	defer cleanup()
 
-	// 1) workspace insert
+	// 1) workspace insert. No workspace_root tree_item is created — the
+	//    workspace itself is the tree root; nodes are inserted directly under
+	//    it (parent_id IS NULL) when a document is processed.
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO workspaces")).
 		WithArgs(
 			sqlmock.AnyArg(), // wsID (newID)
@@ -68,19 +70,7 @@ func TestCreateWorkspace_InsertsWorkspaceAndRootItem(t *testing.T) {
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	// 2) workspace tree root item insert (CreateWorkspaceRootItem)
-	//    fixed kind='workspace_root', so only id/ws/title/desc/created_at are bound.
-	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO tree_items")).
-		WithArgs(
-			sqlmock.AnyArg(), // $1 id (rootItemID)
-			sqlmock.AnyArg(), // $2 workspace_id
-			"My WS",          // $3 title
-			"Workspace root", // $4 description
-			sqlmock.AnyArg(), // $5 created_at (also used as updated_at)
-		).
-		WillReturnResult(sqlmock.NewResult(1, 1))
-
-	// 3) GetWorkspace read-back (with account JOIN). 失敗してもフォールバックで
+	// 2) GetWorkspace read-back (with account JOIN). 失敗してもフォールバックで
 	//    組み立てた *Workspace が返るが、ここでは happy path として行を返す。
 	now := time.Now().UTC()
 	wsCols := []string{
@@ -95,15 +85,11 @@ func TestCreateWorkspace_InsertsWorkspaceAndRootItem(t *testing.T) {
 			"free", int64(0), int64(1000), int64(100),
 			int32(20), int32(100),
 		))
-	// GetWorkspaceRootItemIDByWorkspace (sqlc GetTreeRoot) も呼ばれる。
-	// ここは no rows でも OK (RootItemID は呼び出し元で上書きされる)。
-	mock.ExpectQuery(regexp.QuoteMeta("FROM tree_items")).WillReturnError(errMockNoRows)
 
 	ws, err := store.CreateWorkspace(context.Background(), "acc_1", "My WS")
 	require.NoError(t, err)
 	require.NotNil(t, ws)
 	assert.Equal(t, "My WS", ws.Name)
-	assert.NotEmpty(t, ws.RootItemID, "RootItemID should be set from the inserted root item")
 }
 
 func TestCreateWorkspace_WorkspaceInsertFails_ReturnsErr(t *testing.T) {
@@ -534,17 +520,11 @@ func TestListWorkspacesByUser_ReturnsWorkspaces(t *testing.T) {
 			"free", int64(200), int64(1000), int64(100),
 			int32(20), int32(100),
 		))
-	// GetWorkspaceRootItemIDByWorkspace (sqlc) を空でも通すため、no rows を返す。
-	mock.ExpectQuery(regexp.QuoteMeta("FROM items")). // GetTreeRoot 内の SQL の一部
-								WillReturnError(errMockNoRows)
-
 	got, err := store.ListWorkspacesByUser(context.Background(), "u_1")
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ws_1", got[0].WorkspaceID)
 	assert.Equal(t, "My Workspace", got[0].Name)
-	// RootItemID は GetTreeRoot で no rows → 空のまま
-	assert.Empty(t, got[0].RootItemID)
 }
 
 // ── GetWorkspace ─────────────────────────────────────────────────────────────
@@ -566,7 +546,6 @@ func TestGetWorkspace_Found_ReturnsWorkspace(t *testing.T) {
 			"free", int64(0), int64(1000), int64(100),
 			int32(20), int32(100),
 		))
-	mock.ExpectQuery(regexp.QuoteMeta("FROM tree_items")).WillReturnError(errMockNoRows)
 
 	got, err := store.GetWorkspace(context.Background(), "ws_1")
 	require.NoError(t, err)

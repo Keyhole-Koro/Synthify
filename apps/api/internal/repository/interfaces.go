@@ -157,7 +157,6 @@ type JobLogRepository interface {
 type TreeRepository interface {
 	GetTree(ctx context.Context, wsID string) (*domain.Tree, error)
 	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error)
-	GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error)
 	FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error)
 	GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
 }

@@ -29,65 +29,9 @@ func (q *Queries) CountJobMutationsByTarget(ctx context.Context, arg CountJobMut
 	return count, err
 }
 
-const createDocumentRootItem = `-- name: CreateDocumentRootItem :exec
-INSERT INTO tree_items (
-  id, workspace_id, parent_id, title, level, description, content, override_css,
-  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
-)
-VALUES ($1, $2, $3, $4, 1, $5, '', '', 'worker', 'system_generated', $6, 'document_root', $7, $7)
-`
-
-type CreateDocumentRootItemParams struct {
-	ID                string
-	WorkspaceID       string
-	ParentID          sql.NullString
-	Title             string
-	Description       string
-	LastMutationJobID string
-	CreatedAt         time.Time
-}
-
-// Inserts a tree_item that anchors a document's subtree under the
-// workspace_root. Pair this with CreateDocumentTreeLink in the same
-// transaction so the 1:1 between document and root_item holds.
-func (q *Queries) CreateDocumentRootItem(ctx context.Context, arg CreateDocumentRootItemParams) error {
-	_, err := q.db.ExecContext(ctx, createDocumentRootItem,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.ParentID,
-		arg.Title,
-		arg.Description,
-		arg.LastMutationJobID,
-		arg.CreatedAt,
-	)
-	return err
-}
-
-const createDocumentTreeLink = `-- name: CreateDocumentTreeLink :exec
-INSERT INTO document_tree_links (document_id, root_item_id, workspace_id, created_at)
-VALUES ($1, $2, $3, $4)
-`
-
-type CreateDocumentTreeLinkParams struct {
-	DocumentID  string
-	RootItemID  string
-	WorkspaceID string
-	CreatedAt   time.Time
-}
-
-func (q *Queries) CreateDocumentTreeLink(ctx context.Context, arg CreateDocumentTreeLinkParams) error {
-	_, err := q.db.ExecContext(ctx, createDocumentTreeLink,
-		arg.DocumentID,
-		arg.RootItemID,
-		arg.WorkspaceID,
-		arg.CreatedAt,
-	)
-	return err
-}
-
 const createItem = `-- name: CreateItem :exec
-INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'node', $10, $10)
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 `
 
 type CreateItemParams struct {
@@ -103,8 +47,8 @@ type CreateItemParams struct {
 	CreatedAt   time.Time
 }
 
-// Creates a regular 'node' item under an explicit parent. Use
-// CreateWorkspaceRootItem / CreateDocumentRootItem for the role-bearing roots.
+// Creates a node under an explicit parent. Pass NULL parent_id for a root
+// node (sitting directly under the workspace).
 func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) error {
 	_, err := q.db.ExecContext(ctx, createItem,
 		arg.ID,
@@ -124,9 +68,9 @@ func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) error {
 const createStructuredItem = `-- name: CreateStructuredItem :exec
 INSERT INTO tree_items (
   id, workspace_id, parent_id, title, level, description, content, override_css,
-  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
+  created_by, governance_state, last_mutation_job_id, cross_document, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'node', $12, $12)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
 `
 
 type CreateStructuredItemParams struct {
@@ -141,9 +85,12 @@ type CreateStructuredItemParams struct {
 	CreatedBy         string
 	GovernanceState   string
 	LastMutationJobID string
+	CrossDocument     bool
 	CreatedAt         time.Time
 }
 
+// Creates a node with full governance/mutation metadata. parent_id NULL =
+// root node directly under the workspace.
 func (q *Queries) CreateStructuredItem(ctx context.Context, arg CreateStructuredItemParams) error {
 	_, err := q.db.ExecContext(ctx, createStructuredItem,
 		arg.ID,
@@ -157,52 +104,15 @@ func (q *Queries) CreateStructuredItem(ctx context.Context, arg CreateStructured
 		arg.CreatedBy,
 		arg.GovernanceState,
 		arg.LastMutationJobID,
+		arg.CrossDocument,
 		arg.CreatedAt,
 	)
 	return err
-}
-
-const createWorkspaceRootItem = `-- name: CreateWorkspaceRootItem :exec
-INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
-VALUES ($1, $2, NULL, $3, 0, $4, '', '', 'system', 'workspace_root', $5, $5)
-`
-
-type CreateWorkspaceRootItemParams struct {
-	ID          string
-	WorkspaceID string
-	Title       string
-	Description string
-	CreatedAt   time.Time
-}
-
-// Inserts the singleton workspace_root tree_item for a new workspace.
-func (q *Queries) CreateWorkspaceRootItem(ctx context.Context, arg CreateWorkspaceRootItemParams) error {
-	_, err := q.db.ExecContext(ctx, createWorkspaceRootItem,
-		arg.ID,
-		arg.WorkspaceID,
-		arg.Title,
-		arg.Description,
-		arg.CreatedAt,
-	)
-	return err
-}
-
-const getDocumentRootItemID = `-- name: GetDocumentRootItemID :one
-SELECT root_item_id
-FROM document_tree_links
-WHERE document_id = $1
-`
-
-func (q *Queries) GetDocumentRootItemID(ctx context.Context, documentID string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getDocumentRootItemID, documentID)
-	var root_item_id string
-	err := row.Scan(&root_item_id)
-	return root_item_id, err
 }
 
 const getItem = `-- name: GetItem :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       governance_state, kind, created_at
+       governance_state, cross_document, created_at
 FROM tree_items
 WHERE id = $1
 `
@@ -218,7 +128,7 @@ type GetItemRow struct {
 	OverrideCss     string
 	CreatedBy       string
 	GovernanceState string
-	Kind            string
+	CrossDocument   bool
 	CreatedAt       time.Time
 }
 
@@ -236,7 +146,7 @@ func (q *Queries) GetItem(ctx context.Context, id string) (GetItemRow, error) {
 		&i.OverrideCss,
 		&i.CreatedBy,
 		&i.GovernanceState,
-		&i.Kind,
+		&i.CrossDocument,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -258,46 +168,6 @@ func (q *Queries) GetItemSummaryUpdateContext(ctx context.Context, id string) (G
 	row := q.db.QueryRowContext(ctx, getItemSummaryUpdateContext, id)
 	var i GetItemSummaryUpdateContextRow
 	err := row.Scan(&i.WorkspaceID, &i.Content, &i.GovernanceState)
-	return i, err
-}
-
-const getTreeRoot = `-- name: GetTreeRoot :one
-SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at
-FROM tree_items
-WHERE workspace_id = $1 AND kind = 'workspace_root'
-LIMIT 1
-`
-
-type GetTreeRootRow struct {
-	ID          string
-	WorkspaceID string
-	ParentID    sql.NullString
-	Title       string
-	Level       int32
-	Description string
-	Content     string
-	OverrideCss string
-	CreatedBy   string
-	Kind        string
-	CreatedAt   time.Time
-}
-
-func (q *Queries) GetTreeRoot(ctx context.Context, workspaceID string) (GetTreeRootRow, error) {
-	row := q.db.QueryRowContext(ctx, getTreeRoot, workspaceID)
-	var i GetTreeRootRow
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.ParentID,
-		&i.Title,
-		&i.Level,
-		&i.Description,
-		&i.Content,
-		&i.OverrideCss,
-		&i.CreatedBy,
-		&i.Kind,
-		&i.CreatedAt,
-	)
 	return i, err
 }
 
@@ -346,7 +216,7 @@ func (q *Queries) InsertJobMutationLog(ctx context.Context, arg InsertJobMutatio
 
 const listChildItems = `-- name: ListChildItems :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-  governance_state, kind, created_at,
+  governance_state, cross_document, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
 WHERE tree_items.parent_id = $1
@@ -363,7 +233,7 @@ type ListChildItemsRow struct {
 	OverrideCss     string
 	CreatedBy       string
 	GovernanceState string
-	Kind            string
+	CrossDocument   bool
 	CreatedAt       time.Time
 	HasChildren     bool
 }
@@ -388,7 +258,7 @@ func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) (
 			&i.OverrideCss,
 			&i.CreatedBy,
 			&i.GovernanceState,
-			&i.Kind,
+			&i.CrossDocument,
 			&i.CreatedAt,
 			&i.HasChildren,
 		); err != nil {
@@ -455,7 +325,7 @@ func (q *Queries) ListItemSources(ctx context.Context, itemID string) ([]ListIte
 
 const listItemsByWorkspace = `-- name: ListItemsByWorkspace :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       governance_state, kind, created_at
+       governance_state, cross_document, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC
@@ -472,7 +342,7 @@ type ListItemsByWorkspaceRow struct {
 	OverrideCss     string
 	CreatedBy       string
 	GovernanceState string
-	Kind            string
+	CrossDocument   bool
 	CreatedAt       time.Time
 }
 
@@ -496,7 +366,7 @@ func (q *Queries) ListItemsByWorkspace(ctx context.Context, workspaceID string) 
 			&i.OverrideCss,
 			&i.CreatedBy,
 			&i.GovernanceState,
-			&i.Kind,
+			&i.CrossDocument,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -510,6 +380,101 @@ func (q *Queries) ListItemsByWorkspace(ctx context.Context, workspaceID string) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRootItemsByWorkspace = `-- name: ListRootItemsByWorkspace :many
+SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
+       governance_state, cross_document, created_at
+FROM tree_items
+WHERE workspace_id = $1 AND parent_id IS NULL
+ORDER BY created_at ASC
+`
+
+type ListRootItemsByWorkspaceRow struct {
+	ID              string
+	WorkspaceID     string
+	ParentID        sql.NullString
+	Title           string
+	Level           int32
+	Description     string
+	Content         string
+	OverrideCss     string
+	CreatedBy       string
+	GovernanceState string
+	CrossDocument   bool
+	CreatedAt       time.Time
+}
+
+// Root nodes of the workspace tree: the items sitting directly under the
+// workspace (parent_id IS NULL). Replaces the old workspace_root lookup.
+func (q *Queries) ListRootItemsByWorkspace(ctx context.Context, workspaceID string) ([]ListRootItemsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRootItemsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRootItemsByWorkspaceRow
+	for rows.Next() {
+		var i ListRootItemsByWorkspaceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentID,
+			&i.Title,
+			&i.Level,
+			&i.Description,
+			&i.Content,
+			&i.OverrideCss,
+			&i.CreatedBy,
+			&i.GovernanceState,
+			&i.CrossDocument,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateItemForMerge = `-- name: UpdateItemForMerge :execrows
+UPDATE tree_items
+SET title = $2, description = $3, content = $4, cross_document = TRUE,
+    last_mutation_job_id = $5, updated_at = $6
+WHERE id = $1
+`
+
+type UpdateItemForMergeParams struct {
+	ID                string
+	Title             string
+	Description       string
+	Content           string
+	LastMutationJobID string
+	UpdatedAt         time.Time
+}
+
+// Merge a document's knowledge into an existing node: the worker rewrites the
+// node's title/description/content and marks it cross_document. item_sources
+// gains the new document's provenance via UpsertItemSource.
+func (q *Queries) UpdateItemForMerge(ctx context.Context, arg UpdateItemForMergeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateItemForMerge,
+		arg.ID,
+		arg.Title,
+		arg.Description,
+		arg.Content,
+		arg.LastMutationJobID,
+		arg.UpdatedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateItemParent = `-- name: UpdateItemParent :exec

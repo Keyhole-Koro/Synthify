@@ -9,25 +9,23 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 )
 
-// GetTree returns the tree metadata for a workspace. The workspace_root
-// tree_item is created atomically with the workspace itself
-// (CreateWorkspace), so a missing root here means the workspace does
-// not exist or has been corrupted — we surface ErrNotFound rather than
-// papering over it.
+// GetTree returns the tree metadata for a workspace. The workspace itself is
+// the tree root (there is no workspace_root tree_item), so existence and
+// timestamps come from the workspace row.
 func (s *Store) GetTree(ctx context.Context, wsID string) (*domain.Tree, error) {
-	root, err := s.q().GetTreeRoot(ctx, wsID)
+	ws, err := s.q().GetWorkspace(ctx, wsID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, domain.ErrNotFound
 		}
-		return nil, fmt.Errorf("get tree root: %w", err)
+		return nil, fmt.Errorf("get tree: %w", err)
 	}
 	return &domain.Tree{
 		TreeID:      wsID,
 		WorkspaceID: wsID,
 		Name:        "default",
-		CreatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
-		UpdatedAt:   root.CreatedAt.UTC().Format(time.RFC3339),
+		CreatedAt:   ws.CreatedAt.UTC().Format(time.RFC3339),
+		UpdatedAt:   ws.CreatedAt.UTC().Format(time.RFC3339),
 	}, nil
 }
 
@@ -42,17 +40,6 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	}
 	s.populateChildIDs(ctx, items)
 	return items, nil
-}
-
-func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error) {
-	root, err := s.q().GetTreeRoot(ctx, wsID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", domain.ErrNotFound
-		}
-		return "", err
-	}
-	return root.ID, nil
 }
 
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {

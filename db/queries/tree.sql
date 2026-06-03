@@ -1,58 +1,39 @@
--- name: GetTreeRoot :one
-SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at
-FROM tree_items
-WHERE workspace_id = $1 AND kind = 'workspace_root'
-LIMIT 1;
-
 -- name: ListItemsByWorkspace :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       governance_state, kind, created_at
+       governance_state, cross_document, created_at
 FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC;
 
+-- name: ListRootItemsByWorkspace :many
+-- Root nodes of the workspace tree: the items sitting directly under the
+-- workspace (parent_id IS NULL). Replaces the old workspace_root lookup.
+SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
+       governance_state, cross_document, created_at
+FROM tree_items
+WHERE workspace_id = $1 AND parent_id IS NULL
+ORDER BY created_at ASC;
+
 -- name: GetItem :one
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-       governance_state, kind, created_at
+       governance_state, cross_document, created_at
 FROM tree_items
 WHERE id = $1;
 
 -- name: CreateItem :exec
--- Creates a regular 'node' item under an explicit parent. Use
--- CreateWorkspaceRootItem / CreateDocumentRootItem for the role-bearing roots.
-INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'node', $10, $10);
-
--- name: CreateWorkspaceRootItem :exec
--- Inserts the singleton workspace_root tree_item for a new workspace.
-INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, kind, created_at, updated_at)
-VALUES ($1, $2, NULL, $3, 0, $4, '', '', 'system', 'workspace_root', $5, $5);
-
--- name: CreateDocumentRootItem :exec
--- Inserts a tree_item that anchors a document's subtree under the
--- workspace_root. Pair this with CreateDocumentTreeLink in the same
--- transaction so the 1:1 between document and root_item holds.
-INSERT INTO tree_items (
-  id, workspace_id, parent_id, title, level, description, content, override_css,
-  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
-)
-VALUES ($1, $2, $3, $4, 1, $5, '', '', 'worker', 'system_generated', $6, 'document_root', $7, $7);
-
--- name: CreateDocumentTreeLink :exec
-INSERT INTO document_tree_links (document_id, root_item_id, workspace_id, created_at)
-VALUES ($1, $2, $3, $4);
-
--- name: GetDocumentRootItemID :one
-SELECT root_item_id
-FROM document_tree_links
-WHERE document_id = $1;
+-- Creates a node under an explicit parent. Pass NULL parent_id for a root
+-- node (sitting directly under the workspace).
+INSERT INTO tree_items (id, workspace_id, parent_id, title, level, description, content, override_css, created_by, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10);
 
 -- name: CreateStructuredItem :exec
+-- Creates a node with full governance/mutation metadata. parent_id NULL =
+-- root node directly under the workspace.
 INSERT INTO tree_items (
   id, workspace_id, parent_id, title, level, description, content, override_css,
-  created_by, governance_state, last_mutation_job_id, kind, created_at, updated_at
+  created_by, governance_state, last_mutation_job_id, cross_document, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'node', $12, $12);
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13);
 
 -- name: UpdateItemParent :exec
 UPDATE tree_items
@@ -67,6 +48,15 @@ WHERE id = $1;
 -- name: UpdateItemSummaryAndMutation :execrows
 UPDATE tree_items
 SET content = $2, last_mutation_job_id = $3, updated_at = $4
+WHERE id = $1;
+
+-- name: UpdateItemForMerge :execrows
+-- Merge a document's knowledge into an existing node: the worker rewrites the
+-- node's title/description/content and marks it cross_document. item_sources
+-- gains the new document's provenance via UpsertItemSource.
+UPDATE tree_items
+SET title = $2, description = $3, content = $4, cross_document = TRUE,
+    last_mutation_job_id = $5, updated_at = $6
 WHERE id = $1;
 
 -- name: UpsertItemSource :exec
@@ -112,7 +102,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
 -- name: ListChildItems :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
-  governance_state, kind, created_at,
+  governance_state, cross_document, created_at,
   EXISTS(SELECT 1 FROM tree_items child WHERE child.parent_id = tree_items.id) AS has_children
 FROM tree_items
 WHERE tree_items.parent_id = $1;

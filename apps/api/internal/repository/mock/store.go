@@ -400,20 +400,10 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	}
 	s.workspaces[w.WorkspaceID] = w
 	s.wsOwners[w.WorkspaceID] = accountID
-	// Mirror the postgres Store: workspace creation also inserts the
-	// workspace_root tree_item. Tests that exercise tree code rely on the
-	// root existing without an extra setup call.
-	rootItemID := "nd_root_" + strings.ReplaceAll(w.WorkspaceID, " ", "_")
-	s.items[w.WorkspaceID] = map[string]*domain.Item{
-		rootItemID: {
-			ItemID:      rootItemID,
-			WorkspaceID: w.WorkspaceID,
-			ParentID:    "",
-			Title:       name,
-			Kind:        appv1.ItemKind_ITEM_KIND_WORKSPACE_ROOT,
-		},
-	}
-	w.RootItemID = rootItemID
+	// The tree is empty until a document is processed; nodes are created
+	// directly under the workspace (parent_id IS NULL). There is no longer a
+	// workspace_root tree_item — the workspace itself is the tree root.
+	s.items[w.WorkspaceID] = map[string]*domain.Item{}
 	return w, nil
 }
 
@@ -1219,21 +1209,6 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 		res = append(res, n)
 	}
 	return res, nil
-}
-
-func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	wsItems, ok := s.items[wsID]
-	if !ok {
-		return "", domain.ErrNotFound
-	}
-	for _, n := range wsItems {
-		if n.ParentID == "" {
-			return n.ItemID, nil
-		}
-	}
-	return "", domain.ErrNotFound
 }
 
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {

@@ -18,11 +18,11 @@ message Item {
   repeated string child_ids = 9;
   ItemGovernanceState governance_state = 10;
   string override_css = 11;
-  // kind identifies the structural role of this item in its workspace
-  // tree. The frontend used to derive this by inspecting parent_id and
-  // walking children of the inferred root; serving it explicitly lets
-  // both backend and frontend reason about the role directly.
-  ItemKind kind = 12;
+  // cross_document is true when this node integrates knowledge from more than
+  // one source document (i.e. it has item_sources spanning multiple
+  // documents). The tree is a single workspace-owned structure; documents are
+  // sources, not tree nodes, so a node may be backed by many documents.
+  bool cross_document = 12;
 }
 
 message Tree {
@@ -44,13 +44,6 @@ enum ItemGovernanceState {
   ITEM_GOVERNANCE_STATE_PENDING_REVIEW = 2;
   ITEM_GOVERNANCE_STATE_HUMAN_CURATED = 3;
   ITEM_GOVERNANCE_STATE_LOCKED = 4;
-}
-
-enum ItemKind {
-  ITEM_KIND_UNSPECIFIED = 0;
-  ITEM_KIND_NODE = 1;
-  ITEM_KIND_WORKSPACE_ROOT = 2;
-  ITEM_KIND_DOCUMENT_ROOT = 3;
 }
 
 message SubtreeItem {
