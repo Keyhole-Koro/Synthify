@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import {
   hasCreatedDocumentRoot,
   isJobFailed,

@@ -4,9 +4,9 @@ import { useMemo } from 'react';
 import { doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuthedDoc } from '@/lib/firestore';
-import type { FirestoreJobStatus } from '@/features/jobs/firestoreJobStatus.generated';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/firestoreJobStatus.generated';
 
-export type { FirestoreJobStatus } from '@/features/jobs/firestoreJobStatus.generated';
+export type { FirestoreJobStatus } from '@/features/jobs/firestore/firestoreJobStatus.generated';
 
 export function useJobStatus(workspaceId: string, jobId: string | null) {
   const ref = useMemo(

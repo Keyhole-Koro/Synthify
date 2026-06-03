@@ -1,5 +1,5 @@
-import { hasCreatedDocumentRoot, isJobFailed, isJobInFlight } from '@/features/jobs/contract/jobStatusContract';
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import { hasCreatedDocumentRoot, isJobFailed, isJobInFlight } from '@/features/jobs/contracts/jobStatusContract';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { WORKSPACE_COMPLETION_MESSAGE, type WorkspaceSessionState } from './workspaceSessionTypes';
 
 export function isWorkspaceJobRunning(state: WorkspaceSessionState, jobStatus: FirestoreJobStatus | undefined): boolean {

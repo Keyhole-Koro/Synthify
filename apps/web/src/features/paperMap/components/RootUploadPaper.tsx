@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { WorkspaceDropzone } from '@/features/workspaces/components/WorkspaceDropzone';
+import { WorkspaceDropzone } from '@/features/workspaces/paper/components/WorkspaceDropzone';
 import { log } from '@/lib/observability/log';
 
 interface RootUploadPaperProps {

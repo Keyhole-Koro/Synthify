@@ -1,4 +1,4 @@
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 
 export const WORKSPACE_COMPLETION_MESSAGE = '解析が完了しました。';
 export const WORKSPACE_COMPLETION_MESSAGE_TTL_MS = 4000;

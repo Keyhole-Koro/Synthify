@@ -1,6 +1,6 @@
 import React from 'react';
-import { jobStatusLabel, jobStatusToneClass } from '@/features/jobs/contract/jobStatusContract';
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import { jobStatusLabel, jobStatusToneClass } from '@/features/jobs/contracts/jobStatusContract';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 
 interface WorkspaceJobListProps {
   workspaceJobs: FirestoreJobStatus[];

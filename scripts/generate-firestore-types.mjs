@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const schemaPath = resolve(root, 'contracts/firestore/job-status.schema.json');
-const tsOutPath = resolve(root, 'apps/web/src/features/jobs/firestoreJobStatus.generated.ts');
+const tsOutPath = resolve(root, 'apps/web/src/features/jobs/firestore/firestoreJobStatus.generated.ts');
 const goOutPath = resolve(root, 'internal/platform/job/status/firestore_job_status.generated.go');
 
 const schema = JSON.parse(readFileSync(schemaPath, 'utf8'));

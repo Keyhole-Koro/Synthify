@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceSession, type UseWorkspaceSessionArgs } from './useWorkspaceSession';
 
 const hookState = vi.hoisted(() => ({
@@ -8,11 +8,11 @@ const hookState = vi.hoisted(() => ({
   workspaceJobs: [] as FirestoreJobStatus[],
 }));
 
-vi.mock('@/features/jobs/useJobStatus', () => ({
+vi.mock('@/features/jobs/firestore/useJobStatus', () => ({
   useJobStatus: () => ({ status: hookState.rawJobStatus, error: null }),
 }));
 
-vi.mock('@/features/jobs/useWorkspaceJobStatuses', () => ({
+vi.mock('@/features/jobs/firestore/useWorkspaceJobStatuses', () => ({
   useWorkspaceJobStatuses: () => ({ jobs: hookState.workspaceJobs }),
 }));
 

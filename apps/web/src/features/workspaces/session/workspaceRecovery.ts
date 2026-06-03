@@ -1,5 +1,5 @@
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
-import { hasCreatedDocumentRoot, isJobInFlight } from '@/features/jobs/contract/jobStatusContract';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
+import { hasCreatedDocumentRoot, isJobInFlight } from '@/features/jobs/contracts/jobStatusContract';
 
 export interface WorkspaceRecoveryState {
   hasActiveJob: boolean;

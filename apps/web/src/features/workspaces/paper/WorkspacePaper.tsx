@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useRef, useState } from 'react';
-import { isJobFailed, isJobSucceeded, isJobTerminal } from '@/features/jobs/contract/jobStatusContract';
+import { isJobFailed, isJobSucceeded, isJobTerminal } from '@/features/jobs/contracts/jobStatusContract';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
@@ -9,7 +9,7 @@ import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { type Workspace } from '@/features/workspaces/api';
 import { InlineError } from '@/components/error/InlineError';
-import { useWorkspaceSession } from './session/useWorkspaceSession';
+import { useWorkspaceSession } from '../session/useWorkspaceSession';
 
 export interface WorkspacePaperRuntimeState {
   initialActiveJobId?: string | null;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
+import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 
 interface UseWorkspaceRuntimeStateArgs {
   rebuildWorkspacePaper: (workspaceId: string) => void;

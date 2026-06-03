@@ -1,7 +1,7 @@
 import React from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
-import { WorkspacePaper } from '@/features/workspaces/WorkspacePaper';
-import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
+import { WorkspacePaper } from '@/features/workspaces/paper/WorkspacePaper';
+import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import type { Workspace } from '@/features/workspaces/api';
 

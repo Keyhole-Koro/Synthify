@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
-import { isJobInFlight } from '@/features/jobs/contract/jobStatusContract';
-import { useJobStatus } from '@/features/jobs/useJobStatus';
-import { useWorkspaceJobStatuses } from '@/features/jobs/useWorkspaceJobStatuses';
+import { isJobInFlight } from '@/features/jobs/contracts/jobStatusContract';
+import { useJobStatus } from '@/features/jobs/firestore/useJobStatus';
+import { useWorkspaceJobStatuses } from '@/features/jobs/firestore/useWorkspaceJobStatuses';
 import type { Workspace } from '@/features/workspaces/api';
 import { toAppError } from '@/lib/error_normalize';
 import { log } from '@/lib/observability/log';
-import type { WorkspacePaperRuntimeState } from '../WorkspacePaper';
+import type { WorkspacePaperRuntimeState } from '../paper/WorkspacePaper';
 import { selectRecoverableWorkspaceJob } from './workspaceRecovery';
 import { workspaceSessionReducer } from './workspaceSessionReducer';
 import {

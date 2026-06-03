@@ -5,14 +5,14 @@ import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
-import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
+import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { createWorkspaceTreeCache } from './tree/workspaceTreeCache';
 import { createWorkspaceTreeCommands } from './tree/workspaceTreeCommands';
 import type { TreeStore } from './tree/workspaceTreeTypes';
-import { useWorkspaceUpload } from './tree/useWorkspaceUpload';
+import { useWorkspaceUpload } from './upload/useWorkspaceUpload';
 import { useExpansionWatcher } from './tree/useExpansionWatcher';
-import { createWorkspacePaperFactory } from './tree/workspacePaperFactory';
-export type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
+import { createWorkspacePaperFactory } from './paper/workspacePaperFactory';
+export type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 
 // useWorkspaceTree is the orchestrator. It owns no data of its own — the
 // tree cache lives in workspaceTreeCache, API calls live in

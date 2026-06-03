@@ -1,6 +1,6 @@
 import React from 'react';
 
-import { useElapsedTime } from '../../jobs/useElapsedTime';
+import { useElapsedTime } from '@/features/jobs/useElapsedTime';
 
 interface WorkspaceJobProgressProps {
   message?: string | null;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { useAuthState } from '@/features/auth/useAuthState';
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';

@@ -1,9 +1,12 @@
-import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
+import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 
 export type CompletedJobWithDocumentRoot = FirestoreJobStatus & {
   status: 'succeeded';
   createdDocumentRootItemId: string;
 };
+
+type SucceededJob = FirestoreJobStatus & { status: 'succeeded' };
+type FailedJob = FirestoreJobStatus & { status: 'failed' };
 
 export function isJobQueued(job: FirestoreJobStatus | undefined): boolean {
   return job?.status === 'queued';
@@ -17,11 +20,11 @@ export function isJobInFlight(job: FirestoreJobStatus | undefined): boolean {
   return isJobQueued(job) || isJobRunning(job);
 }
 
-export function isJobSucceeded(job: FirestoreJobStatus | undefined): boolean {
+export function isJobSucceeded(job: FirestoreJobStatus | undefined): job is SucceededJob {
   return job?.status === 'succeeded';
 }
 
-export function isJobFailed(job: FirestoreJobStatus | undefined): boolean {
+export function isJobFailed(job: FirestoreJobStatus | undefined): job is FailedJob {
   return job?.status === 'failed';
 }
 

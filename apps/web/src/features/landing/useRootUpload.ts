@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { createWorkspace, type Workspace } from '@/features/workspaces/api';
-import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
+import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { toAppError } from '@/lib/error_normalize';
 import { log } from '@/lib/observability/log';
 
