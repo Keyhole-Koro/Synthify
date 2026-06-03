@@ -161,12 +161,21 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
       if (!workspaceRootItemId || items.length === 0) return null;
 
       const previousDocumentRootIds = workspaceDocumentRootIds.get(workspaceId) ?? [];
-      if (!previousDocumentRootIds.includes(createdDocumentRootItemId)) {
+      const isNew = !previousDocumentRootIds.includes(createdDocumentRootItemId);
+      if (isNew) {
         workspaceDocumentRootIds.set(workspaceId, [
           ...previousDocumentRootIds,
           createdDocumentRootItemId,
         ]);
       }
+
+      // Ensure the workspace_root item itself knows about this child.
+      const treeItems = workspaceTreeItems.get(workspaceId);
+      const wsRoot = treeItems?.get(workspaceRootItemId);
+      if (isNew && wsRoot?.item && !wsRoot.item.childIds.includes(createdDocumentRootItemId)) {
+        wsRoot.item.childIds.push(createdDocumentRootItemId);
+      }
+
       for (const item of items) {
         loadedSubtreeItems.add(item.item!.id);
       }
@@ -197,9 +206,18 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
         hasChildren: false,
       });
       const previousDocumentRootIds = workspaceDocumentRootIds.get(workspaceId) ?? [];
-      if (!previousDocumentRootIds.includes(itemId)) {
+      const isNew = !previousDocumentRootIds.includes(itemId);
+      if (isNew) {
         workspaceDocumentRootIds.set(workspaceId, [...previousDocumentRootIds, itemId]);
       }
+
+      // Ensure the workspace_root item itself knows about this child.
+      const treeItems = workspaceTreeItems.get(workspaceId);
+      const wsRoot = treeItems?.get(workspaceRootItemId);
+      if (isNew && wsRoot?.item && !wsRoot.item.childIds.includes(itemId)) {
+        wsRoot.item.childIds.push(itemId);
+      }
+
       loadedSubtreeItems.add(itemId);
       mergeItemsIntoCache(workspaceId, [subtreeItem]);
       return { workspaceRootItemId, items: [subtreeItem] };

@@ -248,23 +248,30 @@ export function useWorkspaceTree(
     store.rememberNewlyCreated(workspace);
     const result = store.injectMockWorkspaceTree(workspaceId, args);
     setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, result.rootItemId));
+    
+    // Open the workspace itself, and also the first document root if available
+    // so the user sees some "knowledge tree" nodes immediately.
+    const openIds = result.documentRootIds.length > 0
+      ? [result.documentRootIds[0]]
+      : [];
     updateWorkspaceExpansion(workspaceId, result.documentRootIds, true);
+    if (openIds.length > 0) {
+      onExpansionMapChange(openChild(workspaceId, openIds[0], expansionMapRef.current));
+    }
+    
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
+  }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion, onExpansionMapChange]);
 
   const rebuildWorkspacePaper = useCallback((workspaceId: string) => {
     const rootItemId = store.getRootItemId(workspaceId);
-    const treeItems = store.getTreeItems(workspaceId);
-    const childPapers = rootItemId
-      ? store.getDocumentRootIds(workspaceId).map((id) => ({
-          id,
-          title: treeItems.get(id)?.item?.title ?? '',
-        }))
-      : [];
-    setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, childPapers)]);
+    if (rootItemId) {
+      setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, rootItemId));
+    } else {
+      setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildWsPaper, setWorkspacePapers]);
+  }, [buildWsPaper, runProjectWorkspacePapers, setWorkspacePapers]);
 
   // loadSubtreeAndProject fetches a subtree, projects Papers, and then
   // recursively kicks loads for any children the user already has open.

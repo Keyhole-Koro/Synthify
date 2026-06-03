@@ -55,4 +55,21 @@ describe('workspaceTreeCache', () => {
     expect(cache.getTreeItems('ws_1').get('doc_root_1')).toBe(documentRoot);
     expect(cache.isLoaded('doc_root_1')).toBe(true);
   });
+
+  it('injects a frontend-only mock document root', () => {
+    const cache = createWorkspaceTreeCache();
+    cache.replaceWorkspaceTree('ws_1', [
+      makeItem('root_1', ItemKind.WORKSPACE_ROOT),
+    ]);
+
+    const injected = cache.injectMockDocumentRoot('ws_1', {
+      itemId: 'debug_doc_root_1',
+      title: 'Debug Paper',
+    });
+
+    expect(injected?.workspaceRootItemId).toBe('root_1');
+    expect(cache.getDocumentRootIds('ws_1')).toEqual(['debug_doc_root_1']);
+    expect(cache.getTreeItems('ws_1').get('debug_doc_root_1')?.item?.title).toBe('Debug Paper');
+    expect(cache.isLoaded('debug_doc_root_1')).toBe(true);
+  });
 });

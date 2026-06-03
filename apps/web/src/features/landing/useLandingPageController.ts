@@ -218,7 +218,11 @@ export function useLandingPageController() {
           },
           paperMap: {
             hasWorkspacePaper: paperMap.has(workspaceId),
+            paperMapSize: paperMap.size,
             documentRootPaperPresence,
+          },
+          expansion: {
+            workspaceOpenChildIds: expansionMap.get(workspaceId)?.openChildIds ?? [],
           },
           latestJobs,
         };
@@ -270,13 +274,14 @@ export function useLandingPageController() {
           ownerId: user?.id ?? 'debug-user',
         });
         setWorkspaces((prev) => [...prev, workspace]);
+        markWorkspaceVerified(workspaceId);
         const result = tree.injectMockWorkspaceTree(workspace, {
           documentCount: args.documentCount,
           nodesPerDocument: args.nodesPerDocument,
           documentTitles: args.documentTitles,
         });
         setPendingRevealNodeId(workspaceId);
-        console.info('[synthify-debug] mock workspace created', { workspace, result });
+        console.info('[synthify-debug] mock workspace created [SYNC-MARKER-A1]', { workspace, result });
         return { workspace, result };
       },
     };
@@ -287,7 +292,7 @@ export function useLandingPageController() {
         delete window.__synthifyDebug;
       }
     };
-  }, [handleCreateWorkspace, paperMap, tree, workspacePaperGroups, setWorkspaces, user]);
+  }, [handleCreateWorkspace, paperMap, tree, workspacePaperGroups, setWorkspaces, user, expansionMap]);
 
   return {
     isReady: hasMounted && hasDefaultOpenState,
