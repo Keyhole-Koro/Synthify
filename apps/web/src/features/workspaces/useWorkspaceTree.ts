@@ -32,15 +32,12 @@ export function useWorkspaceTree(
   getWorkspacePaperRuntimeState: (workspaceId: string) => WorkspacePaperRuntimeState = () => ({}),
   onWorkspaceRuntimeStateComplete: (workspaceId: string) => void = () => {},
   canFetchWorkspaceTree: (workspaceId: string) => boolean = () => true,
+  loading = false,
 ) {
   const expansionMapRef = useRef<ExpansionMap>(expansionMap);
-  const workspacesRef = useRef<Workspace[]>(workspaces);
   useEffect(() => {
     expansionMapRef.current = expansionMap;
   }, [expansionMap]);
-  useEffect(() => {
-    workspacesRef.current = workspaces;
-  }, [workspaces]);
 
   const treeCache = useMemo(() => createWorkspaceTreeCache(), []);
   const treeCommands = useMemo(() => createWorkspaceTreeCommands(treeCache), [treeCache]);
@@ -120,15 +117,21 @@ export function useWorkspaceTree(
     async () => {},
   );
 
-  // getWorkspace / onProcessingComplete are stable callbacks that read live
-  // values (workspacesRef and mergeDocumentRootIntoTreeRef) at call time, so
-  // the factory itself stays a pure function over stable inputs.
+  // getWorkspace reads the live `workspaces` prop directly (not a ref).
+  // handleOpenWorkspace is invoked from the [workspaces]-effect in
+  // useExpansionWatcher right after the list loads on reload. A
+  // ref-backed workspacesRef is only updated by its own useEffect, which
+  // has not run yet at that point, so reading it there yielded the stale
+  // (empty) list — getWorkspace returned undefined and buildWsPaper baked a
+  // "ワークスペースが見つかりません" paper into workspacePaperGroups, where it
+  // stuck (useLandingPaperMap only rebuilds empty groups). The prop is
+  // always current during render, so prefer it.
   const getWorkspace = useCallback(
     (id: string) =>
-      workspacesRef.current.find((w) => w.workspaceId === id) ?? store.getNewlyCreated(id),
+      workspaces.find((w) => w.workspaceId === id) ?? store.getNewlyCreated(id),
   // store getter is stable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  [],
+  [workspaces],
   );
 
   const onProcessingComplete = useCallback(async (workspaceId: string, createdDocumentRootItemId: string) => {
@@ -140,10 +143,13 @@ export function useWorkspaceTree(
   // only as closures — the actual ref dereference happens later, inside the
   // returned buildWsPaper invocation. react-hooks/refs cannot tell the
   // difference, so suppress it locally.
+  const isLoading = useCallback(() => loading, [loading]);
+
   const buildWsPaper = useMemo(
     // eslint-disable-next-line react-hooks/refs
     () => createWorkspacePaperFactory({
       getWorkspace,
+      isLoading,
       getWorkspaceName,
       getRuntimeState: getWorkspacePaperRuntimeState,
       onUploadFile: handleUploadWorkspaceFile,
@@ -151,7 +157,7 @@ export function useWorkspaceTree(
       onSuggestedWorkspaceName,
       onProcessingComplete,
     }),
-    [getWorkspace, getWorkspaceName, getWorkspacePaperRuntimeState, handleUploadWorkspaceFile,
+    [getWorkspace, isLoading, getWorkspaceName, getWorkspacePaperRuntimeState, handleUploadWorkspaceFile,
       onRenameWorkspace, onSuggestedWorkspaceName, onProcessingComplete],
   );
 

@@ -10,6 +10,10 @@ export interface WorkspacePaperFactoryDeps {
   // orchestrator considers authoritative (the official list, falling back
   // to the optimistic newly-created cache).
   getWorkspace: (workspaceId: string) => Workspace | undefined;
+  // isLoading reports whether the workspace list is still being fetched. While
+  // it is, a getWorkspace miss is expected (the list just hasn't arrived yet),
+  // so we render an empty placeholder instead of the "not found" message.
+  isLoading: () => boolean;
   getWorkspaceName: (id: string) => string;
   getRuntimeState: (workspaceId: string) => WorkspacePaperRuntimeState;
   onUploadFile: (workspaceId: string, file: File) => Promise<{ jobId: string; documentId: string }>;
@@ -27,6 +31,20 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
     const workspace = deps.getWorkspace(workspaceId);
 
     if (!workspace) {
+      // The list is still loading: the workspace will likely appear once it
+      // arrives. Render an empty placeholder so we never bake a stale
+      // "not found" paper into workspacePaperGroups (which would stick).
+      if (deps.isLoading()) {
+        return {
+          id: workspaceId,
+          title: deps.getWorkspaceName(workspaceId),
+          description: '読み込み中',
+          hue: 200,
+          parentId: WORKSPACES_ID,
+          childIds: [],
+          content: <div className="p-4" aria-busy="true" />,
+        };
+      }
       return {
         id: workspaceId,
         title: '不明なワークスペース',

@@ -130,6 +130,7 @@ export function useLandingPageController() {
     runtimeState.getRuntimeState,
     runtimeState.clearRuntimeState,
     useCallback((workspaceId: string) => verifiedWorkspaceIds.has(workspaceId), [verifiedWorkspaceIds]),
+    loading,
   );
 
   useEffect(() => {
