@@ -27,7 +27,7 @@ interface UseLandingPaperMapProps {
   workspacePaperGroups: Map<string, Paper[]>;
   handleGoogleSubmit: () => void;
   handleLogout: () => void;
-  handleCreateWorkspace: (name: string) => Promise<void>;
+  handleCreateWorkspace: (name: string) => Promise<Workspace | void>;
   handleRootUpload: (file: File) => Promise<void>;
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
   onRetryWorkspaces: () => void;

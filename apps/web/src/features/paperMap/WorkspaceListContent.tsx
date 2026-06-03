@@ -10,7 +10,7 @@ interface Props {
   loading: boolean;
   error?: AppError | null;
   onOpenWorkspace: (workspaceId: string) => void;
-  onCreateWorkspace: (name: string) => Promise<void>;
+  onCreateWorkspace: (name: string) => Promise<Workspace | void>;
   onRetry: () => void;
 }
 
