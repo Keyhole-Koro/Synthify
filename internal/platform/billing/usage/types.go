@@ -85,4 +85,10 @@ type RecordResult struct {
 	PaidVia           PaidVia
 	CreditAmountMinor int64
 	StripeAmountMinor int64
+	// PricingMissing is true when the event was recorded at cost 0 only
+	// because the model's pricing could not be resolved (unknown model or a
+	// pricing-store error), not because the usage was genuinely free. Callers
+	// must treat this as a billing fault to surface/alert on, not a no-op:
+	// every such event is revenue silently lost.
+	PricingMissing bool
 }

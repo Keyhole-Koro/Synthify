@@ -49,7 +49,18 @@ func main() {
 	// One reporter feeds both metering paths: the llm.Client wrapper (embedding
 	// + custom-client calls) and the agent's after-model callback (ADK
 	// generation calls, which never cross the llm.Client surface).
-	reporter := metering.NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken, observability.ConnectClientOptions(nrApp)...)
+	// In production/staging a missing API base URL or service token would
+	// silently drop every usage event and bill nothing, so fail fast instead.
+	// dev/local keep the lenient no-op path so they run without the billing API.
+	var reporter llm.UsageReporter
+	if cfg.RequiresBilling() {
+		reporter, err = metering.NewConnectReporterStrict(cfg.APIBaseURL, cfg.InternalServiceToken, observability.ConnectClientOptions(nrApp)...)
+		if err != nil {
+			log.Fatalf("worker.billing_misconfigured: %v (ENV=%s)", err, cfg.Env)
+		}
+	} else {
+		reporter = metering.NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken, observability.ConnectClientOptions(nrApp)...)
+	}
 	llmClient := metering.NewLLMClient(embedder, reporter, appLogger)
 
 	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, reporter, fs, appLogger, nrApp, cfg.AgentBudget())

@@ -92,12 +92,20 @@ func main() {
 	if err != nil {
 		log.Fatalf("stripe provider init: %v", err)
 	}
-	billingSvc := service.NewBillingService(service.BillingServiceDeps{
-		Accounts: store,
-		Usage:    store,
-		Provider: stripeProvider,
-		Logger:   appLogger,
+	// In production/staging the usage repository must be wired, or RecordUsage
+	// silently falls back to a logging stub that bills nothing. RequireUsage
+	// makes that a startup error instead of a silent revenue leak; dev/local
+	// leave it false so they can run without the usage tables.
+	billingSvc, err := service.NewBillingService(service.BillingServiceDeps{
+		Accounts:     store,
+		Usage:        store,
+		Provider:     stripeProvider,
+		Logger:       appLogger,
+		RequireUsage: requiresBilling(cfg.Env),
 	})
+	if err != nil {
+		log.Fatalf("api.billing_init: %v (ENV=%s)", err, cfg.Env)
+	}
 
 	documentSvc := service.NewDocumentService(service.DocumentServiceDeps{
 		Repo:             store,
@@ -208,6 +216,18 @@ func main() {
 
 type readinessChecker interface {
 	CheckReadiness(context.Context) error
+}
+
+// requiresBilling reports whether the environment must have a fully wired
+// billing pipeline. production/staging fail fast on a missing usage repository
+// (which would otherwise bill nothing); dev/local stay lenient.
+func requiresBilling(env string) bool {
+	switch env {
+	case "production", "staging":
+		return true
+	default:
+		return false
+	}
 }
 
 func healthHandler(store any, readinessKey string) http.HandlerFunc {

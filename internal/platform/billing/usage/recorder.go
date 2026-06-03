@@ -63,9 +63,13 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 		return nil, ErrEventInvalid
 	}
 
-	// 1. Pricing lookup. Unknown model -> cost 0 + warn but persist for forensics.
+	// 1. Pricing lookup. We still persist at cost 0 when pricing can't be
+	// resolved (forensics: never drop the raw token counts), but we flag the
+	// event as PricingMissing so callers alert on it. Cost 0 here is a billing
+	// fault — tokens were spent that nobody was charged for — not free usage.
 	currency := "usd"
 	costMinor := int64(0)
+	pricingMissing := false
 	pricing, err := r.repo.GetModelPricing(ctx, ev.Model)
 	switch {
 	case err == nil && pricing != nil:
@@ -74,12 +78,22 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 			currency = pricing.Currency
 		}
 	case errors.Is(err, ErrNotFound):
-		r.logger.Warn("billing.record_usage.no_pricing",
+		pricingMissing = true
+		r.logger.Error("billing.record_usage.no_pricing",
 			"model", ev.Model,
 			"account_id", ev.AccountID,
+			"event_id", ev.EventID,
+			"input_tokens", ev.InputTokens,
+			"output_tokens", ev.OutputTokens,
 		)
 	default:
-		r.logger.Error("billing.record_usage.pricing_lookup_failed", "error", err.Error(), "model", ev.Model)
+		pricingMissing = true
+		r.logger.Error("billing.record_usage.pricing_lookup_failed",
+			"error", err.Error(),
+			"model", ev.Model,
+			"account_id", ev.AccountID,
+			"event_id", ev.EventID,
+		)
 	}
 
 	ev.CostMinor = costMinor
@@ -168,6 +182,7 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 		PaidVia:           paidVia,
 		CreditAmountMinor: creditPortion,
 		StripeAmountMinor: stripePortion,
+		PricingMissing:    pricingMissing,
 	}, nil
 }
 

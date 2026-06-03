@@ -16,6 +16,10 @@ var (
 	ErrBillingUsageEventInvalid = errors.New("usage event is missing required fields")
 	ErrBillingBudgetInvalid     = errors.New("budget limit is invalid")
 	ErrBillingBudgetExceeded    = errors.New("account budget has been exceeded")
+	// ErrBillingUsagePricingMissing は、モデル単価が解決できず cost 0 で記録した
+	// 課金漏れを NewRelic に notice するための内部マーカー。RPC レスポンスとして
+	// クライアントに返すことはない（イベント自体は記録成功扱い）。
+	ErrBillingUsagePricingMissing = errors.New("usage event recorded without pricing")
 )
 
 type BillingPlan string
@@ -150,6 +154,10 @@ type UsageRecordResult struct {
 	PaidVia           PaidVia `json:"paid_via,omitempty"`
 	CreditAmountMinor int64   `json:"credit_amount_minor,omitempty"`
 	StripeAmountMinor int64   `json:"stripe_amount_minor,omitempty"`
+	// PricingMissing は、モデル単価を解決できず cost 0 で記録した場合に true。
+	// 「無料利用」ではなく「課金漏れ（取りこぼした売上）」を意味するので、
+	// アラート対象として扱う。
+	PricingMissing bool `json:"pricing_missing,omitempty"`
 }
 
 type ModelUsage struct {

@@ -14,6 +14,7 @@ import (
 
 type Worker struct {
 	Port                     string
+	Env                      string
 	ReadinessKey             string
 	GCSBucket                string
 	GCSUploadURLBase         string
@@ -43,6 +44,20 @@ func (w Worker) AgentBudget() time.Duration {
 	return time.Duration(float64(w.RequestTimeout) * 0.9)
 }
 
+// RequiresBilling reports whether this environment must have a fully wired
+// billing pipeline. In production and staging a missing service token or
+// API base URL silently drops usage events (no-op reporter) and never bills
+// — so the worker must fail fast at startup instead. dev/local/test keep the
+// lenient behaviour so they can run without the billing API.
+func (w Worker) RequiresBilling() bool {
+	switch w.Env {
+	case "production", "staging":
+		return true
+	default:
+		return false
+	}
+}
+
 type NewRelic struct {
 	AppName    string
 	LicenseKey string
@@ -69,6 +84,7 @@ const defaultVertexLocation = "global"
 func LoadWorker() Worker {
 	return Worker{
 		Port:                     get("PORT", "8080"),
+		Env:                      get("ENV", "production"),
 		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
 		GCSBucket:                get("GCS_BUCKET", "synthify-uploads"),
 		GCSUploadURLBase:         mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443")),

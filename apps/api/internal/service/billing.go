@@ -64,9 +64,21 @@ type BillingServiceDeps struct {
 	Usage    repository.UsageRepository
 	Provider BillingProvider
 	Logger   *slog.Logger
+	// RequireUsage makes a nil Usage repository a hard error instead of the
+	// logging stub. Production/staging set this so a deploy that would bill
+	// nothing fails fast at startup rather than silently leaking revenue.
+	RequireUsage bool
 }
 
-func NewBillingService(deps BillingServiceDeps) BillingUsecase {
+// ErrBillingUsageRepoRequired is returned by NewBillingService when
+// RequireUsage is set but no usage repository was provided. RecordUsage would
+// otherwise fall back to a no-op stub that bills nothing.
+var ErrBillingUsageRepoRequired = errors.New("billing: usage repository is required but not configured")
+
+func NewBillingService(deps BillingServiceDeps) (BillingUsecase, error) {
+	if deps.RequireUsage && deps.Usage == nil {
+		return nil, ErrBillingUsageRepoRequired
+	}
 	now := time.Now
 	s := &billingService{
 		accounts: deps.Accounts,
@@ -79,7 +91,7 @@ func NewBillingService(deps BillingServiceDeps) BillingUsecase {
 		adapter := newUsageRepoAdapter(deps.Usage, deps.Accounts)
 		s.recorder = platformusage.NewRecorder(adapter, billingClock{now: now}, deps.Logger)
 	}
-	return s
+	return s, nil
 }
 
 type billingClock struct{ now func() time.Time }
@@ -570,6 +582,18 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 	ev.CreditAmountMinor = pue.CreditAmountMinor
 	ev.StripeAmountMinor = pue.StripeAmountMinor
 
+	// Pricing が解決できず cost 0 で記録された場合は課金漏れ。recorder 側で
+	// error ログは出るが、ここでも NewRelic に notice してアラート可能にする。
+	if result.PricingMissing {
+		s.noticeError(ctx, "billing.record_usage.pricing_missing", domain.ErrBillingUsagePricingMissing, map[string]any{
+			"account_id":    ev.AccountID,
+			"event_id":      ev.EventID,
+			"model":         ev.Model,
+			"input_tokens":  ev.InputTokens,
+			"output_tokens": ev.OutputTokens,
+		})
+	}
+
 	// Stripe meter event: only the Stripe portion, prorated by cost.
 	// The worker (PR 9) writes events via the platform Recorder but does
 	// not call Stripe directly; PR 8b will replace this immediate send
@@ -588,6 +612,7 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 		PaidVia:           domain.PaidVia(result.PaidVia),
 		CreditAmountMinor: result.CreditAmountMinor,
 		StripeAmountMinor: result.StripeAmountMinor,
+		PricingMissing:    result.PricingMissing,
 	}, nil
 }
 
