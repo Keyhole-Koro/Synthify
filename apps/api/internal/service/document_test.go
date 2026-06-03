@@ -197,6 +197,92 @@ func TestStartProcessingRejectsSizeMismatch(t *testing.T) {
 	assert.Zero(t, updated.StorageUsedBytes)
 }
 
+func TestStartProcessingRejectsUnsupportedUploadedContentType(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	metadata := &fakeObjectMetadata{size: 128, contentType: "application/x-msdownload"}
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		ObjectMetadata:   metadata,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "payload.dat", "text/plain", 128)
+	require.NoError(t, err)
+
+	job, err := svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrUnsupportedDocumentType)
+	assert.Nil(t, job)
+}
+
+func TestConfirmUploadRejectsUnsupportedUploadedContentType(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	metadata := &fakeObjectMetadata{size: 128, contentType: "application/x-msdownload"}
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		ObjectMetadata:   metadata,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "payload.dat", "text/plain", 128)
+	require.NoError(t, err)
+
+	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID, "owner")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrUnsupportedDocumentType)
+	assert.Nil(t, confirmed)
+}
+
+func TestConfirmUploadAllowsOctetStreamForReadableExtension(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	metadata := &fakeObjectMetadata{size: 128, contentType: "application/octet-stream"}
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		ObjectMetadata:   metadata,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "notes.md", "application/octet-stream", 128)
+	require.NoError(t, err)
+
+	confirmed, err := svc.ConfirmUpload(ctx, doc.DocumentID, "owner")
+
+	require.NoError(t, err)
+	require.NotNil(t, confirmed)
+}
+
 func TestConfirmUploadConfirmsUploadedObjectSize(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
@@ -378,11 +464,16 @@ func documentSourceURL(workspaceID, documentID string) string {
 }
 
 type fakeObjectMetadata struct {
-	size int64
+	size        int64
+	contentType string
 }
 
 func (f *fakeObjectMetadata) GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error) {
-	return &domain.ObjectMetadata{Size: f.size, ContentType: "application/pdf"}, nil
+	contentType := f.contentType
+	if contentType == "" {
+		contentType = "application/pdf"
+	}
+	return &domain.ObjectMetadata{Size: f.size, ContentType: contentType}, nil
 }
 
 type fakeDispatcher struct {

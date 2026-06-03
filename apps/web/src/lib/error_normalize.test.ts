@@ -30,6 +30,12 @@ describe('toAppError', () => {
       const result = toAppError(err);
       expect(result.kind).toBe('validation');
     });
+
+    it('localizes unsupported document type errors', () => {
+      const err = new ConnectError('unsupported document type', Code.InvalidArgument);
+      const result = toAppError(err);
+      expect(result.message).toContain('実行ファイル形式はアップロードできません');
+    });
   });
 
   describe('Firebase Error handling', () => {

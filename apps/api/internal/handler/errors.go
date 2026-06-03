@@ -40,6 +40,8 @@ func toError(err error) error {
 		return connect.NewError(connect.CodeResourceExhausted, err)
 	case errors.Is(err, domain.ErrBillingWebhookSignatureInvalid):
 		return connect.NewError(connect.CodeUnauthenticated, err)
+	case errors.Is(err, domain.ErrUnsupportedDocumentType):
+		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, domain.ErrFileTooLarge), errors.Is(err, domain.ErrStorageQuotaExceeded):
 		return connect.NewError(connect.CodeResourceExhausted, err)
 	case errors.Is(err, domain.ErrUploadNotConfirmed), errors.Is(err, domain.ErrUploadSizeMismatch):

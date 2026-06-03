@@ -10,8 +10,8 @@ import (
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
-	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
@@ -135,6 +135,10 @@ func (s *DocumentService) CreateDocument(ctx context.Context, wsID, userID, file
 	if err := s.authorizeWorkspace(ctx, wsID, userID); err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
+	if err := domain.ValidateDocumentUploadType(filename, mimeType); err != nil {
+		s.reportCreateDocumentRejection(wsID, userID, filename, fileSize, err)
+		return nil, repository.DocumentUploadTarget{}, err
+	}
 	doc, target, err := s.repo.CreateDocument(ctx, wsID, userID, filename, mimeType, fileSize)
 	if err != nil {
 		s.reportCreateDocumentRejection(wsID, userID, filename, fileSize, err)
@@ -154,6 +158,8 @@ func (s *DocumentService) reportCreateDocumentRejection(workspaceID, userID, fil
 		reason = "storage_quota_exceeded"
 	case errors.Is(cause, domain.ErrUploadSizeMismatch):
 		reason = "size_mismatch"
+	case errors.Is(cause, domain.ErrUnsupportedDocumentType):
+		reason = "unsupported_document_type"
 	default:
 		// Non-quota errors (DB outage, etc.) are already covered by the Connect
 		// interceptor — skip to avoid double-counting.
@@ -399,6 +405,11 @@ func (s *DocumentService) confirmUploadedObject(ctx context.Context, doc *domain
 	}
 	if metadata == nil {
 		return domain.ErrUploadNotConfirmed
+	}
+	if err := domain.ValidateDocumentUploadType(doc.Filename, metadata.ContentType); err != nil {
+		s.reportUploadIncident("UnsupportedDocumentUpload", doc.WorkspaceID, doc.DocumentID, "unsupported_document_type", err)
+		s.deleteOrphanedObject(ctx, doc.WorkspaceID, doc.DocumentID, "unsupported_document_type")
+		return err
 	}
 	return s.runConfirmAndHandleMismatch(ctx, doc, metadata.Size)
 }

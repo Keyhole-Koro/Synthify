@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react';
 import { createDocument, startProcessing, uploadFile } from '@/features/documents/api';
+import { validateDocumentUploadFile } from '@/features/documents/uploadPolicy';
 
 // useWorkspaceUpload returns the workspace upload pipeline: create document
 // row -> upload bytes -> start processing job. The caller decides what to
@@ -9,6 +10,7 @@ import { createDocument, startProcessing, uploadFile } from '@/features/document
 // workspace runtime state so the progress UI lights up).
 export function useWorkspaceUpload() {
   return useCallback(async (workspaceId: string, file: File) => {
+    validateDocumentUploadFile(file);
     const created = await createDocument(
       workspaceId,
       file.name,

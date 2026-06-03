@@ -12,7 +12,7 @@ export function toAppError(err: unknown): AppError {
     const kind = mapConnectCodeToKind(err.code);
     return createAppError({
       kind,
-      message: err.rawMessage,
+      message: mapConnectErrorMessage(err),
       retryable: isConnectCodeRetryable(err.code),
       code: Code[err.code],
       cause: err,
@@ -88,6 +88,13 @@ export function toAppError(err: unknown): AppError {
     retryable: false,
     cause: err,
   });
+}
+
+function mapConnectErrorMessage(err: ConnectError): string {
+  if (err.code === Code.InvalidArgument && err.rawMessage.includes('unsupported document type')) {
+    return '実行ファイル形式はアップロードできません。';
+  }
+  return err.rawMessage;
 }
 
 function mapConnectCodeToKind(code: Code): AppErrorKind {

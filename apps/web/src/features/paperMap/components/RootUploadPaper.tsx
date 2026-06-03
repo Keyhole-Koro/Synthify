@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from 'react';
 import { WorkspaceDropzone } from '@/features/workspaces/paper/components/WorkspaceDropzone';
+import { toAppError } from '@/lib/error_normalize';
 import { log } from '@/lib/observability/log';
 
 interface RootUploadPaperProps {
@@ -26,7 +27,8 @@ export function RootUploadPaper({
       await onUpload(file);
     } catch (err) {
       log.error('Root upload failed', { source: 'root_upload_paper' }, err);
-      setUploadMessage('アップロードに失敗しました。時間をおいて再試行してください。');
+      const appError = toAppError(err);
+      setUploadMessage(`アップロードに失敗しました。${appError.message}`);
     } finally {
       setUploading(false);
     }
