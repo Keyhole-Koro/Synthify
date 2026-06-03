@@ -1,9 +1,13 @@
 import type { Metadata } from 'next';
-import { Noto_Sans_JP } from 'next/font/google';
+import localFont from 'next/font/local';
 import { NewRelicUserSync } from '@/components/observability/NewRelicUserSync';
 import '../src/index.css';
 
-const appFont = Noto_Sans_JP({ subsets: ['latin'], variable: '--font-space' });
+const appFont = localFont({
+  src: '../public/fonts/NotoSansJP-VariableFont_wght.ttf',
+  variable: '--font-space',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Synthify',
