@@ -6,19 +6,19 @@ import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjec
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
-import { useTreeStore } from './tree/useTreeStore';
+import { createWorkspaceTreeCache } from './tree/workspaceTreeCache';
+import { createWorkspaceTreeCommands } from './tree/workspaceTreeCommands';
+import type { TreeStore } from './tree/workspaceTreeTypes';
 import { useWorkspaceUpload } from './tree/useWorkspaceUpload';
 import { useExpansionWatcher } from './tree/useExpansionWatcher';
 import { createWorkspacePaperFactory } from './tree/workspacePaperFactory';
 export type { WorkspacePaperRuntimeState } from '@/features/workspaces/WorkspacePaper';
 
 // useWorkspaceTree is the orchestrator. It owns no data of its own — the
-// tree cache lives in useTreeStore, the paper factory in
-// workspacePaperFactory, and the expansion side effects in
-// useExpansionWatcher. Its job is to wire those together: pass refresh
-// results through projection to setWorkspacePapers, kick recursive subtree
-// loads for items the user already had open, and keep the expansion map in
-// sync with the cache.
+// tree cache lives in workspaceTreeCache, API calls live in
+// workspaceTreeCommands, the paper factory in workspacePaperFactory, and the
+// expansion side effects in useExpansionWatcher. This hook wires those
+// boundaries together.
 export function useWorkspaceTree(
   getWorkspaceName: (id: string) => string,
   expansionMap: ExpansionMap,
@@ -41,7 +41,33 @@ export function useWorkspaceTree(
     workspacesRef.current = workspaces;
   }, [workspaces]);
 
-  const store = useTreeStore(workspaces);
+  const treeCache = useMemo(() => createWorkspaceTreeCache(), []);
+  const treeCommands = useMemo(() => createWorkspaceTreeCommands(treeCache), [treeCache]);
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    treeCache.pruneNewlyCreated(workspaces);
+  }, [treeCache, workspaces]);
+
+  const store = useMemo<TreeStore>(() => ({
+    getRootItemId: treeCache.getRootItemId,
+    getDocumentRootIds: treeCache.getDocumentRootIds,
+    getTreeItems: treeCache.getTreeItems,
+    getItemWorkspaceId: treeCache.getItemWorkspaceId,
+    hasInitialized: treeCache.hasInitialized,
+    isLoaded: treeCache.isLoaded,
+    isLoading: treeCache.isLoading,
+    hasChildren: treeCache.hasChildren,
+    isFullyLoaded: treeCache.isFullyLoaded,
+    getNewlyCreated: treeCache.getNewlyCreated,
+    listNewlyCreatedIds: treeCache.listNewlyCreatedIds,
+    markInitialized: treeCache.markInitialized,
+    rememberNewlyCreated: treeCache.rememberNewlyCreated,
+    refreshWorkspaceTree: treeCommands.refreshWorkspaceTree,
+    loadSubtree: treeCommands.loadSubtree,
+    mergeDocumentRoot: treeCommands.mergeDocumentRoot,
+    debugSnapshot: treeCache.debugSnapshot,
+    reset: treeCache.reset,
+  }), [treeCache, treeCommands]);
   const handleUploadWorkspaceFile = useWorkspaceUpload();
 
   // openChild / setOpenChildren / updateWorkspaceExpansion are pure

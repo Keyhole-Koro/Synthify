@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { ExpansionMap } from '@keyhole-koro/paper-in-paper';
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import type { Workspace } from '@/features/workspaces/api';
-import type { TreeStore } from './useTreeStore';
+import type { TreeStore } from './workspaceTreeTypes';
 
 interface UseExpansionWatcherArgs {
   expansionMap: ExpansionMap;

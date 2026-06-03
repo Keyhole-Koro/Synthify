@@ -44,6 +44,7 @@ const FirestoreJobStatusJSONSchema = `{
       "type": "string"
     },
     "status": {
+      "description": "Worker-authored lifecycle state for the transient Firestore job document. queued/running are in-flight, succeeded/failed are terminal. A succeeded PROCESS_DOCUMENT job that created a tree item must also include createdDocumentRootItemId.",
       "type": "string",
       "enum": [
         "queued",

@@ -1,4 +1,5 @@
 import React from 'react';
+import { jobStatusLabel, jobStatusToneClass } from '@/features/jobs/contract/jobStatusContract';
 import type { FirestoreJobStatus } from '@/features/jobs/useJobStatus';
 
 interface WorkspaceJobListProps {
@@ -26,9 +27,9 @@ export function WorkspaceJobList({ workspaceJobs }: WorkspaceJobListProps) {
             key={job.jobId}
             className="flex items-center gap-3 px-3 py-2 text-[11px]"
           >
-            <StatusDot status={job.status} />
+            <StatusDot job={job} />
             <span className="flex-1 truncate text-stone-700">
-              {job.message ?? statusLabel(job.status)}
+              {job.message ?? jobStatusLabel(job)}
             </span>
             <span className="font-mono text-[10px] tabular-nums text-stone-400">
               {typeof job.progress === 'number' ? `${job.progress}%` : ''}
@@ -40,35 +41,6 @@ export function WorkspaceJobList({ workspaceJobs }: WorkspaceJobListProps) {
   );
 }
 
-function StatusDot({ status }: { status: string }) {
-  const tone = (() => {
-    switch (status) {
-      case 'succeeded':
-        return 'bg-emerald-500';
-      case 'failed':
-        return 'bg-red-500';
-      case 'running':
-        return 'bg-indigo-500 animate-pulse';
-      case 'queued':
-        return 'bg-amber-400';
-      default:
-        return 'bg-stone-300';
-    }
-  })();
-  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${tone}`} />;
-}
-
-function statusLabel(status: string): string {
-  switch (status) {
-    case 'succeeded':
-      return '完了';
-    case 'failed':
-      return '失敗';
-    case 'running':
-      return '実行中';
-    case 'queued':
-      return '待機中';
-    default:
-      return status;
-  }
+function StatusDot({ job }: { job: FirestoreJobStatus }) {
+  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${jobStatusToneClass(job)}`} />;
 }

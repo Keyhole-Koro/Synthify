@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useRef, useState } from 'react';
+import { isJobFailed, isJobSucceeded, isJobTerminal } from '@/features/jobs/contract/jobStatusContract';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
@@ -8,7 +9,7 @@ import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { type Workspace } from '@/features/workspaces/api';
 import { InlineError } from '@/components/error/InlineError';
-import { useWorkspacePaper } from './useWorkspacePaper';
+import { useWorkspaceSession } from './session/useWorkspaceSession';
 
 export interface WorkspacePaperRuntimeState {
   initialActiveJobId?: string | null;
@@ -64,7 +65,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     commitName,
     startRename,
     cancelRename,
-  } = useWorkspacePaper({
+  } = useWorkspaceSession({
     workspaceId,
     workspaceName,
     hasTree,
@@ -182,7 +183,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
               isDragging={isDragging}
               jobStatusMessage={jobStatusError?.message ?? jobStatus?.message}
               jobStatusProgress={jobStatus?.progress}
-              jobStatusFailed={jobStatus?.status === 'failed'}
+              jobStatusFailed={isJobFailed(jobStatus)}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -204,16 +205,14 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             {/* Progress: populated mode only (empty mode shows it inline inside the drop zone).
                 Hide once succeeded so the bar disappears after completion; the
                 completion toast / Recent jobs list takes over from there. */}
-            {isPopulated && (jobStatusError || (jobStatus && jobStatus.status !== 'succeeded')) && (
+            {isPopulated && (jobStatusError || (jobStatus && !isJobSucceeded(jobStatus))) && (
               <WorkspaceJobProgress
                 message={jobStatusError?.message ?? jobStatus?.message}
                 progress={jobStatus?.progress}
-                isFailed={jobStatus?.status === 'failed'}
+                isFailed={isJobFailed(jobStatus)}
                 startedAt={jobStatus?.startedAt}
                 completedAt={jobStatus?.completedAt}
-                isTerminal={
-                  jobStatus?.status === 'succeeded' || jobStatus?.status === 'failed'
-                }
+                isTerminal={isJobTerminal(jobStatus)}
                 latestActivity={jobStatus?.latestActivity}
               />
             )}
