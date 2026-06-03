@@ -33,7 +33,6 @@ describe('workspaceSessionReducer', () => {
     const state = workspaceSessionReducer(initial, {
       type: 'job/succeeded',
       jobId: 'job_1',
-      createdDocumentRootItemId: 'doc_root_1',
     });
 
     expect(state.phase).toBe('ready');

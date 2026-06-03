@@ -1,5 +1,4 @@
 import type { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
-import { ItemKind } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import type { ApiItem } from './api';
 
 const DEFAULT_HUE = 220;
@@ -31,17 +30,10 @@ export function findUnplacedItemIds(items: ApiItem[]): string[] {
 
 
 /**
- * Returns the workspace_root item's id. Schema invariant: every workspace
- * has exactly one item with kind=WORKSPACE_ROOT, so the lookup is direct.
+ * Returns the ids of root nodes: items that sit directly under the workspace
+ * (no parent). The workspace itself is the tree root, so these top-level nodes
+ * are what the workspace paper shows as its children.
  */
-export function findRootItemId(items: ApiItem[]): string | undefined {
-  return items.find((i) => i.kind === ItemKind.WORKSPACE_ROOT)?.id;
-}
-
-/**
- * Returns ids of document_root items under the workspace_root. Each document
- * has exactly one such item (enforced by document_tree_links).
- */
-export function findDocumentRootItemIds(items: ApiItem[]): string[] {
-  return items.filter((i) => i.kind === ItemKind.DOCUMENT_ROOT).map((i) => i.id);
+export function findRootNodeIds(items: ApiItem[]): string[] {
+  return items.filter((i) => !i.parentId).map((i) => i.id);
 }

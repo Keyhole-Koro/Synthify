@@ -1,8 +1,8 @@
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 
-export type CompletedJobWithDocumentRoot = FirestoreJobStatus & {
+export type CompletedJobWithTreeChange = FirestoreJobStatus & {
   status: 'succeeded';
-  createdDocumentRootItemId: string;
+  treeChanged: true;
 };
 
 type SucceededJob = FirestoreJobStatus & { status: 'succeeded' };
@@ -32,8 +32,8 @@ export function isJobTerminal(job: FirestoreJobStatus | undefined): boolean {
   return isJobSucceeded(job) || isJobFailed(job);
 }
 
-export function hasCreatedDocumentRoot(job: FirestoreJobStatus | undefined): job is CompletedJobWithDocumentRoot {
-  return isJobSucceeded(job) && !!job.createdDocumentRootItemId;
+export function hasTreeChange(job: FirestoreJobStatus | undefined): job is CompletedJobWithTreeChange {
+  return isJobSucceeded(job) && job.treeChanged === true;
 }
 
 export function jobStatusLabel(job: FirestoreJobStatus): string {

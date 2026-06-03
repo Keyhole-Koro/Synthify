@@ -33,7 +33,7 @@ function makeJob(overrides: Partial<FirestoreJobStatus> = {}): FirestoreJobStatu
     currentStage: 'done',
     errorMessage: '',
     updatedAt: '2026-06-03T00:00:00Z',
-    createdDocumentRootItemId: 'doc_root_1',
+    treeChanged: true,
     ...overrides,
   };
 }
@@ -65,7 +65,7 @@ describe('useWorkspaceSession', () => {
     renderHook(() => useWorkspaceSession(makeArgs({ onProcessingComplete })));
 
     await waitFor(() => {
-      expect(onProcessingComplete).toHaveBeenCalledWith('job_1', 'doc_root_1');
+      expect(onProcessingComplete).toHaveBeenCalledWith('job_1');
     });
   });
 

@@ -1,75 +1,57 @@
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
-import { ItemKind, ItemSchema, SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
+import { ItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import type { ApiItem } from '@/features/tree/api';
 import { createWorkspaceTreeCache } from './workspaceTreeCache';
 
-function makeItem(id: string, kind: ItemKind, childIds: string[] = []): ApiItem {
+// makeItem builds an item under the given parent. Pass parentId '' for a root
+// node (sitting directly under the workspace).
+function makeItem(id: string, parentId: string, childIds: string[] = []): ApiItem {
   return create(ItemSchema, {
     id,
-    workspaceId: 'ws_1',
+    parentId,
     title: id,
-    kind,
     childIds,
   });
 }
 
 describe('workspaceTreeCache', () => {
-  it('replaces a workspace tree and tracks newly discovered document roots', () => {
+  it('replaces a workspace tree and tracks newly discovered root nodes', () => {
     const cache = createWorkspaceTreeCache();
 
     const first = cache.replaceWorkspaceTree('ws_1', [
-      makeItem('root_1', ItemKind.WORKSPACE_ROOT, ['doc_root_1']),
-      makeItem('doc_root_1', ItemKind.DOCUMENT_ROOT),
+      makeItem('node_1', '', ['child_1']),
+      makeItem('child_1', 'node_1'),
     ]);
 
-    expect(first.rootItemId).toBe('root_1');
-    expect(first.documentRootIds).toEqual(['doc_root_1']);
-    expect(first.newDocumentRootIds).toEqual(['doc_root_1']);
-    expect(cache.getRootItemId('ws_1')).toBe('root_1');
-    expect(cache.getDocumentRootIds('ws_1')).toEqual(['doc_root_1']);
+    expect(first.rootNodeIds).toEqual(['node_1']);
+    expect(first.newRootNodeIds).toEqual(['node_1']);
+    expect(cache.getRootNodeIds('ws_1')).toEqual(['node_1']);
 
     const second = cache.replaceWorkspaceTree('ws_1', [
-      makeItem('root_1', ItemKind.WORKSPACE_ROOT, ['doc_root_1', 'doc_root_2']),
-      makeItem('doc_root_1', ItemKind.DOCUMENT_ROOT),
-      makeItem('doc_root_2', ItemKind.DOCUMENT_ROOT),
+      makeItem('node_1', '', ['child_1']),
+      makeItem('child_1', 'node_1'),
+      makeItem('node_2', ''),
     ]);
 
-    expect(second.newDocumentRootIds).toEqual(['doc_root_2']);
+    expect(second.rootNodeIds).toEqual(['node_1', 'node_2']);
+    expect(second.newRootNodeIds).toEqual(['node_2']);
   });
 
-  it('merges a completed document root subtree into the cache', () => {
+  it('injects a frontend-only mock root node', () => {
     const cache = createWorkspaceTreeCache();
     cache.replaceWorkspaceTree('ws_1', [
-      makeItem('root_1', ItemKind.WORKSPACE_ROOT),
+      makeItem('node_1', ''),
     ]);
 
-    const documentRoot = create(SubtreeItemSchema, {
-      item: makeItem('doc_root_1', ItemKind.DOCUMENT_ROOT),
-      hasChildren: false,
-    });
-    const merged = cache.mergeDocumentRootItems('ws_1', 'doc_root_1', [documentRoot]);
-
-    expect(merged?.workspaceRootItemId).toBe('root_1');
-    expect(cache.getDocumentRootIds('ws_1')).toEqual(['doc_root_1']);
-    expect(cache.getTreeItems('ws_1').get('doc_root_1')).toBe(documentRoot);
-    expect(cache.isLoaded('doc_root_1')).toBe(true);
-  });
-
-  it('injects a frontend-only mock document root', () => {
-    const cache = createWorkspaceTreeCache();
-    cache.replaceWorkspaceTree('ws_1', [
-      makeItem('root_1', ItemKind.WORKSPACE_ROOT),
-    ]);
-
-    const injected = cache.injectMockDocumentRoot('ws_1', {
-      itemId: 'debug_doc_root_1',
+    const itemId = cache.injectMockNode('ws_1', {
+      itemId: 'debug_node_1',
       title: 'Debug Paper',
     });
 
-    expect(injected?.workspaceRootItemId).toBe('root_1');
-    expect(cache.getDocumentRootIds('ws_1')).toEqual(['debug_doc_root_1']);
-    expect(cache.getTreeItems('ws_1').get('debug_doc_root_1')?.item?.title).toBe('Debug Paper');
-    expect(cache.isLoaded('debug_doc_root_1')).toBe(true);
+    expect(itemId).toBe('debug_node_1');
+    expect(cache.getRootNodeIds('ws_1')).toEqual(['node_1', 'debug_node_1']);
+    expect(cache.getTreeItems('ws_1').get('debug_node_1')?.item?.title).toBe('Debug Paper');
+    expect(cache.isLoaded('debug_node_1')).toBe(true);
   });
 });

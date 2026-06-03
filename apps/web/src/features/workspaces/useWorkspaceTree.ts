@@ -8,7 +8,7 @@ import { type Workspace } from '@/features/workspaces/api';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { createWorkspaceTreeCache } from './tree/workspaceTreeCache';
 import { createWorkspaceTreeCommands } from './tree/workspaceTreeCommands';
-import type { InjectMockDocumentRootArgs, InjectMockWorkspaceTreeArgs, MergeDocumentRootResult, TreeStore } from './tree/workspaceTreeTypes';
+import type { InjectMockNodeArgs, InjectMockWorkspaceTreeArgs, TreeStore } from './tree/workspaceTreeTypes';
 import { useWorkspaceUpload } from './upload/useWorkspaceUpload';
 import { useExpansionWatcher } from './tree/useExpansionWatcher';
 import { createWorkspacePaperFactory } from './paper/workspacePaperFactory';
@@ -47,8 +47,7 @@ export function useWorkspaceTree(
   }, [treeCache, workspaces]);
 
   const store = useMemo<TreeStore>(() => ({
-    getRootItemId: treeCache.getRootItemId,
-    getDocumentRootIds: treeCache.getDocumentRootIds,
+    getRootNodeIds: treeCache.getRootNodeIds,
     getTreeItems: treeCache.getTreeItems,
     getItemWorkspaceId: treeCache.getItemWorkspaceId,
     hasInitialized: treeCache.hasInitialized,
@@ -62,8 +61,7 @@ export function useWorkspaceTree(
     rememberNewlyCreated: treeCache.rememberNewlyCreated,
     refreshWorkspaceTree: treeCommands.refreshWorkspaceTree,
     loadSubtree: treeCommands.loadSubtree,
-    mergeDocumentRoot: treeCommands.mergeDocumentRoot,
-    injectMockDocumentRoot: treeCache.injectMockDocumentRoot,
+    injectMockNode: treeCache.injectMockNode,
     injectMockWorkspaceTree: treeCache.injectMockWorkspaceTree,
     debugSnapshot: treeCache.debugSnapshot,
     reset: treeCache.reset,
@@ -109,11 +107,13 @@ export function useWorkspaceTree(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onExpansionMapChange, store]);
 
-  // mergeDocumentRootIntoTree fires after a PROCESS_DOCUMENT job completes.
-  // Defined further down (it depends on runProjectWorkspacePapers, which in
-  // turn depends on buildWsPaper). The factory captures it through this ref
-  // so the order of declarations works out.
-  const mergeDocumentRootIntoTreeRef = useRef<(workspaceId: string, createdDocumentRootItemId: string) => Promise<void>>(
+  // refreshWorkspaceTreeRef fires after a PROCESS_DOCUMENT job reports
+  // treeChanged. A job may create many root nodes or merge into existing ones,
+  // so we refetch the whole workspace tree and re-project rather than grafting
+  // a single subtree. Defined further down (it depends on
+  // runProjectWorkspacePapers / buildWsPaper); the factory captures it through
+  // this ref so the order of declarations works out.
+  const refreshWorkspaceTreeRef = useRef<(workspaceId: string) => Promise<void>>(
     async () => {},
   );
 
@@ -134,9 +134,9 @@ export function useWorkspaceTree(
   [workspaces],
   );
 
-  const onProcessingComplete = useCallback(async (workspaceId: string, createdDocumentRootItemId: string) => {
+  const onProcessingComplete = useCallback(async (workspaceId: string) => {
     onWorkspaceRuntimeStateComplete(workspaceId);
-    await mergeDocumentRootIntoTreeRef.current(workspaceId, createdDocumentRootItemId);
+    await refreshWorkspaceTreeRef.current(workspaceId);
   }, [onWorkspaceRuntimeStateComplete]);
 
   // The factory reads getWorkspace / onProcessingComplete at render time
@@ -161,13 +161,12 @@ export function useWorkspaceTree(
       onRenameWorkspace, onSuggestedWorkspaceName, onProcessingComplete],
   );
 
-  const runProjectWorkspacePapers = useCallback((workspaceId: string, workspaceRootItemId: string): Paper[] => {
+  const runProjectWorkspacePapers = useCallback((workspaceId: string): Paper[] => {
     store.markInitialized(workspaceId);
     return projectWorkspacePapers(
       workspaceId,
-      workspaceRootItemId,
       store.getTreeItems(workspaceId),
-      store.getDocumentRootIds(workspaceId),
+      store.getRootNodeIds(workspaceId),
       buildWsPaper,
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,73 +174,40 @@ export function useWorkspaceTree(
 
   const refreshWorkspaceTree = useCallback(async (
     workspaceId: string,
-    opts: { revealNewDocumentRoots?: boolean } = {},
+    opts: { revealNewRootNodes?: boolean } = {},
   ) => {
     if (!canReadWorkspaceTree(workspaceId)) {
       return;
     }
-    const { rootItemId, newDocumentRootIds } = await store.refreshWorkspaceTree(workspaceId);
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, rootItemId));
-    updateWorkspaceExpansion(workspaceId, newDocumentRootIds, opts.revealNewDocumentRoots === true);
+    const { newRootNodeIds } = await store.refreshWorkspaceTree(workspaceId);
+    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
+    updateWorkspaceExpansion(workspaceId, newRootNodeIds, opts.revealNewRootNodes === true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canReadWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
 
-  // mergeDocumentRootIntoTree handles a PROCESS_DOCUMENT completion: store
-  // merges the new subtree, orchestrator re-projects and reveals the new
-  // document_root in the expansion map.
-  const mergeDocumentRootIntoTree = useCallback(async (
-    workspaceId: string,
-    createdDocumentRootItemId: string,
-  ) => {
-    if (!canReadWorkspaceTree(workspaceId)) return;
-    if (!store.getRootItemId(workspaceId)) {
-      await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
-      return;
-    }
-    const merged = await store.mergeDocumentRoot(workspaceId, createdDocumentRootItemId);
-    if (!merged) {
-      await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
-      return;
-    }
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, merged.workspaceRootItemId));
-    updateWorkspaceExpansion(workspaceId, [createdDocumentRootItemId], true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canReadWorkspaceTree, refreshWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
-
+  // After a PROCESS_DOCUMENT job reports treeChanged, refetch the whole
+  // workspace tree and reveal any newly created root nodes.
   useEffect(() => {
-    mergeDocumentRootIntoTreeRef.current = mergeDocumentRootIntoTree;
-  }, [mergeDocumentRootIntoTree]);
+    refreshWorkspaceTreeRef.current = (workspaceId: string) =>
+      refreshWorkspaceTree(workspaceId, { revealNewRootNodes: true });
+  }, [refreshWorkspaceTree]);
 
-  const projectMergedDocumentRoot = useCallback((
+  const injectMockNode = useCallback(async (
     workspaceId: string,
-    documentRootItemId: string,
-    merged: MergeDocumentRootResult,
-  ) => {
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, merged.workspaceRootItemId));
-    updateWorkspaceExpansion(workspaceId, [documentRootItemId], true);
-  }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
-
-  const injectMockDocumentRoot = useCallback(async (
-    workspaceId: string,
-    args: InjectMockDocumentRootArgs = {},
+    args: InjectMockNodeArgs = {},
   ) => {
     if (!canReadWorkspaceTree(workspaceId)) {
       throw new Error(`workspace ${workspaceId} is not verified for tree access`);
     }
-    if (!store.getRootItemId(workspaceId)) {
-      await refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
-    }
-    const merged = store.injectMockDocumentRoot(workspaceId, args);
-    if (!merged) {
-      throw new Error(`workspace ${workspaceId} has no loaded workspace_root item`);
-    }
-    const itemId = merged.items[0]?.item?.id;
+    const itemId = store.injectMockNode(workspaceId, args);
     if (!itemId) {
-      throw new Error('mock document root injection produced no item');
+      throw new Error('mock node injection produced no item');
     }
-    projectMergedDocumentRoot(workspaceId, itemId, merged);
-    return { documentRootItemId: itemId, title: merged.items[0].item!.title };
-  }, [canReadWorkspaceTree, projectMergedDocumentRoot, refreshWorkspaceTree, store]);
+    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
+    updateWorkspaceExpansion(workspaceId, [itemId], true);
+    const title = store.getTreeItems(workspaceId).get(itemId)?.item?.title ?? '';
+    return { rootNodeItemId: itemId, title };
+  }, [canReadWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, store, updateWorkspaceExpansion]);
 
   // injectMockWorkspaceTree builds a complete frontend-only tree (workspace_root
   // + N document_root, each with M nodes) and projects it, without any backend
@@ -253,26 +219,25 @@ export function useWorkspaceTree(
     const workspaceId = workspace.workspaceId;
     store.rememberNewlyCreated(workspace);
     const result = store.injectMockWorkspaceTree(workspaceId, args);
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, result.rootItemId));
-    
-    // Open the workspace itself, and also the first document root if available
-    // so the user sees some "knowledge tree" nodes immediately.
-    const openIds = result.documentRootIds.length > 0
-      ? [result.documentRootIds[0]]
+    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
+
+    // Open the workspace itself, and also the first root node if available so
+    // the user sees some "knowledge tree" nodes immediately.
+    const openIds = result.rootNodeIds.length > 0
+      ? [result.rootNodeIds[0]]
       : [];
-    updateWorkspaceExpansion(workspaceId, result.documentRootIds, true);
+    updateWorkspaceExpansion(workspaceId, result.rootNodeIds, true);
     if (openIds.length > 0) {
       onExpansionMapChange(openChild(workspaceId, openIds[0], expansionMapRef.current));
     }
-    
+
     return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion, onExpansionMapChange]);
 
   const rebuildWorkspacePaper = useCallback((workspaceId: string) => {
-    const rootItemId = store.getRootItemId(workspaceId);
-    if (rootItemId) {
-      setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, rootItemId));
+    if (store.isFullyLoaded(workspaceId)) {
+      setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
     } else {
       setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
     }
@@ -293,8 +258,6 @@ export function useWorkspaceTree(
     maxDepth = 1,
   ) => {
     if (!canReadWorkspaceTree(workspaceId)) return;
-    const rootItemId = store.getRootItemId(workspaceId);
-    if (!rootItemId) return;
     const items = await store.loadSubtree(workspaceId, itemId, maxDepth);
     if (items.length === 0) return;
     for (const item of items) {
@@ -305,7 +268,7 @@ export function useWorkspaceTree(
       if (store.isLoaded(id) || store.isLoading(id)) continue;
       void loadSubtreeAndProjectRef.current(workspaceId, id, 1);
     }
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId, rootItemId));
+    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canReadWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers]);
 
@@ -317,11 +280,9 @@ export function useWorkspaceTree(
     if (overrideWorkspace) {
       store.rememberNewlyCreated(overrideWorkspace);
     }
-    const knownRootId = store.getRootItemId(workspaceId);
-    if (knownRootId) {
-      if (!store.isLoaded(knownRootId)) {
-        void loadSubtreeAndProject(workspaceId, knownRootId, 1);
-      }
+    // Already fetched: re-project from cache and reveal, no network.
+    if (store.isFullyLoaded(workspaceId)) {
+      setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
       updateWorkspaceExpansion(workspaceId);
       onFocusedNodeIdChange(workspaceId);
       return;
@@ -335,7 +296,7 @@ export function useWorkspaceTree(
     }
     await refreshWorkspaceTree(workspaceId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buildWsPaper, canReadWorkspaceTree, loadSubtreeAndProject, onFocusedNodeIdChange, refreshWorkspaceTree, setWorkspacePapers, updateWorkspaceExpansion]);
+  }, [buildWsPaper, canReadWorkspaceTree, onFocusedNodeIdChange, refreshWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);
 
   useExpansionWatcher({
     expansionMap,
@@ -360,8 +321,7 @@ export function useWorkspaceTree(
   return {
     handleOpenWorkspace,
     refreshWorkspaceTree,
-    mergeDocumentRootIntoTree,
-    injectMockDocumentRoot,
+    injectMockNode,
     injectMockWorkspaceTree,
     getDebugSnapshot: store.debugSnapshot,
     resetTree,

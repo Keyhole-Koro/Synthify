@@ -13,7 +13,7 @@ function makeJob(overrides: Partial<FirestoreJobStatus> = {}): FirestoreJobStatu
     currentStage: 'done',
     errorMessage: '',
     updatedAt: '2026-06-03T00:00:00Z',
-    createdDocumentRootItemId: 'doc_root_1',
+    treeChanged: true,
     ...overrides,
   };
 }
@@ -49,7 +49,7 @@ describe('selectRecoverableWorkspaceJob', () => {
 
   it('does not recover a completed job without a document root item id', () => {
     expect(selectRecoverableWorkspaceJob([
-      makeJob({ createdDocumentRootItemId: undefined }),
+      makeJob({ treeChanged: undefined }),
     ], {
       hasActiveJob: false,
       hasTree: false,

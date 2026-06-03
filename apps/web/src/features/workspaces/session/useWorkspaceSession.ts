@@ -17,7 +17,7 @@ import {
   type CreateWorkspaceSessionStateArgs,
 } from './workspaceSessionTypes';
 import {
-  getCompletedDocumentRootItemId,
+  didJobChangeTree,
   isWorkspaceJobFailed,
   isWorkspaceJobRunning,
   isWorkspaceJustCompleted,
@@ -31,7 +31,7 @@ export interface UseWorkspaceSessionArgs extends WorkspacePaperRuntimeState {
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
-  onProcessingComplete?: (jobId: string, createdDocumentRootItemId: string) => Promise<void> | void;
+  onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
 
 export function useWorkspaceSession({
@@ -83,7 +83,7 @@ export function useWorkspaceSession({
     dispatch({
       type: 'job/adopted',
       jobId: recoverableJob.jobId,
-      reason: isJobInFlight(recoverableJob) ? 'inFlight' : 'completedDocumentRoot',
+      reason: isJobInFlight(recoverableJob) ? 'inFlight' : 'completedTreeChange',
     });
   }, [activeJobId, childItemsCount, completedJobIds, hasTree, workspaceJobs]);
 
@@ -104,11 +104,10 @@ export function useWorkspaceSession({
       void onSuggestedWorkspaceName(suggestedWorkspaceName);
     }
 
-    const createdDocumentRootItemId = getCompletedDocumentRootItemId(jobStatus);
-    if (!createdDocumentRootItemId) return;
+    if (!didJobChangeTree(jobStatus)) return;
     if (completedJobIds[activeJobId] === true) return;
-    dispatch({ type: 'job/succeeded', jobId: activeJobId, createdDocumentRootItemId });
-    void onProcessingComplete?.(activeJobId, createdDocumentRootItemId);
+    dispatch({ type: 'job/succeeded', jobId: activeJobId });
+    void onProcessingComplete?.(activeJobId);
   }, [activeJobId, completedJobIds, jobStatus, observedSuggestedWorkspaceName, onProcessingComplete, onSuggestedWorkspaceName]);
 
   useEffect(() => {

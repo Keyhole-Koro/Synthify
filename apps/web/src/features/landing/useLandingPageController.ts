@@ -22,8 +22,7 @@ declare global {
     __synthifyDebug?: {
       dumpWorkspace: (workspaceId: string) => Promise<unknown>;
       refreshWorkspaceTree: (workspaceId: string) => Promise<void>;
-      mergeDocumentRoot: (workspaceId: string, documentRootItemId: string) => Promise<void>;
-      injectMockDocumentRoot: (
+      injectMockNode: (
         workspaceId: string,
         args?: { itemId?: string; title?: string; description?: string },
       ) => Promise<unknown>;
@@ -204,7 +203,7 @@ export function useLandingPageController() {
         }
         const workspacePapers = workspacePaperGroups.get(workspaceId) ?? [];
         const treeSnapshot = tree.getDebugSnapshot(workspaceId);
-        const documentRootPaperPresence = treeSnapshot.documentRootIds.map((id) => ({
+        const rootNodePaperPresence = treeSnapshot.rootNodeIds.map((id) => ({
           id,
           inPaperMap: paperMap.has(id),
           inWorkspacePaperGroup: workspacePapers.some((paper) => paper.id === id),
@@ -220,7 +219,7 @@ export function useLandingPageController() {
           paperMap: {
             hasWorkspacePaper: paperMap.has(workspaceId),
             paperMapSize: paperMap.size,
-            documentRootPaperPresence,
+            rootNodePaperPresence,
           },
           expansion: {
             workspaceOpenChildIds: expansionMap.get(workspaceId)?.openChildIds ?? [],
@@ -231,16 +230,13 @@ export function useLandingPageController() {
         return dump;
       },
       refreshWorkspaceTree: async (workspaceId: string) => {
-        await tree.refreshWorkspaceTree(workspaceId, { revealNewDocumentRoots: true });
+        await tree.refreshWorkspaceTree(workspaceId, { revealNewRootNodes: true });
       },
-      mergeDocumentRoot: async (workspaceId: string, documentRootItemId: string) => {
-        await tree.mergeDocumentRootIntoTree(workspaceId, documentRootItemId);
-      },
-      injectMockDocumentRoot: async (
+      injectMockNode: async (
         workspaceId: string,
         args: { itemId?: string; title?: string; description?: string } = {},
       ) => {
-        const injected = await tree.injectMockDocumentRoot(workspaceId, args);
+        const injected = await tree.injectMockNode(workspaceId, args);
         const dump = await debugApi.dumpWorkspace(workspaceId);
         return { injected, dump };
       },
@@ -249,7 +245,7 @@ export function useLandingPageController() {
       ) => {
         const workspace = await handleCreateWorkspace(args.workspaceName?.trim() || 'Debug completed workspace');
         await tree.handleOpenWorkspace(workspace.workspaceId, workspace);
-        const injected = await tree.injectMockDocumentRoot(workspace.workspaceId, {
+        const injected = await tree.injectMockNode(workspace.workspaceId, {
           title: args.paperTitle?.trim() || 'Debug completed paper',
           description: args.paperDescription?.trim() || 'Created by __synthifyDebug.createDebugCompletedWorkspace',
         });

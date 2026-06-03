@@ -2,25 +2,22 @@ import type { ApiItem, SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
 
 export interface RefreshResult {
-  rootItemId: string;
-  documentRootIds: string[];
-  newDocumentRootIds: string[];
+  // rootNodeIds are the workspace's top-level nodes (parent_id IS NULL). The
+  // workspace itself is the tree root, so these are the workspace paper's
+  // direct children.
+  rootNodeIds: string[];
+  newRootNodeIds: string[];
 }
 
-export interface MergeDocumentRootResult {
-  workspaceRootItemId: string;
-  items: SubtreeItem[];
-}
-
-export interface InjectMockDocumentRootArgs {
+export interface InjectMockNodeArgs {
   itemId?: string;
   title?: string;
   description?: string;
 }
 
 // InjectMockWorkspaceTreeArgs builds a complete, frontend-only workspace tree
-// (workspace_root + N document_root, each with M child nodes) without touching
-// the backend API. Used by __synthifyDebug to preview WorkspacePaper UI states.
+// (N root nodes, each with M child nodes) without touching the backend API.
+// Used by __synthifyDebug to preview WorkspacePaper UI states.
 export interface InjectMockWorkspaceTreeArgs {
   documentCount?: number;
   nodesPerDocument?: number;
@@ -29,8 +26,7 @@ export interface InjectMockWorkspaceTreeArgs {
 
 export interface TreeStoreDebugSnapshot {
   workspaceId: string;
-  workspaceRootItemId?: string;
-  documentRootIds: string[];
+  rootNodeIds: string[];
   initialized: boolean;
   fullyLoaded: boolean;
   itemCount: number;
@@ -40,8 +36,7 @@ export interface TreeStoreDebugSnapshot {
 }
 
 export interface WorkspaceTreeCache {
-  getRootItemId: (workspaceId: string) => string | undefined;
-  getDocumentRootIds: (workspaceId: string) => string[];
+  getRootNodeIds: (workspaceId: string) => string[];
   getTreeItems: (workspaceId: string) => Map<string, SubtreeItem>;
   getItemWorkspaceId: (itemId: string) => string | undefined;
   hasInitialized: (workspaceId: string) => boolean;
@@ -60,16 +55,14 @@ export interface WorkspaceTreeCache {
   markSubtreeLoaded: (itemId: string) => void;
   markSubtreeLoadFinished: (itemId: string) => void;
   mergeSubtreeItems: (workspaceId: string, items: SubtreeItem[]) => void;
-  mergeDocumentRootItems: (workspaceId: string, createdDocumentRootItemId: string, items: SubtreeItem[]) => MergeDocumentRootResult | null;
-  injectMockDocumentRoot: (workspaceId: string, args?: InjectMockDocumentRootArgs) => MergeDocumentRootResult | null;
+  injectMockNode: (workspaceId: string, args?: InjectMockNodeArgs) => string | null;
   injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => RefreshResult;
   debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;
 }
 
 export interface TreeStore {
-  getRootItemId: (workspaceId: string) => string | undefined;
-  getDocumentRootIds: (workspaceId: string) => string[];
+  getRootNodeIds: (workspaceId: string) => string[];
   getTreeItems: (workspaceId: string) => Map<string, SubtreeItem>;
   getItemWorkspaceId: (itemId: string) => string | undefined;
   hasInitialized: (workspaceId: string) => boolean;
@@ -83,11 +76,7 @@ export interface TreeStore {
   rememberNewlyCreated: (workspace: Workspace) => void;
   refreshWorkspaceTree: (workspaceId: string) => Promise<RefreshResult>;
   loadSubtree: (workspaceId: string, itemId: string, maxDepth?: number) => Promise<SubtreeItem[]>;
-  mergeDocumentRoot: (
-    workspaceId: string,
-    createdDocumentRootItemId: string,
-  ) => Promise<MergeDocumentRootResult | null>;
-  injectMockDocumentRoot: (workspaceId: string, args?: InjectMockDocumentRootArgs) => MergeDocumentRootResult | null;
+  injectMockNode: (workspaceId: string, args?: InjectMockNodeArgs) => string | null;
   injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => RefreshResult;
   debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;

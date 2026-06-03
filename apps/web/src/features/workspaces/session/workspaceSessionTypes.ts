@@ -41,9 +41,9 @@ export interface CreateWorkspaceSessionStateArgs {
 
 export type WorkspaceSessionAction =
   | { type: 'workspace/propsSynced'; workspaceName: string }
-  | { type: 'job/adopted'; jobId: string; reason: 'inFlight' | 'completedDocumentRoot' }
+  | { type: 'job/adopted'; jobId: string; reason: 'inFlight' | 'completedTreeChange' }
   | { type: 'job/suggestedWorkspaceNameObserved'; suggestedWorkspaceName: string }
-  | { type: 'job/succeeded'; jobId: string; createdDocumentRootItemId: string }
+  | { type: 'job/succeeded'; jobId: string }
   | { type: 'upload/started' }
   | { type: 'upload/enqueued'; jobId: string; documentId: string }
   | { type: 'upload/failed'; message: string }

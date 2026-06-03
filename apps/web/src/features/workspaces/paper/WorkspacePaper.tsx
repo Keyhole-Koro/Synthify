@@ -28,7 +28,7 @@ interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
-  onProcessingComplete?: (jobId: string, createdDocumentRootItemId: string) => Promise<void> | void;
+  onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
 
 export function WorkspacePaper(props: WorkspacePaperProps) {

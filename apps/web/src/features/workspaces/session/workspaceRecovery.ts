@@ -1,5 +1,5 @@
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
-import { hasCreatedDocumentRoot, isJobInFlight } from '@/features/jobs/contracts/jobStatusContract';
+import { hasTreeChange, isJobInFlight } from '@/features/jobs/contracts/jobStatusContract';
 
 export interface WorkspaceRecoveryState {
   hasActiveJob: boolean;
@@ -19,7 +19,7 @@ export function selectRecoverableWorkspaceJob(
 
   if (state.hasTree && state.childItemsCount > 0) return undefined;
 
-  const completed = jobs.find(hasCreatedDocumentRoot);
+  const completed = jobs.find(hasTreeChange);
   if (!completed || state.completedJobIds?.[completed.jobId] === true) return undefined;
   return completed;
 }

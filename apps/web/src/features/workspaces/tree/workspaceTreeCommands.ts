@@ -1,14 +1,10 @@
 import { getSubtree, getTree, type SubtreeItem } from '@/features/tree/api';
 import { log } from '@/lib/observability/log';
-import type { MergeDocumentRootResult, RefreshResult, WorkspaceTreeCache } from './workspaceTreeTypes';
+import type { RefreshResult, WorkspaceTreeCache } from './workspaceTreeTypes';
 
 export interface WorkspaceTreeCommands {
   refreshWorkspaceTree: (workspaceId: string) => Promise<RefreshResult>;
   loadSubtree: (workspaceId: string, itemId: string, maxDepth?: number) => Promise<SubtreeItem[]>;
-  mergeDocumentRoot: (
-    workspaceId: string,
-    createdDocumentRootItemId: string,
-  ) => Promise<MergeDocumentRootResult | null>;
 }
 
 export function createWorkspaceTreeCommands(cache: WorkspaceTreeCache): WorkspaceTreeCommands {
@@ -35,14 +31,6 @@ export function createWorkspaceTreeCommands(cache: WorkspaceTreeCache): Workspac
       } finally {
         cache.markSubtreeLoadFinished(itemId);
       }
-    },
-    mergeDocumentRoot: async (
-      workspaceId: string,
-      createdDocumentRootItemId: string,
-    ): Promise<MergeDocumentRootResult | null> => {
-      if (!cache.getRootItemId(workspaceId)) return null;
-      const items = await getSubtree(workspaceId, createdDocumentRootItemId, 5);
-      return cache.mergeDocumentRootItems(workspaceId, createdDocumentRootItemId, items);
     },
   };
 }

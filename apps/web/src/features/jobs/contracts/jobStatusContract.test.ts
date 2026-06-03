@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import {
-  hasCreatedDocumentRoot,
+  hasTreeChange,
   isJobFailed,
   isJobInFlight,
   isJobSucceeded,
@@ -40,15 +40,15 @@ describe('job status contract', () => {
     expect(isJobTerminal(makeJob({ status: 'failed' }))).toBe(true);
   });
 
-  it('requires a document root id for completed document-root recovery', () => {
-    expect(hasCreatedDocumentRoot(makeJob({
+  it('requires treeChanged for completed tree-change recovery', () => {
+    expect(hasTreeChange(makeJob({
       status: 'succeeded',
-      createdDocumentRootItemId: 'doc_root_1',
+      treeChanged: true,
     }))).toBe(true);
-    expect(hasCreatedDocumentRoot(makeJob({ status: 'succeeded' }))).toBe(false);
-    expect(hasCreatedDocumentRoot(makeJob({
+    expect(hasTreeChange(makeJob({ status: 'succeeded' }))).toBe(false);
+    expect(hasTreeChange(makeJob({
       status: 'failed',
-      createdDocumentRootItemId: 'doc_root_1',
+      treeChanged: true,
     }))).toBe(false);
   });
 

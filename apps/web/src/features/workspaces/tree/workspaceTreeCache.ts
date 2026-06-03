@@ -1,18 +1,19 @@
 import { create } from '@bufbuild/protobuf';
-import { ItemKind, ItemSchema, SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
-import { findDocumentRootItemIds, findRootItemId } from '@/features/tree/buildTree';
+import { ItemSchema, SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
+import { findRootNodeIds } from '@/features/tree/buildTree';
 import type { ApiItem, SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
-import type { InjectMockDocumentRootArgs, InjectMockWorkspaceTreeArgs, MergeDocumentRootResult, RefreshResult, TreeStoreDebugSnapshot, WorkspaceTreeCache } from './workspaceTreeTypes';
+import type { InjectMockNodeArgs, InjectMockWorkspaceTreeArgs, RefreshResult, TreeStoreDebugSnapshot, WorkspaceTreeCache } from './workspaceTreeTypes';
 
 function makeDebugItemId() {
-  return `debug_doc_root_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `debug_node_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// buildMockWorkspaceTreeItems assembles a complete ApiItem[] (workspace_root +
-// N document_root, each with M child nodes) entirely on the frontend. The
-// shape mirrors what the backend returns so it can flow through
-// replaceWorkspaceTree unchanged.
+// buildMockWorkspaceTreeItems assembles a complete ApiItem[] (N root nodes,
+// each with M child nodes) entirely on the frontend. There is no
+// workspace_root item — root nodes sit directly under the workspace
+// (parent_id = ''). The shape mirrors what the backend returns so it can flow
+// through replaceWorkspaceTree unchanged.
 function buildMockWorkspaceTreeItems(
   workspaceId: string,
   args: InjectMockWorkspaceTreeArgs,
@@ -21,52 +22,36 @@ function buildMockWorkspaceTreeItems(
   const nodesPerDocument = Math.max(0, args.nodesPerDocument ?? 3);
   const titles = args.documentTitles ?? [];
 
-  const rootId = `debug_ws_root_${workspaceId}`;
-  const documentRootIds: string[] = [];
   const items: ApiItem[] = [];
 
   for (let d = 0; d < documentCount; d++) {
-    const docRootId = `debug_doc_root_${workspaceId}_${d}`;
-    documentRootIds.push(docRootId);
+    const rootNodeId = `debug_root_node_${workspaceId}_${d}`;
     const childIds: string[] = [];
 
     for (let n = 0; n < nodesPerDocument; n++) {
-      const nodeId = `${docRootId}_node_${n}`;
+      const nodeId = `${rootNodeId}_node_${n}`;
       childIds.push(nodeId);
       items.push(create(ItemSchema, {
         id: nodeId,
-        parentId: docRootId,
+        parentId: rootNodeId,
         title: `論点 ${d + 1}-${n + 1}`,
-        description: `Mock node ${n + 1} of document ${d + 1}`,
+        description: `Mock node ${n + 1} of group ${d + 1}`,
         content: `<p>Mock node ${n + 1} の本文。__synthifyDebug が生成したフロントエンド専用のダミーです。</p>`,
-        kind: ItemKind.NODE,
         level: 2,
         childIds: [],
       }));
     }
 
     items.push(create(ItemSchema, {
-      id: docRootId,
-      parentId: rootId,
-      title: titles[d]?.trim() || `Mock ドキュメント ${d + 1}`,
-      description: `Mock document root ${d + 1}`,
-      content: `<p>Mock ドキュメント ${d + 1} の概要。</p>`,
-      kind: ItemKind.DOCUMENT_ROOT,
-      level: 1,
+      id: rootNodeId,
+      parentId: '',
+      title: titles[d]?.trim() || `Mock ノード ${d + 1}`,
+      description: `Mock root node ${d + 1}`,
+      content: `<p>Mock ルートノード ${d + 1} の概要。</p>`,
+      level: 0,
       childIds,
     }));
   }
-
-  items.push(create(ItemSchema, {
-    id: rootId,
-    parentId: '',
-    title: 'Workspace root',
-    description: 'Mock workspace root',
-    content: '',
-    kind: ItemKind.WORKSPACE_ROOT,
-    level: 0,
-    childIds: documentRootIds,
-  }));
 
   return items;
 }
@@ -74,8 +59,7 @@ function buildMockWorkspaceTreeItems(
 export function createWorkspaceTreeCache(): WorkspaceTreeCache {
   const itemWorkspace = new Map<string, string>();
   const itemHasChildren = new Map<string, boolean>();
-  const workspaceRootItems = new Map<string, string>();
-  const workspaceDocumentRootIds = new Map<string, string[]>();
+  const workspaceRootNodeIds = new Map<string, string[]>();
   const workspaceTreeItems = new Map<string, Map<string, SubtreeItem>>();
   const loadedSubtreeItems = new Set<string>();
   const loadingSubtreeItems = new Set<string>();
@@ -95,17 +79,11 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
   };
 
   const replaceWorkspaceTree = (workspaceId: string, items: ApiItem[]): RefreshResult => {
-    const rootItemId = findRootItemId(items);
-    if (!rootItemId) {
-      throw new Error(`workspace ${workspaceId} has no workspace_root item`);
-    }
+    const previousRootNodeIds = workspaceRootNodeIds.get(workspaceId) ?? [];
+    const rootNodeIds = findRootNodeIds(items);
+    const newRootNodeIds = rootNodeIds.filter((id) => !previousRootNodeIds.includes(id));
 
-    const previousDocumentRootIds = workspaceDocumentRootIds.get(workspaceId) ?? [];
-    const documentRootIds = findDocumentRootItemIds(items);
-    const newDocumentRootIds = documentRootIds.filter((id) => !previousDocumentRootIds.includes(id));
-
-    workspaceRootItems.set(workspaceId, rootItemId);
-    workspaceDocumentRootIds.set(workspaceId, documentRootIds);
+    workspaceRootNodeIds.set(workspaceId, rootNodeIds);
 
     const treeItems = new Map<string, SubtreeItem>();
     workspaceTreeItems.set(workspaceId, treeItems);
@@ -121,12 +99,11 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
       loadedSubtreeItems.add(item.id);
     }
 
-    return { rootItemId, documentRootIds, newDocumentRootIds };
+    return { rootNodeIds, newRootNodeIds };
   };
 
   return {
-    getRootItemId: (workspaceId) => workspaceRootItems.get(workspaceId),
-    getDocumentRootIds: (workspaceId) => workspaceDocumentRootIds.get(workspaceId) ?? [],
+    getRootNodeIds: (workspaceId) => workspaceRootNodeIds.get(workspaceId) ?? [],
     getTreeItems: (workspaceId) => workspaceTreeItems.get(workspaceId) ?? new Map(),
     getItemWorkspaceId: (itemId) => itemWorkspace.get(itemId),
     hasInitialized: (workspaceId) => initializedWorkspaces.has(workspaceId),
@@ -152,52 +129,18 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
     markSubtreeLoaded: (itemId) => loadedSubtreeItems.add(itemId),
     markSubtreeLoadFinished: (itemId) => loadingSubtreeItems.delete(itemId),
     mergeSubtreeItems: mergeItemsIntoCache,
-    mergeDocumentRootItems: (
+    injectMockNode: (
       workspaceId: string,
-      createdDocumentRootItemId: string,
-      items: SubtreeItem[],
-    ): MergeDocumentRootResult | null => {
-      const workspaceRootItemId = workspaceRootItems.get(workspaceId);
-      if (!workspaceRootItemId || items.length === 0) return null;
-
-      const previousDocumentRootIds = workspaceDocumentRootIds.get(workspaceId) ?? [];
-      const isNew = !previousDocumentRootIds.includes(createdDocumentRootItemId);
-      if (isNew) {
-        workspaceDocumentRootIds.set(workspaceId, [
-          ...previousDocumentRootIds,
-          createdDocumentRootItemId,
-        ]);
-      }
-
-      // Ensure the workspace_root item itself knows about this child.
-      const treeItems = workspaceTreeItems.get(workspaceId);
-      const wsRoot = treeItems?.get(workspaceRootItemId);
-      if (isNew && wsRoot?.item && !wsRoot.item.childIds.includes(createdDocumentRootItemId)) {
-        wsRoot.item.childIds.push(createdDocumentRootItemId);
-      }
-
-      for (const item of items) {
-        loadedSubtreeItems.add(item.item!.id);
-      }
-      mergeItemsIntoCache(workspaceId, items);
-      return { workspaceRootItemId, items };
-    },
-    injectMockDocumentRoot: (
-      workspaceId: string,
-      args: InjectMockDocumentRootArgs = {},
-    ): MergeDocumentRootResult | null => {
-      const workspaceRootItemId = workspaceRootItems.get(workspaceId);
-      if (!workspaceRootItemId) return null;
-
+      args: InjectMockNodeArgs = {},
+    ): string | null => {
       const itemId = args.itemId ?? makeDebugItemId();
-      const title = args.title?.trim() || 'Debug completed paper';
-      const description = args.description?.trim() || 'Frontend-only mock document root injected by __synthifyDebug.';
+      const title = args.title?.trim() || 'Debug node';
+      const description = args.description?.trim() || 'Frontend-only mock root node injected by __synthifyDebug.';
       const item = create(ItemSchema, {
         id: itemId,
-        parentId: workspaceRootItemId,
+        parentId: '',
         title,
         description,
-        kind: ItemKind.DOCUMENT_ROOT,
         childIds: [],
         content: `<p>${description}</p>`,
       });
@@ -205,22 +148,14 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
         item,
         hasChildren: false,
       });
-      const previousDocumentRootIds = workspaceDocumentRootIds.get(workspaceId) ?? [];
-      const isNew = !previousDocumentRootIds.includes(itemId);
-      if (isNew) {
-        workspaceDocumentRootIds.set(workspaceId, [...previousDocumentRootIds, itemId]);
-      }
-
-      // Ensure the workspace_root item itself knows about this child.
-      const treeItems = workspaceTreeItems.get(workspaceId);
-      const wsRoot = treeItems?.get(workspaceRootItemId);
-      if (isNew && wsRoot?.item && !wsRoot.item.childIds.includes(itemId)) {
-        wsRoot.item.childIds.push(itemId);
+      const previousRootNodeIds = workspaceRootNodeIds.get(workspaceId) ?? [];
+      if (!previousRootNodeIds.includes(itemId)) {
+        workspaceRootNodeIds.set(workspaceId, [...previousRootNodeIds, itemId]);
       }
 
       loadedSubtreeItems.add(itemId);
       mergeItemsIntoCache(workspaceId, [subtreeItem]);
-      return { workspaceRootItemId, items: [subtreeItem] };
+      return itemId;
     },
     injectMockWorkspaceTree: (
       workspaceId: string,
@@ -235,8 +170,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
       const workspaceItemIds = new Set(treeItems.keys());
       return {
         workspaceId,
-        workspaceRootItemId: workspaceRootItems.get(workspaceId),
-        documentRootIds: workspaceDocumentRootIds.get(workspaceId) ?? [],
+        rootNodeIds: workspaceRootNodeIds.get(workspaceId) ?? [],
         initialized: initializedWorkspaces.has(workspaceId),
         fullyLoaded: fullyLoadedWorkspaces.has(workspaceId),
         itemCount: treeItems.size,
@@ -248,8 +182,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
     reset: () => {
       itemWorkspace.clear();
       itemHasChildren.clear();
-      workspaceRootItems.clear();
-      workspaceDocumentRootIds.clear();
+      workspaceRootNodeIds.clear();
       workspaceTreeItems.clear();
       loadedSubtreeItems.clear();
       loadingSubtreeItems.clear();

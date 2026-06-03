@@ -50,7 +50,7 @@ export function useExpansionWatcher({
       if (!store.hasChildren(itemId)) continue;
       const workspaceId = store.getItemWorkspaceId(itemId);
       if (!workspaceId) continue;
-      if (!store.getRootItemId(workspaceId)) continue;
+      if (!store.isFullyLoaded(workspaceId)) continue;
       onLoadSubtree(workspaceId, itemId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -19,7 +19,7 @@ export interface WorkspacePaperFactoryDeps {
   onUploadFile: (workspaceId: string, file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void> | void;
-  onProcessingComplete: (workspaceId: string, createdDocumentRootItemId: string) => Promise<void> | void;
+  onProcessingComplete: (workspaceId: string) => Promise<void> | void;
 }
 
 // createWorkspacePaperFactory returns the synchronous Paper builder used by
@@ -92,9 +92,7 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
           onUploadFile={(file) => deps.onUploadFile(workspaceId, file)}
           onRenameWorkspace={(name) => deps.onRenameWorkspace(workspaceId, name)}
           onSuggestedWorkspaceName={(name) => deps.onSuggestedWorkspaceName(workspaceId, name)}
-          onProcessingComplete={(_jobId, createdDocumentRootItemId) =>
-            deps.onProcessingComplete(workspaceId, createdDocumentRootItemId)
-          }
+          onProcessingComplete={() => deps.onProcessingComplete(workspaceId)}
         />
       ),
     };

@@ -21,7 +21,7 @@ export function workspaceSessionReducer(
     case 'job/adopted':
       return {
         ...state,
-        phase: action.reason === 'completedDocumentRoot' ? 'recovering' : 'processing',
+        phase: action.reason === 'completedTreeChange' ? 'recovering' : 'processing',
         job: { ...state.job, activeJobId: action.jobId },
       };
 
