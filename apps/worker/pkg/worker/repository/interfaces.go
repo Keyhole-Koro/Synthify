@@ -109,11 +109,6 @@ type DocumentRepository interface {
 
 type TreeRepository interface {
 	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error)
-	GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error)
-	// GetDocumentRootItemID returns the document_root tree_item id linked
-	// to the given documentID via document_tree_links. ErrNotFound when no
-	// processing job has persisted items for the document yet.
-	GetDocumentRootItemID(ctx context.Context, documentID string) (string, error)
 	FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error)
 	GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
 }
@@ -125,13 +120,6 @@ type ItemRepository interface {
 	// mutation log を行う。capability 違反 (op 不許可、ws 不一致、上限超過、expired) は
 	// domain.ErrForbidden を返す。atomic 性が必要なら Transactor.WithTx で包むこと。
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error)
-	// CreateDocumentRootItemWithCapability inserts the document_root item
-	// for a given document, atomically registering the 1:1 link in
-	// document_tree_links. Use this exactly once per document; subsequent
-	// items in the same document should be created via
-	// CreateStructuredItemWithCapability with parent_id set to the returned
-	// item's ID.
-	CreateDocumentRootItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label, description, workspaceRootItemID string) (*domain.Item, error)
 	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error

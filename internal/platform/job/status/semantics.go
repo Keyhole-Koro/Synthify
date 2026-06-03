@@ -16,6 +16,6 @@ func IsTerminal(state FirestoreJobStatusState) bool {
 	return IsSucceeded(state) || IsFailed(state)
 }
 
-func HasCreatedDocumentRoot(doc FirestoreJobStatus) bool {
-	return IsSucceeded(doc.Status) && doc.CreatedDocumentRootItemID != nil && *doc.CreatedDocumentRootItemID != ""
+func ChangedTree(doc FirestoreJobStatus) bool {
+	return IsSucceeded(doc.Status) && doc.TreeChanged != nil && *doc.TreeChanged
 }

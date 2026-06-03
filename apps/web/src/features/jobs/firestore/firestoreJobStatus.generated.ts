@@ -20,8 +20,7 @@ export type FirestoreJobStatus = {
   updatedAt: string;
   completedAt?: string;
   expiresAt?: unknown;
-  createdDocumentRootItemId?: string;
-  affectedWorkspaceRootItemId?: string;
+  treeChanged?: boolean;
   stageSummary?: string[];
   reason?: "vertex_model_not_found" | "quota_exceeded" | "agent_error" | "cancelled" | "internal";
 };

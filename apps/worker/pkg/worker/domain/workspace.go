@@ -49,6 +49,5 @@ type Workspace struct {
 	MaxFileSizeBytes   int64  `json:"max_file_size_bytes,omitempty"`
 	MaxUploadsPerFiveH int64  `json:"max_uploads_per_5h,omitempty"`
 	MaxUploadsPerWeek  int64  `json:"max_uploads_per_1week,omitempty"`
-	RootItemID         string `json:"root_item_id,omitempty"`
 	CreatedAt          string `json:"created_at"`
 }

@@ -357,20 +357,10 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	}
 	s.workspaces[w.WorkspaceID] = w
 	s.wsOwners[w.WorkspaceID] = accountID
-	// Mirror the postgres Store: workspace creation also inserts the
-	// workspace_root tree_item. Tests that exercise tree code rely on the
-	// root existing without an extra setup call.
-	rootItemID := "nd_root_" + strings.ReplaceAll(w.WorkspaceID, " ", "_")
-	s.items[w.WorkspaceID] = map[string]*domain.Item{
-		rootItemID: {
-			ItemID:      rootItemID,
-			WorkspaceID: w.WorkspaceID,
-			ParentID:    "",
-			Title:       name,
-			Kind:        appv1.ItemKind_ITEM_KIND_WORKSPACE_ROOT,
-		},
-	}
-	w.RootItemID = rootItemID
+	// The tree is empty until a document is processed; nodes are created
+	// directly under the workspace (parent_id IS NULL). The workspace itself
+	// is the tree root — there is no workspace_root tree_item.
+	s.items[w.WorkspaceID] = map[string]*domain.Item{}
 	return w, nil
 }
 
@@ -1116,30 +1106,6 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	return res, nil
 }
 
-func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	wsItems, ok := s.items[wsID]
-	if !ok {
-		return "", domain.ErrNotFound
-	}
-	for _, n := range wsItems {
-		if n.ParentID == "" {
-			return n.ItemID, nil
-		}
-	}
-	return "", domain.ErrNotFound
-}
-
-func (s *Store) GetDocumentRootItemID(ctx context.Context, documentID string) (string, error) {
-	// The mock keeps document_tree_links implicit: the document_root for
-	// a documentID is the most-recently created item created by the
-	// worker for that document. Good enough for unit tests; the real
-	// store uses the document_tree_links table.
-	_ = documentID
-	return "", domain.ErrNotFound
-}
-
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	items, err := s.GetTreeByWorkspace(ctx, wsID)
 	if err != nil {
@@ -1214,15 +1180,6 @@ func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description,
 
 func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error) {
 	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
-}
-
-func (s *Store) CreateDocumentRootItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label, description, workspaceRootItemID string) (*domain.Item, error) {
-	item, err := s.CreateItem(ctx, workspaceID, label, description, workspaceRootItemID, "worker")
-	if err != nil {
-		return nil, err
-	}
-	item.Kind = appv1.ItemKind_ITEM_KIND_DOCUMENT_ROOT
-	return item, nil
 }
 
 func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {

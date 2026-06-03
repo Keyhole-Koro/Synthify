@@ -44,7 +44,7 @@ const FirestoreJobStatusJSONSchema = `{
       "type": "string"
     },
     "status": {
-      "description": "Worker-authored lifecycle state for the transient Firestore job document. queued/running are in-flight, succeeded/failed are terminal. A succeeded PROCESS_DOCUMENT job that created a tree item must also include createdDocumentRootItemId.",
+      "description": "Worker-authored lifecycle state for the transient Firestore job document. queued/running are in-flight, succeeded/failed are terminal. A succeeded PROCESS_DOCUMENT job that altered the workspace tree must also set treeChanged=true.",
       "type": "string",
       "enum": [
         "queued",
@@ -109,13 +109,9 @@ const FirestoreJobStatusJSONSchema = `{
       ],
       "x-firestore-timestamp": true
     },
-    "createdDocumentRootItemId": {
-      "description": "On successful completion of a PROCESS_DOCUMENT job, the id of the document_root tree_item created for the processed document. The frontend uses this to fetch only the new subtree rather than refetching the whole workspace tree.",
-      "type": "string"
-    },
-    "affectedWorkspaceRootItemId": {
-      "description": "The id of the workspace_root tree_item under which the job's output was placed. Almost always the same as the workspace's root, but is emitted explicitly so the frontend never has to derive it.",
-      "type": "string"
+    "treeChanged": {
+      "description": "True when a successful PROCESS_DOCUMENT job altered the workspace's knowledge tree (created new root nodes and/or merged the document's knowledge into existing nodes). The tree is a single workspace-owned structure — a document's output can create many nodes or fold into existing ones — so the frontend refetches the workspace tree and diff-reveals new nodes rather than grafting a single subtree. workspaceId on this document identifies which tree to refetch.",
+      "type": "boolean"
     },
     "stageSummary": {
       "description": "Ordered list of pipeline stage names that the job traversed. Useful for debug-time inspection without pulling job_logs.",
@@ -182,8 +178,7 @@ const (
 	FirestoreJobStatusFieldUpdatedAt = "updatedAt"
 	FirestoreJobStatusFieldCompletedAt = "completedAt"
 	FirestoreJobStatusFieldExpiresAt = "expiresAt"
-	FirestoreJobStatusFieldCreatedDocumentRootItemID = "createdDocumentRootItemId"
-	FirestoreJobStatusFieldAffectedWorkspaceRootItemID = "affectedWorkspaceRootItemId"
+	FirestoreJobStatusFieldTreeChanged = "treeChanged"
 	FirestoreJobStatusFieldStageSummary = "stageSummary"
 	FirestoreJobStatusFieldReason = "reason"
 )
@@ -207,8 +202,7 @@ type FirestoreJobStatus struct {
 	UpdatedAt string `firestore:"updatedAt" json:"updatedAt"`
 	CompletedAt *string `firestore:"completedAt,omitempty" json:"completedAt,omitempty"`
 	ExpiresAt *time.Time `firestore:"expiresAt,omitempty" json:"expiresAt,omitempty"`
-	CreatedDocumentRootItemID *string `firestore:"createdDocumentRootItemId,omitempty" json:"createdDocumentRootItemId,omitempty"`
-	AffectedWorkspaceRootItemID *string `firestore:"affectedWorkspaceRootItemId,omitempty" json:"affectedWorkspaceRootItemId,omitempty"`
+	TreeChanged *bool `firestore:"treeChanged,omitempty" json:"treeChanged,omitempty"`
 	StageSummary []string `firestore:"stageSummary,omitempty" json:"stageSummary,omitempty"`
 	Reason *FirestoreJobStatusReason `firestore:"reason,omitempty" json:"reason,omitempty"`
 }

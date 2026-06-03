@@ -20,23 +20,23 @@ func TestFirestoreJobStatusSemantics(t *testing.T) {
 	}
 }
 
-func TestHasCreatedDocumentRoot(t *testing.T) {
-	rootID := "doc_root_1"
-	if !HasCreatedDocumentRoot(FirestoreJobStatus{
-		Status:                    FirestoreJobStatusStateSucceeded,
-		CreatedDocumentRootItemID: &rootID,
+func TestChangedTree(t *testing.T) {
+	changed := true
+	if !ChangedTree(FirestoreJobStatus{
+		Status:      FirestoreJobStatusStateSucceeded,
+		TreeChanged: &changed,
 	}) {
-		t.Fatalf("succeeded job with document root id should have created document root")
+		t.Fatalf("succeeded job with treeChanged should report a tree change")
 	}
-	if HasCreatedDocumentRoot(FirestoreJobStatus{
-		Status:                    FirestoreJobStatusStateFailed,
-		CreatedDocumentRootItemID: &rootID,
+	if ChangedTree(FirestoreJobStatus{
+		Status:      FirestoreJobStatusStateFailed,
+		TreeChanged: &changed,
 	}) {
-		t.Fatalf("failed job should not have created document root semantics")
+		t.Fatalf("failed job should not report a tree change")
 	}
-	if HasCreatedDocumentRoot(FirestoreJobStatus{
+	if ChangedTree(FirestoreJobStatus{
 		Status: FirestoreJobStatusStateSucceeded,
 	}) {
-		t.Fatalf("succeeded job without document root id should not have created document root")
+		t.Fatalf("succeeded job without treeChanged should not report a tree change")
 	}
 }

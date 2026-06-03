@@ -244,30 +244,13 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		Event:       "job.completed",
 		Message:     "LLM worker job completed successfully",
 	})
-	// Lift the freshly persisted document_root + workspace_root pair off
-	// the repository so the Firestore notification carries them. Both lookups
-	// must succeed: persistence is the same transaction that just completed,
-	// so a missing row here means the schema invariants are broken.
-	//
-	// These run AFTER MarkRunning, so a bare `return err` here would leave the
-	// job wedged in RUNNING forever (no FAILED transition). Route every
-	// post-MarkRunning error through failJob so the job always reaches a
-	// terminal state.
-	rootID, err := w.repo.GetDocumentRootItemID(ctx, req.DocumentID)
-	if err != nil {
-		wrapped := fmt.Errorf("get document root item id for completion: %w", err)
-		w.failJob(ctx, req, payload, wrapped)
-		return wrapped
-	}
-	wsRoot, err := w.repo.GetWorkspaceRootItemID(ctx, req.WorkspaceID)
-	if err != nil {
-		wrapped := fmt.Errorf("get workspace root item id for completion: %w", err)
-		w.failJob(ctx, req, payload, wrapped)
-		return wrapped
-	}
+	// A successful PROCESS_DOCUMENT job persisted nodes into the workspace's
+	// single knowledge tree (creating new root nodes and/or merging into
+	// existing ones). Signal TreeChanged so the frontend refetches the
+	// workspace tree and diff-reveals the new nodes — there is no single
+	// "document root" to graft anymore.
 	outcome := joblifecycle.CompletionOutcome{
-		CreatedDocumentRootItemID:   rootID,
-		AffectedWorkspaceRootItemID: wsRoot,
+		TreeChanged: true,
 	}
 	if err := w.lifecycle.Complete(ctx, payload, outcome); err != nil {
 		wrapped := fmt.Errorf("complete job in repo: %w", err)
@@ -429,17 +412,14 @@ func (e *JobEvaluator) Evaluate(ctx context.Context, jobID string) (*domain.JobE
 		return nil, fmt.Errorf("get job %s: %w", jobID, err)
 	}
 
-	rootID, err := e.repo.GetWorkspaceRootItemID(ctx, job.WorkspaceID)
+	// The workspace is the tree root; evaluate against the full workspace
+	// tree (all nodes, flat list with parent_id links).
+	tree, err := e.repo.GetTreeByWorkspace(ctx, job.WorkspaceID)
 	if err != nil {
-		return nil, fmt.Errorf("root item for workspace %s: %w", job.WorkspaceID, err)
+		return nil, fmt.Errorf("get workspace tree %s: %w", job.WorkspaceID, err)
 	}
 
-	subtree, err := e.repo.GetSubtree(ctx, rootID, 5)
-	if err != nil {
-		return nil, fmt.Errorf("get subtree: %w", err)
-	}
-
-	treeJSON, err := json.Marshal(subtree)
+	treeJSON, err := json.Marshal(tree)
 	if err != nil {
 		return nil, fmt.Errorf("marshal tree: %w", err)
 	}

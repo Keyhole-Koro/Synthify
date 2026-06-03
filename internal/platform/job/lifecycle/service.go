@@ -57,13 +57,11 @@ type RuntimeController interface {
 
 // CompletionOutcome carries the metadata the worker collects while a job
 // runs so it can be reflected onto the Firestore mirror without an extra
-// round-trip. CreatedDocumentRootItemID + AffectedWorkspaceRootItemID are
-// the IDs the frontend uses to graft the new subtree into the workspace
-// view; StageSummary is optional human-readable progress.
+// round-trip. TreeChanged tells the frontend to refetch the workspace tree
+// and diff-reveal new nodes; StageSummary is optional human-readable progress.
 type CompletionOutcome struct {
-	CreatedDocumentRootItemID   string
-	AffectedWorkspaceRootItemID string
-	StageSummary                []string
+	TreeChanged  bool
+	StageSummary []string
 }
 
 // Failure pairs an error with a classified reason so the Firestore mirror
@@ -168,9 +166,8 @@ func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload, outco
 		return nil
 	}
 	if err := s.notifier.CompletedWith(ctx, payload, jobstatus.CompletionNotification{
-		CreatedDocumentRootItemID:   outcome.CreatedDocumentRootItemID,
-		AffectedWorkspaceRootItemID: outcome.AffectedWorkspaceRootItemID,
-		StageSummary:                outcome.StageSummary,
+		TreeChanged:  outcome.TreeChanged,
+		StageSummary: outcome.StageSummary,
 	}); err != nil {
 		s.logger.Error("jobstatus.notify_completion_failed", "error", err.Error(), "job_id", payload.JobID)
 	}

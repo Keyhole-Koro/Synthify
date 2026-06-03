@@ -94,7 +94,9 @@ function goType(name, prop, optional) {
     const elem = prop.items.type === 'integer' || prop.items.type === 'number' ? 'int' : 'string';
     return `[]${elem}`;
   }
-  const typ = prop.type === 'integer' || prop.type === 'number' ? 'int' : 'string';
+  let typ = 'string';
+  if (prop.type === 'integer' || prop.type === 'number') typ = 'int';
+  else if (prop.type === 'boolean') typ = 'bool';
   return optional ? `*${typ}` : typ;
 }
 

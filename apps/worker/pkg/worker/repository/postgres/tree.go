@@ -21,32 +21,6 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	return items, nil
 }
 
-func (s *Store) GetWorkspaceRootItemID(ctx context.Context, wsID string) (string, error) {
-	root, err := s.q().GetTreeRoot(ctx, wsID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", domain.ErrNotFound
-		}
-		return "", err
-	}
-	return root.ID, nil
-}
-
-// GetDocumentRootItemID returns the tree_items.id that document_tree_links
-// pins as this document's root. Returns ErrNotFound when the document has
-// not been processed yet (no link row), which lets callers fall back to
-// the pre-link behavior of refetching the whole tree.
-func (s *Store) GetDocumentRootItemID(ctx context.Context, documentID string) (string, error) {
-	rootID, err := s.q().GetDocumentRootItemID(ctx, documentID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", domain.ErrNotFound
-		}
-		return "", err
-	}
-	return rootID, nil
-}
-
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	items, err := s.GetTreeByWorkspace(ctx, wsID)
 	if err != nil || len(items) == 0 {
