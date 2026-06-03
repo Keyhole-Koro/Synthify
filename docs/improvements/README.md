@@ -38,8 +38,10 @@
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
 - [router-job-splitting.md](router-job-splitting.md) — 巨大ドキュメントをジョブ分割して Router プロキシで処理する設計（未決定事項あり）
 - [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
-- [workspace-content-embedded-tree.md](workspace-content-embedded-tree.md) — **採用方針**: ワークスペース paper の content 内に document root の `data-paper-id` card を並べ、クリックで従来通り子paperを展開（`WorkspaceItemList` と同パターン、展開挙動・projection・layout は不変）。ジョブ一覧の常時表示（Phase 1）から段階導入
 - [workspace-cache-verification-model.md](workspace-cache-verification-model.md) — **採用方針**: リロード直後は workspace cache を即表示しつつ、`signInUser`→`listWorkspaces` で verified された workspace だけ tree API を許可する cache-first / authz-gated refresh モデル。tree/paper snapshot cache は Phase 2
+- [workspace-root-id-unification.md](workspace-root-id-unification.md) — **採用方針(A2)**: workspace_root item の id を workspace id に統一し、workspace paper と workspace_root の二重性を解消。projection の parentId 付け替えを撤廃。既存データは DB リセットで破棄（migration 不要）
+- [tree-item-kind-renaming.md](tree-item-kind-renaming.md) — kind 改名案（workspace/document/topic）。ただし [tree-node-workspace-ownership](tree-node-workspace-ownership.md) を採ると kind 列自体が不要になるため、本案は発展的に廃止される見込み
+- [tree-node-workspace-ownership.md](tree-node-workspace-ownership.md) — **採用方針(構造転換)**: node を document 従属から外し、workspace が持つ 1 本の統合ツリーにする。document は `document_root` ではなく `item_sources` 経由の出典に。`document_root`/`workspace_root`/`kind` を廃止し、`cross_document`/`item_aliases` による文書横断統合を可能にする
 - [paper-llm-dialogue-child.md](paper-llm-dialogue-child.md) — paper ヘッダ「+」を LLM 対話 child 生成に転用。周辺 paper を手動/LLM 自走でコンテクスト化し、回答内 paper 参照をクリック可能リンクにする。応答は worker→Firestore→onSnapshot（既存ジョブ進捗経路を再利用）、トリガは unary `PostChatTurn`、vendored lib 変更不要
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
