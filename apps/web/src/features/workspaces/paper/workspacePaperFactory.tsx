@@ -23,7 +23,7 @@ export interface WorkspacePaperFactoryDeps {
 // its deps so the orchestrator can memoize it once at hook setup time. The
 // runtime state lookup is deferred to render time so refs stay live.
 export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
-  return function buildWsPaper(workspaceId: string, childPapers: { id: string }[]): Paper {
+  return function buildWsPaper(workspaceId: string, childPapers: { id: string; title: string }[]): Paper {
     const workspace = deps.getWorkspace(workspaceId);
 
     if (!workspace) {

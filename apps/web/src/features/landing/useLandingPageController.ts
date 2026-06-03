@@ -1,8 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { create } from '@bufbuild/protobuf';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { WorkspaceSchema } from '@/gen/proto/synthify/app/v1/workspace_pb';
 import { useAuthState } from '@/features/auth/useAuthState';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
@@ -21,6 +23,21 @@ declare global {
       dumpWorkspace: (workspaceId: string) => Promise<unknown>;
       refreshWorkspaceTree: (workspaceId: string) => Promise<void>;
       mergeDocumentRoot: (workspaceId: string, documentRootItemId: string) => Promise<void>;
+      injectMockDocumentRoot: (
+        workspaceId: string,
+        args?: { itemId?: string; title?: string; description?: string },
+      ) => Promise<unknown>;
+      createDebugCompletedWorkspace: (
+        args?: { workspaceName?: string; paperTitle?: string; paperDescription?: string },
+      ) => Promise<unknown>;
+      createMockWorkspace: (
+        args?: {
+          workspaceName?: string;
+          documentCount?: number;
+          nodesPerDocument?: number;
+          documentTitles?: string[];
+        },
+      ) => unknown;
     };
   }
 }
@@ -37,6 +54,8 @@ export function useLandingPageController() {
     workspaceError,
     authError,
     setWorkspaces,
+    verifiedWorkspaceIds,
+    markWorkspaceVerified,
     handleGoogleSubmit,
     retryWorkspaces,
   } = useAuthState();
@@ -110,6 +129,7 @@ export function useLandingPageController() {
     useCallback((workspaceId: string, suggestedName: string) => autoNameRef.current(workspaceId, suggestedName), []),
     runtimeState.getRuntimeState,
     runtimeState.clearRuntimeState,
+    useCallback((workspaceId: string) => verifiedWorkspaceIds.has(workspaceId), [verifiedWorkspaceIds]),
   );
 
   useEffect(() => {
@@ -122,6 +142,7 @@ export function useLandingPageController() {
     setWorkspaces,
     setPendingRevealNodeId,
     handleOpenWorkspace: tree.handleOpenWorkspace,
+    markWorkspaceVerified,
     resetTree: tree.resetTree,
     resetRuntimeState: runtimeState.resetAll,
     resetToLoggedOutDefaults,
@@ -133,10 +154,12 @@ export function useLandingPageController() {
   useEffect(() => {
     autoNameRef.current = crud.handleAutoNameWorkspace;
   }, [crud.handleAutoNameWorkspace]);
+  const { handleCreateWorkspace } = crud;
 
   const handleRootUpload = useRootUpload({
     setWorkspaces,
     setPendingRevealNodeId,
+    markWorkspaceVerified,
     handleOpenWorkspace: tree.handleOpenWorkspace,
     uploadWorkspaceFile: tree.uploadWorkspaceFile,
     injectRuntimeState: runtimeState.injectRuntimeState,
@@ -165,12 +188,19 @@ export function useLandingPageController() {
 
     const debugApi = {
       dumpWorkspace: async (workspaceId: string) => {
-        const latestJobsSnap = await getDocs(query(
-          collection(db, 'workspaces', workspaceId, 'jobs'),
-          orderBy('updatedAt', 'desc'),
-          limit(5),
-        ));
-        const latestJobs = latestJobsSnap.docs.map((doc) => doc.data() as FirestoreJobStatus);
+        // Firestore is unavailable for frontend-only mock workspaces; don't let
+        // it abort the (more useful) paperMap / projection report.
+        let latestJobs: FirestoreJobStatus[] = [];
+        try {
+          const latestJobsSnap = await getDocs(query(
+            collection(db, 'workspaces', workspaceId, 'jobs'),
+            orderBy('updatedAt', 'desc'),
+            limit(5),
+          ));
+          latestJobs = latestJobsSnap.docs.map((doc) => doc.data() as FirestoreJobStatus);
+        } catch (err) {
+          console.warn('[synthify-debug] latestJobs unavailable', err);
+        }
         const workspacePapers = workspacePaperGroups.get(workspaceId) ?? [];
         const treeSnapshot = tree.getDebugSnapshot(workspaceId);
         const documentRootPaperPresence = treeSnapshot.documentRootIds.map((id) => ({
@@ -201,6 +231,54 @@ export function useLandingPageController() {
       mergeDocumentRoot: async (workspaceId: string, documentRootItemId: string) => {
         await tree.mergeDocumentRootIntoTree(workspaceId, documentRootItemId);
       },
+      injectMockDocumentRoot: async (
+        workspaceId: string,
+        args: { itemId?: string; title?: string; description?: string } = {},
+      ) => {
+        const injected = await tree.injectMockDocumentRoot(workspaceId, args);
+        const dump = await debugApi.dumpWorkspace(workspaceId);
+        return { injected, dump };
+      },
+      createDebugCompletedWorkspace: async (
+        args: { workspaceName?: string; paperTitle?: string; paperDescription?: string } = {},
+      ) => {
+        const workspace = await handleCreateWorkspace(args.workspaceName?.trim() || 'Debug completed workspace');
+        await tree.handleOpenWorkspace(workspace.workspaceId, workspace);
+        const injected = await tree.injectMockDocumentRoot(workspace.workspaceId, {
+          title: args.paperTitle?.trim() || 'Debug completed paper',
+          description: args.paperDescription?.trim() || 'Created by __synthifyDebug.createDebugCompletedWorkspace',
+        });
+        setPendingRevealNodeId(workspace.workspaceId);
+        const dump = await debugApi.dumpWorkspace(workspace.workspaceId);
+        return { workspace, injected, dump };
+      },
+      // createMockWorkspace builds a complete workspace (ws + N documents, each
+      // with M nodes) entirely on the frontend — no backend API, no auth, no
+      // emulators. Lets you preview WorkspacePaper UI states from the console.
+      createMockWorkspace: (
+        args: {
+          workspaceName?: string;
+          documentCount?: number;
+          nodesPerDocument?: number;
+          documentTitles?: string[];
+        } = {},
+      ) => {
+        const workspaceId = `debug_ws_${Date.now().toString(36)}`;
+        const workspace = create(WorkspaceSchema, {
+          workspaceId,
+          name: args.workspaceName?.trim() || 'Mock workspace',
+          ownerId: user?.id ?? 'debug-user',
+        });
+        setWorkspaces((prev) => [...prev, workspace]);
+        const result = tree.injectMockWorkspaceTree(workspace, {
+          documentCount: args.documentCount,
+          nodesPerDocument: args.nodesPerDocument,
+          documentTitles: args.documentTitles,
+        });
+        setPendingRevealNodeId(workspaceId);
+        console.info('[synthify-debug] mock workspace created', { workspace, result });
+        return { workspace, result };
+      },
     };
 
     window.__synthifyDebug = debugApi;
@@ -209,7 +287,7 @@ export function useLandingPageController() {
         delete window.__synthifyDebug;
       }
     };
-  }, [paperMap, tree, workspacePaperGroups]);
+  }, [handleCreateWorkspace, paperMap, tree, workspacePaperGroups, setWorkspaces, user]);
 
   return {
     isReady: hasMounted && hasDefaultOpenState,

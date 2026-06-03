@@ -12,6 +12,7 @@ interface UseWorkspaceCRUDArgs {
   setWorkspaces: React.Dispatch<React.SetStateAction<Workspace[]>>;
   setPendingRevealNodeId: (id: string | null) => void;
   handleOpenWorkspace: (workspaceId: string, overrideWorkspace?: Workspace) => Promise<void>;
+  markWorkspaceVerified: (workspaceId: string) => void;
   resetTree: () => void;
   resetRuntimeState: () => void;
   resetToLoggedOutDefaults: (previousUser: AuthUser | null) => void;
@@ -27,6 +28,7 @@ export function useWorkspaceCRUD({
   setWorkspaces,
   setPendingRevealNodeId,
   handleOpenWorkspace,
+  markWorkspaceVerified,
   resetTree,
   resetRuntimeState,
   resetToLoggedOutDefaults,
@@ -53,10 +55,12 @@ export function useWorkspaceCRUD({
 
   const handleCreateWorkspace = useCallback(async (name: string) => {
     const ws = await createWorkspace(name);
+    markWorkspaceVerified(ws.workspaceId);
     setWorkspaces((prev) => [ws, ...prev]);
     void handleOpenWorkspace(ws.workspaceId, ws);
     setPendingRevealNodeId(ws.workspaceId);
-  }, [handleOpenWorkspace, setPendingRevealNodeId, setWorkspaces]);
+    return ws;
+  }, [handleOpenWorkspace, markWorkspaceVerified, setPendingRevealNodeId, setWorkspaces]);
 
   const handleLogout = useCallback(async () => {
     const previousUser = user;

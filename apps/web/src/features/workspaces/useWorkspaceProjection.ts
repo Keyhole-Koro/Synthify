@@ -35,12 +35,12 @@ export function projectWorkspacePapers(
   workspaceRootItemId: string,
   treeItems: Map<string, SubtreeItem>,
   documentRootIds: string[],
-  buildWsPaper: (workspaceId: string, childPapers: { id: string }[]) => Paper,
+  buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper,
 ): Paper[] {
   const childPapers = documentRootIds
     .map((id) => treeItems.get(id))
     .filter((item): item is SubtreeItem => item != null)
-    .map((item) => ({ id: item.item!.id }));
+    .map((item) => ({ id: item.item!.id, title: item.item!.title }));
 
   const projectedPapers: Paper[] = Array.from(treeItems.keys())
     .map((itemId) => buildProjectedPaper(workspaceRootItemId, itemId, treeItems, workspaceId))

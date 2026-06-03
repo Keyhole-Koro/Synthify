@@ -6,6 +6,7 @@ import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
+import { WorkspaceDocumentList } from './components/WorkspaceDocumentList';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { type Workspace } from '@/features/workspaces/api';
 import { InlineError } from '@/components/error/InlineError';
@@ -23,7 +24,7 @@ interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   workspaceId: string;
   workspaceName: string;
   hasTree: boolean;
-  childItems: { id: string }[];
+  childItems: { id: string; title: string }[];
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
@@ -153,6 +154,15 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             onCancelRename={cancelRename}
           />
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
+
+          {/* Always-visible section: document cards + recent jobs. Shown
+              regardless of hover/pin so the workspace's contents and job
+              activity are visible at a glance. The cards carry data-paper-id
+              so clicking opens the document_root child paper as before. */}
+          <div className="flex flex-col gap-4 px-5 pb-4">
+            <WorkspaceDocumentList documents={childItems} />
+            <WorkspaceJobList workspaceJobs={workspaceJobs} />
+          </div>
         </>
       )}
 
@@ -216,8 +226,6 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
                 latestActivity={jobStatus?.latestActivity}
               />
             )}
-
-            <WorkspaceJobList workspaceJobs={workspaceJobs} />
           </div>
         </div>
       )}

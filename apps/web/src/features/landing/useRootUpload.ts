@@ -11,6 +11,7 @@ const NEW_WORKSPACE_NAME = '新規ワークスペース';
 interface UseRootUploadArgs {
   setWorkspaces: React.Dispatch<React.SetStateAction<Workspace[]>>;
   setPendingRevealNodeId: (id: string | null) => void;
+  markWorkspaceVerified: (workspaceId: string) => void;
   handleOpenWorkspace: (workspaceId: string, overrideWorkspace?: Workspace) => Promise<void>;
   uploadWorkspaceFile: (workspaceId: string, file: File) => Promise<{ jobId: string; documentId: string }>;
   injectRuntimeState: (workspaceId: string, state: WorkspacePaperRuntimeState) => void;
@@ -24,12 +25,14 @@ interface UseRootUploadArgs {
 export function useRootUpload({
   setWorkspaces,
   setPendingRevealNodeId,
+  markWorkspaceVerified,
   handleOpenWorkspace,
   uploadWorkspaceFile,
   injectRuntimeState,
 }: UseRootUploadArgs) {
   return useCallback(async (file: File) => {
     const ws = await createWorkspace(NEW_WORKSPACE_NAME);
+    markWorkspaceVerified(ws.workspaceId);
     setWorkspaces((prev) => [ws, ...prev]);
     await handleOpenWorkspace(ws.workspaceId, ws);
     setPendingRevealNodeId(ws.workspaceId);
@@ -52,5 +55,5 @@ export function useRootUpload({
         });
       }
     })();
-  }, [handleOpenWorkspace, injectRuntimeState, setPendingRevealNodeId, setWorkspaces, uploadWorkspaceFile]);
+  }, [handleOpenWorkspace, injectRuntimeState, markWorkspaceVerified, setPendingRevealNodeId, setWorkspaces, uploadWorkspaceFile]);
 }
