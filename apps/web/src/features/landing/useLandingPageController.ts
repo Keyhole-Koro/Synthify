@@ -24,7 +24,14 @@ declare global {
       refreshWorkspaceTree: (workspaceId: string) => Promise<void>;
       injectMockNode: (
         workspaceId: string,
-        args?: { itemId?: string; title?: string; description?: string },
+        args?: {
+          itemId?: string;
+          title?: string;
+          description?: string;
+          content?: string;
+          overrideCss?: string;
+          parentId?: string;
+        },
       ) => Promise<unknown>;
       createDebugCompletedWorkspace: (
         args?: { workspaceName?: string; paperTitle?: string; paperDescription?: string },
@@ -35,6 +42,8 @@ declare global {
           documentCount?: number;
           nodesPerDocument?: number;
           documentTitles?: string[];
+          rootContent?: string;
+          rootOverrideCss?: string;
         },
       ) => unknown;
     };
@@ -262,6 +271,8 @@ export function useLandingPageController() {
           documentCount?: number;
           nodesPerDocument?: number;
           documentTitles?: string[];
+          rootContent?: string;
+          rootOverrideCss?: string;
         } = {},
       ) => {
         const workspaceId = `debug_ws_${Date.now().toString(36)}`;
@@ -276,6 +287,8 @@ export function useLandingPageController() {
           documentCount: args.documentCount,
           nodesPerDocument: args.nodesPerDocument,
           documentTitles: args.documentTitles,
+          rootContent: args.rootContent,
+          rootOverrideCss: args.rootOverrideCss,
         });
         setPendingRevealNodeId(workspaceId);
         console.info('[synthify-debug] mock workspace created [SYNC-MARKER-A1]', { workspace, result });

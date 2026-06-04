@@ -9,49 +9,82 @@ function makeDebugItemId() {
   return `debug_node_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// buildMockWorkspaceTreeItems assembles a complete ApiItem[] (N root nodes,
-// each with M child nodes) entirely on the frontend. There is no
-// workspace_root item — root nodes sit directly under the workspace
-// (parent_id = ''). The shape mirrors what the backend returns so it can flow
-// through replaceWorkspaceTree unchanged.
+// SAMPLE_ROOT_OVERRIDE_CSS is injected into the root content iframe so the CSS
+// isolation path is exercised: these selectors would clash with the host page
+// if they leaked, but stay contained inside the sandboxed iframe.
+const SAMPLE_ROOT_OVERRIDE_CSS = `
+.hero-block { background: linear-gradient(135deg, #eef2ff, #fdf2f8); border-radius: 16px; padding: 18px 20px; }
+h1 { color: #4338ca; }
+.metric { display: inline-block; margin-right: 16px; font-weight: 700; color: #be185d; }
+`.trim();
+
+// buildSampleRootContent renders a rich cover report that embeds child node ids
+// as data-paper-id links directly in the content. WorkspaceRootContent forwards
+// in-iframe clicks on these links to the host, which opens the child paper — so
+// the embedded links are live navigation, exercising that path from the console.
+function buildSampleRootContent(childRefs: { id: string; title: string }[]): string {
+  const links = childRefs
+    .map((c) => `<a data-paper-id="${c.id}">${c.title}</a>`)
+    .join(' ');
+  return `
+<div class="hero-block">
+  <h1>統合知識レポート（モック）</h1>
+  <p class="lede">__synthifyDebug が生成したフロントエンド専用のダミー root content です。リッチ HTML + override_css が iframe で CSS 隔離描画されます。</p>
+  <p><span class="metric">出典 3</span><span class="metric">ノード ${childRefs.length}</span></p>
+</div>
+<h2>概要</h2>
+<p>このワークスペースの知識ツリーのトップ概要。下のリンクから配下のノードを開けます。</p>
+<table><thead><tr><th>項目</th><th>値</th></tr></thead><tbody>
+<tr><td>モデル</td><td>node 直属</td></tr><tr><td>root</td><td>単一</td></tr></tbody></table>
+<h2>子ノード（クリックで開く）</h2>
+<p>${links || '（子ノードなし）'}</p>
+`.trim();
+}
+
+// buildMockWorkspaceTreeItems assembles a complete ApiItem[] for a single-root
+// workspace tree entirely on the frontend, mirroring the worker's node-direct
+// model: one root node (parent_id = '') carrying the cover-report content, with
+// M child knowledge nodes hanging off it. The shape mirrors what the backend
+// returns so it can flow through replaceWorkspaceTree unchanged.
 function buildMockWorkspaceTreeItems(
   workspaceId: string,
   args: InjectMockWorkspaceTreeArgs,
 ): ApiItem[] {
-  const documentCount = Math.max(1, args.documentCount ?? 2);
-  const nodesPerDocument = Math.max(0, args.nodesPerDocument ?? 3);
+  // documentCount is kept for backward compatibility but now controls how many
+  // child knowledge nodes hang under the single root (each "document" produced
+  // one root node group in the old model; now they are all children of one root).
+  const childCount = Math.max(0, (args.documentCount ?? 2) * (args.nodesPerDocument ?? 3));
   const titles = args.documentTitles ?? [];
 
+  const rootId = `debug_root_${workspaceId}`;
   const items: ApiItem[] = [];
+  const childRefs: { id: string; title: string }[] = [];
 
-  for (let d = 0; d < documentCount; d++) {
-    const rootNodeId = `debug_root_node_${workspaceId}_${d}`;
-    const childIds: string[] = [];
-
-    for (let n = 0; n < nodesPerDocument; n++) {
-      const nodeId = `${rootNodeId}_node_${n}`;
-      childIds.push(nodeId);
-      items.push(create(ItemSchema, {
-        id: nodeId,
-        parentId: rootNodeId,
-        title: `論点 ${d + 1}-${n + 1}`,
-        description: `Mock node ${n + 1} of group ${d + 1}`,
-        content: `<p>Mock node ${n + 1} の本文。__synthifyDebug が生成したフロントエンド専用のダミーです。</p>`,
-        level: 2,
-        childIds: [],
-      }));
-    }
-
+  for (let n = 0; n < childCount; n++) {
+    const nodeId = `${rootId}_node_${n}`;
+    const title = titles[n]?.trim() || `知識ノード ${n + 1}`;
+    childRefs.push({ id: nodeId, title });
     items.push(create(ItemSchema, {
-      id: rootNodeId,
-      parentId: '',
-      title: titles[d]?.trim() || `Mock ノード ${d + 1}`,
-      description: `Mock root node ${d + 1}`,
-      content: `<p>Mock ルートノード ${d + 1} の概要。</p>`,
-      level: 0,
-      childIds,
+      id: nodeId,
+      parentId: rootId,
+      title,
+      description: `Mock child node ${n + 1}`,
+      content: `<p>${title} の本文。__synthifyDebug が生成したフロントエンド専用のダミーです。</p>`,
+      level: 1,
+      childIds: [],
     }));
   }
+
+  items.push(create(ItemSchema, {
+    id: rootId,
+    parentId: '',
+    title: titles[0]?.trim() || 'モック ワークスペース',
+    description: 'Mock single root node',
+    content: args.rootContent ?? buildSampleRootContent(childRefs),
+    overrideCss: args.rootOverrideCss ?? SAMPLE_ROOT_OVERRIDE_CSS,
+    level: 0,
+    childIds: childRefs.map((c) => c.id),
+  }));
 
   return items;
 }
@@ -135,22 +168,37 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
     ): string | null => {
       const itemId = args.itemId ?? makeDebugItemId();
       const title = args.title?.trim() || 'Debug node';
-      const description = args.description?.trim() || 'Frontend-only mock root node injected by __synthifyDebug.';
+      const description = args.description?.trim() || 'Frontend-only mock node injected by __synthifyDebug.';
+      const parentId = args.parentId?.trim() ?? '';
       const item = create(ItemSchema, {
         id: itemId,
-        parentId: '',
+        parentId,
         title,
         description,
         childIds: [],
-        content: `<p>${description}</p>`,
+        content: args.content ?? `<p>${description}</p>`,
+        overrideCss: args.overrideCss ?? '',
       });
       const subtreeItem = create(SubtreeItemSchema, {
         item,
         hasChildren: false,
       });
-      const previousRootNodeIds = workspaceRootNodeIds.get(workspaceId) ?? [];
-      if (!previousRootNodeIds.includes(itemId)) {
-        workspaceRootNodeIds.set(workspaceId, [...previousRootNodeIds, itemId]);
+
+      if (parentId) {
+        // Hang under an existing node: append to the parent's childIds so the
+        // projection surfaces it, and mark the parent as having children.
+        const workspaceItems = workspaceTreeItems.get(workspaceId);
+        const parent = workspaceItems?.get(parentId);
+        if (parent?.item && !parent.item.childIds.includes(itemId)) {
+          parent.item.childIds = [...parent.item.childIds, itemId];
+        }
+        itemHasChildren.set(parentId, true);
+      } else {
+        // Top-level node: it becomes one of the workspace paper's direct children.
+        const previousRootNodeIds = workspaceRootNodeIds.get(workspaceId) ?? [];
+        if (!previousRootNodeIds.includes(itemId)) {
+          workspaceRootNodeIds.set(workspaceId, [...previousRootNodeIds, itemId]);
+        }
       }
 
       loadedSubtreeItems.add(itemId);

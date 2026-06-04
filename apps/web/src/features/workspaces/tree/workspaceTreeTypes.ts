@@ -13,6 +13,14 @@ export interface InjectMockNodeArgs {
   itemId?: string;
   title?: string;
   description?: string;
+  // content overrides the node's rich HTML (rendered as the cover report iframe
+  // when this node is the workspace root). Defaults to a <p> of the description.
+  content?: string;
+  // overrideCss is the node's per-item CSS, isolated inside the content iframe.
+  overrideCss?: string;
+  // parentId hangs the node under an existing node instead of at top level.
+  // Empty / omitted makes it a top-level node (parent_id IS NULL).
+  parentId?: string;
 }
 
 // InjectMockWorkspaceTreeArgs builds a complete, frontend-only workspace tree
@@ -22,6 +30,11 @@ export interface InjectMockWorkspaceTreeArgs {
   documentCount?: number;
   nodesPerDocument?: number;
   documentTitles?: string[];
+  // rootContent / rootOverrideCss override the first root node's cover-report
+  // HTML and isolated CSS. When omitted, a rich sample report is used so the
+  // iframe rendering, CSS isolation, and child links are all exercised.
+  rootContent?: string;
+  rootOverrideCss?: string;
 }
 
 export interface TreeStoreDebugSnapshot {
