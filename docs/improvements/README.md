@@ -42,6 +42,7 @@
 - [workspace-root-id-unification.md](workspace-root-id-unification.md) — **採用方針(A2)**: workspace_root item の id を workspace id に統一し、workspace paper と workspace_root の二重性を解消。projection の parentId 付け替えを撤廃。既存データは DB リセットで破棄（migration 不要）
 - [tree-item-kind-renaming.md](tree-item-kind-renaming.md) — kind 改名案（workspace/document/topic）。ただし [tree-node-workspace-ownership](tree-node-workspace-ownership.md) を採ると kind 列自体が不要になるため、本案は発展的に廃止される見込み
 - [tree-node-workspace-ownership.md](tree-node-workspace-ownership.md) — **採用方針(構造転換)**: node を document 従属から外し、workspace が持つ 1 本の統合ツリーにする。document は `document_root` ではなく `item_sources` 経由の出典に。`document_root`/`workspace_root`/`kind` を廃止し、`cross_document`/`item_aliases` による文書横断統合を可能にする
+- [workspace-paper-root-content.md](workspace-paper-root-content.md) — **採用方針(UI)**: ワークスペース paper に唯一 root node の content(リッチHTML+override_css)を iframe(CSS隔離)で表示し「1つの統合知識レポート」に。新規 node は常に root の子にし root を1つに保つ。card 一覧は撤去
 - [paper-llm-dialogue-child.md](paper-llm-dialogue-child.md) — paper ヘッダ「+」を LLM 対話 child 生成に転用。周辺 paper を手動/LLM 自走でコンテクスト化し、回答内 paper 参照をクリック可能リンクにする。応答は worker→Firestore→onSnapshot（既存ジョブ進捗経路を再利用）、トリガは unary `PostChatTurn`、vendored lib 変更不要
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針

@@ -22,12 +22,24 @@ export interface WorkspacePaperFactoryDeps {
   onProcessingComplete: (workspaceId: string) => Promise<void> | void;
 }
 
+// WorkspaceRootNode carries the workspace's single root node so the paper can
+// render its content (the workspace's cover report) as a CSS-isolated iframe.
+export interface WorkspaceRootNode {
+  id: string;
+  content: string;
+  overrideCss?: string;
+}
+
 // createWorkspacePaperFactory returns the synchronous Paper builder used by
 // projectWorkspacePapers and handleOpenWorkspace. It is a pure function over
 // its deps so the orchestrator can memoize it once at hook setup time. The
 // runtime state lookup is deferred to render time so refs stay live.
 export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
-  return function buildWsPaper(workspaceId: string, childPapers: { id: string; title: string }[]): Paper {
+  return function buildWsPaper(
+    workspaceId: string,
+    childPapers: { id: string; title: string }[],
+    rootNode?: WorkspaceRootNode,
+  ): Paper {
     const workspace = deps.getWorkspace(workspaceId);
 
     if (!workspace) {
@@ -85,6 +97,8 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
           workspaceName={workspaceName}
           hasTree={childPapers.length > 0}
           childItems={childPapers}
+          rootContent={rootNode?.content ?? null}
+          rootOverrideCss={rootNode?.overrideCss ?? null}
           initialActiveJobId={runtimeState.initialActiveJobId ?? null}
           initialDocumentId={runtimeState.initialDocumentId ?? null}
           initialUploading={runtimeState.initialUploading}

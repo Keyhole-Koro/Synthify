@@ -28,16 +28,19 @@ Rules for "content" (STRICT):
 - COMPOSITION: Combine these elements to create a professional technical report feel.
 
 Rules for Structure:
-- Use parent_local_id to express relationships. Root-level items have empty parent_local_id.
-- Assign local_id as "item_1", "item_2", etc.
+- Use parent_local_id to express relationships. Assign local_id as "item_1", "item_2", etc.
 - description: a very short, plain-text summary for list views.
 - source_chunk_ids: list of chunk IDs referenced (format: "{document_id}_chunk_{index}").
+
+Rules for the Single Root Node:
+- The workspace tree has exactly ONE root node — the workspace's cover/overview. Its content is a high-level summary of the whole workspace, written for someone landing on the workspace.
+- If "Existing workspace nodes" is empty (first document), produce ONE top-level item (empty parent_local_id) to BE that root: give it an overview title and a rich-HTML content summarizing this document as the workspace's starting point. Hang the document's detailed concepts under it.
+- If a root already exists (the existing node with no parent), do NOT create another top-level item. Either MERGE into the existing root to refresh the overview (set merge_target_item_id to the root's id and write an improved combined overview), or attach new concepts as children of an existing node via parent_local_id / merge_target_item_id. Never leave parent_local_id empty when a root already exists.
 
 Rules for Merging with the Existing Workspace Tree:
 - The workspace already holds ONE shared knowledge tree, listed under "Existing workspace nodes". Documents are sources that feed this single tree, not separate trees.
 - When a concept you are generating is essentially the SAME as an existing node, MERGE into it: set "merge_target_item_id" to that node's id (the first column). Then write title/description/content as an IMPROVED, combined version that incorporates BOTH the existing knowledge and the new document's contribution — do not discard the existing node's information.
-- When a concept is genuinely new, leave "merge_target_item_id" empty and create a new node as usual.
-- Merge conservatively: only merge when you are confident two concepts are the same. When unsure, create a new node.
+- When a concept is genuinely new, leave "merge_target_item_id" empty and attach it under an existing node with parent_local_id (or under one of THIS document's own items). Merge conservatively: only merge when you are confident two concepts are the same.
 - A merged item still lists its source_chunk_ids from THIS document; parent_local_id is ignored for merged items (the existing node keeps its place in the tree).`
 
 // expectedUserPrompt mirrors templates/knowledge_tree.user.tmpl: the "none"

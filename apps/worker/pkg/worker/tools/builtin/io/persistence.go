@@ -57,11 +57,16 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 		sortedItems := sortItemsTopologically(args.Items)
 
 		itemIDs := make(map[string]string, len(args.Items))
-		// The workspace is the tree root. Top-level items (empty
-		// ParentLocalID) are created as root nodes directly under the
-		// workspace (parent_id = ""), and nested items hang off their
-		// parent. There is no document_root anymore; the document's
-		// provenance is recorded via item_sources.
+		// The workspace tree has exactly one root node (parent_id IS NULL) that
+		// holds the workspace's overview content. Resolve it up front: if one
+		// already exists, every top-level item this document produces hangs off
+		// it; if none exists yet, the first top-level item becomes the root and
+		// the rest hang off it. This keeps the tree to a single root so the
+		// workspace paper can render that root's content as its cover report.
+		rootNodeID, err := resolveRootNodeID(ctx, b, args.WorkspaceID)
+		if err != nil {
+			return nil, core.Usage{}, fmt.Errorf("resolve root node: %w", err)
+		}
 		created := 0
 		for _, item := range sortedItems {
 			title := strings.TrimSpace(item.Title)
@@ -87,9 +92,14 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 				}
 				persistedID = merged.ItemID
 			} else {
+				// Resolve the parent: a nested item hangs off its mapped
+				// parent; a top-level item hangs off the single root node (or,
+				// if no root exists yet, becomes the root with empty parent).
 				parentID := ""
 				if mapped := itemIDs[item.ParentLocalID]; mapped != "" {
 					parentID = mapped
+				} else if rootNodeID != "" {
+					parentID = rootNodeID
 				}
 				createdItem, err := b.Repo.CreateStructuredItemWithCapability(
 					ctx,
@@ -110,6 +120,12 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 					return nil, core.Usage{}, fmt.Errorf("create item %q: %w", title, err)
 				}
 				persistedID = createdItem.ItemID
+				// The first top-level item created when no root existed becomes
+				// the workspace's single root node; later top-level items in
+				// this same document then hang off it.
+				if parentID == "" {
+					rootNodeID = persistedID
+				}
 			}
 			itemIDs[item.LocalID] = persistedID
 			for _, chunkID := range item.SourceChunkIDs {
@@ -160,6 +176,26 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 		IOSchema:    schema,
 		Run:         run,
 	}, nil
+}
+
+// resolveRootNodeID returns the id of the workspace's single root node (the
+// item with no parent), or "" when the tree is empty. It is best-effort: a
+// fetch error returns "" so the first top-level item simply becomes the new
+// root, keeping persistence resilient.
+func resolveRootNodeID(ctx context.Context, b *base.Context, workspaceID string) (string, error) {
+	if b == nil || b.Repo == nil || workspaceID == "" {
+		return "", nil
+	}
+	items, err := b.Repo.GetTreeByWorkspace(ctx, workspaceID)
+	if err != nil {
+		return "", nil
+	}
+	for _, it := range items {
+		if it.ParentID == "" {
+			return it.ItemID, nil
+		}
+	}
+	return "", nil
 }
 
 func sortItemsTopologically(items []PersistenceItem) []PersistenceItem {

@@ -28,6 +28,95 @@ func TestPersistenceTool_TopologicalSort(t *testing.T) {
 	assert.Equal(t, "grandchild", sorted[2].LocalID)
 }
 
+// persistDoc runs the persistence tool for one document and returns the
+// resulting workspace items. Helper for the single-root tests.
+func persistDoc(t *testing.T, store *mock.Store, wsID, jobID, docID string, items []PersistenceItem) []*domain.Item {
+	t.Helper()
+	store.SeedCapability(domain.JobCapability{
+		CapabilityID:     "cap_" + jobID,
+		JobID:            jobID,
+		WorkspaceID:      wsID,
+		MaxLLMCalls:      100,
+		MaxToolRuns:      100,
+		MaxItemCreations: 100,
+		ExpiresAt:        time.Now().Add(1 * time.Hour).Format(time.RFC3339),
+	})
+	b := &base.Context{Repo: store, Job: &base.JobContext{JobID: jobID, WorkspaceID: wsID, DocumentID: docID}}
+	tool, err := NewPersistenceTool(b)
+	require.NoError(t, err)
+	argsJSON, _ := json.Marshal(PersistenceArgs{JobID: jobID, DocumentID: docID, WorkspaceID: wsID, Items: items})
+	_, _, err = tool.Run(context.Background(), argsJSON)
+	require.NoError(t, err)
+	result, err := store.GetTreeByWorkspace(context.Background(), wsID)
+	require.NoError(t, err)
+	return result
+}
+
+func rootNodes(items []*domain.Item) []*domain.Item {
+	var roots []*domain.Item
+	for _, it := range items {
+		if it.ParentID == "" {
+			roots = append(roots, it)
+		}
+	}
+	return roots
+}
+
+func TestPersistenceTool_SingleRoot_FirstDocument(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	wsID := mock.CreateUserWorkspaceFixture(t, ctx, store, "user_1").Workspace.WorkspaceID
+
+	// Two top-level items (both empty parent) in the first document: only the
+	// first becomes the root; the second is forced under it.
+	items := persistDoc(t, store, wsID, "job_1", "doc_1", []PersistenceItem{
+		{GeneratedTreeItem: domain.GeneratedTreeItem{LocalID: "a", Title: "Overview"}},
+		{GeneratedTreeItem: domain.GeneratedTreeItem{LocalID: "b", Title: "Second top-level"}},
+	})
+
+	roots := rootNodes(items)
+	require.Len(t, roots, 1, "exactly one root node after first document")
+	assert.Equal(t, "Overview", roots[0].Title)
+	for _, it := range items {
+		if it.Title == "Second top-level" {
+			assert.Equal(t, roots[0].ItemID, it.ParentID, "second top-level item hangs off the root")
+		}
+	}
+}
+
+func TestPersistenceTool_SingleRoot_SecondDocumentReusesRoot(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	wsID := mock.CreateUserWorkspaceFixture(t, ctx, store, "user_1").Workspace.WorkspaceID
+
+	persistDoc(t, store, wsID, "job_1", "doc_1", []PersistenceItem{
+		{GeneratedTreeItem: domain.GeneratedTreeItem{LocalID: "a", Title: "Overview"}},
+	})
+	first := rootNodes(persistDocNoop(t, store, wsID))[0]
+
+	// Second document: its top-level item must hang off the existing root, not
+	// create a second root.
+	items := persistDoc(t, store, wsID, "job_2", "doc_2", []PersistenceItem{
+		{GeneratedTreeItem: domain.GeneratedTreeItem{LocalID: "c", Title: "New concept from doc 2"}},
+	})
+
+	roots := rootNodes(items)
+	require.Len(t, roots, 1, "still exactly one root after the second document")
+	assert.Equal(t, first.ItemID, roots[0].ItemID, "root is unchanged")
+	for _, it := range items {
+		if it.Title == "New concept from doc 2" {
+			assert.Equal(t, first.ItemID, it.ParentID, "doc 2's top-level item hangs off the existing root")
+		}
+	}
+}
+
+func persistDocNoop(t *testing.T, store *mock.Store, wsID string) []*domain.Item {
+	t.Helper()
+	items, err := store.GetTreeByWorkspace(context.Background(), wsID)
+	require.NoError(t, err)
+	return items
+}
+
 func TestPersistenceTool_HTMLRewriting(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
