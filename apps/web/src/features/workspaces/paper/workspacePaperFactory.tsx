@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
-import { WorkspacePaper } from '@/features/workspaces/paper/WorkspacePaper';
+import { WorkspacePaper, WORKSPACE_PAPER_HUE } from '@/features/workspaces/paper/WorkspacePaper';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import type { Workspace } from '@/features/workspaces/api';
@@ -51,7 +51,7 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
           id: workspaceId,
           title: deps.getWorkspaceName(workspaceId),
           description: '読み込み中',
-          hue: 200,
+          hue: WORKSPACE_PAPER_HUE,
           parentId: WORKSPACES_ID,
           childIds: [],
           content: <div className="p-4" aria-busy="true" />,
@@ -86,7 +86,11 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
       id: workspaceId,
       title: workspaceName,
       description: 'ドキュメントと知識構造',
-      hue: 200,
+      hue: WORKSPACE_PAPER_HUE,
+      // Neutral (white/grey) surface: the workspace's knowledge papers host
+      // arbitrary LLM-authored content that reads on white. Children inherit
+      // this, so the whole workspace subtree renders without a hue tint.
+      saturationScale: 0,
       parentId: WORKSPACES_ID,
       childIds: childPapers.map((p) => p.id),
       content: (
