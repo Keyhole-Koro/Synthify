@@ -301,9 +301,9 @@ type TreeItem struct {
 	CreatedBy         string
 	GovernanceState   string
 	LastMutationJobID string
-	CrossDocument     bool
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	CrossDocument     bool
 }
 
 type UploadReservation struct {
