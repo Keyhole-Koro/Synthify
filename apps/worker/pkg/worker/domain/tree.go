@@ -53,15 +53,30 @@ type TreeItem struct {
 }
 
 type GeneratedTreeItem struct {
-	LocalID        string   `json:"local_id"`
-	Title          string   `json:"title"`
-	Level          int      `json:"level"`
-	Description    string   `json:"description"`
-	Content        string   `json:"content"`
-	OverrideCSS    string   `json:"override_css,omitempty"`
-	ParentLocalID  string   `json:"parent_local_id"`
-	ChildLocalIDs  []string `json:"child_local_ids"`
-	SourceChunkIDs []string `json:"source_chunk_ids"`
+	LocalID string `json:"local_id"`
+	// MergeTargetItemID, when set, is the id of an existing workspace tree node
+	// that this generated item should be merged into rather than created anew.
+	// The persistence step rewrites that node's title/description/content,
+	// marks it cross_document, and adds this document's item_sources. Empty
+	// means "create a new node".
+	MergeTargetItemID string   `json:"merge_target_item_id,omitempty"`
+	Title             string   `json:"title"`
+	Level             int      `json:"level"`
+	Description       string   `json:"description"`
+	Content           string   `json:"content"`
+	OverrideCSS       string   `json:"override_css,omitempty"`
+	ParentLocalID     string   `json:"parent_local_id"`
+	ChildLocalIDs     []string `json:"child_local_ids"`
+	SourceChunkIDs    []string `json:"source_chunk_ids"`
+}
+
+// ExistingNode is a compact view of a workspace tree node shown to the LLM
+// during knowledge-tree generation so it can decide whether to merge a new
+// concept into an existing node (by emitting its ID as merge_target_item_id).
+type ExistingNode struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
 }
 
 type Chunk struct {

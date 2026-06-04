@@ -20,3 +20,10 @@ Rules for Structure:
 - Assign local_id as "item_1", "item_2", etc.
 - description: a very short, plain-text summary for list views.
 - source_chunk_ids: list of chunk IDs referenced (format: "{document_id}_chunk_{index}").
+
+Rules for Merging with the Existing Workspace Tree:
+- The workspace already holds ONE shared knowledge tree, listed under "Existing workspace nodes". Documents are sources that feed this single tree, not separate trees.
+- When a concept you are generating is essentially the SAME as an existing node, MERGE into it: set "merge_target_item_id" to that node's id (the first column). Then write title/description/content as an IMPROVED, combined version that incorporates BOTH the existing knowledge and the new document's contribution — do not discard the existing node's information.
+- When a concept is genuinely new, leave "merge_target_item_id" empty and create a new node as usual.
+- Merge conservatively: only merge when you are confident two concepts are the same. When unsure, create a new node.
+- A merged item still lists its source_chunk_ids from THIS document; parent_local_id is ignored for merged items (the existing node keeps its place in the tree).

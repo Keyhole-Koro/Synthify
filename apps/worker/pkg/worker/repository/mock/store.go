@@ -1208,6 +1208,22 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 	return domain.ErrNotFound
 }
 
+func (s *Store) MergeItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, title, description, content string) (*domain.Item, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, wsItems := range s.items {
+		if n, ok := wsItems[itemID]; ok {
+			n.Title = title
+			n.Description = description
+			n.Content = content
+			n.CrossDocument = true
+			n.LastMutationJobID = jobID
+			return n, nil
+		}
+	}
+	return nil, domain.ErrNotFound
+}
+
 func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
 	return nil
 }

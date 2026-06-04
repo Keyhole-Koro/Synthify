@@ -31,9 +31,10 @@ const toolKnowledgeTree = "knowledge_tree"
 // mirror process.GenerateKnowledgeTreeArgs so the worker and the eval runner render
 // identical prompts from identical inputs.
 type RenderInput struct {
-	DocumentID  string
-	Instruction string
-	Chunks      []domain.Chunk
+	DocumentID    string
+	Instruction   string
+	Chunks        []domain.Chunk
+	ExistingNodes []domain.ExistingNode
 }
 
 // Prompt is a rendered system/user prompt pair.
@@ -124,6 +125,15 @@ func (r *Renderer) Render(in RenderInput) (Prompt, error) {
 		fmt.Fprintf(&chunks, "[%d] %s\n%s\n\n", chunk.ChunkIndex, chunk.Heading, chunk.Text)
 	}
 
+	existingNodes := "none"
+	if len(in.ExistingNodes) > 0 {
+		var b strings.Builder
+		for _, n := range in.ExistingNodes {
+			fmt.Fprintf(&b, "- %s | %s | %s\n", n.ID, n.Title, n.Description)
+		}
+		existingNodes = b.String()
+	}
+
 	var sysBuf strings.Builder
 	if err := r.system.Execute(&sysBuf, nil); err != nil {
 		return Prompt{}, fmt.Errorf("render system prompt: %w", err)
@@ -131,13 +141,15 @@ func (r *Renderer) Render(in RenderInput) (Prompt, error) {
 
 	var userBuf strings.Builder
 	err := r.user.Execute(&userBuf, struct {
-		DocumentID  string
-		Instruction string
-		Chunks      string
+		DocumentID    string
+		Instruction   string
+		Chunks        string
+		ExistingNodes string
 	}{
-		DocumentID:  in.DocumentID,
-		Instruction: instruction,
-		Chunks:      chunks.String(),
+		DocumentID:    in.DocumentID,
+		Instruction:   instruction,
+		Chunks:        chunks.String(),
+		ExistingNodes: existingNodes,
 	})
 	if err != nil {
 		return Prompt{}, fmt.Errorf("render user prompt: %w", err)

@@ -68,32 +68,52 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 			if title == "" {
 				title = item.LocalID
 			}
-			parentID := ""
-			if mapped := itemIDs[item.ParentLocalID]; mapped != "" {
-				parentID = mapped
+			// Merge into an existing node when the LLM chose a merge target:
+			// rewrite that node and add this document's provenance instead of
+			// creating a duplicate. Otherwise create a new node.
+			var persistedID string
+			if item.MergeTargetItemID != "" {
+				merged, err := b.Repo.MergeItemWithCapability(
+					ctx,
+					capability,
+					args.JobID,
+					item.MergeTargetItemID,
+					title,
+					item.Description,
+					item.Content,
+				)
+				if err != nil {
+					return nil, core.Usage{}, fmt.Errorf("merge item %q into %s: %w", title, item.MergeTargetItemID, err)
+				}
+				persistedID = merged.ItemID
+			} else {
+				parentID := ""
+				if mapped := itemIDs[item.ParentLocalID]; mapped != "" {
+					parentID = mapped
+				}
+				createdItem, err := b.Repo.CreateStructuredItemWithCapability(
+					ctx,
+					capability,
+					args.JobID,
+					args.DocumentID,
+					args.WorkspaceID,
+					title,
+					item.Level,
+					item.Description,
+					item.Content,
+					item.OverrideCSS,
+					"llm_worker",
+					parentID,
+					item.SourceChunkIDs,
+				)
+				if err != nil {
+					return nil, core.Usage{}, fmt.Errorf("create item %q: %w", title, err)
+				}
+				persistedID = createdItem.ItemID
 			}
-
-			createdItem, err := b.Repo.CreateStructuredItemWithCapability(
-				ctx,
-				capability,
-				args.JobID,
-				args.DocumentID,
-				args.WorkspaceID,
-				title,
-				item.Level,
-				item.Description,
-				item.Content,
-				item.OverrideCSS,
-				"llm_worker",
-				parentID,
-				item.SourceChunkIDs,
-			)
-			if err != nil {
-				return nil, core.Usage{}, fmt.Errorf("create item %q: %w", title, err)
-			}
-			itemIDs[item.LocalID] = createdItem.ItemID
+			itemIDs[item.LocalID] = persistedID
 			for _, chunkID := range item.SourceChunkIDs {
-				if err := b.Repo.UpsertItemSource(ctx, createdItem.ItemID, args.DocumentID, item.FileID, chunkID, item.Description, 0.75); err != nil {
+				if err := b.Repo.UpsertItemSource(ctx, persistedID, args.DocumentID, item.FileID, chunkID, item.Description, 0.75); err != nil {
 					return nil, core.Usage{}, err
 				}
 			}

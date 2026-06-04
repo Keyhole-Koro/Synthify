@@ -53,15 +53,16 @@ type TreeItem struct {
 }
 
 type GeneratedTreeItem struct {
-	LocalID        string   `json:"local_id"`
-	Title          string   `json:"title"`
-	Level          int      `json:"level"`
-	Description    string   `json:"description"`
-	Content        string   `json:"content"`
-	OverrideCSS    string   `json:"override_css,omitempty"`
-	ParentLocalID  string   `json:"parent_local_id"`
-	ChildLocalIDs  []string `json:"child_local_ids"`
-	SourceChunkIDs []string `json:"source_chunk_ids"`
+	LocalID           string   `json:"local_id"`
+	MergeTargetItemID string   `json:"merge_target_item_id,omitempty"`
+	Title             string   `json:"title"`
+	Level             int      `json:"level"`
+	Description       string   `json:"description"`
+	Content           string   `json:"content"`
+	OverrideCSS       string   `json:"override_css,omitempty"`
+	ParentLocalID     string   `json:"parent_local_id"`
+	ChildLocalIDs     []string `json:"child_local_ids"`
+	SourceChunkIDs    []string `json:"source_chunk_ids"`
 }
 
 type Chunk struct {

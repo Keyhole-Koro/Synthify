@@ -122,6 +122,10 @@ type ItemRepository interface {
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error)
 	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
+	// MergeItemWithCapability folds a document's knowledge into an existing
+	// node (rewrites title/description/content, marks cross_document). Pair
+	// with UpsertItemSource to record the merged document's provenance.
+	MergeItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, title, description, content string) (*domain.Item, error)
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 }

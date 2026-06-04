@@ -8,11 +8,9 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 )
 
-// legacySystemPrompt is the verbatim system prompt that knowledge tree generation.go embedded
-// as a raw string literal before prompt externalization. The migration must
-// reproduce it byte-for-byte (contract §2.2). Do not "fix" this string to
-// match the template; if they diverge the template changed behaviour.
-const legacySystemPrompt = `You are a Lead Knowledge Architect. Convert document chunks into a high-fidelity, hierarchical knowledge tree.
+// expectedSystemPrompt mirrors templates/knowledge_tree.system.tmpl. If they
+// diverge the template changed behaviour — update both deliberately.
+const expectedSystemPrompt = `You are a Lead Knowledge Architect. Convert document chunks into a high-fidelity, hierarchical knowledge tree.
 
 Rules for "content" (STRICT):
 - NO MARKDOWN: Never use #, ##, **, or [text](url). Use HTML tags only.
@@ -33,12 +31,19 @@ Rules for Structure:
 - Use parent_local_id to express relationships. Root-level items have empty parent_local_id.
 - Assign local_id as "item_1", "item_2", etc.
 - description: a very short, plain-text summary for list views.
-- source_chunk_ids: list of chunk IDs referenced (format: "{document_id}_chunk_{index}").`
+- source_chunk_ids: list of chunk IDs referenced (format: "{document_id}_chunk_{index}").
 
-// legacyUserPrompt reproduces the previous fmt.Sprintf construction in
-// knowledge tree generation.go: the "none" default for empty instruction and the
-// "[%d] %s\n%s\n\n" chunk block.
-func legacyUserPrompt(documentID, instruction string, chunks []domain.Chunk) string {
+Rules for Merging with the Existing Workspace Tree:
+- The workspace already holds ONE shared knowledge tree, listed under "Existing workspace nodes". Documents are sources that feed this single tree, not separate trees.
+- When a concept you are generating is essentially the SAME as an existing node, MERGE into it: set "merge_target_item_id" to that node's id (the first column). Then write title/description/content as an IMPROVED, combined version that incorporates BOTH the existing knowledge and the new document's contribution — do not discard the existing node's information.
+- When a concept is genuinely new, leave "merge_target_item_id" empty and create a new node as usual.
+- Merge conservatively: only merge when you are confident two concepts are the same. When unsure, create a new node.
+- A merged item still lists its source_chunk_ids from THIS document; parent_local_id is ignored for merged items (the existing node keeps its place in the tree).`
+
+// expectedUserPrompt mirrors templates/knowledge_tree.user.tmpl: the "none"
+// defaults for empty instruction / no existing nodes, the chunk block, and the
+// existing-nodes block.
+func expectedUserPrompt(documentID, instruction string, chunks []domain.Chunk, existing []domain.ExistingNode) string {
 	var sb strings.Builder
 	for _, chunk := range chunks {
 		fmt.Fprintf(&sb, "[%d] %s\n%s\n\n", chunk.ChunkIndex, chunk.Heading, chunk.Text)
@@ -46,10 +51,18 @@ func legacyUserPrompt(documentID, instruction string, chunks []domain.Chunk) str
 	if instruction == "" {
 		instruction = "none"
 	}
-	return fmt.Sprintf("document_id: %s\nInstruction: %s\n\nChunks:\n%s", documentID, instruction, sb.String())
+	existingNodes := "none"
+	if len(existing) > 0 {
+		var eb strings.Builder
+		for _, n := range existing {
+			fmt.Fprintf(&eb, "- %s | %s | %s\n", n.ID, n.Title, n.Description)
+		}
+		existingNodes = eb.String()
+	}
+	return fmt.Sprintf("document_id: %s\nInstruction: %s\n\nExisting workspace nodes (id | title | description):\n%s\nChunks:\n%s", documentID, instruction, existingNodes, sb.String())
 }
 
-func TestDefaultRendererMatchesLegacyPrompt(t *testing.T) {
+func TestDefaultRendererProducesExpectedPrompt(t *testing.T) {
 	r, err := Default()
 	if err != nil {
 		t.Fatalf("Default(): %v", err)
@@ -78,6 +91,18 @@ func TestDefaultRendererMatchesLegacyPrompt(t *testing.T) {
 			Instruction: "do it",
 			Chunks:      nil,
 		},
+		{
+			// existing nodes are rendered for merge guidance
+			DocumentID:  "doc_with_existing",
+			Instruction: "merge where possible",
+			Chunks: []domain.Chunk{
+				{ChunkIndex: 0, Heading: "Intro", Text: "About X."},
+			},
+			ExistingNodes: []domain.ExistingNode{
+				{ID: "nd_1", Title: "序論", Description: "Introduction"},
+				{ID: "nd_2", Title: "手法", Description: "Method"},
+			},
+		},
 	}
 
 	for _, in := range cases {
@@ -86,12 +111,12 @@ func TestDefaultRendererMatchesLegacyPrompt(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Render(): %v", err)
 			}
-			if got.System != legacySystemPrompt {
-				t.Errorf("system prompt diverged from legacy.\n--- got ---\n%q\n--- want ---\n%q", got.System, legacySystemPrompt)
+			if got.System != expectedSystemPrompt {
+				t.Errorf("system prompt diverged.\n--- got ---\n%q\n--- want ---\n%q", got.System, expectedSystemPrompt)
 			}
-			wantUser := legacyUserPrompt(in.DocumentID, in.Instruction, in.Chunks)
+			wantUser := expectedUserPrompt(in.DocumentID, in.Instruction, in.Chunks, in.ExistingNodes)
 			if got.User != wantUser {
-				t.Errorf("user prompt diverged from legacy.\n--- got ---\n%q\n--- want ---\n%q", got.User, wantUser)
+				t.Errorf("user prompt diverged.\n--- got ---\n%q\n--- want ---\n%q", got.User, wantUser)
 			}
 		})
 	}

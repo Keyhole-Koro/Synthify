@@ -204,6 +204,78 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 	return tx.Commit()
 }
 
+// MergeItemWithCapability folds a document's knowledge into an existing tree
+// node: it rewrites the node's title/description/content and marks it
+// cross_document. Callers pair this with UpsertItemSource to record the new
+// document's provenance. Capability checks mirror the other mutating methods.
+func (s *Store) MergeItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, title, description, content string) (*domain.Item, error) {
+	if capability == nil || !capability.Allows(appv1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
+		return nil, fmt.Errorf("mutation not allowed by capability or expired")
+	}
+	if !capability.AllowsItem(itemID) {
+		return nil, fmt.Errorf("item not in capability scope: %w", domain.ErrForbidden)
+	}
+
+	existing, err := s.GetItem(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	if capability.WorkspaceID != "" && capability.WorkspaceID != existing.WorkspaceID {
+		return nil, fmt.Errorf("workspace mismatch")
+	}
+
+	now := nowTime()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	qtx := s.q().WithTx(tx)
+	affected, err := qtx.UpdateItemForMerge(ctx, sqlcgen.UpdateItemForMergeParams{
+		ID:                itemID,
+		Title:             title,
+		Description:       description,
+		Content:           content,
+		LastMutationJobID: jobID,
+		UpdatedAt:         now,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return nil, domain.ErrNotFound
+	}
+
+	merged := *existing
+	merged.Title = title
+	merged.Description = description
+	merged.Content = content
+	merged.CrossDocument = true
+	merged.LastMutationJobID = jobID
+
+	if err := s.logMutationTx(ctx, tx, &domain.JobMutationLog{
+		MutationID:     newID(),
+		JobID:          jobID,
+		CapabilityID:   capability.CapabilityID,
+		WorkspaceID:    existing.WorkspaceID,
+		TargetType:     "item",
+		TargetID:       itemID,
+		MutationType:   "merge",
+		RiskTier:       "tier_1",
+		BeforeJSON:     mustJSON(map[string]string{"title": existing.Title, "description": existing.Description, "content": existing.Content}),
+		AfterJSON:      mustJSON(map[string]string{"title": title, "description": description, "content": content}),
+		ProvenanceJSON: mustJSON(map[string]any{"merge": true}),
+		CreatedAt:      now.Format(time.RFC3339),
+	}); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &merged, nil
+}
+
 func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
 	if err := s.q().UpsertApprovedAlias(ctx, sqlcgen.UpsertApprovedAliasParams{
 		WorkspaceID:     wsID,

@@ -19,6 +19,11 @@ type GenerateKnowledgeTreeArgs struct {
 	WorkspaceID string         `json:"workspace_id"`
 	Chunks      []domain.Chunk `json:"chunks"`
 	Instruction string         `json:"instruction,omitempty"`
+	// ExistingNodes is the workspace's current knowledge tree (id + title +
+	// description per node). The LLM consults it to decide whether a generated
+	// concept should merge into an existing node (set merge_target_item_id) or
+	// be created anew. Populated by the tool, not the agent.
+	ExistingNodes []domain.ExistingNode `json:"existing_nodes,omitempty"`
 }
 
 type GenerateKnowledgeTreeResult struct {
@@ -34,6 +39,22 @@ func NewGenerateKnowledgeTreeTool(b *base.Context) (core.Tool, error) {
 		var args GenerateKnowledgeTreeArgs
 		if err := json.Unmarshal(in, &args); err != nil {
 			return nil, core.Usage{}, err
+		}
+		// Show the LLM the workspace's current tree so it can merge new
+		// concepts into existing nodes instead of duplicating them. Best
+		// effort: a fetch failure just means generation proceeds without
+		// merge hints (all items become new nodes).
+		if b != nil && b.Repo != nil && args.WorkspaceID != "" {
+			if existing, terr := b.Repo.GetTreeByWorkspace(ctx, args.WorkspaceID); terr == nil {
+				args.ExistingNodes = make([]domain.ExistingNode, 0, len(existing))
+				for _, it := range existing {
+					args.ExistingNodes = append(args.ExistingNodes, domain.ExistingNode{
+						ID:          it.ItemID,
+						Title:       it.Title,
+						Description: it.Description,
+					})
+				}
+			}
 		}
 		items, usage, err := GenerateKnowledgeTree(ctx, b.LLM, args)
 		if err != nil {
@@ -81,9 +102,10 @@ func GenerateKnowledgeTreeWithRenderer(ctx context.Context, llmClient base.LLMCl
 	}
 
 	prompt, err := renderer.Render(prompts.RenderInput{
-		DocumentID:  args.DocumentID,
-		Instruction: args.Instruction,
-		Chunks:      args.Chunks,
+		DocumentID:    args.DocumentID,
+		Instruction:   args.Instruction,
+		Chunks:        args.Chunks,
+		ExistingNodes: args.ExistingNodes,
 	})
 	if err != nil {
 		return nil, llm.Usage{}, err
