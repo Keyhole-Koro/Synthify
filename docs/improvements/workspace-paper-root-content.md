@@ -1,6 +1,6 @@
 # ワークスペース paper に唯一 root node の content を表示する
 
-**Status:** 設計ドラフト（実装前）
+**Status:** Done（d4ce46b で実装。card 一覧 `WorkspaceDocumentList` は撤去済み）／未決定事項（iframe 高さ・root content 改稿タイミング等）は下記に残す
 **前提:** [tree-node-workspace-ownership](tree-node-workspace-ownership.md)（node 直属モデル）が実装済み。本設計はその上に「ワークスペース＝1つの統合知識レポート」という UI を載せる。
 
 ## やりたいこと

@@ -1,6 +1,6 @@
 # node を workspace 直属の統合ツリーにする（document 従属の解消）
 
-**Status:** 設計ドラフト（実装前・大きな構造転換）
+**Status:** Done（0018 でスキーマ転換、bc0d8b3〜08d4ea0 で worker/api/web 転換）。残: `cross_document` の UI 可視化・`item_aliases` による alias 統合は未実装
 **採用方針:** tree の node は document に従属せず、**workspace が持つ 1 本の統合ツリー**とする。document はツリーの頂点（`document_root`）ではなく、`item_sources` 経由の**出典**にすぎない。`document_root` / `workspace_root` / `kind` を廃止する。
 
 ## 問題：node が document に従属している
@@ -109,11 +109,11 @@ document アップロード → 抽出・チャンク化（現状どおり）
 ### DB スキーマ
 - `tree_items.kind` 列と CHECK 制約を削除。
 - `document_tree_links` テーブルを削除。
-- 開発中につき DB リセットで対応（migration 不要、[workspace-root-id-unification](workspace-root-id-unification.md) と同方針）。
+- 開発中につき DB リセットで対応（migration 不要）。
 
 ### frontend — projection / buildTree の簡素化
 - [buildTree.ts:38,46](../../apps/web/src/features/tree/buildTree.ts#L38): `findRootItemId`（kind=WORKSPACE_ROOT）/ `findDocumentRootItemIds`（kind=DOCUMENT_ROOT）が**不要に**。根は workspace、頂点 node は workspace 直下の node。
-- [useWorkspaceProjection.ts](../../apps/web/src/features/workspaces/useWorkspaceProjection.ts): workspace_root の「隠す・付け替え」が消える（[workspace-root-id-unification](workspace-root-id-unification.md) で先行して撤廃する分とも整合）。
+- [useWorkspaceProjection.ts](../../apps/web/src/features/workspaces/useWorkspaceProjection.ts): workspace_root の「隠す・付け替え」が消える。
 - ワークスペース paper の content に並ぶ「document カード」は、ツリーノードではなく **document 一覧（出典の供給源）** を出すものに意味が変わる。document を開くと「その document を出典に持つ node 群」を見せる、等の再設計余地。
 
 ### proto / 生成コード
@@ -121,8 +121,7 @@ document アップロード → 抽出・チャンク化（現状どおり）
 
 ## 関連ドキュメント
 
-- [workspace-root-id-unification.md](workspace-root-id-unification.md) — workspace_root id = workspace id。本設計の **前段**（workspace 自身が根になる準備）。本設計はさらに踏み込み、document_root も廃して node を workspace 直属にする。
-- [tree-item-kind-renaming.md](tree-item-kind-renaming.md) — kind 改名案。本設計が実現すると **kind 列自体が不要**になるため、改名ではなく廃止に発展する。本設計を採るなら kind-renaming は不要になる。
+- 旧 `workspace-root-id-unification` 案（workspace_root id = workspace id）・旧 `tree-item-kind-renaming` 案（kind 改名）は、本設計が workspace_root / kind 列自体を廃止したことで不要化・吸収され、ドキュメントは削除済み（設計経緯は git 履歴参照）。
 
 ## 未決定事項（実装前に詰める）
 
