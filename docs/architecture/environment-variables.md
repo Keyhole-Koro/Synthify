@@ -36,7 +36,8 @@
 | `eval_schedule` | LLM eval Cloud Run Job を起動する cron | `0 4 * * *` |
 | `eval_time_zone` | eval Scheduler の timezone | `Asia/Tokyo` |
 | `CORS_ALLOWED_ORIGINS` | フロントエンドの URL | `https://synthify.keyhole.work` |
-| `STRIPE_PRO_PRICE_ID` | Stripe の商品/価格 ID | `price_...` |
+| `STRIPE_PRO_PRICE_ID_JPY` | JPY 建て Stripe 価格 ID（カンマ区切りで複数可） | `price_...` |
+| `STRIPE_PRO_PRICE_ID_USD` | USD 建て Stripe 価格 ID（カンマ区切りで複数可） | `price_...` |
 | `BILLING_SUCCESS_URL` | 決済成功後のリダイレクト先 | `/billing/success` |
 | `NEW_RELIC_APP_NAME` | New Relic 上のアプリケーション名 | `synthify-api` |
 | `GCS_UPLOAD_ISSUER` | Upload URL 発行方式。`fake` または `signed` | ローカルは未設定/`fake`、本番 GCS は `signed` |

@@ -57,7 +57,6 @@ type Auth struct {
 type Stripe struct {
 	SecretKey        string
 	WebhookSecret    string
-	ProPriceID       string
 	ProPriceIDJPY    string
 	ProPriceIDUSD    string
 	DefaultCurrency  string
@@ -110,7 +109,6 @@ func LoadAPI() API {
 		Stripe: Stripe{
 			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
 			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
-			ProPriceID:       os.Getenv("STRIPE_PRO_PRICE_ID"),
 			ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
 			ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
 			DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),

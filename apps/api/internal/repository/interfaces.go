@@ -17,9 +17,9 @@ type DocumentUploadTarget struct {
 }
 
 type DocumentUploadURLIssuer interface {
-	// IssueDocumentUploadURL は GCS への signed PUT URL を発行する。
-	// fileSize は Content-Length ヘッダを signature に含めて固定するためのもので、
-	// 0 以下なら Content-Length 強制を行わない (互換用のフォールバック)。
+	// IssueDocumentUploadURL issues a signed PUT URL to GCS. fileSize is bound
+	// into the signature via the Content-Length header; it is always validated
+	// to be positive by the caller (CreateDocument) before reaching here.
 	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (DocumentUploadTarget, error)
 }
 

@@ -21,7 +21,6 @@ import (
 type Config struct {
 	SecretKey        string
 	WebhookSecret    string
-	ProPriceID       string
 	ProPriceIDJPY    string
 	ProPriceIDUSD    string
 	DefaultCurrency  string
@@ -118,14 +117,6 @@ func buildPriceCatalog(cfg Config) (map[string][]Price, map[string]Price, domain
 	for _, g := range groups {
 		for _, id := range splitPriceIDs(g.raw) {
 			addPrice(g.currency, id)
-		}
-	}
-	if cfg.ProPriceID != "" {
-		// Legacy single price falls back to the default currency only when nothing else is configured for it.
-		if _, ok := byKey[priceKey(domain.BillingPlanUsageBased, defaultCurrency)]; !ok {
-			for _, id := range splitPriceIDs(cfg.ProPriceID) {
-				addPrice(defaultCurrency, id)
-			}
 		}
 	}
 	if len(byKey) == 0 {

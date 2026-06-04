@@ -77,7 +77,6 @@ func main() {
 	stripeProvider, err := stripe.NewProvider(stripe.Config{
 		SecretKey:        cfg.Stripe.SecretKey,
 		WebhookSecret:    cfg.Stripe.WebhookSecret,
-		ProPriceID:       cfg.Stripe.ProPriceID,
 		ProPriceIDJPY:    cfg.Stripe.ProPriceIDJPY,
 		ProPriceIDUSD:    cfg.Stripe.ProPriceIDUSD,
 		DefaultCurrency:  cfg.Stripe.DefaultCurrency,

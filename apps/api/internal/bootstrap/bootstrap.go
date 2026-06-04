@@ -147,9 +147,9 @@ func (i gcsSignedDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Con
 	// header so a client cannot reuse the URL to upload something larger than
 	// what was reserved against the account's quota. V4 signing requires the
 	// header to appear verbatim on the PUT for the signature to validate.
-	if fileSize > 0 {
-		opts.Headers = []string{"Content-Length:" + strconv.FormatInt(fileSize, 10)}
-	}
+	// fileSize is validated > 0 upstream (validateUploadSize), so the binding
+	// is always applied.
+	opts.Headers = []string{"Content-Length:" + strconv.FormatInt(fileSize, 10)}
 	if len(i.privateKey) > 0 {
 		opts.PrivateKey = i.privateKey
 	} else {
