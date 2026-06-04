@@ -7,11 +7,17 @@ import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
-import { WorkspaceRootChildLinks } from './components/WorkspaceRootChildLinks';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { type Workspace } from '@/features/workspaces/api';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
+
+// WORKSPACE_PAPER_HUE matches the hue the factory assigns to the workspace
+// paper (workspacePaperFactory). The paper renders with saturationScale: 0, so
+// the room/content read as a neutral surface while only the header keeps the
+// hue's tint. The root content iframe is transparent, so the room background
+// shows through it directly — no surface color needs to be threaded in.
+export const WORKSPACE_PAPER_HUE = 200;
 
 export interface WorkspacePaperRuntimeState {
   initialActiveJobId?: string | null;
@@ -163,14 +169,26 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
 
           {/* Always-visible section. The workspace's single root node content
-              is its cover report, rendered as a CSS-isolated iframe. The root's
-              child nodes are listed below the iframe (not inside it) as
-              data-paper-id links, since the iframe boundary cuts those links off
-              from paper-in-paper's click handler. Recent jobs stay visible below
-              regardless of hover/pin. */}
+              is its cover report, rendered as a CSS-isolated iframe. data-paper-id
+              links embedded in the content are clickable: the iframe forwards the
+              click to the host, which opens the child paper. Any child not
+              referenced in the content is appended as a related link. Recent jobs
+              stay visible below regardless of hover/pin.
+
+              The iframe is pulled out to the room's left/right edges (-mx-5) so
+              the cover report fills the content width; its inner body padding
+              keeps the text readable. The job list keeps the px-5 gutter. */}
           <div className="flex flex-col gap-4 px-5 pb-4">
-            {rootContent && <WorkspaceRootContent content={rootContent} overrideCss={rootOverrideCss} />}
-            {rootContent && <WorkspaceRootChildLinks children={childItems} />}
+            {rootContent && (
+              <div className="-mx-5">
+                <WorkspaceRootContent
+                  nodeId={workspaceId}
+                  content={rootContent}
+                  overrideCss={rootOverrideCss}
+                  childItems={childItems}
+                />
+              </div>
+            )}
             <WorkspaceJobList workspaceJobs={workspaceJobs} />
           </div>
         </>
