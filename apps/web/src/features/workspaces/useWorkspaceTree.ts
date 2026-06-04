@@ -209,9 +209,10 @@ export function useWorkspaceTree(
     return { rootNodeItemId: itemId, title };
   }, [canReadWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, store, updateWorkspaceExpansion]);
 
-  // injectMockWorkspaceTree builds a complete frontend-only tree (workspace_root
-  // + N document_root, each with M nodes) and projects it, without any backend
-  // call. Used by __synthifyDebug to preview WorkspacePaper UI states offline.
+  // injectMockWorkspaceTree builds a complete frontend-only tree (N root nodes
+  // sitting directly under the workspace, each with M child nodes) and projects
+  // it, without any backend call. Used by __synthifyDebug to preview
+  // WorkspacePaper UI states offline.
   const injectMockWorkspaceTree = useCallback((
     workspace: Workspace,
     args: InjectMockWorkspaceTreeArgs = {},

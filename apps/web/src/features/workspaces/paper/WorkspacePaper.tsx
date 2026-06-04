@@ -6,8 +6,8 @@ import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
-import { WorkspaceDocumentList } from './components/WorkspaceDocumentList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
+import { WorkspaceRootChildLinks } from './components/WorkspaceRootChildLinks';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { type Workspace } from '@/features/workspaces/api';
 import { InlineError } from '@/components/error/InlineError';
@@ -163,13 +163,14 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
 
           {/* Always-visible section. The workspace's single root node content
-              is its cover report, rendered as a CSS-isolated iframe; when the
-              tree has no root yet, fall back to the node card list. Recent jobs
-              stay visible below regardless of hover/pin. */}
+              is its cover report, rendered as a CSS-isolated iframe. The root's
+              child nodes are listed below the iframe (not inside it) as
+              data-paper-id links, since the iframe boundary cuts those links off
+              from paper-in-paper's click handler. Recent jobs stay visible below
+              regardless of hover/pin. */}
           <div className="flex flex-col gap-4 px-5 pb-4">
-            {rootContent
-              ? <WorkspaceRootContent content={rootContent} overrideCss={rootOverrideCss} />
-              : <WorkspaceDocumentList documents={childItems} />}
+            {rootContent && <WorkspaceRootContent content={rootContent} overrideCss={rootOverrideCss} />}
+            {rootContent && <WorkspaceRootChildLinks children={childItems} />}
             <WorkspaceJobList workspaceJobs={workspaceJobs} />
           </div>
         </>
