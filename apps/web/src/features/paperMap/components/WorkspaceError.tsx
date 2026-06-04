@@ -7,11 +7,14 @@ import { useExponentialBackoff } from '@/lib/useExponentialBackoff';
 
 interface WorkspaceErrorProps {
   error: AppError;
-  onRetry: () => void;
+  onRetry: () => void | Promise<void>;
 }
 
 export function WorkspaceError({ error, onRetry }: WorkspaceErrorProps) {
-  const { nextRetryInSeconds } = useExponentialBackoff({ error, onRetry });
+  const { nextRetryInSeconds } = useExponentialBackoff({
+    error: error.retryable ? error : null,
+    onRetry,
+  });
 
   const message = nextRetryInSeconds !== null
     ? `${error.message || 'しばらく時間をおいてから、再度お試しください。'} (${nextRetryInSeconds}秒後に再試行します...)`

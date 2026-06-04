@@ -17,8 +17,13 @@ export function useAuthState() {
   const [workspaceError, setWorkspaceError] = useState<AppError | null>(null);
   const [authError, setAuthError] = useState<AppError | null>(null);
 
-  const fetchWorkspaces = useCallback(async (owner: AuthUser | null = null) => {
-    setWorkspaceError(null);
+  const fetchWorkspaces = useCallback(async (
+    owner: AuthUser | null = null,
+    options: { clearError?: boolean } = {},
+  ) => {
+    if (options.clearError ?? true) {
+      setWorkspaceError(null);
+    }
     try {
       // signInUser provisions users/accounts/account_users. ListWorkspaces and
       // TreeService authz both depend on account_users, so keep this serialized
@@ -35,6 +40,7 @@ export function useAuthState() {
       setWorkspaces(ws);
       setVerifiedWorkspaceIds(new Set(ws.map((workspace) => workspace.workspaceId)));
       saveWorkspaceSnapshot(owner, ws);
+      setWorkspaceError(null);
     } catch (err) {
       log.error('Failed to provision/list workspaces', { source: 'auth_fetch_workspaces' }, err);
       setVerifiedWorkspaceIds(new Set());
@@ -62,7 +68,7 @@ export function useAuthState() {
   }, [fetchWorkspaces]);
 
   const retryWorkspaces = useCallback(async () => {
-    await fetchWorkspaces(user);
+    await fetchWorkspaces(user, { clearError: false });
   }, [fetchWorkspaces, user]);
 
   const markWorkspaceVerified = useCallback((workspaceId: string) => {

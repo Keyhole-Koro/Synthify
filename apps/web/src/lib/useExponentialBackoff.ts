@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 
 interface UseExponentialBackoffArgs {
-  onRetry: () => void;
+  onRetry: () => void | Promise<void>;
   error: unknown;
   initialDelayMs?: number;
   maxDelayMs?: number;
@@ -19,6 +19,7 @@ export function useExponentialBackoff({
   const [nextRetryInMs, setNextRetryInMs] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const retryingRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     if (timerRef.current) {
@@ -31,12 +32,6 @@ export function useExponentialBackoff({
     }
   }, []);
 
-  // Initialize the countdown whenever a backoff episode (re)starts — i.e. when an
-  // error first appears or a retry advances retryCount — and reset it when the
-  // error clears. Adjusting state during render (instead of in an effect) avoids
-  // the cascading re-render that synchronous setState in useEffect causes. We key
-  // off a boolean rather than the error's identity, since callers may pass a fresh
-  // error object on every render.
   const hasError = !!error;
   const [prevHasError, setPrevHasError] = useState(false);
   const [prevRetryCount, setPrevRetryCount] = useState(0);
@@ -53,27 +48,42 @@ export function useExponentialBackoff({
   }
 
   useEffect(() => {
-    if (!error) {
+    if (!hasError) {
       clearTimers();
+      retryingRef.current = false;
       return;
     }
 
+    let cancelled = false;
+
     const delay = Math.min(initialDelayMs * Math.pow(2, retryCount), maxDelayMs);
 
-    timerRef.current = setTimeout(() => {
-      setRetryCount((c) => c + 1);
-      onRetry();
+    timerRef.current = setTimeout(async () => {
+      if (retryingRef.current) return;
+      retryingRef.current = true;
+      setNextRetryInMs(0);
+
+      try {
+        await onRetry();
+      } finally {
+        retryingRef.current = false;
+        if (!cancelled) {
+          setRetryCount((c) => c + 1);
+        }
+      }
     }, delay);
 
-    // Countdown for UI feedback
     let remaining = delay;
     countdownRef.current = setInterval(() => {
       remaining -= 1000;
       setNextRetryInMs(Math.max(0, remaining));
     }, 1000);
 
-    return clearTimers;
-  }, [error, retryCount, onRetry, initialDelayMs, maxDelayMs, clearTimers]);
+    return () => {
+      cancelled = true;
+      clearTimers();
+    };
+  }, [hasError, retryCount, onRetry, initialDelayMs, maxDelayMs, clearTimers]);
 
   return {
     retryCount,

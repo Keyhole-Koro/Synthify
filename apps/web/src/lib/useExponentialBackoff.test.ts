@@ -3,6 +3,12 @@ import { renderHook, act } from '@testing-library/react';
 import { useExponentialBackoff } from './useExponentialBackoff';
 
 describe('useExponentialBackoff', () => {
+  async function advanceTimers(ms: number) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -22,7 +28,7 @@ describe('useExponentialBackoff', () => {
     expect(onRetry).not.toHaveBeenCalled();
   });
 
-  it('triggers onRetry after initial delay when error occurs', () => {
+  it('triggers onRetry after initial delay when error occurs', async () => {
     const onRetry = vi.fn();
     const { result } = renderHook(() =>
       useExponentialBackoff({ onRetry, error: new Error('test'), initialDelayMs: 1000 })
@@ -30,15 +36,13 @@ describe('useExponentialBackoff', () => {
 
     expect(result.current.nextRetryInSeconds).toBe(1);
 
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
+    await advanceTimers(1000);
 
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(result.current.retryCount).toBe(1);
   });
 
-  it('increases delay exponentially on subsequent errors', () => {
+  it('increases delay exponentially on subsequent errors', async () => {
     const onRetry = vi.fn();
     const { result, rerender } = renderHook(
       ({ err }) => useExponentialBackoff({ onRetry, error: err, initialDelayMs: 1000 }),
@@ -46,9 +50,7 @@ describe('useExponentialBackoff', () => {
     );
 
     // 1st retry: 1s
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
+    await advanceTimers(1000);
     expect(onRetry).toHaveBeenCalledTimes(1);
     expect(result.current.retryCount).toBe(1);
 
@@ -57,23 +59,19 @@ describe('useExponentialBackoff', () => {
 
     // 2nd retry: 2s
     expect(result.current.nextRetryInSeconds).toBe(2);
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
+    await advanceTimers(2000);
     expect(onRetry).toHaveBeenCalledTimes(2);
     expect(result.current.retryCount).toBe(2);
 
     // 3rd retry: 4s
     rerender({ err: new Error('test') });
     expect(result.current.nextRetryInSeconds).toBe(4);
-    act(() => {
-      vi.advanceTimersByTime(4000);
-    });
+    await advanceTimers(4000);
     expect(onRetry).toHaveBeenCalledTimes(3);
     expect(result.current.retryCount).toBe(3);
   });
 
-  it('caps the delay at maxDelayMs', () => {
+  it('caps the delay at maxDelayMs', async () => {
     const onRetry = vi.fn();
     const { result, rerender } = renderHook(
       ({ err }) =>
@@ -87,27 +85,27 @@ describe('useExponentialBackoff', () => {
     );
 
     // 1st: 1s
-    act(() => vi.advanceTimersByTime(1000));
+    await advanceTimers(1000);
     rerender({ err: new Error('test') });
 
     // 2nd: 2s
-    act(() => vi.advanceTimersByTime(2000));
+    await advanceTimers(2000);
     rerender({ err: new Error('test') });
 
     // 3rd: 3s (capped from 4s)
     expect(result.current.nextRetryInSeconds).toBe(3);
-    act(() => vi.advanceTimersByTime(3000));
+    await advanceTimers(3000);
     expect(onRetry).toHaveBeenCalledTimes(3);
   });
 
-  it('resets retry count when error is cleared', () => {
+  it('resets retry count when error is cleared', async () => {
     const onRetry = vi.fn();
     const { result, rerender } = renderHook(
       ({ err }) => useExponentialBackoff({ onRetry, error: err, initialDelayMs: 1000 }),
       { initialProps: { err: new Error('test') as Error | null } }
     );
 
-    act(() => vi.advanceTimersByTime(1000));
+    await advanceTimers(1000);
     expect(result.current.retryCount).toBe(1);
 
     rerender({ err: null });
