@@ -96,10 +96,9 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
 
   const isTreeMissing = !hasTree;
-  const isExpanded = !isPopulated || isHovered || isPinned || isFailed;
+  const isExpanded = !isPopulated || isHovered || isFailed;
 
   const handleMouseEnter = useCallback(() => setIsHovered(true), []);
   const handleMouseLeave = useCallback(() => setIsHovered(false), []);
@@ -159,8 +158,6 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             isFailed={isFailed}
             jobProgress={jobStatus?.progress}
             isJustCompleted={isJustCompleted}
-            isPinned={isPinned}
-            onTogglePinned={() => setIsPinned((p) => !p)}
             onStartRename={startRename}
             onDraftNameChange={setDraftName}
             onCommitName={commitName}
@@ -173,7 +170,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
               links embedded in the content are clickable: the iframe forwards the
               click to the host, which opens the child paper. Any child not
               referenced in the content is appended as a related link. Recent jobs
-              stay visible below regardless of hover/pin.
+              stay visible below regardless of hover state.
 
               The iframe is pulled out to the room's left/right edges (-mx-5) so
               the cover report fills the content width; its inner body padding

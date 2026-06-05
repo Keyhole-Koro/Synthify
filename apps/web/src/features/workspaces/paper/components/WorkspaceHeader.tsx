@@ -10,8 +10,6 @@ interface WorkspaceHeaderProps {
   isFailed: boolean;
   jobProgress?: number;
   isJustCompleted: boolean;
-  isPinned: boolean;
-  onTogglePinned: () => void;
   onStartRename: () => void;
   onDraftNameChange: (name: string) => void;
   onCommitName: () => void;
@@ -28,8 +26,6 @@ export function WorkspaceHeader({
   isFailed,
   jobProgress,
   isJustCompleted,
-  isPinned,
-  onTogglePinned,
   onStartRename,
   onDraftNameChange,
   onCommitName,
@@ -95,23 +91,6 @@ export function WorkspaceHeader({
             <span className="text-[11px] font-semibold text-emerald-500">just completed</span>
           )}
         </div>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onTogglePinned}
-          className={[
-            'flex h-7 w-7 items-center justify-center rounded-md border transition-colors',
-            isPinned
-              ? 'border-indigo-300 bg-indigo-50 text-indigo-500'
-              : 'border-stone-200 bg-white text-stone-400 hover:border-indigo-300 hover:text-indigo-500',
-          ].join(' ')}
-          title={isPinned ? '閉じる' : '詳細を固定表示'}
-        >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
       </div>
     </div>
   );
