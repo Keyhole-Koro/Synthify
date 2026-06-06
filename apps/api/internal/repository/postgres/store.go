@@ -28,13 +28,8 @@ type Store struct {
 	inTx            bool
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
-	var app *newrelic.Application
-	if len(nrApp) > 0 {
-		app = nrApp[0]
-	}
-
-	db, err := database.OpenDB(dsn, app)
+func NewStore(ctx context.Context, dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
+	store, db, err := newStoreUnpinged(dsn, pool, uploadURLIssuer, logger, nrApp...)
 	if err != nil {
 		return nil, err
 	}
@@ -42,12 +37,36 @@ func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.Docume
 		_ = db.Close()
 		return nil, err
 	}
+	return store, nil
+}
+
+// NewStoreWithoutPing builds the store without verifying connectivity up front.
+// database/sql connects lazily, so the pool will establish (and re-establish)
+// connections on first use and recover if the database was unreachable at
+// startup. Used by bootstrap to keep the API process alive — and its liveness
+// probe green — even when the database is temporarily down, instead of crash-
+// looping. DB-backed RPCs still fail until the database is reachable again.
+func NewStoreWithoutPing(dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
+	store, _, err := newStoreUnpinged(dsn, pool, uploadURLIssuer, logger, nrApp...)
+	return store, err
+}
+
+func newStoreUnpinged(dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, *sql.DB, error) {
+	var app *newrelic.Application
+	if len(nrApp) > 0 {
+		app = nrApp[0]
+	}
+
+	db, err := database.OpenDB(dsn, pool, app)
+	if err != nil {
+		return nil, nil, err
+	}
 	return &Store{
 		db:              db,
 		queries:         sqlcgen.New(db),
 		uploadURLIssuer: uploadURLIssuer,
 		logger:          logger,
-	}, nil
+	}, db, nil
 }
 
 func (s *Store) Close() error {

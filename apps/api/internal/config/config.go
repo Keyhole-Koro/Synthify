@@ -78,7 +78,9 @@ type NewRelic struct {
 }
 
 type Store struct {
-	DatabaseDSN string
+	DatabaseDSN    string
+	DBMaxOpenConns int
+	DBMaxIdleConns int
 }
 
 func LoadAPI() API {
@@ -130,7 +132,11 @@ func LoadAPI() API {
 }
 
 func LoadStore() Store {
-	return Store{DatabaseDSN: os.Getenv("DATABASE_DSN")}
+	return Store{
+		DatabaseDSN:    os.Getenv("DATABASE_DSN"),
+		DBMaxOpenConns: getInt("DB_MAX_OPEN_CONNS", 0),
+		DBMaxIdleConns: getInt("DB_MAX_IDLE_CONNS", 0),
+	}
 }
 
 // defaultDispatchDeadline is the fallback when WORKER_DISPATCH_DEADLINE_SECONDS
@@ -157,6 +163,17 @@ func get(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// getInt reads a positive integer from the environment, falling back to def
+// when the variable is unset or not a positive integer.
+func getInt(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return def
 }
 
 func mustBaseURL(name, value string) string {

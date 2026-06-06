@@ -16,6 +16,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 	"github.com/synthify/backend/apps/api/internal/repository/postgres"
+	"github.com/synthify/backend/internal/platform/database"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 	"github.com/synthify/backend/internal/platform/storage"
 	iamcredentials "google.golang.org/api/iamcredentials/v1"
@@ -54,10 +55,15 @@ type Store interface {
 }
 
 func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp *newrelic.Application) Store {
-	if dsn := config.LoadStore().DatabaseDSN; dsn != "" {
+	storeCfg := config.LoadStore()
+	if dsn := storeCfg.DatabaseDSN; dsn != "" {
+		pool := database.PoolConfig{
+			MaxOpenConns: storeCfg.DBMaxOpenConns,
+			MaxIdleConns: storeCfg.DBMaxIdleConns,
+		}
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
-			store, err := postgres.NewStore(ctx, dsn, uploadURLIssuer, logger, nrApp)
+			store, err := postgres.NewStore(ctx, dsn, pool, uploadURLIssuer, logger, nrApp)
 			if err == nil {
 				logger.Info("api.store_initialized", "type", "postgres")
 				return store
@@ -66,8 +72,22 @@ func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURL
 			logger.Warn("api.store_init_retry", "error", err.Error(), "attempt", attempt)
 			time.Sleep(2 * time.Second)
 		}
-		logger.Error("api.store_init_failed", "error", lastErr.Error())
-		panic(lastErr)
+		// The database is unreachable after all retries (e.g. it is down or a
+		// serverless cluster is disabled). Do NOT panic: a crash loop takes the
+		// whole API down — including the liveness probe — so Cloud Run never
+		// serves and every request becomes a 503 / browser NetworkError. Instead
+		// start with a lazily-connecting store: the process stays up, /health
+		// passes, and DB-backed RPCs recover automatically once the database is
+		// reachable again. DB-independent endpoints keep working throughout.
+		logger.Error("api.store_init_degraded", "error", lastErr.Error())
+		store, err := postgres.NewStoreWithoutPing(dsn, pool, uploadURLIssuer, logger, nrApp)
+		if err != nil {
+			// Only a malformed DSN reaches here (connection is lazy); that is a
+			// genuine config error with no recovery, so fail fast.
+			logger.Error("api.store_init_failed", "error", err.Error())
+			panic(err)
+		}
+		return store
 	}
 	logger.Info("api.store_initialized", "type", "mock")
 	return mock.NewStore()

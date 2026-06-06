@@ -10,6 +10,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/mock"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres"
+	"github.com/synthify/backend/internal/platform/database"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
@@ -40,11 +41,16 @@ type Store interface {
 }
 
 func InitStore(ctx context.Context, logger *slog.Logger, nrApp *newrelic.Application) Store {
-	if dsn := config.LoadStore().DatabaseDSN; dsn != "" {
+	storeCfg := config.LoadStore()
+	if dsn := storeCfg.DatabaseDSN; dsn != "" {
+		pool := database.PoolConfig{
+			MaxOpenConns: storeCfg.DBMaxOpenConns,
+			MaxIdleConns: storeCfg.DBMaxIdleConns,
+		}
 		var lastErr error
 		for attempt := 1; attempt <= 10; attempt++ {
 			// Worker doesn't need upload URL issuer.
-			store, err := postgres.NewStore(ctx, dsn, nil, logger, nrApp)
+			store, err := postgres.NewStore(ctx, dsn, pool, nil, logger, nrApp)
 			if err == nil {
 				logger.Info("worker.store_initialized", "type", "postgres")
 				return store

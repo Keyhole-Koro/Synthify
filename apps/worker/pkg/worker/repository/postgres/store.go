@@ -28,13 +28,13 @@ type Store struct {
 	inTx            bool
 }
 
-func NewStore(ctx context.Context, dsn string, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
+func NewStore(ctx context.Context, dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
 	var app *newrelic.Application
 	if len(nrApp) > 0 {
 		app = nrApp[0]
 	}
 
-	db, err := database.OpenDB(dsn, app)
+	db, err := database.OpenDB(dsn, pool, app)
 	if err != nil {
 		return nil, err
 	}
