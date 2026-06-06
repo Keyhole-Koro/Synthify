@@ -19,6 +19,17 @@ type DocumentFile struct {
 	CreatedAt  string `json:"created_at"`
 }
 
+// DocumentFileLocation carries the coordinates needed to stream a file's bytes
+// from object storage, resolved from a file_id. WorkspaceID + DocumentID form
+// the {ws}/{doc} object prefix; MimeType seeds the delivery Content-Type.
+type DocumentFileLocation struct {
+	FileID      string
+	DocumentID  string
+	WorkspaceID string
+	Path        string
+	MimeType    string
+}
+
 type DocumentChunk struct {
 	ChunkID    string    `json:"chunk_id"`
 	DocumentID string    `json:"document_id"`

@@ -223,12 +223,40 @@ func processImage(ctx context.Context, b *base.Context, source domain.SourceFile
 		fileID = record.FileID
 	}
 
+	// Register the image so HTML-generation tools can embed it via an [[img:N]]
+	// placeholder, which Render turns into an <img data-file-id> marker. The web
+	// client later exchanges the file id for a short-lived signed URL. The alt
+	// text is the extracted content, doubling as a prompt-hint description.
+	// Registration is best-effort: without a file id the image is simply not
+	// offered for embedding.
+	if fileID != "" {
+		b.Images.Register(fileID, imageAltText(source.Filename, text))
+	}
+
 	resultText := strings.TrimSpace(text)
 	if fileID != "" {
 		resultText = fmt.Sprintf("--- Image File: %s (ID: %s) ---\n%s", source.Filename, fileID, resultText)
 	}
 
 	return ExtractionResult{RawText: resultText}, nil
+}
+
+// imageAltText derives concise alt text for a registered image: the filename
+// plus a trimmed lead of the extracted content, so the prompt hint and the
+// rendered <img alt> describe what the image shows.
+func imageAltText(filename, extracted string) string {
+	lead := strings.TrimSpace(extracted)
+	if len(lead) > 160 {
+		lead = strings.TrimSpace(lead[:160])
+	}
+	switch {
+	case filename != "" && lead != "":
+		return filename + ": " + lead
+	case lead != "":
+		return lead
+	default:
+		return filename
+	}
 }
 
 func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) (ExtractionResult, error) {

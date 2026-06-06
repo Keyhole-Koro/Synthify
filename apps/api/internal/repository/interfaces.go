@@ -23,6 +23,20 @@ type DocumentUploadURLIssuer interface {
 	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (DocumentUploadTarget, error)
 }
 
+// SignedURL is a short-lived signed GET URL plus its expiry.
+type SignedURL struct {
+	URL       string
+	ExpiresAt time.Time
+}
+
+// DocumentImageURLIssuer issues a short-lived signed GET URL for a document's
+// uploaded original, used to render images embedded in generated HTML by their
+// data-file-id marker. The url is minted fresh per view and expires, so it is
+// never persisted into the saved HTML.
+type DocumentImageURLIssuer interface {
+	IssueDocumentImageURL(ctx context.Context, workspaceID, documentID, filename string) (SignedURL, error)
+}
+
 // DocumentObjectStore は CreateDocument で発行された GCS object に対する
 // 後始末を担う。reservation の mismatch / expiry のような「アップロード失敗」
 // 系で残骸を消すために用意している。
@@ -105,6 +119,7 @@ type DocumentRepository interface {
 	CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error)
 	ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error)
 	GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error)
+	GetDocumentFileForDelivery(ctx context.Context, fileID string) (*domain.DocumentFileLocation, error)
 }
 
 // DocumentChunkRepository はドキュメントを分割した chunk と vector 検索を扱う。

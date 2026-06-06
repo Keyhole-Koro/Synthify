@@ -54,6 +54,9 @@ const (
 	// DocumentServiceResumeProcessingProcedure is the fully-qualified name of the DocumentService's
 	// ResumeProcessing RPC.
 	DocumentServiceResumeProcessingProcedure = "/synthify.app.v1.DocumentService/ResumeProcessing"
+	// DocumentServiceGetImageURLProcedure is the fully-qualified name of the DocumentService's
+	// GetImageURL RPC.
+	DocumentServiceGetImageURLProcedure = "/synthify.app.v1.DocumentService/GetImageURL"
 )
 
 // DocumentServiceClient is a client for the synthify.app.v1.DocumentService service.
@@ -65,6 +68,9 @@ type DocumentServiceClient interface {
 	ConfirmUpload(context.Context, *connect.Request[v1.ConfirmUploadRequest]) (*connect.Response[v1.ConfirmUploadResponse], error)
 	StartProcessing(context.Context, *connect.Request[v1.StartProcessingRequest]) (*connect.Response[v1.StartProcessingResponse], error)
 	ResumeProcessing(context.Context, *connect.Request[v1.ResumeProcessingRequest]) (*connect.Response[v1.ResumeProcessingResponse], error)
+	// 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
+	// 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
+	GetImageURL(context.Context, *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error)
 }
 
 // NewDocumentServiceClient constructs a client for the synthify.app.v1.DocumentService service. By
@@ -120,6 +126,12 @@ func NewDocumentServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(documentServiceMethods.ByName("ResumeProcessing")),
 			connect.WithClientOptions(opts...),
 		),
+		getImageURL: connect.NewClient[v1.GetImageURLRequest, v1.GetImageURLResponse](
+			httpClient,
+			baseURL+DocumentServiceGetImageURLProcedure,
+			connect.WithSchema(documentServiceMethods.ByName("GetImageURL")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -132,6 +144,7 @@ type documentServiceClient struct {
 	confirmUpload    *connect.Client[v1.ConfirmUploadRequest, v1.ConfirmUploadResponse]
 	startProcessing  *connect.Client[v1.StartProcessingRequest, v1.StartProcessingResponse]
 	resumeProcessing *connect.Client[v1.ResumeProcessingRequest, v1.ResumeProcessingResponse]
+	getImageURL      *connect.Client[v1.GetImageURLRequest, v1.GetImageURLResponse]
 }
 
 // CreateDocument calls synthify.app.v1.DocumentService.CreateDocument.
@@ -169,6 +182,11 @@ func (c *documentServiceClient) ResumeProcessing(ctx context.Context, req *conne
 	return c.resumeProcessing.CallUnary(ctx, req)
 }
 
+// GetImageURL calls synthify.app.v1.DocumentService.GetImageURL.
+func (c *documentServiceClient) GetImageURL(ctx context.Context, req *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error) {
+	return c.getImageURL.CallUnary(ctx, req)
+}
+
 // DocumentServiceHandler is an implementation of the synthify.app.v1.DocumentService service.
 type DocumentServiceHandler interface {
 	CreateDocument(context.Context, *connect.Request[v1.CreateDocumentRequest]) (*connect.Response[v1.CreateDocumentResponse], error)
@@ -178,6 +196,9 @@ type DocumentServiceHandler interface {
 	ConfirmUpload(context.Context, *connect.Request[v1.ConfirmUploadRequest]) (*connect.Response[v1.ConfirmUploadResponse], error)
 	StartProcessing(context.Context, *connect.Request[v1.StartProcessingRequest]) (*connect.Response[v1.StartProcessingResponse], error)
 	ResumeProcessing(context.Context, *connect.Request[v1.ResumeProcessingRequest]) (*connect.Response[v1.ResumeProcessingResponse], error)
+	// 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
+	// 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
+	GetImageURL(context.Context, *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error)
 }
 
 // NewDocumentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -229,6 +250,12 @@ func NewDocumentServiceHandler(svc DocumentServiceHandler, opts ...connect.Handl
 		connect.WithSchema(documentServiceMethods.ByName("ResumeProcessing")),
 		connect.WithHandlerOptions(opts...),
 	)
+	documentServiceGetImageURLHandler := connect.NewUnaryHandler(
+		DocumentServiceGetImageURLProcedure,
+		svc.GetImageURL,
+		connect.WithSchema(documentServiceMethods.ByName("GetImageURL")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.app.v1.DocumentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DocumentServiceCreateDocumentProcedure:
@@ -245,6 +272,8 @@ func NewDocumentServiceHandler(svc DocumentServiceHandler, opts ...connect.Handl
 			documentServiceStartProcessingHandler.ServeHTTP(w, r)
 		case DocumentServiceResumeProcessingProcedure:
 			documentServiceResumeProcessingHandler.ServeHTTP(w, r)
+		case DocumentServiceGetImageURLProcedure:
+			documentServiceGetImageURLHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -280,4 +309,8 @@ func (UnimplementedDocumentServiceHandler) StartProcessing(context.Context, *con
 
 func (UnimplementedDocumentServiceHandler) ResumeProcessing(context.Context, *connect.Request[v1.ResumeProcessingRequest]) (*connect.Response[v1.ResumeProcessingResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.DocumentService.ResumeProcessing is not implemented"))
+}
+
+func (UnimplementedDocumentServiceHandler) GetImageURL(context.Context, *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.DocumentService.GetImageURL is not implemented"))
 }

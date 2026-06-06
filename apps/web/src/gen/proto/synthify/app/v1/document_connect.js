@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ConfirmUploadRequest, ConfirmUploadResponse, CreateDocumentRequest, CreateDocumentResponse, GetDocumentRequest, GetDocumentResponse, GetUploadURLRequest, GetUploadURLResponse, ListDocumentsRequest, ListDocumentsResponse, ResumeProcessingRequest, ResumeProcessingResponse, StartProcessingRequest, StartProcessingResponse } from "./document_pb.js";
+import { ConfirmUploadRequest, ConfirmUploadResponse, CreateDocumentRequest, CreateDocumentResponse, GetDocumentRequest, GetDocumentResponse, GetImageURLRequest, GetImageURLResponse, GetUploadURLRequest, GetUploadURLResponse, ListDocumentsRequest, ListDocumentsResponse, ResumeProcessingRequest, ResumeProcessingResponse, StartProcessingRequest, StartProcessingResponse } from "./document_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -73,6 +73,18 @@ export const DocumentService = {
       name: "ResumeProcessing",
       I: ResumeProcessingRequest,
       O: ResumeProcessingResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
+     * 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
+     *
+     * @generated from rpc synthify.app.v1.DocumentService.GetImageURL
+     */
+    getImageURL: {
+      name: "GetImageURL",
+      I: GetImageURLRequest,
+      O: GetImageURLResponse,
       kind: MethodKind.Unary,
     },
   }

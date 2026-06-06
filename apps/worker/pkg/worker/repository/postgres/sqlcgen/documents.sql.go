@@ -492,6 +492,38 @@ func (q *Queries) GetDocumentFileByPath(ctx context.Context, arg GetDocumentFile
 	return i, err
 }
 
+const getDocumentFileForDelivery = `-- name: GetDocumentFileForDelivery :one
+SELECT f.file_id, f.document_id, d.workspace_id, f.path, f.mime_type
+FROM document_files f
+JOIN documents d ON d.document_id = f.document_id
+WHERE f.file_id = $1
+`
+
+type GetDocumentFileForDeliveryRow struct {
+	FileID      string
+	DocumentID  string
+	WorkspaceID string
+	Path        string
+	MimeType    string
+}
+
+// Resolves a file_id to the coordinates needed to stream its bytes from object
+// storage: the owning workspace and document (which form the {ws}/{doc} object
+// prefix) plus the stored mime type for the response Content-Type. Joined to
+// documents so the workspace is available without a second round trip.
+func (q *Queries) GetDocumentFileForDelivery(ctx context.Context, fileID string) (GetDocumentFileForDeliveryRow, error) {
+	row := q.db.QueryRowContext(ctx, getDocumentFileForDelivery, fileID)
+	var i GetDocumentFileForDeliveryRow
+	err := row.Scan(
+		&i.FileID,
+		&i.DocumentID,
+		&i.WorkspaceID,
+		&i.Path,
+		&i.MimeType,
+	)
+	return i, err
+}
+
 const getJobApprovalPlanID = `-- name: GetJobApprovalPlanID :one
 SELECT plan_id
 FROM job_approval_requests

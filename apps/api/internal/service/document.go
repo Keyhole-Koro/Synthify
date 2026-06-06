@@ -35,6 +35,7 @@ type DocumentUsecase interface {
 	ConfirmUpload(ctx context.Context, documentID, userID string) (*domain.Document, error)
 	StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error)
 	ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error)
+	IssueImageURL(ctx context.Context, fileID, userID string) (repository.SignedURL, error)
 }
 
 const (
@@ -49,6 +50,7 @@ type DocumentService struct {
 	tree             repository.TreeRepository
 	transactor       repository.Transactor
 	sourceURLBuilder repository.DocumentSourceURLBuilder
+	imageURLIssuer   repository.DocumentImageURLIssuer
 	objectMetadata   ObjectMetadataFetcher
 	objectStore      repository.DocumentObjectStore
 	dispatcher       WorkerDispatcher
@@ -66,6 +68,7 @@ type DocumentServiceDeps struct {
 	Tree             repository.TreeRepository
 	Transactor       repository.Transactor
 	SourceURLBuilder repository.DocumentSourceURLBuilder
+	ImageURLIssuer   repository.DocumentImageURLIssuer
 	ObjectMetadata   ObjectMetadataFetcher
 	ObjectStore      repository.DocumentObjectStore
 	Dispatcher       WorkerDispatcher
@@ -82,6 +85,7 @@ func NewDocumentService(deps DocumentServiceDeps) *DocumentService {
 		tree:             deps.Tree,
 		transactor:       deps.Transactor,
 		sourceURLBuilder: deps.SourceURLBuilder,
+		imageURLIssuer:   deps.ImageURLIssuer,
 		objectMetadata:   deps.ObjectMetadata,
 		objectStore:      deps.ObjectStore,
 		dispatcher:       deps.Dispatcher,
@@ -102,6 +106,28 @@ func (s *DocumentService) authorizeWorkspace(ctx context.Context, workspaceID, u
 		return domain.ErrForbidden
 	}
 	return nil
+}
+
+// IssueImageURL は data-file-id マーカーを表示用の署名付き GET URL に解決する。
+// fileID から workspace を引いて認可し、所有 workspace の閲覧権がある場合のみ
+// 短命な署名付き URL を発行する。URL は表示のたびに発行され、保存 HTML には
+// 焼き込まれない。
+func (s *DocumentService) IssueImageURL(ctx context.Context, fileID, userID string) (repository.SignedURL, error) {
+	if s.imageURLIssuer == nil {
+		return repository.SignedURL{}, domain.ErrNotFound
+	}
+	loc, err := s.repo.GetDocumentFileForDelivery(ctx, fileID)
+	if err != nil {
+		// 不在も認可前に Forbidden を返し、file の存在を漏らさない。
+		if errors.Is(err, domain.ErrNotFound) {
+			return repository.SignedURL{}, domain.ErrForbidden
+		}
+		return repository.SignedURL{}, err
+	}
+	if err := s.authorizeWorkspace(ctx, loc.WorkspaceID, userID); err != nil {
+		return repository.SignedURL{}, err
+	}
+	return s.imageURLIssuer.IssueDocumentImageURL(ctx, loc.WorkspaceID, loc.DocumentID, loc.Path)
 }
 
 // authorizeDocument は document を取得しつつ workspace authz をする。

@@ -297,6 +297,47 @@ export declare type GetUploadURLResponse = Message<"synthify.app.v1.GetUploadURL
 export declare const GetUploadURLResponseSchema: GenMessage<GetUploadURLResponse>;
 
 /**
+ * data-file-id マーカーを表示用の署名付き GET URL に解決する。
+ *
+ * @generated from message synthify.app.v1.GetImageURLRequest
+ */
+export declare type GetImageURLRequest = Message<"synthify.app.v1.GetImageURLRequest"> & {
+  /**
+   * @generated from field: string file_id = 1;
+   */
+  fileId: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.GetImageURLRequest.
+ * Use `create(GetImageURLRequestSchema)` to create a new message.
+ */
+export declare const GetImageURLRequestSchema: GenMessage<GetImageURLRequest>;
+
+/**
+ * @generated from message synthify.app.v1.GetImageURLResponse
+ */
+export declare type GetImageURLResponse = Message<"synthify.app.v1.GetImageURLResponse"> & {
+  /**
+   * GCS 署名付き GET URL（短命）
+   *
+   * @generated from field: string url = 1;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string expires_at = 2;
+   */
+  expiresAt: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.GetImageURLResponse.
+ * Use `create(GetImageURLResponseSchema)` to create a new message.
+ */
+export declare const GetImageURLResponseSchema: GenMessage<GetImageURLResponse>;
+
+/**
  * @generated from message synthify.app.v1.ConfirmUploadRequest
  */
 export declare type ConfirmUploadRequest = Message<"synthify.app.v1.ConfirmUploadRequest"> & {
@@ -512,6 +553,17 @@ export declare const DocumentService: GenService<{
     methodKind: "unary";
     input: typeof ResumeProcessingRequestSchema;
     output: typeof ResumeProcessingResponseSchema;
+  },
+  /**
+   * 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
+   * 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
+   *
+   * @generated from rpc synthify.app.v1.DocumentService.GetImageURL
+   */
+  getImageURL: {
+    methodKind: "unary";
+    input: typeof GetImageURLRequestSchema;
+    output: typeof GetImageURLResponseSchema;
   },
 }>;
 

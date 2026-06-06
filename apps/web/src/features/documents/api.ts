@@ -55,6 +55,16 @@ export async function startProcessing(
   return { documentId: res.documentId, job: res.job! };
 }
 
+/**
+ * Resolves a data-file-id image marker (embedded in generated HTML) to a
+ * short-lived signed GET URL. Called at render time, so the URL is never
+ * persisted into the saved HTML.
+ */
+export async function getImageURL(fileId: string): Promise<string> {
+  const res = await client.getImageURL({ fileId });
+  return res.url;
+}
+
 /** Uploads a file to a GCS signed URL with PUT or POST. */
 export async function uploadFile(
   uploadUrl: string,

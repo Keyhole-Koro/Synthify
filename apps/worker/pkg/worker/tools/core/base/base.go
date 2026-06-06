@@ -8,6 +8,7 @@ import (
 
 	pgvector "github.com/pgvector/pgvector-go"
 
+	"github.com/synthify/backend/apps/worker/pkg/worker/imageref"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
 	"github.com/synthify/backend/apps/worker/pkg/worker/storage"
@@ -56,6 +57,10 @@ type Context struct {
 	Status   jobstatus.Notifier
 	Memories []PromptMemory
 	Job      *JobContext
+	// Images holds the images usable as <img> placeholders in LLM-authored HTML
+	// for the current job. Reset per job in BeginJob so ids never leak across
+	// documents. May be nil in contexts that never register images.
+	Images *imageref.Registry
 }
 
 func (b *Context) BeginJob(ctx context.Context, jobID string, wsID, docID string) {
@@ -66,6 +71,11 @@ func (b *Context) BeginJob(ctx context.Context, jobID string, wsID, docID string
 		JobID:       jobID,
 		WorkspaceID: wsID,
 		DocumentID:  docID,
+	}
+	if b.Images == nil {
+		b.Images = imageref.NewRegistry()
+	} else {
+		b.Images.Reset()
 	}
 	if b.Usage != nil {
 		b.Usage.BeginJob(ctx, jobID)

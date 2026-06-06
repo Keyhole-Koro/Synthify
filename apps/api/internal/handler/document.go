@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"time"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
@@ -149,6 +150,25 @@ func (h *DocumentHandler) ResumeProcessing(ctx context.Context, req *connect.Req
 			Status:     job.Status,
 		},
 	}), nil
+}
+
+func (h *DocumentHandler) GetImageURL(ctx context.Context, req *connect.Request[appv1.GetImageURLRequest]) (*connect.Response[appv1.GetImageURLResponse], error) {
+	if req.Msg.GetFileId() == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("file_id is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	signed, err := h.service.IssueImageURL(ctx, req.Msg.GetFileId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
+	resp := &appv1.GetImageURLResponse{Url: signed.URL}
+	if !signed.ExpiresAt.IsZero() {
+		resp.ExpiresAt = signed.ExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return connect.NewResponse(resp), nil
 }
 
 func toProtoDocument(doc *domain.Document, latestJob *domain.DocumentProcessingJob) *appv1.Document {

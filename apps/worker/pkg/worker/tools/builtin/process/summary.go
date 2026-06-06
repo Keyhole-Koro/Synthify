@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/imageref"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
@@ -34,8 +35,7 @@ func NewSummaryTool(b *base.Context) (core.Tool, error) {
 			out, mErr := json.Marshal(SummaryResult{HTML: args.Item.Content})
 			return out, core.Usage{}, mErr
 		}
-		html, usage, lerr := b.LLM.GenerateText(ctx, llm.TextRequest{
-			SystemPrompt: `You are a Technical Writer. Convert the provided item details into a professional, rich HTML summary.
+		systemPrompt := `You are a Technical Writer. Convert the provided item details into a professional, rich HTML summary.
 
 Rules:
 - NO MARKDOWN: Never use #, **, etc. Use HTML tags only.
@@ -45,8 +45,14 @@ Rules:
   - <div class="tip-box">: for insights.
   - <table>: for structured data.
 - INTERNAL LINKS: Retain all existing <a data-paper-id="..."> links if present in the input.
-- Conciseness: Be deep but efficient. 1-4 paragraphs max.`,
-			UserPrompt: fmt.Sprintf("Title: %s\nDescription: %s\nRaw Content: %s", args.Item.Title, args.Item.Description, args.Item.Content),
+- Conciseness: Be deep but efficient. 1-4 paragraphs max.`
+		// Append the available-image tokens so the model can place images using
+		// [[img:N]] placeholders. Empty when no images are registered for the job.
+		systemPrompt += b.Images.PromptHint()
+
+		html, usage, lerr := b.LLM.GenerateText(ctx, llm.TextRequest{
+			SystemPrompt: systemPrompt,
+			UserPrompt:   fmt.Sprintf("Title: %s\nDescription: %s\nRaw Content: %s", args.Item.Title, args.Item.Description, args.Item.Content),
 		})
 		if lerr != nil {
 			// Match the pre-道A fallback: return the original content so the
@@ -54,7 +60,11 @@ Rules:
 			out, mErr := json.Marshal(SummaryResult{HTML: args.Item.Content})
 			return out, core.Usage{Model: usage.Model, InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}, mErr
 		}
-		out, mErr := json.Marshal(SummaryResult{HTML: strings.TrimSpace(html)})
+		// Rewrite [[img:N]] tokens into real <img> tags from the registry and
+		// strip any URL the model authored itself, so no hallucinated image URL
+		// reaches the saved HTML.
+		rendered := imageref.Render(strings.TrimSpace(html), b.Images)
+		out, mErr := json.Marshal(SummaryResult{HTML: rendered})
 		return out, core.Usage{Model: usage.Model, InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens}, mErr
 	}
 	return core.Tool{

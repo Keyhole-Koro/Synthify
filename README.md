@@ -4,6 +4,7 @@ Synthify は、アップロードしたドキュメントから知識ツリー�
 
 ![Synthify demo](docs/materials/SynthifyDemo.gif)
 
+
 ちょっと特殊な実装にしているところがいくつかあるので、ここにまとめておきます。
 
 ### API と worker の分担

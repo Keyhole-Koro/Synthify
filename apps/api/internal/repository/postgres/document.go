@@ -405,6 +405,23 @@ func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (
 	}, nil
 }
 
+func (s *Store) GetDocumentFileForDelivery(ctx context.Context, fileID string) (*domain.DocumentFileLocation, error) {
+	row, err := s.q().GetDocumentFileForDelivery(ctx, fileID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("get document file for delivery: %w", err)
+	}
+	return &domain.DocumentFileLocation{
+		FileID:      row.FileID,
+		DocumentID:  row.DocumentID,
+		WorkspaceID: row.WorkspaceID,
+		Path:        row.Path,
+		MimeType:    row.MimeType,
+	}, nil
+}
+
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
 	row, err := s.q().GetLatestProcessingJob(ctx, docID)
 	if err != nil {

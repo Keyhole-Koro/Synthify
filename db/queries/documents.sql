@@ -28,6 +28,16 @@ SELECT file_id, document_id, path, mime_type, file_size, created_at
 FROM document_files
 WHERE document_id = $1 AND path = $2;
 
+-- name: GetDocumentFileForDelivery :one
+-- Resolves a file_id to the coordinates needed to stream its bytes from object
+-- storage: the owning workspace and document (which form the {ws}/{doc} object
+-- prefix) plus the stored mime type for the response Content-Type. Joined to
+-- documents so the workspace is available without a second round trip.
+SELECT f.file_id, f.document_id, d.workspace_id, f.path, f.mime_type
+FROM document_files f
+JOIN documents d ON d.document_id = f.document_id
+WHERE f.file_id = $1;
+
 -- name: CountSameDocumentItems :one
 SELECT COUNT(DISTINCT item_sources.item_id)
 FROM item_sources

@@ -643,6 +643,29 @@ func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (
 	return nil, domain.ErrNotFound
 }
 
+func (s *Store) GetDocumentFileForDelivery(ctx context.Context, fileID string) (*domain.DocumentFileLocation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for docID, files := range s.docFiles {
+		f, ok := files[fileID]
+		if !ok {
+			continue
+		}
+		wsID := ""
+		if d, ok := s.documents[docID]; ok {
+			wsID = d.WorkspaceID
+		}
+		return &domain.DocumentFileLocation{
+			FileID:      f.FileID,
+			DocumentID:  docID,
+			WorkspaceID: wsID,
+			Path:        f.Path,
+			MimeType:    f.MimeType,
+		}, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

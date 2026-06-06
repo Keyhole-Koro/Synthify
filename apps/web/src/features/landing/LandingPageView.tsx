@@ -5,6 +5,7 @@ import { useEffect, useRef, type CSSProperties } from 'react';
 import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
 import type { PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
+import { getImageURL } from '@/features/documents/api';
 
 const PaperCanvas = dynamic(
   () => import('@keyhole-koro/paper-in-paper').then((mod) => mod.PaperCanvas),
@@ -127,6 +128,7 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
           defaultOpenState={controller.defaultOpenState}
           isFullscreen={controller.isFullscreen}
           debug={false}
+          loadImageUrl={getImageURL}
           onExpansionMapChange={controller.handleExpansionMapChange}
           onFocusedNodeIdChange={controller.handleFocusedNodeIdChange}
           onFullscreenChange={controller.setCanvasFullscreen}

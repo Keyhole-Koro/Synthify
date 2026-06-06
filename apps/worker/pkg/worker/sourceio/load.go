@@ -22,16 +22,23 @@ func LoadAll(ctx context.Context, fs *storage.FileSystem, files []domain.SourceF
 	return out, nil
 }
 
-// Load fills file.Content from the gcsfuse mount. The uploads bucket is
-// mounted read-only into the worker, so source files are read as local files
-// keyed by {WorkspaceID}/{DocumentID}. There is no HTTP fallback: a missing
-// mount or a missing object is a hard error.
+// Load fills file.Content. Sources resolve one of two ways, dispatched on the
+// URI scheme:
+//
+//   - An http(s):// URI is an external image (path B) downloaded over HTTP,
+//     bounded and restricted to image/* — see fetchHTTP.
+//   - Anything else is a mounted document (path A) read from the read-only
+//     gcsfuse uploads bucket, keyed by {WorkspaceID}/{DocumentID}. A missing
+//     mount or object is a hard error.
 func Load(ctx context.Context, fs *storage.FileSystem, file *domain.SourceFile) error {
 	if file == nil {
 		return fmt.Errorf("source file is nil")
 	}
 	if len(file.Content) > 0 {
 		return nil
+	}
+	if isHTTPURI(file.URI) {
+		return fetchHTTP(ctx, file)
 	}
 	if fs == nil {
 		return fmt.Errorf("gcsfuse mount is not configured")

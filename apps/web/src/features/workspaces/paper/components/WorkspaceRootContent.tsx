@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { usePaperDispatch } from '@keyhole-koro/paper-in-paper';
+import { getImageURL } from '@/features/documents/api';
 
 interface WorkspaceRootContentProps {
   // nodeId is the workspace paper's id. data-paper-id clicks inside the iframe
@@ -80,13 +81,44 @@ ${overrideCss ?? ''}
     e.preventDefault();
     parent.postMessage({ __synthifyOpenPaperId: el.getAttribute('data-paper-id') }, '*');
   });
+  // Images are embedded as <img data-file-id> markers with no src: ask the host
+  // to load each file id into a short-lived signed URL, then set it. The host
+  // replies with __synthifyImageUrl. Re-report height once an image loads so the
+  // iframe grows to fit it.
+  function requestImages() {
+    var imgs = document.querySelectorAll('img[data-file-id]:not([data-requested])');
+    for (var i = 0; i < imgs.length; i++) {
+      imgs[i].setAttribute('data-requested', '1');
+      parent.postMessage({ __synthifyLoadImage: imgs[i].getAttribute('data-file-id') }, '*');
+    }
+  }
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    if (d.__synthifyImageUrl && d.__synthifyImageFileId) {
+      var sel = 'img[data-file-id="' + (window.CSS && CSS.escape ? CSS.escape(d.__synthifyImageFileId) : d.__synthifyImageFileId) + '"]';
+      var nodes = document.querySelectorAll(sel);
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].addEventListener('load', report);
+        nodes[i].src = d.__synthifyImageUrl;
+      }
+    }
+  });
+  window.addEventListener('load', requestImages);
+  requestImages();
 </script>
 </body></html>`;
   }, [content, overrideCss, childItems]);
 
   React.useEffect(() => {
     function onMessage(e: MessageEvent) {
-      const data = e.data as { __synthifyRootContentHeight?: number; __synthifyOpenPaperId?: string };
+      // Only act on messages from this component's own iframe, so one root
+      // content's image resolution never answers another's.
+      if (frameRef.current && e.source !== frameRef.current.contentWindow) return;
+      const data = e.data as {
+        __synthifyRootContentHeight?: number;
+        __synthifyOpenPaperId?: string;
+        __synthifyLoadImage?: string;
+      };
       const h = data?.__synthifyRootContentHeight;
       if (typeof h === 'number' && h > 0 && Math.abs(h - height) > 4) {
         // Size the iframe to its full content height so it never scrolls
@@ -96,6 +128,20 @@ ${overrideCss ?? ''}
       const childId = data?.__synthifyOpenPaperId;
       if (typeof childId === 'string' && childId) {
         dispatch({ type: 'OPEN_NODE', parentId: nodeId, childId });
+      }
+      const fileId = data?.__synthifyLoadImage;
+      if (typeof fileId === 'string' && fileId) {
+        // Load the data-file-id marker into a short-lived signed URL and hand it
+        // back to the iframe. Failures are swallowed: a missing image simply
+        // stays blank rather than breaking the whole report.
+        getImageURL(fileId)
+          .then((url) => {
+            frameRef.current?.contentWindow?.postMessage(
+              { __synthifyImageUrl: url, __synthifyImageFileId: fileId },
+              '*',
+            );
+          })
+          .catch(() => {});
       }
     }
     window.addEventListener('message', onMessage);

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	neturl "net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -109,6 +110,105 @@ func NewDocumentUploadURLIssuer(bucket, base string) repository.DocumentUploadUR
 func NewDocumentSourceURLBuilder(bucket, base string) repository.DocumentSourceURLBuilder {
 	return func(workspaceID, documentID string) string {
 		return storage.BuildDocumentSourceURL(base, bucket, workspaceID, documentID)
+	}
+}
+
+// NewDocumentImageURLIssuer mirrors NewDocumentUploadURLIssuer: a signed GCS GET
+// URL in production, a direct fake-gcs media URL locally. The signed variant is
+// selected by the same GCS_UPLOAD_ISSUER=signed switch so prod and dev stay in
+// lockstep with the upload path.
+func NewDocumentImageURLIssuer(bucket, base string) repository.DocumentImageURLIssuer {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv("GCS_UPLOAD_ISSUER")))
+	if mode == "signed" {
+		return newGCSSignedDocumentImageURLIssuer(
+			bucket,
+			os.Getenv("GCS_SIGNING_SERVICE_ACCOUNT_EMAIL"),
+			os.Getenv("GCS_SIGNING_PRIVATE_KEY"),
+			uploadSignedURLTTL(),
+		)
+	}
+	return fakeGCSDocumentImageURLIssuer{base: base, bucket: bucket}
+}
+
+type fakeGCSDocumentImageURLIssuer struct {
+	base   string
+	bucket string
+}
+
+func (i fakeGCSDocumentImageURLIssuer) IssueDocumentImageURL(ctx context.Context, workspaceID, documentID, filename string) (repository.SignedURL, error) {
+	// fake-gcs needs no signature; serve the object directly via its media URL.
+	objectName := storage.SourceObjectName(documentID, filename)
+	root := strings.TrimRight(i.base, "/")
+	url := fmt.Sprintf("%s/storage/v1/b/%s/o/%s?alt=media",
+		root, i.bucket, neturl.PathEscape(workspaceID+"/"+objectName))
+	return repository.SignedURL{URL: url}, nil
+}
+
+type gcsSignedDocumentImageURLIssuer struct {
+	bucket         string
+	googleAccessID string
+	privateKey     []byte
+	ttl            time.Duration
+}
+
+func newGCSSignedDocumentImageURLIssuer(bucket, googleAccessID, privateKey string, ttl time.Duration) gcsSignedDocumentImageURLIssuer {
+	privateKey = strings.ReplaceAll(privateKey, `\n`, "\n")
+	var key []byte
+	if privateKey != "" {
+		key = []byte(privateKey)
+	}
+	return gcsSignedDocumentImageURLIssuer{
+		bucket:         bucket,
+		googleAccessID: googleAccessID,
+		privateKey:     key,
+		ttl:            ttl,
+	}
+}
+
+func (i gcsSignedDocumentImageURLIssuer) IssueDocumentImageURL(ctx context.Context, workspaceID, documentID, filename string) (repository.SignedURL, error) {
+	expiresAt := time.Now().Add(i.ttl)
+	opts := &gcs.SignedURLOptions{
+		GoogleAccessID: i.googleAccessID,
+		Method:         "GET",
+		Expires:        expiresAt,
+		Scheme:         gcs.SigningSchemeV4,
+	}
+	if len(i.privateKey) > 0 {
+		opts.PrivateKey = i.privateKey
+	} else {
+		opts.SignBytes = i.signBytesWithIAM(ctx)
+	}
+	objectName := storage.SourceObjectName(documentID, filename)
+	url, err := gcs.SignedURL(i.bucket, workspaceID+"/"+objectName, opts)
+	if err != nil {
+		return repository.SignedURL{}, err
+	}
+	return repository.SignedURL{URL: url, ExpiresAt: expiresAt}, nil
+}
+
+// signBytesWithIAM mirrors the upload issuer's IAM signing path for workload
+// identity (no local private key).
+func (i gcsSignedDocumentImageURLIssuer) signBytesWithIAM(ctx context.Context) func([]byte) ([]byte, error) {
+	return func(payload []byte) ([]byte, error) {
+		if i.googleAccessID == "" {
+			return nil, fmt.Errorf("GCS_SIGNING_SERVICE_ACCOUNT_EMAIL is required for signed image URLs")
+		}
+		svc, err := iamcredentials.NewService(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("create iam credentials service: %w", err)
+		}
+		resp, err := svc.Projects.ServiceAccounts.SignBlob(
+			"projects/-/serviceAccounts/"+i.googleAccessID,
+			&iamcredentials.SignBlobRequest{Payload: base64.StdEncoding.EncodeToString(payload)},
+		).Do()
+		if err != nil {
+			return nil, fmt.Errorf("sign image URL bytes: %w", err)
+		}
+		signed, err := base64.StdEncoding.DecodeString(resp.SignedBlob)
+		if err != nil {
+			return nil, fmt.Errorf("decode signed image URL bytes: %w", err)
+		}
+		return signed, nil
 	}
 }
 

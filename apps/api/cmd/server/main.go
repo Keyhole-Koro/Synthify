@@ -73,6 +73,7 @@ func main() {
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	objectStore := storage.NewDocumentObjectStore(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := bootstrap.NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
+	imageURLIssuer := bootstrap.NewDocumentImageURLIssuer(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
 	stripeProvider, err := stripe.NewProvider(stripe.Config{
 		SecretKey:        cfg.Stripe.SecretKey,
@@ -114,6 +115,7 @@ func main() {
 		Tree:             store,
 		Transactor:       store,
 		SourceURLBuilder: sourceURLBuilder,
+		ImageURLIssuer:   imageURLIssuer,
 		ObjectMetadata:   objectMetadata,
 		ObjectStore:      objectStore,
 		Dispatcher:       dispatcher,

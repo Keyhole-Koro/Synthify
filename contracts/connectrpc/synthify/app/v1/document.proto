@@ -14,6 +14,9 @@ service DocumentService {
   rpc ConfirmUpload(ConfirmUploadRequest) returns (ConfirmUploadResponse);
   rpc StartProcessing(StartProcessingRequest) returns (StartProcessingResponse);
   rpc ResumeProcessing(ResumeProcessingRequest) returns (ResumeProcessingResponse);
+  // 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
+  // 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
+  rpc GetImageURL(GetImageURLRequest) returns (GetImageURLResponse);
 }
 
 message Document {
@@ -87,6 +90,16 @@ message GetUploadURLResponse {
   string upload_url = 1;      // GCS 署名付き PUT URL（有効期限15分）
   string upload_token = 2;    // CreateDocument に渡すトークン
   string expires_at = 3;
+}
+
+// data-file-id マーカーを表示用の署名付き GET URL に解決する。
+message GetImageURLRequest {
+  string file_id = 1;
+}
+
+message GetImageURLResponse {
+  string url = 1;         // GCS 署名付き GET URL（短命）
+  string expires_at = 2;
 }
 
 message ConfirmUploadRequest {
