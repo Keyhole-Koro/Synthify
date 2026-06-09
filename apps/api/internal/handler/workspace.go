@@ -182,20 +182,77 @@ func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace ownership is managed at account level"))
 }
 
-func (h *WorkspaceHandler) CreateShareLink(_ context.Context, _ *connect.Request[appv1.CreateShareLinkRequest]) (*connect.Response[appv1.CreateShareLinkResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+func (h *WorkspaceHandler) CreateShareLink(ctx context.Context, req *connect.Request[appv1.CreateShareLinkRequest]) (*connect.Response[appv1.CreateShareLinkResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	link, err := h.service.CreateShareLink(ctx, workspaceID, userID, fromProtoWorkspaceRole(req.Msg.GetRole()), strings.TrimSpace(req.Msg.GetExpiresAt()))
+	if err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.CreateShareLinkResponse{
+		Link: toProtoShareLink(link),
+	}), nil
 }
 
-func (h *WorkspaceHandler) ListShareLinks(_ context.Context, _ *connect.Request[appv1.ListShareLinksRequest]) (*connect.Response[appv1.ListShareLinksResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+func (h *WorkspaceHandler) ListShareLinks(ctx context.Context, req *connect.Request[appv1.ListShareLinksRequest]) (*connect.Response[appv1.ListShareLinksResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	links, err := h.service.ListShareLinks(ctx, workspaceID, userID)
+	if err != nil {
+		return nil, toError(err)
+	}
+	res := &appv1.ListShareLinksResponse{}
+	for _, l := range links {
+		res.Links = append(res.Links, toProtoShareLink(l))
+	}
+	return connect.NewResponse(res), nil
 }
 
-func (h *WorkspaceHandler) RevokeShareLink(_ context.Context, _ *connect.Request[appv1.RevokeShareLinkRequest]) (*connect.Response[appv1.RevokeShareLinkResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+func (h *WorkspaceHandler) RevokeShareLink(ctx context.Context, req *connect.Request[appv1.RevokeShareLinkRequest]) (*connect.Response[appv1.RevokeShareLinkResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	token := strings.TrimSpace(req.Msg.GetToken())
+	if token == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("token is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.service.RevokeShareLink(ctx, workspaceID, userID, token); err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.RevokeShareLinkResponse{}), nil
 }
 
-func (h *WorkspaceHandler) ResolveShareLink(_ context.Context, _ *connect.Request[appv1.ResolveShareLinkRequest]) (*connect.Response[appv1.ResolveShareLinkResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+// ResolveShareLink は無認証経路 (auth middleware で exempt)。token のみで解決する。
+func (h *WorkspaceHandler) ResolveShareLink(ctx context.Context, req *connect.Request[appv1.ResolveShareLinkRequest]) (*connect.Response[appv1.ResolveShareLinkResponse], error) {
+	token := strings.TrimSpace(req.Msg.GetToken())
+	if token == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("token is required"))
+	}
+	workspace, role, err := h.service.ResolveShareLink(ctx, token)
+	if err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.ResolveShareLinkResponse{
+		Workspace: toProtoWorkspace(workspace),
+		Role:      toProtoWorkspaceRole(role),
+	}), nil
 }
 
 func toProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
@@ -225,6 +282,21 @@ func toProtoWorkspaceMember(m *domain.WorkspaceMember) *appv1.WorkspaceMember {
 		Role:      toProtoWorkspaceRole(m.Role),
 		InvitedAt: m.InvitedAt,
 		InvitedBy: m.InvitedBy,
+	}
+}
+
+func toProtoShareLink(l *domain.ShareLink) *appv1.ShareLink {
+	if l == nil {
+		return nil
+	}
+	return &appv1.ShareLink{
+		Token:       l.Token,
+		WorkspaceId: l.WorkspaceID,
+		Role:        toProtoWorkspaceRole(l.Role),
+		CreatedBy:   l.CreatedBy,
+		CreatedAt:   l.CreatedAt,
+		ExpiresAt:   l.ExpiresAt,
+		Revoked:     l.Revoked,
 	}
 }
 

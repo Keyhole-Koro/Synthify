@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -452,6 +453,77 @@ func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) 
 		return domain.ErrNotFound
 	}
 	return nil
+}
+
+func (s *Store) CreateShareLink(ctx context.Context, link *domain.ShareLink) error {
+	expiresAt, err := parseBillingTime(link.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("parse share link expires_at: %w", err)
+	}
+	if err := s.q().CreateShareLink(ctx, sqlcgen.CreateShareLinkParams{
+		Token:       link.Token,
+		WorkspaceID: link.WorkspaceID,
+		Role:        string(link.Role),
+		CreatedBy:   link.CreatedBy,
+		ExpiresAt:   expiresAt,
+		CreatedAt:   nowTime(),
+	}); err != nil {
+		return fmt.Errorf("create share link: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ListShareLinks(ctx context.Context, wsID string) ([]*domain.ShareLink, error) {
+	rows, err := s.q().ListShareLinks(ctx, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("list share links: %w", err)
+	}
+	links := make([]*domain.ShareLink, 0, len(rows))
+	for _, row := range rows {
+		links = append(links, toDomainShareLink(row))
+	}
+	return links, nil
+}
+
+func (s *Store) RevokeShareLink(ctx context.Context, wsID, token string, now time.Time) error {
+	affected, err := s.q().RevokeShareLink(ctx, sqlcgen.RevokeShareLinkParams{
+		WorkspaceID: wsID,
+		Token:       token,
+		RevokedAt:   sql.NullTime{Time: now.UTC(), Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("revoke share link: %w", err)
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) ResolveShareLink(ctx context.Context, token string, now time.Time) (*domain.ShareLink, error) {
+	row, err := s.q().ResolveShareLink(ctx, sqlcgen.ResolveShareLinkParams{
+		Token:     token,
+		ExpiresAt: sql.NullTime{Time: now.UTC(), Valid: true},
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, fmt.Errorf("resolve share link: %w", err)
+	}
+	return toDomainShareLink(row), nil
+}
+
+func toDomainShareLink(row sqlcgen.WorkspaceShareLink) *domain.ShareLink {
+	return &domain.ShareLink{
+		Token:       row.Token,
+		WorkspaceID: row.WorkspaceID,
+		Role:        domain.WorkspaceRole(row.Role),
+		CreatedBy:   row.CreatedBy,
+		ExpiresAt:   formatNullTime(row.ExpiresAt),
+		Revoked:     row.RevokedAt.Valid,
+		CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
+	}
 }
 
 // CreateWorkspace は workspaces 行と tree root item を 1 ペアで作成する。

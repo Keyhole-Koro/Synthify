@@ -2,7 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"log/slog"
+	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
@@ -21,6 +24,11 @@ type WorkspaceUsecase interface {
 	InviteMember(ctx context.Context, wsID, userID, email string, role domain.WorkspaceRole) (*domain.WorkspaceMember, error)
 	UpdateMemberRole(ctx context.Context, wsID, userID, targetUserID string, role domain.WorkspaceRole) (*domain.WorkspaceMember, error)
 	RemoveMember(ctx context.Context, wsID, userID, targetUserID string) error
+	CreateShareLink(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, expiresAt string) (*domain.ShareLink, error)
+	ListShareLinks(ctx context.Context, wsID, userID string) ([]*domain.ShareLink, error)
+	RevokeShareLink(ctx context.Context, wsID, userID, token string) error
+	// ResolveShareLink は無認証で呼ばれる。有効な token なら workspace と role を返す。
+	ResolveShareLink(ctx context.Context, token string) (*domain.Workspace, domain.WorkspaceRole, error)
 }
 
 type WorkspaceService struct {
@@ -182,4 +190,68 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, wsID, userID, targe
 // owner は所有者 (account 経由) に予約されており、明示付与は許可しない。
 func isAssignableRole(role domain.WorkspaceRole) bool {
 	return role == domain.WorkspaceRoleEditor || role == domain.WorkspaceRoleViewer
+}
+
+func (s *WorkspaceService) CreateShareLink(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, expiresAt string) (*domain.ShareLink, error) {
+	if role == "" {
+		role = domain.WorkspaceRoleViewer
+	}
+	if !isAssignableRole(role) {
+		return nil, domain.ErrInvalidArgument
+	}
+	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
+		return nil, err
+	}
+	token, err := generateShareToken()
+	if err != nil {
+		return nil, err
+	}
+	link := &domain.ShareLink{
+		Token:       token,
+		WorkspaceID: wsID,
+		Role:        role,
+		CreatedBy:   userID,
+		ExpiresAt:   expiresAt,
+	}
+	if err := s.workspaces.CreateShareLink(ctx, link); err != nil {
+		return nil, err
+	}
+	return link, nil
+}
+
+func (s *WorkspaceService) ListShareLinks(ctx context.Context, wsID, userID string) ([]*domain.ShareLink, error) {
+	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
+		return nil, err
+	}
+	return s.workspaces.ListShareLinks(ctx, wsID)
+}
+
+func (s *WorkspaceService) RevokeShareLink(ctx context.Context, wsID, userID, token string) error {
+	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
+		return err
+	}
+	return s.workspaces.RevokeShareLink(ctx, wsID, token, time.Now().UTC())
+}
+
+// ResolveShareLink は無認証で呼ばれる。有効な token のみ workspace と role を返す。
+// 認可は token の有効性 (未失効・未期限切れ) のみで、user の権限は問わない。
+func (s *WorkspaceService) ResolveShareLink(ctx context.Context, token string) (*domain.Workspace, domain.WorkspaceRole, error) {
+	link, err := s.workspaces.ResolveShareLink(ctx, token, time.Now().UTC())
+	if err != nil {
+		return nil, "", err
+	}
+	ws, err := s.workspaces.GetWorkspace(ctx, link.WorkspaceID)
+	if err != nil {
+		return nil, "", err
+	}
+	return ws, link.Role, nil
+}
+
+// generateShareToken は推測困難な公開リンク token を生成する (256bit, base64url)。
+func generateShareToken() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
 }

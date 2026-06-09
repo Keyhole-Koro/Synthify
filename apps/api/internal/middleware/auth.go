@@ -55,7 +55,14 @@ func isAuthExempt(r *http.Request) bool {
 	if r.Method == http.MethodOptions {
 		return true
 	}
-	return r.URL.Path == "/health" || r.URL.Path == "/stripe/webhook"
+	switch r.URL.Path {
+	case "/health", "/stripe/webhook":
+		return true
+	// 公開リンクの解決は無認証経路 (token のみで workspace を解決する)。
+	case "/synthify.app.v1.WorkspaceService/ResolveShareLink":
+		return true
+	}
+	return false
 }
 
 func bearerToken(header string) string {

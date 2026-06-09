@@ -117,6 +117,14 @@ type WorkspaceRepository interface {
 	ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error)
 	// RemoveWorkspaceMember はメンバーを削除する。対象が居なければ ErrNotFound。
 	RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error
+	// CreateShareLink は公開リンクを作成する。token は呼び出し側で生成して渡す。
+	CreateShareLink(ctx context.Context, link *domain.ShareLink) error
+	// ListShareLinks は workspace の全リンク (失効済み含む) を新しい順で返す。
+	ListShareLinks(ctx context.Context, wsID string) ([]*domain.ShareLink, error)
+	// RevokeShareLink はリンクを失効させる。対象が無い / 既に失効済みなら ErrNotFound。
+	RevokeShareLink(ctx context.Context, wsID, token string, now time.Time) error
+	// ResolveShareLink は有効な (未失効・未期限切れ) リンクを返す。無効なら ErrNotFound。
+	ResolveShareLink(ctx context.Context, token string, now time.Time) (*domain.ShareLink, error)
 }
 
 // DocumentRepository は document/file 自体のメタデータ操作を扱う。

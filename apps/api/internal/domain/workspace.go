@@ -69,6 +69,18 @@ type WorkspaceMember struct {
 	InvitedAt   string        `json:"invited_at"`
 }
 
+// ShareLink は公開リンク共有。token を知っていれば無認証で workspace を閲覧できる。
+// role は閲覧専用に限定する想定 (課金操作は招待メンバーのみ)。
+type ShareLink struct {
+	Token       string        `json:"token"`
+	WorkspaceID string        `json:"workspace_id"`
+	Role        WorkspaceRole `json:"role"`
+	CreatedBy   string        `json:"created_by"`
+	ExpiresAt   string        `json:"expires_at,omitempty"`
+	Revoked     bool          `json:"revoked"`
+	CreatedAt   string        `json:"created_at"`
+}
+
 type Workspace struct {
 	WorkspaceID        string `json:"workspace_id"`
 	AccountID          string `json:"account_id"`

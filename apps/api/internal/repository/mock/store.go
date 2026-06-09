@@ -27,6 +27,7 @@ type Store struct {
 	workspaces      map[string]*domain.Workspace
 	wsOwners        map[string]string                       // wsID -> ownerAccountID
 	wsMembers       map[string]map[string]*domain.WorkspaceMember // wsID -> userID -> member
+	shareLinks      map[string]*domain.ShareLink                  // token -> link
 	documents       map[string]*domain.Document
 	docFiles        map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
 	jobs            map[string]*domain.DocumentProcessingJob
@@ -66,6 +67,7 @@ func NewStore() *Store {
 		workspaces:      make(map[string]*domain.Workspace),
 		wsOwners:        make(map[string]string),
 		wsMembers:       make(map[string]map[string]*domain.WorkspaceMember),
+		shareLinks:      make(map[string]*domain.ShareLink),
 		documents:       make(map[string]*domain.Document),
 		docFiles:        make(map[string]map[string]*domain.DocumentFile),
 		jobs:            make(map[string]*domain.DocumentProcessingJob),
@@ -468,6 +470,55 @@ func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) 
 	}
 	delete(members, userID)
 	return nil
+}
+
+func (s *Store) CreateShareLink(ctx context.Context, link *domain.ShareLink) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	stored := *link
+	if stored.CreatedAt == "" {
+		stored.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	s.shareLinks[link.Token] = &stored
+	return nil
+}
+
+func (s *Store) ListShareLinks(ctx context.Context, wsID string) ([]*domain.ShareLink, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	links := make([]*domain.ShareLink, 0)
+	for _, l := range s.shareLinks {
+		if l.WorkspaceID == wsID {
+			links = append(links, l)
+		}
+	}
+	return links, nil
+}
+
+func (s *Store) RevokeShareLink(ctx context.Context, wsID, token string, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	l, ok := s.shareLinks[token]
+	if !ok || l.WorkspaceID != wsID || l.Revoked {
+		return domain.ErrNotFound
+	}
+	l.Revoked = true
+	return nil
+}
+
+func (s *Store) ResolveShareLink(ctx context.Context, token string, now time.Time) (*domain.ShareLink, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	l, ok := s.shareLinks[token]
+	if !ok || l.Revoked {
+		return nil, domain.ErrNotFound
+	}
+	if l.ExpiresAt != "" {
+		if exp, err := time.Parse(time.RFC3339, l.ExpiresAt); err == nil && !exp.After(now) {
+			return nil, domain.ErrNotFound
+		}
+	}
+	return l, nil
 }
 
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
