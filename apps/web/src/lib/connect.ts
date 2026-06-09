@@ -34,3 +34,22 @@ const transport = createConnectTransport({
 export function createRPCClient<T extends DescService>(service: T): Client<T> {
   return createClient(service, transport);
 }
+
+// publicTransport は認証ヘッダを付けない。公開リンク (ResolveShareLink) のように
+// ログイン不要で叩く無認証経路のためのもの。エラー正規化だけは共有する。
+const publicTransport = createConnectTransport({
+  baseUrl,
+  interceptors: [
+    (next) => async (req) => {
+      try {
+        return await next(req);
+      } catch (err) {
+        throw toAppError(err);
+      }
+    },
+  ],
+});
+
+export function createPublicRPCClient<T extends DescService>(service: T): Client<T> {
+  return createClient(service, publicTransport);
+}
