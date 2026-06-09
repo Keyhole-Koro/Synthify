@@ -482,6 +482,56 @@ type fakeDispatcher struct {
 	executeErr    error
 }
 
+func TestCreateDocument_Viewer_ReturnsForbidden(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	require.NoError(t, store.UpsertWorkspaceMember(ctx, ws.WorkspaceID, "viewer", domain.WorkspaceRoleViewer, "owner"))
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		Logger:           discardLogger(),
+	})
+
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "viewer", "f.pdf", "application/pdf", 10)
+	assert.ErrorIs(t, err, domain.ErrForbidden, "viewer cannot create documents")
+	assert.Nil(t, doc)
+}
+
+func TestCreateDocument_Editor_Succeeds(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.StorageQuotaBytes = 1000
+	account.MaxFileSizeBytes = 1000
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	require.NoError(t, store.UpsertWorkspaceMember(ctx, ws.WorkspaceID, "editor", domain.WorkspaceRoleEditor, "owner"))
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		Logger:           discardLogger(),
+	})
+
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "editor", "f.pdf", "application/pdf", 10)
+	require.NoError(t, err, "editor can create documents")
+	assert.NotNil(t, doc)
+}
+
 func (d *fakeDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
 	d.generateCalls++
 	return nil

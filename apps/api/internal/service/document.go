@@ -130,6 +130,19 @@ func (s *DocumentService) IssueImageURL(ctx context.Context, fileID, userID stri
 	return s.imageURLIssuer.IssueDocumentImageURL(ctx, loc.WorkspaceID, loc.DocumentID, loc.Path)
 }
 
+// authorizeWrite は書き込み・課金が生じる操作の権限を確認する。
+// viewer は read のみ。editor / owner だけが書き込め、非メンバーも Forbidden。
+func (s *DocumentService) authorizeWrite(ctx context.Context, workspaceID, userID string) error {
+	role, err := s.workspaces.GetWorkspaceRole(ctx, workspaceID, userID)
+	if err != nil {
+		return err
+	}
+	if !role.CanWrite() {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+
 // authorizeDocument は document を取得しつつ workspace authz をする。
 // document 不在も認可前に Forbidden を返す (存在を漏らさないため)。
 func (s *DocumentService) authorizeDocument(ctx context.Context, documentID, userID string) (*domain.Document, error) {
@@ -141,6 +154,22 @@ func (s *DocumentService) authorizeDocument(ctx context.Context, documentID, use
 		return nil, err
 	}
 	if err := s.authorizeWorkspace(ctx, doc.WorkspaceID, userID); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+// authorizeDocumentWrite は authorizeDocument の write 版。
+// 課金が生じる処理 (StartProcessing 等) は editor / owner のみ許可する。
+func (s *DocumentService) authorizeDocumentWrite(ctx context.Context, documentID, userID string) (*domain.Document, error) {
+	doc, err := s.repo.GetDocument(ctx, documentID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return nil, domain.ErrForbidden
+		}
+		return nil, err
+	}
+	if err := s.authorizeWrite(ctx, doc.WorkspaceID, userID); err != nil {
 		return nil, err
 	}
 	return doc, nil
@@ -158,7 +187,7 @@ func (s *DocumentService) GetDocument(ctx context.Context, documentID, userID st
 }
 
 func (s *DocumentService) CreateDocument(ctx context.Context, wsID, userID, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
-	if err := s.authorizeWorkspace(ctx, wsID, userID); err != nil {
+	if err := s.authorizeWrite(ctx, wsID, userID); err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
 	if err := domain.ValidateDocumentUploadType(filename, mimeType); err != nil {
@@ -201,7 +230,7 @@ func (s *DocumentService) reportCreateDocumentRejection(workspaceID, userID, fil
 }
 
 func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID, userID string) (*domain.Document, error) {
-	doc, err := s.authorizeDocument(ctx, documentID, userID)
+	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -281,7 +310,7 @@ func (s *DocumentService) reportUploadIncident(eventName, workspaceID, documentI
 }
 
 func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
-	doc, err := s.authorizeDocument(ctx, documentID, userID)
+	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +333,7 @@ func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userI
 }
 
 func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error) {
-	doc, err := s.authorizeDocument(ctx, documentID, userID)
+	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
 		return nil, err
 	}
