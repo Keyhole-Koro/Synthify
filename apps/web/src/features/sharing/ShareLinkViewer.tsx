@@ -30,7 +30,6 @@ export function ShareLinkViewer({ token }: ShareLinkViewerProps) {
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: 'loading' });
     resolveShareLink(token)
       .then((res) => {
         if (cancelled) return;

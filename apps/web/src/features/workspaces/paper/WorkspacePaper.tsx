@@ -8,7 +8,8 @@ import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
-import { type Workspace } from '@/features/workspaces/api';
+import { getWorkspace, type Workspace, type WorkspaceMember } from '@/features/workspaces/api';
+import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
 
@@ -96,6 +97,15 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareMembers, setShareMembers] = useState<WorkspaceMember[]>([]);
+
+  const openShare = useCallback(() => {
+    setIsSharing(true);
+    getWorkspace(workspaceId)
+      .then((res) => setShareMembers(res.members))
+      .catch(() => setShareMembers([]));
+  }, [workspaceId]);
 
   const isTreeMissing = !hasTree;
   const isExpanded = !isPopulated || isHovered || isFailed;
@@ -158,12 +168,20 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             isFailed={isFailed}
             jobProgress={jobStatus?.progress}
             isJustCompleted={isJustCompleted}
+            onOpenShare={openShare}
             onStartRename={startRename}
             onDraftNameChange={setDraftName}
             onCommitName={commitName}
             onCancelRename={cancelRename}
           />
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
+          {isSharing && (
+            <SharePanel
+              workspaceId={workspaceId}
+              initialMembers={shareMembers}
+              onClose={() => setIsSharing(false)}
+            />
+          )}
 
           {/* Always-visible section. The workspace's single root node content
               is its cover report, rendered as a CSS-isolated iframe. data-paper-id
