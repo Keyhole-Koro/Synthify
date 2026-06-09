@@ -165,12 +165,16 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		return fmt.Errorf("get document %s: %w", req.DocumentID, err)
 	}
 
-	// Tag the context with the account so the metering LLM wrapper can attribute
-	// token usage to the right billing account. A missing workspace is treated
-	// as non-fatal — the wrapper logs and drops usage rather than failing the job.
-	if ws, wsErr := w.repo.GetWorkspace(ctx, req.WorkspaceID); wsErr == nil && ws != nil {
+	// Tag the context with the billing account so the metering LLM wrapper can
+	// attribute token usage. Cost is borne by the user who requested the job
+	// (job.RequestedBy), not the workspace owner — this is what makes "process
+	// in someone else's shared workspace, pay from your own account" hold.
+	// Fallbacks (in order): requester's account -> workspace owner's account.
+	// A missing account is non-fatal: the wrapper logs and drops usage rather
+	// than failing the job.
+	if accountID := w.billingAccountFor(ctx, job.RequestedBy, req.WorkspaceID); accountID != "" {
 		ctx = metering.WithTag(ctx, metering.Tag{
-			AccountID:   ws.AccountID,
+			AccountID:   accountID,
 			WorkspaceID: req.WorkspaceID,
 			JobID:       req.JobID,
 		})
@@ -284,6 +288,27 @@ func (w *Worker) isBudgetAbort(parent, agentCtx context.Context) bool {
 // too and the job wedges in RUNNING forever (the "Processing started" stall). We
 // give those writes a fresh, short-lived ctx derived via WithoutCancel.
 const failJobTimeout = 30 * time.Second
+
+// billingAccountFor は usage を計上する account_id を決める。
+// 課金は job を要求した本人 (requestedBy) の account 負担が原則。本人 account を
+// 引けないとき (requestedBy が空 / "system" / 退会済み等) は workspace 所有者の
+// account にフォールバックする。どちらも引けなければ空文字を返し、呼び出し側で
+// usage を drop させる (job 自体は失敗させない)。
+func (w *Worker) billingAccountFor(ctx context.Context, requestedBy, workspaceID string) string {
+	if requestedBy != "" && requestedBy != "system" {
+		if acct, err := w.repo.GetAccountByUser(ctx, requestedBy); err == nil && acct != nil {
+			return acct.AccountID
+		}
+		w.logger.Warn("metering.requester_account_unresolved",
+			"requested_by", requestedBy,
+			"workspace_id", workspaceID,
+		)
+	}
+	if ws, err := w.repo.GetWorkspace(ctx, workspaceID); err == nil && ws != nil {
+		return ws.AccountID
+	}
+	return ""
+}
 
 func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jobstatus.Payload, cause error) {
 	reason := classifyFailure(cause)

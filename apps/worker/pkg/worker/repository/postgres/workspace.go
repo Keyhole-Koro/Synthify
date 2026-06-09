@@ -87,6 +87,17 @@ WHERE account_id = $1
 	return account, nil
 }
 
+func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
+	row, err := s.q().GetAccountByUser(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return s.GetAccount(ctx, row.AccountID)
+}
+
 func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
 	accessible, err := s.q().IsAccountAccessible(ctx, sqlcgen.IsAccountAccessibleParams{
 		AccountID: accountID,

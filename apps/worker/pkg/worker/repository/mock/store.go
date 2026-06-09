@@ -130,6 +130,17 @@ func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, err
 	return nil, domain.ErrNotFound
 }
 
+// GetAccountByUser は mock では account_id == user_id の単純化に従い、
+// userID をキーに account を返す。
+func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if a, ok := s.accounts[userID]; ok {
+		return a, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
 func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

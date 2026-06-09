@@ -44,6 +44,8 @@ type Transactor interface {
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
+	// GetAccountByUser は user が属する account を返す。usage の本人負担計上に使う。
+	GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error)
 	IsAccountAccessible(ctx context.Context, accountID, userID string) (ok bool, err error)
 	SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error
 	ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error)
