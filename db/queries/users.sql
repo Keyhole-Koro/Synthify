@@ -3,6 +3,11 @@ SELECT user_id, email, display_name, created_at, last_login_at, updated_at
 FROM users
 WHERE user_id = $1;
 
+-- name: GetUserByEmail :one
+SELECT user_id, email, display_name, created_at, last_login_at, updated_at
+FROM users
+WHERE email = $1;
+
 -- name: UpsertUser :one
 INSERT INTO users (user_id, email, display_name, created_at, last_login_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6)

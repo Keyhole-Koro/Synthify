@@ -147,6 +147,7 @@ func main() {
 	workspaceSvc := service.NewWorkspaceService(service.WorkspaceServiceDeps{
 		Accounts:   store,
 		Workspaces: store,
+		Users:      store,
 		Logger:     appLogger,
 	})
 	userSvc := service.NewUserService(service.UserServiceDeps{

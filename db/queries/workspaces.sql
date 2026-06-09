@@ -94,10 +94,12 @@ VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role;
 
 -- name: ListWorkspaceMembers :many
-SELECT workspace_id, user_id, role, invited_by, invited_at
-FROM workspace_members
-WHERE workspace_id = $1
-ORDER BY invited_at ASC;
+SELECT wm.workspace_id, wm.user_id, COALESCE(u.email, '')::text AS email,
+       wm.role, wm.invited_by, wm.invited_at
+FROM workspace_members wm
+LEFT JOIN users u ON u.user_id = wm.user_id
+WHERE wm.workspace_id = $1
+ORDER BY wm.invited_at ASC;
 
 -- name: RemoveWorkspaceMember :execrows
 DELETE FROM workspace_members

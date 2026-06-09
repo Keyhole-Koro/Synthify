@@ -381,24 +381,36 @@ func (q *Queries) ListShareLinks(ctx context.Context, workspaceID string) ([]Wor
 }
 
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
-SELECT workspace_id, user_id, role, invited_by, invited_at
-FROM workspace_members
-WHERE workspace_id = $1
-ORDER BY invited_at ASC
+SELECT wm.workspace_id, wm.user_id, COALESCE(u.email, '')::text AS email,
+       wm.role, wm.invited_by, wm.invited_at
+FROM workspace_members wm
+LEFT JOIN users u ON u.user_id = wm.user_id
+WHERE wm.workspace_id = $1
+ORDER BY wm.invited_at ASC
 `
 
-func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]WorkspaceMember, error) {
+type ListWorkspaceMembersRow struct {
+	WorkspaceID string
+	UserID      string
+	Email       string
+	Role        string
+	InvitedBy   string
+	InvitedAt   time.Time
+}
+
+func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]ListWorkspaceMembersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWorkspaceMembers, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceMember
+	var items []ListWorkspaceMembersRow
 	for rows.Next() {
-		var i WorkspaceMember
+		var i ListWorkspaceMembersRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.UserID,
+			&i.Email,
 			&i.Role,
 			&i.InvitedBy,
 			&i.InvitedAt,

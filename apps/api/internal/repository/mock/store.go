@@ -25,7 +25,8 @@ type Store struct {
 	users           map[string]*domain.User
 	accounts        map[string]*domain.Account
 	workspaces      map[string]*domain.Workspace
-	wsOwners        map[string]string // wsID -> ownerAccountID
+	wsOwners        map[string]string                       // wsID -> ownerAccountID
+	wsMembers       map[string]map[string]*domain.WorkspaceMember // wsID -> userID -> member
 	documents       map[string]*domain.Document
 	docFiles        map[string]map[string]*domain.DocumentFile // docID -> fileID -> File
 	jobs            map[string]*domain.DocumentProcessingJob
@@ -64,6 +65,7 @@ func NewStore() *Store {
 		accounts:        make(map[string]*domain.Account),
 		workspaces:      make(map[string]*domain.Workspace),
 		wsOwners:        make(map[string]string),
+		wsMembers:       make(map[string]map[string]*domain.WorkspaceMember),
 		documents:       make(map[string]*domain.Document),
 		docFiles:        make(map[string]map[string]*domain.DocumentFile),
 		jobs:            make(map[string]*domain.DocumentProcessingJob),
@@ -149,6 +151,17 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*domain.User, error
 	defer s.mu.RUnlock()
 	if u, ok := s.users[userID]; ok {
 		return u, nil
+	}
+	return nil, domain.ErrNotFound
+}
+
+func (s *Store) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, u := range s.users {
+		if u.Email == email {
+			return u, nil
+		}
 	}
 	return nil, domain.ErrNotFound
 }
@@ -371,13 +384,90 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 	if wsID == "" || userID == "" {
 		return false, nil
 	}
+	if s.isOwnerLocked(wsID, userID) {
+		return true, nil
+	}
+	if members, ok := s.wsMembers[wsID]; ok {
+		if _, ok := members[userID]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// isOwnerLocked は account 経由 (フラットモデル) の所有者かを返す。呼び出し側で
+// ロック済みであること。postgres 側の account_users JOIN に相当する簡略化で、
+// mock では wsOwners[wsID] == userID を所有者とみなす。
+func (s *Store) isOwnerLocked(wsID, userID string) bool {
 	owner := s.wsOwners[wsID]
 	if owner == "" {
 		if ws, ok := s.workspaces[wsID]; ok {
 			owner = ws.AccountID
 		}
 	}
-	return owner != "" && owner == userID, nil
+	return owner != "" && owner == userID
+}
+
+func (s *Store) GetWorkspaceRole(ctx context.Context, wsID, userID string) (domain.WorkspaceRole, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if wsID == "" || userID == "" {
+		return "", nil
+	}
+	if s.isOwnerLocked(wsID, userID) {
+		return domain.WorkspaceRoleOwner, nil
+	}
+	if members, ok := s.wsMembers[wsID]; ok {
+		if m, ok := members[userID]; ok {
+			return m.Role, nil
+		}
+	}
+	return "", nil
+}
+
+func (s *Store) UpsertWorkspaceMember(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, invitedBy string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.wsMembers[wsID] == nil {
+		s.wsMembers[wsID] = make(map[string]*domain.WorkspaceMember)
+	}
+	email := ""
+	if u, ok := s.users[userID]; ok {
+		email = u.Email
+	}
+	s.wsMembers[wsID][userID] = &domain.WorkspaceMember{
+		WorkspaceID: wsID,
+		UserID:      userID,
+		Email:       email,
+		Role:        role,
+		InvitedBy:   invitedBy,
+		InvitedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+	return nil
+}
+
+func (s *Store) ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	members := make([]*domain.WorkspaceMember, 0, len(s.wsMembers[wsID]))
+	for _, m := range s.wsMembers[wsID] {
+		members = append(members, m)
+	}
+	return members, nil
+}
+
+func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	members, ok := s.wsMembers[wsID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if _, ok := members[userID]; !ok {
+		return domain.ErrNotFound
+	}
+	delete(members, userID)
+	return nil
 }
 
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {

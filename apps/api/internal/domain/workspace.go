@@ -39,6 +39,36 @@ type AccountUser struct {
 	JoinedAt  string `json:"joined_at"`
 }
 
+// WorkspaceRole は workspace 単位の権限。owner > editor > viewer。
+type WorkspaceRole string
+
+const (
+	WorkspaceRoleOwner  WorkspaceRole = "owner"
+	WorkspaceRoleEditor WorkspaceRole = "editor"
+	WorkspaceRoleViewer WorkspaceRole = "viewer"
+)
+
+// CanWrite はドキュメント追加・処理などの書き込み操作が許可される role か。
+func (r WorkspaceRole) CanWrite() bool {
+	return r == WorkspaceRoleOwner || r == WorkspaceRoleEditor
+}
+
+// CanManageMembers はメンバー招待・role 変更・削除が許可される role か。
+func (r WorkspaceRole) CanManageMembers() bool {
+	return r == WorkspaceRoleOwner
+}
+
+// WorkspaceMember は workspace 単位で共有された招待メンバー。
+// account 経由のアクセス (所有者) はこのテーブルには載らず owner 相当として扱う。
+type WorkspaceMember struct {
+	WorkspaceID string        `json:"workspace_id"`
+	UserID      string        `json:"user_id"`
+	Email       string        `json:"email"`
+	Role        WorkspaceRole `json:"role"`
+	InvitedBy   string        `json:"invited_by"`
+	InvitedAt   string        `json:"invited_at"`
+}
+
 type Workspace struct {
 	WorkspaceID        string `json:"workspace_id"`
 	AccountID          string `json:"account_id"`

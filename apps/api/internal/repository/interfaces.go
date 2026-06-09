@@ -91,6 +91,7 @@ type AccountRepository interface {
 
 type UserRepository interface {
 	GetUser(ctx context.Context, userID string) (*domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error)
 }
 
@@ -100,12 +101,22 @@ type WorkspaceRepository interface {
 	// IsWorkspaceAccessible は DB エラーと「アクセス不可」を区別して返す。
 	// err != nil の場合 ok の値は意味を持たない。
 	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (ok bool, err error)
+	// GetWorkspaceRole は user の workspace 内 role を返す。account 経由 (所有者) は
+	// owner 相当、workspace_members に居ればその role。どちらでもなければ空文字。
+	// err != nil の場合 role の値は意味を持たない。
+	GetWorkspaceRole(ctx context.Context, wsID, userID string) (domain.WorkspaceRole, error)
 	// CreateWorkspace は workspaces + tree root item を 1 ペアで作成する。
 	// 内部で tx を張らないため、atomic 性が必要なら呼び出し側を
 	// Transactor.WithTx で包むこと。
 	CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error)
 	UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error)
 	DeleteWorkspace(ctx context.Context, workspaceID string) error
+	// UpsertWorkspaceMember は招待メンバーを追加 / role 更新する。
+	UpsertWorkspaceMember(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, invitedBy string) error
+	// ListWorkspaceMembers は workspace の招待メンバー一覧を返す (email 付き)。
+	ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error)
+	// RemoveWorkspaceMember はメンバーを削除する。対象が居なければ ErrNotFound。
+	RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error
 }
 
 // DocumentRepository は document/file 自体のメタデータ操作を扱う。

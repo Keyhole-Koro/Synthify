@@ -30,6 +30,26 @@ func (q *Queries) GetUser(ctx context.Context, userID string) (User, error) {
 	return i, err
 }
 
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT user_id, email, display_name, created_at, last_login_at, updated_at
+FROM users
+WHERE email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.Email,
+		&i.DisplayName,
+		&i.CreatedAt,
+		&i.LastLoginAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listUserWorkspaces = `-- name: ListUserWorkspaces :many
 SELECT w.workspace_id, w.name, w.created_at
 FROM workspaces w

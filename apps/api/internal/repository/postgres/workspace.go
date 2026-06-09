@@ -397,6 +397,63 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 	return accessible, nil
 }
 
+func (s *Store) GetWorkspaceRole(ctx context.Context, wsID, userID string) (domain.WorkspaceRole, error) {
+	role, err := s.q().GetWorkspaceRole(ctx, sqlcgen.GetWorkspaceRoleParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("query workspace role: %w", err)
+	}
+	return domain.WorkspaceRole(role), nil
+}
+
+func (s *Store) UpsertWorkspaceMember(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, invitedBy string) error {
+	if err := s.q().UpsertWorkspaceMember(ctx, sqlcgen.UpsertWorkspaceMemberParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+		Role:        string(role),
+		InvitedBy:   invitedBy,
+		InvitedAt:   nowTime(),
+	}); err != nil {
+		return fmt.Errorf("upsert workspace member: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error) {
+	rows, err := s.q().ListWorkspaceMembers(ctx, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("list workspace members: %w", err)
+	}
+	members := make([]*domain.WorkspaceMember, 0, len(rows))
+	for _, row := range rows {
+		members = append(members, &domain.WorkspaceMember{
+			WorkspaceID: row.WorkspaceID,
+			UserID:      row.UserID,
+			Email:       row.Email,
+			Role:        domain.WorkspaceRole(row.Role),
+			InvitedBy:   row.InvitedBy,
+			InvitedAt:   row.InvitedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return members, nil
+}
+
+func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error {
+	affected, err := s.q().RemoveWorkspaceMember(ctx, sqlcgen.RemoveWorkspaceMemberParams{
+		WorkspaceID: wsID,
+		UserID:      userID,
+	})
+	if err != nil {
+		return fmt.Errorf("remove workspace member: %w", err)
+	}
+	if affected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
 // CreateWorkspace は workspaces 行と tree root item を 1 ペアで作成する。
 // 内部で tx を張らないため、atomic 性が必要なら呼び出し側を
 // Transactor.WithTx で包むこと。

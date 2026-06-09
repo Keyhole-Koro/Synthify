@@ -21,6 +21,17 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*domain.User, error
 	return toDomainUser(row), nil
 }
 
+func (s *Store) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
+	row, err := s.q().GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return toDomainUser(row), nil
+}
+
 func (s *Store) UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error) {
 	createdAt, _ := time.Parse(time.RFC3339, user.CreatedAt)
 	if createdAt.IsZero() {

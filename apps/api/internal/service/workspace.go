@@ -17,17 +17,23 @@ type WorkspaceUsecase interface {
 	CreateWorkspace(ctx context.Context, name, userID string) (*domain.Workspace, error)
 	UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error)
 	DeleteWorkspace(ctx context.Context, id, userID string) error
+	ListMembers(ctx context.Context, wsID, userID string) ([]*domain.WorkspaceMember, error)
+	InviteMember(ctx context.Context, wsID, userID, email string, role domain.WorkspaceRole) (*domain.WorkspaceMember, error)
+	UpdateMemberRole(ctx context.Context, wsID, userID, targetUserID string, role domain.WorkspaceRole) (*domain.WorkspaceMember, error)
+	RemoveMember(ctx context.Context, wsID, userID, targetUserID string) error
 }
 
 type WorkspaceService struct {
 	accounts   repository.AccountRepository
 	workspaces repository.WorkspaceRepository
+	users      repository.UserRepository
 	logger     *slog.Logger
 }
 
 type WorkspaceServiceDeps struct {
 	Accounts   repository.AccountRepository
 	Workspaces repository.WorkspaceRepository
+	Users      repository.UserRepository
 	Logger     *slog.Logger
 }
 
@@ -35,6 +41,7 @@ func NewWorkspaceService(deps WorkspaceServiceDeps) *WorkspaceService {
 	return &WorkspaceService{
 		accounts:   deps.Accounts,
 		workspaces: deps.Workspaces,
+		users:      deps.Users,
 		logger:     deps.Logger,
 	}
 }
@@ -90,4 +97,89 @@ func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, id, userID strin
 		return domain.ErrForbidden
 	}
 	return s.workspaces.DeleteWorkspace(ctx, id)
+}
+
+// requireManageMembers はメンバー管理操作 (招待 / role 変更 / 削除) の権限を確認する。
+// owner だけが管理でき、それ以外 (editor / viewer / 非メンバー) は ErrForbidden。
+func (s *WorkspaceService) requireManageMembers(ctx context.Context, wsID, userID string) error {
+	role, err := s.workspaces.GetWorkspaceRole(ctx, wsID, userID)
+	if err != nil {
+		return err
+	}
+	if !role.CanManageMembers() {
+		return domain.ErrForbidden
+	}
+	return nil
+}
+
+func (s *WorkspaceService) ListMembers(ctx context.Context, wsID, userID string) ([]*domain.WorkspaceMember, error) {
+	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, wsID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, domain.ErrForbidden
+	}
+	return s.workspaces.ListWorkspaceMembers(ctx, wsID)
+}
+
+func (s *WorkspaceService) InviteMember(ctx context.Context, wsID, userID, email string, role domain.WorkspaceRole) (*domain.WorkspaceMember, error) {
+	if !isAssignableRole(role) {
+		return nil, domain.ErrInvalidArgument
+	}
+	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
+		return nil, err
+	}
+	// 課金が生じる操作は登録済みユーザーのみに許可する方針のため、
+	// 招待は users に存在する (= 登録済み) ユーザーに限る。未登録は ErrNotFound。
+	user, err := s.users.GetUserByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.workspaces.UpsertWorkspaceMember(ctx, wsID, user.UserID, role, userID); err != nil {
+		return nil, err
+	}
+	return &domain.WorkspaceMember{
+		WorkspaceID: wsID,
+		UserID:      user.UserID,
+		Email:       user.Email,
+		Role:        role,
+		InvitedBy:   userID,
+	}, nil
+}
+
+func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, wsID, userID, targetUserID string, role domain.WorkspaceRole) (*domain.WorkspaceMember, error) {
+	if !isAssignableRole(role) {
+		return nil, domain.ErrInvalidArgument
+	}
+	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
+		return nil, err
+	}
+	if err := s.workspaces.UpsertWorkspaceMember(ctx, wsID, targetUserID, role, userID); err != nil {
+		return nil, err
+	}
+	user, err := s.users.GetUser(ctx, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.WorkspaceMember{
+		WorkspaceID: wsID,
+		UserID:      targetUserID,
+		Email:       user.Email,
+		Role:        role,
+		InvitedBy:   userID,
+	}, nil
+}
+
+func (s *WorkspaceService) RemoveMember(ctx context.Context, wsID, userID, targetUserID string) error {
+	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
+		return err
+	}
+	return s.workspaces.RemoveWorkspaceMember(ctx, wsID, targetUserID)
+}
+
+// isAssignableRole は招待 / role 変更で指定可能な role か。
+// owner は所有者 (account 経由) に予約されており、明示付与は許可しない。
+func isAssignableRole(role domain.WorkspaceRole) bool {
+	return role == domain.WorkspaceRoleEditor || role == domain.WorkspaceRoleViewer
 }

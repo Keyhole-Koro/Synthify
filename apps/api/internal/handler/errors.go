@@ -22,6 +22,8 @@ func toError(err error) error {
 		return connect.NewError(connect.CodeNotFound, err)
 	case errors.Is(err, domain.ErrForbidden):
 		return connect.NewError(connect.CodePermissionDenied, err)
+	case errors.Is(err, domain.ErrInvalidArgument):
+		return connect.NewError(connect.CodeInvalidArgument, err)
 	case errors.Is(err, domain.ErrConflict):
 		return connect.NewError(connect.CodeAlreadyExists, err)
 	case errors.Is(err, domain.ErrInvariantViolation):

@@ -47,9 +47,17 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, toError(err)
 	}
-	return connect.NewResponse(&appv1.GetWorkspaceResponse{
+	members, err := h.service.ListMembers(ctx, req.Msg.GetWorkspaceId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
+	res := &appv1.GetWorkspaceResponse{
 		Workspace: toProtoWorkspace(workspace),
-	}), nil
+	}
+	for _, m := range members {
+		res.Members = append(res.Members, toProtoWorkspaceMember(m))
+	}
+	return connect.NewResponse(res), nil
 }
 
 func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[appv1.CreateWorkspaceRequest]) (*connect.Response[appv1.CreateWorkspaceResponse], error) {
@@ -107,16 +115,67 @@ func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&appv1.DeleteWorkspaceResponse{}), nil
 }
 
-func (h *WorkspaceHandler) InviteMember(_ context.Context, _ *connect.Request[appv1.InviteMemberRequest]) (*connect.Response[appv1.InviteMemberResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
+func (h *WorkspaceHandler) InviteMember(ctx context.Context, req *connect.Request[appv1.InviteMemberRequest]) (*connect.Response[appv1.InviteMemberResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	email := strings.TrimSpace(req.Msg.GetEmail())
+	if email == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("email is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	member, err := h.service.InviteMember(ctx, workspaceID, userID, email, fromProtoWorkspaceRole(req.Msg.GetRole()))
+	if err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.InviteMemberResponse{
+		Member: toProtoWorkspaceMember(member),
+	}), nil
 }
 
-func (h *WorkspaceHandler) UpdateMemberRole(_ context.Context, _ *connect.Request[appv1.UpdateMemberRoleRequest]) (*connect.Response[appv1.UpdateMemberRoleResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
+func (h *WorkspaceHandler) UpdateMemberRole(ctx context.Context, req *connect.Request[appv1.UpdateMemberRoleRequest]) (*connect.Response[appv1.UpdateMemberRoleResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	targetUserID := strings.TrimSpace(req.Msg.GetUserId())
+	if targetUserID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("user_id is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	member, err := h.service.UpdateMemberRole(ctx, workspaceID, userID, targetUserID, fromProtoWorkspaceRole(req.Msg.GetRole()))
+	if err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.UpdateMemberRoleResponse{
+		Member: toProtoWorkspaceMember(member),
+	}), nil
 }
 
-func (h *WorkspaceHandler) RemoveMember(_ context.Context, _ *connect.Request[appv1.RemoveMemberRequest]) (*connect.Response[appv1.RemoveMemberResponse], error) {
-	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace membership is managed at account level"))
+func (h *WorkspaceHandler) RemoveMember(ctx context.Context, req *connect.Request[appv1.RemoveMemberRequest]) (*connect.Response[appv1.RemoveMemberResponse], error) {
+	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
+	if workspaceID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
+	}
+	targetUserID := strings.TrimSpace(req.Msg.GetUserId())
+	if targetUserID == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("user_id is required"))
+	}
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.service.RemoveMember(ctx, workspaceID, userID, targetUserID); err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.RemoveMemberResponse{}), nil
 }
 
 func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Request[appv1.TransferOwnershipRequest]) (*connect.Response[appv1.TransferOwnershipResponse], error) {
@@ -153,6 +212,45 @@ func toProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
 		MaxFileSizeBytes:  ws.MaxFileSizeBytes,
 		MaxUploadsPerDay:  ws.MaxUploadsPerWeek,
 		CreatedAt:         ws.CreatedAt,
+	}
+}
+
+func toProtoWorkspaceMember(m *domain.WorkspaceMember) *appv1.WorkspaceMember {
+	if m == nil {
+		return nil
+	}
+	return &appv1.WorkspaceMember{
+		UserId:    m.UserID,
+		Email:     m.Email,
+		Role:      toProtoWorkspaceRole(m.Role),
+		InvitedAt: m.InvitedAt,
+		InvitedBy: m.InvitedBy,
+	}
+}
+
+func toProtoWorkspaceRole(role domain.WorkspaceRole) appv1.WorkspaceRole {
+	switch role {
+	case domain.WorkspaceRoleOwner:
+		return appv1.WorkspaceRole_WORKSPACE_ROLE_OWNER
+	case domain.WorkspaceRoleEditor:
+		return appv1.WorkspaceRole_WORKSPACE_ROLE_EDITOR
+	case domain.WorkspaceRoleViewer:
+		return appv1.WorkspaceRole_WORKSPACE_ROLE_VIEWER
+	default:
+		return appv1.WorkspaceRole_WORKSPACE_ROLE_UNSPECIFIED
+	}
+}
+
+func fromProtoWorkspaceRole(role appv1.WorkspaceRole) domain.WorkspaceRole {
+	switch role {
+	case appv1.WorkspaceRole_WORKSPACE_ROLE_OWNER:
+		return domain.WorkspaceRoleOwner
+	case appv1.WorkspaceRole_WORKSPACE_ROLE_EDITOR:
+		return domain.WorkspaceRoleEditor
+	case appv1.WorkspaceRole_WORKSPACE_ROLE_VIEWER:
+		return domain.WorkspaceRoleViewer
+	default:
+		return ""
 	}
 }
 
