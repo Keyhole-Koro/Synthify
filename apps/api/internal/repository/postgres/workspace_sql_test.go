@@ -553,6 +553,115 @@ func TestGetWorkspace_Found_ReturnsWorkspace(t *testing.T) {
 	assert.Equal(t, "free", got.Plan)
 }
 
+// ── IsWorkspaceAccessible (UNION: account 経由 OR member 経由) ────────────────
+
+func TestIsWorkspaceAccessible_PassesWorkspaceThenUser(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	// $1=workspace_id, $2=user_id の順で渡されること。true を返す。
+	mock.ExpectQuery(regexp.QuoteMeta("UNION ALL")).
+		WithArgs("ws_1", "u_1").
+		WillReturnRows(sqlmock.NewRows([]string{"accessible"}).AddRow(true))
+
+	ok, err := store.IsWorkspaceAccessible(context.Background(), "ws_1", "u_1")
+	require.NoError(t, err)
+	assert.True(t, ok, "accessible")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestIsWorkspaceAccessible_NotAccessible_ReturnsFalse(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("workspace_members wm")).
+		WithArgs("ws_1", "stranger").
+		WillReturnRows(sqlmock.NewRows([]string{"accessible"}).AddRow(false))
+
+	ok, err := store.IsWorkspaceAccessible(context.Background(), "ws_1", "stranger")
+	require.NoError(t, err)
+	assert.False(t, ok, "not accessible")
+}
+
+func TestIsWorkspaceAccessible_DBError_Propagates(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("UNION ALL")).
+		WithArgs("ws_1", "u_1").
+		WillReturnError(errors.New("boom"))
+
+	_, err := store.IsWorkspaceAccessible(context.Background(), "ws_1", "u_1")
+	require.Error(t, err, "DB error should propagate")
+}
+
+// ── GetWorkspaceRole (account=owner / member=role / 該当なし=空) ───────────────
+
+func TestGetWorkspaceRole_Owner_ReturnsOwner(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("END::text AS role")).
+		WithArgs("ws_1", "owner").
+		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow("owner"))
+
+	role, err := store.GetWorkspaceRole(context.Background(), "ws_1", "owner")
+	require.NoError(t, err)
+	assert.Equal(t, domain.WorkspaceRoleOwner, role)
+}
+
+func TestGetWorkspaceRole_Member_ReturnsRole(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("workspace_members wm")).
+		WithArgs("ws_1", "u_2").
+		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow("editor"))
+
+	role, err := store.GetWorkspaceRole(context.Background(), "ws_1", "u_2")
+	require.NoError(t, err)
+	assert.Equal(t, domain.WorkspaceRoleEditor, role)
+}
+
+func TestGetWorkspaceRole_None_ReturnsEmpty(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectQuery(regexp.QuoteMeta("END::text AS role")).
+		WithArgs("ws_1", "stranger").
+		WillReturnRows(sqlmock.NewRows([]string{"role"}).AddRow(""))
+
+	role, err := store.GetWorkspaceRole(context.Background(), "ws_1", "stranger")
+	require.NoError(t, err)
+	assert.Equal(t, domain.WorkspaceRole(""), role, "non-member role is empty")
+}
+
+// ── RemoveWorkspaceMember (RowsAffected の解釈) ───────────────────────────────
+
+func TestRemoveWorkspaceMember_NoRows_ReturnsErrNotFound(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM workspace_members")).
+		WithArgs("ws_1", "ghost").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err := store.RemoveWorkspaceMember(context.Background(), "ws_1", "ghost")
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}
+
+func TestRemoveWorkspaceMember_RowAffected_ReturnsNil(t *testing.T) {
+	store, mock, cleanup := newStoreWithMock(t)
+	defer cleanup()
+
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM workspace_members")).
+		WithArgs("ws_1", "u_2").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err := store.RemoveWorkspaceMember(context.Background(), "ws_1", "u_2")
+	require.NoError(t, err)
+}
+
 // errMockNoRows は sqlmock で sql.ErrNoRows 相当を返すための代用エラー。
 // repo 層は errors.Is(err, sql.ErrNoRows) を判定するため、ここでは
 // 単に「クエリが空を返した」を表す任意のエラーで OK (RootItemID 空に倒れるだけ)。
