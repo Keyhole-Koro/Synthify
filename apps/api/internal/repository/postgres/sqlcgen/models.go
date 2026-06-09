@@ -352,3 +352,21 @@ type Workspace struct {
 	UpdatedAt   time.Time
 	DeletedAt   sql.NullTime
 }
+
+type WorkspaceMember struct {
+	WorkspaceID string
+	UserID      string
+	Role        string
+	InvitedBy   string
+	InvitedAt   time.Time
+}
+
+type WorkspaceShareLink struct {
+	Token       string
+	WorkspaceID string
+	Role        string
+	CreatedBy   string
+	ExpiresAt   sql.NullTime
+	RevokedAt   sql.NullTime
+	CreatedAt   time.Time
+}

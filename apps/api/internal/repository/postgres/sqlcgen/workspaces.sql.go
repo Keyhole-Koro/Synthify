@@ -34,6 +34,34 @@ func (q *Queries) CreateAccountUser(ctx context.Context, arg CreateAccountUserPa
 	return err
 }
 
+const createShareLink = `-- name: CreateShareLink :exec
+
+INSERT INTO workspace_share_links (token, workspace_id, role, created_by, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+`
+
+type CreateShareLinkParams struct {
+	Token       string
+	WorkspaceID string
+	Role        string
+	CreatedBy   string
+	ExpiresAt   sql.NullTime
+	CreatedAt   time.Time
+}
+
+// --- Workspace share links -----------------------------------------------
+func (q *Queries) CreateShareLink(ctx context.Context, arg CreateShareLinkParams) error {
+	_, err := q.db.ExecContext(ctx, createShareLink,
+		arg.Token,
+		arg.WorkspaceID,
+		arg.Role,
+		arg.CreatedBy,
+		arg.ExpiresAt,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const createWorkspace = `-- name: CreateWorkspace :exec
 INSERT INTO workspaces (workspace_id, account_id, name, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $4)
@@ -240,6 +268,36 @@ func (q *Queries) GetWorkspace(ctx context.Context, workspaceID string) (GetWork
 	return i, err
 }
 
+const getWorkspaceRole = `-- name: GetWorkspaceRole :one
+SELECT CASE
+  WHEN EXISTS(
+    SELECT 1 FROM workspaces w
+    JOIN account_users au ON au.account_id = w.account_id
+    WHERE w.workspace_id = $1 AND au.user_id = $2 AND w.deleted_at IS NULL
+  ) THEN 'owner'
+  ELSE COALESCE(
+    (SELECT wm.role FROM workspace_members wm
+     JOIN workspaces w ON w.workspace_id = wm.workspace_id
+     WHERE wm.workspace_id = $1 AND wm.user_id = $2 AND w.deleted_at IS NULL),
+    ''
+  )
+END::text AS role
+`
+
+type GetWorkspaceRoleParams struct {
+	WorkspaceID string
+	UserID      string
+}
+
+// アクセス可能なら role を返す。account 経由は owner 相当。
+// 両方該当する場合は account(owner) を優先する。
+func (q *Queries) GetWorkspaceRole(ctx context.Context, arg GetWorkspaceRoleParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceRole, arg.WorkspaceID, arg.UserID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
+}
+
 const isAccountAccessible = `-- name: IsAccountAccessible :one
 SELECT EXISTS(
   SELECT 1 FROM account_users
@@ -264,6 +322,10 @@ SELECT EXISTS(
   SELECT 1 FROM workspaces w
   JOIN account_users au ON au.account_id = w.account_id
   WHERE w.workspace_id = $1 AND au.user_id = $2 AND w.deleted_at IS NULL
+  UNION ALL
+  SELECT 1 FROM workspaces w
+  JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
+  WHERE w.workspace_id = $1 AND wm.user_id = $2 AND w.deleted_at IS NULL
 )::bool AS accessible
 `
 
@@ -272,11 +334,86 @@ type IsWorkspaceAccessibleParams struct {
 	UserID      string
 }
 
+// account 経由 (フラットモデル) OR workspace_members 経由のどちらかでアクセス可。
 func (q *Queries) IsWorkspaceAccessible(ctx context.Context, arg IsWorkspaceAccessibleParams) (bool, error) {
 	row := q.db.QueryRowContext(ctx, isWorkspaceAccessible, arg.WorkspaceID, arg.UserID)
 	var accessible bool
 	err := row.Scan(&accessible)
 	return accessible, err
+}
+
+const listShareLinks = `-- name: ListShareLinks :many
+SELECT token, workspace_id, role, created_by, expires_at, revoked_at, created_at
+FROM workspace_share_links
+WHERE workspace_id = $1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListShareLinks(ctx context.Context, workspaceID string) ([]WorkspaceShareLink, error) {
+	rows, err := q.db.QueryContext(ctx, listShareLinks, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceShareLink
+	for rows.Next() {
+		var i WorkspaceShareLink
+		if err := rows.Scan(
+			&i.Token,
+			&i.WorkspaceID,
+			&i.Role,
+			&i.CreatedBy,
+			&i.ExpiresAt,
+			&i.RevokedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
+SELECT workspace_id, user_id, role, invited_by, invited_at
+FROM workspace_members
+WHERE workspace_id = $1
+ORDER BY invited_at ASC
+`
+
+func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]WorkspaceMember, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceMembers, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceMember
+	for rows.Next() {
+		var i WorkspaceMember
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Role,
+			&i.InvitedBy,
+			&i.InvitedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listWorkspacesByUser = `-- name: ListWorkspacesByUser :many
@@ -322,6 +459,75 @@ func (q *Queries) ListWorkspacesByUser(ctx context.Context, userID string) ([]Li
 	return items, nil
 }
 
+const removeWorkspaceMember = `-- name: RemoveWorkspaceMember :execrows
+DELETE FROM workspace_members
+WHERE workspace_id = $1 AND user_id = $2
+`
+
+type RemoveWorkspaceMemberParams struct {
+	WorkspaceID string
+	UserID      string
+}
+
+func (q *Queries) RemoveWorkspaceMember(ctx context.Context, arg RemoveWorkspaceMemberParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, removeWorkspaceMember, arg.WorkspaceID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const resolveShareLink = `-- name: ResolveShareLink :one
+SELECT sl.token, sl.workspace_id, sl.role, sl.created_by, sl.expires_at, sl.revoked_at, sl.created_at
+FROM workspace_share_links sl
+JOIN workspaces w ON w.workspace_id = sl.workspace_id
+WHERE sl.token = $1
+  AND sl.revoked_at IS NULL
+  AND (sl.expires_at IS NULL OR sl.expires_at > $2)
+  AND w.deleted_at IS NULL
+`
+
+type ResolveShareLinkParams struct {
+	Token     string
+	ExpiresAt sql.NullTime
+}
+
+// 有効な (未失効・未期限切れ) リンクのみ workspace と role を返す。
+func (q *Queries) ResolveShareLink(ctx context.Context, arg ResolveShareLinkParams) (WorkspaceShareLink, error) {
+	row := q.db.QueryRowContext(ctx, resolveShareLink, arg.Token, arg.ExpiresAt)
+	var i WorkspaceShareLink
+	err := row.Scan(
+		&i.Token,
+		&i.WorkspaceID,
+		&i.Role,
+		&i.CreatedBy,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const revokeShareLink = `-- name: RevokeShareLink :execrows
+UPDATE workspace_share_links
+SET revoked_at = $3
+WHERE workspace_id = $1 AND token = $2 AND revoked_at IS NULL
+`
+
+type RevokeShareLinkParams struct {
+	WorkspaceID string
+	Token       string
+	RevokedAt   sql.NullTime
+}
+
+func (q *Queries) RevokeShareLink(ctx context.Context, arg RevokeShareLinkParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, revokeShareLink, arg.WorkspaceID, arg.Token, arg.RevokedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const softDeleteWorkspace = `-- name: SoftDeleteWorkspace :execrows
 UPDATE workspaces
 SET deleted_at = $2, updated_at = $2
@@ -359,4 +565,31 @@ func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNa
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const upsertWorkspaceMember = `-- name: UpsertWorkspaceMember :exec
+
+INSERT INTO workspace_members (workspace_id, user_id, role, invited_by, invited_at)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (workspace_id, user_id) DO UPDATE SET role = EXCLUDED.role
+`
+
+type UpsertWorkspaceMemberParams struct {
+	WorkspaceID string
+	UserID      string
+	Role        string
+	InvitedBy   string
+	InvitedAt   time.Time
+}
+
+// --- Workspace members ---------------------------------------------------
+func (q *Queries) UpsertWorkspaceMember(ctx context.Context, arg UpsertWorkspaceMemberParams) error {
+	_, err := q.db.ExecContext(ctx, upsertWorkspaceMember,
+		arg.WorkspaceID,
+		arg.UserID,
+		arg.Role,
+		arg.InvitedBy,
+		arg.InvitedAt,
+	)
+	return err
 }
