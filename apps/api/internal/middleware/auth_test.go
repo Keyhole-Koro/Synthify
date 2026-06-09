@@ -57,6 +57,30 @@ func TestWithAuth_ExemptPathSkipsAuthenticator(t *testing.T) {
 	}
 }
 
+func TestWithAuth_ResolveShareLinkIsExempt(t *testing.T) {
+	authenticator := &fakeAuthenticator{}
+	called := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// 公開リンク解決は無認証で通る (token のみで workspace を解決するため)。
+	req := httptest.NewRequest(http.MethodPost, "/synthify.app.v1.WorkspaceService/ResolveShareLink", nil)
+	rec := httptest.NewRecorder()
+	WithAuth(authenticator, slog.Default(), next).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if !called {
+		t.Fatal("next handler was not called")
+	}
+	if authenticator.bearerCalls != 0 || authenticator.serviceCalls != 0 {
+		t.Fatalf("authenticator called: bearer=%d service=%d", authenticator.bearerCalls, authenticator.serviceCalls)
+	}
+}
+
 func TestWithAuth_BearerTokenUsesBearerAuthenticator(t *testing.T) {
 	want := apiauth.Principal{Kind: apiauth.PrincipalKindUser, SubjectID: "u1", Email: "u@example.com"}
 	authenticator := &fakeAuthenticator{bearerPrincipal: want}
