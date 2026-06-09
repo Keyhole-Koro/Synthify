@@ -443,6 +443,207 @@ export declare type DeleteWorkspaceResponse = Message<"synthify.app.v1.DeleteWor
 export declare const DeleteWorkspaceResponseSchema: GenMessage<DeleteWorkspaceResponse>;
 
 /**
+ * 公開リンク。token を知っていれば無認証で閲覧できる。
+ * role は閲覧専用に限定する想定（課金操作は招待メンバーのみ）。
+ *
+ * @generated from message synthify.app.v1.ShareLink
+ */
+export declare type ShareLink = Message<"synthify.app.v1.ShareLink"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+
+  /**
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: synthify.app.v1.WorkspaceRole role = 3;
+   */
+  role: WorkspaceRole;
+
+  /**
+   * @generated from field: string created_by = 4;
+   */
+  createdBy: string;
+
+  /**
+   * @generated from field: string created_at = 5;
+   */
+  createdAt: string;
+
+  /**
+   * 空文字なら無期限
+   *
+   * @generated from field: string expires_at = 6;
+   */
+  expiresAt: string;
+
+  /**
+   * @generated from field: bool revoked = 7;
+   */
+  revoked: boolean;
+};
+
+/**
+ * Describes the message synthify.app.v1.ShareLink.
+ * Use `create(ShareLinkSchema)` to create a new message.
+ */
+export declare const ShareLinkSchema: GenMessage<ShareLink>;
+
+/**
+ * @generated from message synthify.app.v1.CreateShareLinkRequest
+ */
+export declare type CreateShareLinkRequest = Message<"synthify.app.v1.CreateShareLinkRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+
+  /**
+   * 未指定なら VIEWER 扱い
+   *
+   * @generated from field: synthify.app.v1.WorkspaceRole role = 2;
+   */
+  role: WorkspaceRole;
+
+  /**
+   * 空文字なら無期限
+   *
+   * @generated from field: string expires_at = 3;
+   */
+  expiresAt: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.CreateShareLinkRequest.
+ * Use `create(CreateShareLinkRequestSchema)` to create a new message.
+ */
+export declare const CreateShareLinkRequestSchema: GenMessage<CreateShareLinkRequest>;
+
+/**
+ * @generated from message synthify.app.v1.CreateShareLinkResponse
+ */
+export declare type CreateShareLinkResponse = Message<"synthify.app.v1.CreateShareLinkResponse"> & {
+  /**
+   * @generated from field: synthify.app.v1.ShareLink link = 1;
+   */
+  link?: ShareLink;
+};
+
+/**
+ * Describes the message synthify.app.v1.CreateShareLinkResponse.
+ * Use `create(CreateShareLinkResponseSchema)` to create a new message.
+ */
+export declare const CreateShareLinkResponseSchema: GenMessage<CreateShareLinkResponse>;
+
+/**
+ * @generated from message synthify.app.v1.ListShareLinksRequest
+ */
+export declare type ListShareLinksRequest = Message<"synthify.app.v1.ListShareLinksRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.ListShareLinksRequest.
+ * Use `create(ListShareLinksRequestSchema)` to create a new message.
+ */
+export declare const ListShareLinksRequestSchema: GenMessage<ListShareLinksRequest>;
+
+/**
+ * @generated from message synthify.app.v1.ListShareLinksResponse
+ */
+export declare type ListShareLinksResponse = Message<"synthify.app.v1.ListShareLinksResponse"> & {
+  /**
+   * @generated from field: repeated synthify.app.v1.ShareLink links = 1;
+   */
+  links: ShareLink[];
+};
+
+/**
+ * Describes the message synthify.app.v1.ListShareLinksResponse.
+ * Use `create(ListShareLinksResponseSchema)` to create a new message.
+ */
+export declare const ListShareLinksResponseSchema: GenMessage<ListShareLinksResponse>;
+
+/**
+ * @generated from message synthify.app.v1.RevokeShareLinkRequest
+ */
+export declare type RevokeShareLinkRequest = Message<"synthify.app.v1.RevokeShareLinkRequest"> & {
+  /**
+   * @generated from field: string workspace_id = 1;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: string token = 2;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.RevokeShareLinkRequest.
+ * Use `create(RevokeShareLinkRequestSchema)` to create a new message.
+ */
+export declare const RevokeShareLinkRequestSchema: GenMessage<RevokeShareLinkRequest>;
+
+/**
+ * @generated from message synthify.app.v1.RevokeShareLinkResponse
+ */
+export declare type RevokeShareLinkResponse = Message<"synthify.app.v1.RevokeShareLinkResponse"> & {
+};
+
+/**
+ * Describes the message synthify.app.v1.RevokeShareLinkResponse.
+ * Use `create(RevokeShareLinkResponseSchema)` to create a new message.
+ */
+export declare const RevokeShareLinkResponseSchema: GenMessage<RevokeShareLinkResponse>;
+
+/**
+ * 無認証で呼ばれる。token のみを受け取り、有効なら workspace を返す。
+ *
+ * @generated from message synthify.app.v1.ResolveShareLinkRequest
+ */
+export declare type ResolveShareLinkRequest = Message<"synthify.app.v1.ResolveShareLinkRequest"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.ResolveShareLinkRequest.
+ * Use `create(ResolveShareLinkRequestSchema)` to create a new message.
+ */
+export declare const ResolveShareLinkRequestSchema: GenMessage<ResolveShareLinkRequest>;
+
+/**
+ * @generated from message synthify.app.v1.ResolveShareLinkResponse
+ */
+export declare type ResolveShareLinkResponse = Message<"synthify.app.v1.ResolveShareLinkResponse"> & {
+  /**
+   * @generated from field: synthify.app.v1.Workspace workspace = 1;
+   */
+  workspace?: Workspace;
+
+  /**
+   * @generated from field: synthify.app.v1.WorkspaceRole role = 2;
+   */
+  role: WorkspaceRole;
+};
+
+/**
+ * Describes the message synthify.app.v1.ResolveShareLinkResponse.
+ * Use `create(ResolveShareLinkResponseSchema)` to create a new message.
+ */
+export declare const ResolveShareLinkResponseSchema: GenMessage<ResolveShareLinkResponse>;
+
+/**
  * @generated from enum synthify.app.v1.WorkspacePlan
  */
 export enum WorkspacePlan {
@@ -574,6 +775,42 @@ export declare const WorkspaceService: GenService<{
     methodKind: "unary";
     input: typeof DeleteWorkspaceRequestSchema;
     output: typeof DeleteWorkspaceResponseSchema;
+  },
+  /**
+   * 公開リンク共有。リンクは閲覧専用で課金ゼロ（処理など課金操作は不可）。
+   *
+   * @generated from rpc synthify.app.v1.WorkspaceService.CreateShareLink
+   */
+  createShareLink: {
+    methodKind: "unary";
+    input: typeof CreateShareLinkRequestSchema;
+    output: typeof CreateShareLinkResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.app.v1.WorkspaceService.ListShareLinks
+   */
+  listShareLinks: {
+    methodKind: "unary";
+    input: typeof ListShareLinksRequestSchema;
+    output: typeof ListShareLinksResponseSchema;
+  },
+  /**
+   * @generated from rpc synthify.app.v1.WorkspaceService.RevokeShareLink
+   */
+  revokeShareLink: {
+    methodKind: "unary";
+    input: typeof RevokeShareLinkRequestSchema;
+    output: typeof RevokeShareLinkResponseSchema;
+  },
+  /**
+   * token から workspace を解決する無認証経路。フロントの /view/[token] が使う。
+   *
+   * @generated from rpc synthify.app.v1.WorkspaceService.ResolveShareLink
+   */
+  resolveShareLink: {
+    methodKind: "unary";
+    input: typeof ResolveShareLinkRequestSchema;
+    output: typeof ResolveShareLinkResponseSchema;
   },
 }>;
 

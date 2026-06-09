@@ -60,6 +60,18 @@ const (
 	// WorkspaceServiceDeleteWorkspaceProcedure is the fully-qualified name of the WorkspaceService's
 	// DeleteWorkspace RPC.
 	WorkspaceServiceDeleteWorkspaceProcedure = "/synthify.app.v1.WorkspaceService/DeleteWorkspace"
+	// WorkspaceServiceCreateShareLinkProcedure is the fully-qualified name of the WorkspaceService's
+	// CreateShareLink RPC.
+	WorkspaceServiceCreateShareLinkProcedure = "/synthify.app.v1.WorkspaceService/CreateShareLink"
+	// WorkspaceServiceListShareLinksProcedure is the fully-qualified name of the WorkspaceService's
+	// ListShareLinks RPC.
+	WorkspaceServiceListShareLinksProcedure = "/synthify.app.v1.WorkspaceService/ListShareLinks"
+	// WorkspaceServiceRevokeShareLinkProcedure is the fully-qualified name of the WorkspaceService's
+	// RevokeShareLink RPC.
+	WorkspaceServiceRevokeShareLinkProcedure = "/synthify.app.v1.WorkspaceService/RevokeShareLink"
+	// WorkspaceServiceResolveShareLinkProcedure is the fully-qualified name of the WorkspaceService's
+	// ResolveShareLink RPC.
+	WorkspaceServiceResolveShareLinkProcedure = "/synthify.app.v1.WorkspaceService/ResolveShareLink"
 )
 
 // WorkspaceServiceClient is a client for the synthify.app.v1.WorkspaceService service.
@@ -73,6 +85,12 @@ type WorkspaceServiceClient interface {
 	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
 	TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error)
 	DeleteWorkspace(context.Context, *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error)
+	// 公開リンク共有。リンクは閲覧専用で課金ゼロ（処理など課金操作は不可）。
+	CreateShareLink(context.Context, *connect.Request[v1.CreateShareLinkRequest]) (*connect.Response[v1.CreateShareLinkResponse], error)
+	ListShareLinks(context.Context, *connect.Request[v1.ListShareLinksRequest]) (*connect.Response[v1.ListShareLinksResponse], error)
+	RevokeShareLink(context.Context, *connect.Request[v1.RevokeShareLinkRequest]) (*connect.Response[v1.RevokeShareLinkResponse], error)
+	// token から workspace を解決する無認証経路。フロントの /view/[token] が使う。
+	ResolveShareLink(context.Context, *connect.Request[v1.ResolveShareLinkRequest]) (*connect.Response[v1.ResolveShareLinkResponse], error)
 }
 
 // NewWorkspaceServiceClient constructs a client for the synthify.app.v1.WorkspaceService service.
@@ -140,6 +158,30 @@ func NewWorkspaceServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(workspaceServiceMethods.ByName("DeleteWorkspace")),
 			connect.WithClientOptions(opts...),
 		),
+		createShareLink: connect.NewClient[v1.CreateShareLinkRequest, v1.CreateShareLinkResponse](
+			httpClient,
+			baseURL+WorkspaceServiceCreateShareLinkProcedure,
+			connect.WithSchema(workspaceServiceMethods.ByName("CreateShareLink")),
+			connect.WithClientOptions(opts...),
+		),
+		listShareLinks: connect.NewClient[v1.ListShareLinksRequest, v1.ListShareLinksResponse](
+			httpClient,
+			baseURL+WorkspaceServiceListShareLinksProcedure,
+			connect.WithSchema(workspaceServiceMethods.ByName("ListShareLinks")),
+			connect.WithClientOptions(opts...),
+		),
+		revokeShareLink: connect.NewClient[v1.RevokeShareLinkRequest, v1.RevokeShareLinkResponse](
+			httpClient,
+			baseURL+WorkspaceServiceRevokeShareLinkProcedure,
+			connect.WithSchema(workspaceServiceMethods.ByName("RevokeShareLink")),
+			connect.WithClientOptions(opts...),
+		),
+		resolveShareLink: connect.NewClient[v1.ResolveShareLinkRequest, v1.ResolveShareLinkResponse](
+			httpClient,
+			baseURL+WorkspaceServiceResolveShareLinkProcedure,
+			connect.WithSchema(workspaceServiceMethods.ByName("ResolveShareLink")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -154,6 +196,10 @@ type workspaceServiceClient struct {
 	removeMember      *connect.Client[v1.RemoveMemberRequest, v1.RemoveMemberResponse]
 	transferOwnership *connect.Client[v1.TransferOwnershipRequest, v1.TransferOwnershipResponse]
 	deleteWorkspace   *connect.Client[v1.DeleteWorkspaceRequest, v1.DeleteWorkspaceResponse]
+	createShareLink   *connect.Client[v1.CreateShareLinkRequest, v1.CreateShareLinkResponse]
+	listShareLinks    *connect.Client[v1.ListShareLinksRequest, v1.ListShareLinksResponse]
+	revokeShareLink   *connect.Client[v1.RevokeShareLinkRequest, v1.RevokeShareLinkResponse]
+	resolveShareLink  *connect.Client[v1.ResolveShareLinkRequest, v1.ResolveShareLinkResponse]
 }
 
 // CreateWorkspace calls synthify.app.v1.WorkspaceService.CreateWorkspace.
@@ -201,6 +247,26 @@ func (c *workspaceServiceClient) DeleteWorkspace(ctx context.Context, req *conne
 	return c.deleteWorkspace.CallUnary(ctx, req)
 }
 
+// CreateShareLink calls synthify.app.v1.WorkspaceService.CreateShareLink.
+func (c *workspaceServiceClient) CreateShareLink(ctx context.Context, req *connect.Request[v1.CreateShareLinkRequest]) (*connect.Response[v1.CreateShareLinkResponse], error) {
+	return c.createShareLink.CallUnary(ctx, req)
+}
+
+// ListShareLinks calls synthify.app.v1.WorkspaceService.ListShareLinks.
+func (c *workspaceServiceClient) ListShareLinks(ctx context.Context, req *connect.Request[v1.ListShareLinksRequest]) (*connect.Response[v1.ListShareLinksResponse], error) {
+	return c.listShareLinks.CallUnary(ctx, req)
+}
+
+// RevokeShareLink calls synthify.app.v1.WorkspaceService.RevokeShareLink.
+func (c *workspaceServiceClient) RevokeShareLink(ctx context.Context, req *connect.Request[v1.RevokeShareLinkRequest]) (*connect.Response[v1.RevokeShareLinkResponse], error) {
+	return c.revokeShareLink.CallUnary(ctx, req)
+}
+
+// ResolveShareLink calls synthify.app.v1.WorkspaceService.ResolveShareLink.
+func (c *workspaceServiceClient) ResolveShareLink(ctx context.Context, req *connect.Request[v1.ResolveShareLinkRequest]) (*connect.Response[v1.ResolveShareLinkResponse], error) {
+	return c.resolveShareLink.CallUnary(ctx, req)
+}
+
 // WorkspaceServiceHandler is an implementation of the synthify.app.v1.WorkspaceService service.
 type WorkspaceServiceHandler interface {
 	CreateWorkspace(context.Context, *connect.Request[v1.CreateWorkspaceRequest]) (*connect.Response[v1.CreateWorkspaceResponse], error)
@@ -212,6 +278,12 @@ type WorkspaceServiceHandler interface {
 	RemoveMember(context.Context, *connect.Request[v1.RemoveMemberRequest]) (*connect.Response[v1.RemoveMemberResponse], error)
 	TransferOwnership(context.Context, *connect.Request[v1.TransferOwnershipRequest]) (*connect.Response[v1.TransferOwnershipResponse], error)
 	DeleteWorkspace(context.Context, *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error)
+	// 公開リンク共有。リンクは閲覧専用で課金ゼロ（処理など課金操作は不可）。
+	CreateShareLink(context.Context, *connect.Request[v1.CreateShareLinkRequest]) (*connect.Response[v1.CreateShareLinkResponse], error)
+	ListShareLinks(context.Context, *connect.Request[v1.ListShareLinksRequest]) (*connect.Response[v1.ListShareLinksResponse], error)
+	RevokeShareLink(context.Context, *connect.Request[v1.RevokeShareLinkRequest]) (*connect.Response[v1.RevokeShareLinkResponse], error)
+	// token から workspace を解決する無認証経路。フロントの /view/[token] が使う。
+	ResolveShareLink(context.Context, *connect.Request[v1.ResolveShareLinkRequest]) (*connect.Response[v1.ResolveShareLinkResponse], error)
 }
 
 // NewWorkspaceServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -275,6 +347,30 @@ func NewWorkspaceServiceHandler(svc WorkspaceServiceHandler, opts ...connect.Han
 		connect.WithSchema(workspaceServiceMethods.ByName("DeleteWorkspace")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workspaceServiceCreateShareLinkHandler := connect.NewUnaryHandler(
+		WorkspaceServiceCreateShareLinkProcedure,
+		svc.CreateShareLink,
+		connect.WithSchema(workspaceServiceMethods.ByName("CreateShareLink")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceServiceListShareLinksHandler := connect.NewUnaryHandler(
+		WorkspaceServiceListShareLinksProcedure,
+		svc.ListShareLinks,
+		connect.WithSchema(workspaceServiceMethods.ByName("ListShareLinks")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceServiceRevokeShareLinkHandler := connect.NewUnaryHandler(
+		WorkspaceServiceRevokeShareLinkProcedure,
+		svc.RevokeShareLink,
+		connect.WithSchema(workspaceServiceMethods.ByName("RevokeShareLink")),
+		connect.WithHandlerOptions(opts...),
+	)
+	workspaceServiceResolveShareLinkHandler := connect.NewUnaryHandler(
+		WorkspaceServiceResolveShareLinkProcedure,
+		svc.ResolveShareLink,
+		connect.WithSchema(workspaceServiceMethods.ByName("ResolveShareLink")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.app.v1.WorkspaceService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkspaceServiceCreateWorkspaceProcedure:
@@ -295,6 +391,14 @@ func NewWorkspaceServiceHandler(svc WorkspaceServiceHandler, opts ...connect.Han
 			workspaceServiceTransferOwnershipHandler.ServeHTTP(w, r)
 		case WorkspaceServiceDeleteWorkspaceProcedure:
 			workspaceServiceDeleteWorkspaceHandler.ServeHTTP(w, r)
+		case WorkspaceServiceCreateShareLinkProcedure:
+			workspaceServiceCreateShareLinkHandler.ServeHTTP(w, r)
+		case WorkspaceServiceListShareLinksProcedure:
+			workspaceServiceListShareLinksHandler.ServeHTTP(w, r)
+		case WorkspaceServiceRevokeShareLinkProcedure:
+			workspaceServiceRevokeShareLinkHandler.ServeHTTP(w, r)
+		case WorkspaceServiceResolveShareLinkProcedure:
+			workspaceServiceResolveShareLinkHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -338,4 +442,20 @@ func (UnimplementedWorkspaceServiceHandler) TransferOwnership(context.Context, *
 
 func (UnimplementedWorkspaceServiceHandler) DeleteWorkspace(context.Context, *connect.Request[v1.DeleteWorkspaceRequest]) (*connect.Response[v1.DeleteWorkspaceResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.DeleteWorkspace is not implemented"))
+}
+
+func (UnimplementedWorkspaceServiceHandler) CreateShareLink(context.Context, *connect.Request[v1.CreateShareLinkRequest]) (*connect.Response[v1.CreateShareLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.CreateShareLink is not implemented"))
+}
+
+func (UnimplementedWorkspaceServiceHandler) ListShareLinks(context.Context, *connect.Request[v1.ListShareLinksRequest]) (*connect.Response[v1.ListShareLinksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.ListShareLinks is not implemented"))
+}
+
+func (UnimplementedWorkspaceServiceHandler) RevokeShareLink(context.Context, *connect.Request[v1.RevokeShareLinkRequest]) (*connect.Response[v1.RevokeShareLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.RevokeShareLink is not implemented"))
+}
+
+func (UnimplementedWorkspaceServiceHandler) ResolveShareLink(context.Context, *connect.Request[v1.ResolveShareLinkRequest]) (*connect.Response[v1.ResolveShareLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.WorkspaceService.ResolveShareLink is not implemented"))
 }

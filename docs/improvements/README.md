@@ -36,6 +36,7 @@
 
 - [usage-based-billing.md](usage-based-billing.md) — LLM 従量課金への移行設計（usage metering、予算アラート、Worker 緊急停止、Stripe Meters 連携）
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
+- [workspace-sharing.md](workspace-sharing.md) — ワークスペース共有（メンバー招待 + 公開リンク、role 別権限）。認可ゲート `IsWorkspaceAccessible` 1 点を拡張すれば全リソースに波及。proto は招待 RPC 定義済み・handler は未実装。Phase 1（招待）から
 - [router-job-splitting.md](router-job-splitting.md) — 巨大ドキュメントをジョブ分割して Router プロキシで処理する設計（未決定事項あり）
 - [workspace-paper-compact-ui.md](workspace-paper-compact-ui.md) — tree 生成後は workspace paper を compact handle にし、document roots を直接 child papers として見せる UI 仕様
 - [workspace-cache-verification-model.md](workspace-cache-verification-model.md) — **採用方針**: リロード直後は workspace cache を即表示しつつ、`signInUser`→`listWorkspaces` で verified された workspace だけ tree API を許可する cache-first / authz-gated refresh モデル。tree/paper snapshot cache は Phase 2
@@ -55,6 +56,7 @@
 ## 可観測性・ロギング
 
 - [frontend-observability-newrelic.md](frontend-observability-newrelic.md) — フロントエンド (Next.js) のエラー捕捉・パフォーマンスモニタリングのための New Relic Browser 導入計画
+- [frontend-performance-tuning.md](frontend-performance-tuning.md) — 初期化ウォーターフォールの解消やバンドルサイズ最適化など、表示速度向上のためのチューニング計画
 - [logging.md](logging.md) — 追加すべきログ一覧（P1〜P3）
 - [monitor.md](monitor.md) — monitor サブモジュール設計（Logger + JobMonitor コンポーネント）
 

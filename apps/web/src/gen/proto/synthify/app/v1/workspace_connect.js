@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { CreateWorkspaceRequest, CreateWorkspaceResponse, DeleteWorkspaceRequest, DeleteWorkspaceResponse, GetWorkspaceRequest, GetWorkspaceResponse, InviteMemberRequest, InviteMemberResponse, ListWorkspacesRequest, ListWorkspacesResponse, RemoveMemberRequest, RemoveMemberResponse, TransferOwnershipRequest, TransferOwnershipResponse, UpdateMemberRoleRequest, UpdateMemberRoleResponse, UpdateWorkspaceRequest, UpdateWorkspaceResponse } from "./workspace_pb.js";
+import { CreateShareLinkRequest, CreateShareLinkResponse, CreateWorkspaceRequest, CreateWorkspaceResponse, DeleteWorkspaceRequest, DeleteWorkspaceResponse, GetWorkspaceRequest, GetWorkspaceResponse, InviteMemberRequest, InviteMemberResponse, ListShareLinksRequest, ListShareLinksResponse, ListWorkspacesRequest, ListWorkspacesResponse, RemoveMemberRequest, RemoveMemberResponse, ResolveShareLinkRequest, ResolveShareLinkResponse, RevokeShareLinkRequest, RevokeShareLinkResponse, TransferOwnershipRequest, TransferOwnershipResponse, UpdateMemberRoleRequest, UpdateMemberRoleResponse, UpdateWorkspaceRequest, UpdateWorkspaceResponse } from "./workspace_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -91,6 +91,46 @@ export const WorkspaceService = {
       name: "DeleteWorkspace",
       I: DeleteWorkspaceRequest,
       O: DeleteWorkspaceResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * 公開リンク共有。リンクは閲覧専用で課金ゼロ（処理など課金操作は不可）。
+     *
+     * @generated from rpc synthify.app.v1.WorkspaceService.CreateShareLink
+     */
+    createShareLink: {
+      name: "CreateShareLink",
+      I: CreateShareLinkRequest,
+      O: CreateShareLinkResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.app.v1.WorkspaceService.ListShareLinks
+     */
+    listShareLinks: {
+      name: "ListShareLinks",
+      I: ListShareLinksRequest,
+      O: ListShareLinksResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * @generated from rpc synthify.app.v1.WorkspaceService.RevokeShareLink
+     */
+    revokeShareLink: {
+      name: "RevokeShareLink",
+      I: RevokeShareLinkRequest,
+      O: RevokeShareLinkResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * token から workspace を解決する無認証経路。フロントの /view/[token] が使う。
+     *
+     * @generated from rpc synthify.app.v1.WorkspaceService.ResolveShareLink
+     */
+    resolveShareLink: {
+      name: "ResolveShareLink",
+      I: ResolveShareLinkRequest,
+      O: ResolveShareLinkResponse,
       kind: MethodKind.Unary,
     },
   }

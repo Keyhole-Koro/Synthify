@@ -123,6 +123,22 @@ func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Reque
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace ownership is managed at account level"))
 }
 
+func (h *WorkspaceHandler) CreateShareLink(_ context.Context, _ *connect.Request[appv1.CreateShareLinkRequest]) (*connect.Response[appv1.CreateShareLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+}
+
+func (h *WorkspaceHandler) ListShareLinks(_ context.Context, _ *connect.Request[appv1.ListShareLinksRequest]) (*connect.Response[appv1.ListShareLinksResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+}
+
+func (h *WorkspaceHandler) RevokeShareLink(_ context.Context, _ *connect.Request[appv1.RevokeShareLinkRequest]) (*connect.Response[appv1.RevokeShareLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+}
+
+func (h *WorkspaceHandler) ResolveShareLink(_ context.Context, _ *connect.Request[appv1.ResolveShareLinkRequest]) (*connect.Response[appv1.ResolveShareLinkResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("share links are not implemented yet"))
+}
+
 func toProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
 	if ws == nil {
 		return nil

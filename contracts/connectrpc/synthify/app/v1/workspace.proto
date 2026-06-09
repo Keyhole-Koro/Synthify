@@ -14,6 +14,13 @@ service WorkspaceService {
   rpc RemoveMember(RemoveMemberRequest) returns (RemoveMemberResponse);
   rpc TransferOwnership(TransferOwnershipRequest) returns (TransferOwnershipResponse);
   rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+
+  // 公開リンク共有。リンクは閲覧専用で課金ゼロ（処理など課金操作は不可）。
+  rpc CreateShareLink(CreateShareLinkRequest) returns (CreateShareLinkResponse);
+  rpc ListShareLinks(ListShareLinksRequest) returns (ListShareLinksResponse);
+  rpc RevokeShareLink(RevokeShareLinkRequest) returns (RevokeShareLinkResponse);
+  // token から workspace を解決する無認証経路。フロントの /view/[token] が使う。
+  rpc ResolveShareLink(ResolveShareLinkRequest) returns (ResolveShareLinkResponse);
 }
 
 message Workspace {
@@ -126,3 +133,52 @@ message DeleteWorkspaceRequest {
 }
 
 message DeleteWorkspaceResponse {}
+
+// --- Share links (public link sharing) ---------------------------------
+
+// 公開リンク。token を知っていれば無認証で閲覧できる。
+// role は閲覧専用に限定する想定（課金操作は招待メンバーのみ）。
+message ShareLink {
+  string token = 1;
+  string workspace_id = 2;
+  WorkspaceRole role = 3;
+  string created_by = 4;
+  string created_at = 5;
+  string expires_at = 6;  // 空文字なら無期限
+  bool revoked = 7;
+}
+
+message CreateShareLinkRequest {
+  string workspace_id = 1;
+  WorkspaceRole role = 2;  // 未指定なら VIEWER 扱い
+  string expires_at = 3;   // 空文字なら無期限
+}
+
+message CreateShareLinkResponse {
+  ShareLink link = 1;
+}
+
+message ListShareLinksRequest {
+  string workspace_id = 1;
+}
+
+message ListShareLinksResponse {
+  repeated ShareLink links = 1;
+}
+
+message RevokeShareLinkRequest {
+  string workspace_id = 1;
+  string token = 2;
+}
+
+message RevokeShareLinkResponse {}
+
+// 無認証で呼ばれる。token のみを受け取り、有効なら workspace を返す。
+message ResolveShareLinkRequest {
+  string token = 1;
+}
+
+message ResolveShareLinkResponse {
+  Workspace workspace = 1;
+  WorkspaceRole role = 2;
+}
