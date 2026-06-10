@@ -21,7 +21,7 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	userID, err := requireUserID(ctx)
+	userID, err := requireUserIDOrShareToken(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 	if req.Msg.GetItemId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("item_id is required"))
 	}
-	userID, err := requireUserID(ctx)
+	userID, err := requireUserIDOrShareToken(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
 	}
-	userID, err := requireUserID(ctx)
+	userID, err := requireUserIDOrShareToken(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
+	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
@@ -40,11 +42,37 @@ func NewTreeService(deps TreeServiceDeps) *TreeService {
 }
 
 func (s *TreeService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
-	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
+	// 認証ユーザーは従来通り user ベースで認可する。
+	if userID != "" {
+		ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return domain.ErrForbidden
+		}
+		return nil
+	}
+	// 無認証経路: 公開リンク token があれば、それが指す workspace への read を許可する。
+	return s.authorizeShareToken(ctx, workspaceID)
+}
+
+// authorizeShareToken は context の公開リンク token が指す workspace と
+// 要求された workspaceID が一致するかを検証する。token 無し / 無効 / 不一致は
+// Forbidden (存在を漏らさない)。
+func (s *TreeService) authorizeShareToken(ctx context.Context, workspaceID string) error {
+	token, ok := apiauth.ShareTokenFromContext(ctx)
+	if !ok {
+		return domain.ErrForbidden
+	}
+	link, err := s.workspaces.ResolveShareLink(ctx, token, time.Now().UTC())
 	if err != nil {
+		if errors.Is(err, domain.ErrNotFound) {
+			return domain.ErrForbidden
+		}
 		return err
 	}
-	if !ok {
+	if link.WorkspaceID != workspaceID {
 		return domain.ErrForbidden
 	}
 	return nil

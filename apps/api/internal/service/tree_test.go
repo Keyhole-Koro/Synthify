@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
 )
@@ -109,4 +111,65 @@ func TestTreeService_FindPaths_MissingArgs_ReturnsError(t *testing.T) {
 	require.Error(t, err)
 	_, _, err = svc.FindPaths(context.Background(), "ws", "a", "", "owner", 3, 5)
 	require.Error(t, err)
+}
+
+// 公開リンク token (context 経由) で無認証でも tree を read できる。
+func TestTreeService_GetTree_ValidShareToken_AllowsRead(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
+	wsID := fixture.Workspace.WorkspaceID
+	require.NoError(t, store.CreateShareLink(ctx, &domain.ShareLink{
+		Token: "tok-1", WorkspaceID: wsID, Role: domain.WorkspaceRoleViewer, CreatedBy: "owner",
+	}))
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
+
+	// userID 空 + share token を context に載せる (無認証ビューア経路)。
+	tokenCtx := apiauth.ContextWithShareToken(ctx, "tok-1")
+	items, err := svc.GetTree(tokenCtx, wsID, "")
+	require.NoError(t, err, "valid share token grants read")
+	assert.NotEmpty(t, items)
+}
+
+// token が別 workspace を指していたら Forbidden (workspace 不一致)。
+func TestTreeService_GetTree_ShareTokenWrongWorkspace_ReturnsForbidden(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
+	require.NoError(t, store.CreateShareLink(ctx, &domain.ShareLink{
+		Token: "tok-other", WorkspaceID: "ws-other", Role: domain.WorkspaceRoleViewer, CreatedBy: "owner",
+	}))
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
+
+	tokenCtx := apiauth.ContextWithShareToken(ctx, "tok-other")
+	_, err := svc.GetTree(tokenCtx, fixture.Workspace.WorkspaceID, "")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "token for another workspace is rejected")
+}
+
+// 無認証 (userID 空) かつ token も無ければ Forbidden。
+func TestTreeService_GetTree_NoUserNoToken_ReturnsForbidden(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
+
+	_, err := svc.GetTree(ctx, fixture.Workspace.WorkspaceID, "")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "no auth and no token is rejected")
+}
+
+// 失効した token は read できない。
+func TestTreeService_GetTree_RevokedShareToken_ReturnsForbidden(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
+	wsID := fixture.Workspace.WorkspaceID
+	require.NoError(t, store.CreateShareLink(ctx, &domain.ShareLink{
+		Token: "tok-rev", WorkspaceID: wsID, Role: domain.WorkspaceRoleViewer, CreatedBy: "owner",
+	}))
+	require.NoError(t, store.RevokeShareLink(ctx, wsID, "tok-rev", time.Now().UTC()))
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
+
+	tokenCtx := apiauth.ContextWithShareToken(ctx, "tok-rev")
+	_, err := svc.GetTree(tokenCtx, wsID, "")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "revoked token is rejected")
 }

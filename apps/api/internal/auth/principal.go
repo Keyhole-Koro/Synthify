@@ -30,6 +30,7 @@ type Authenticator interface {
 type contextKey string
 
 const principalContextKey contextKey = "principal"
+const shareTokenContextKey contextKey = "share_token"
 
 func ContextWithPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalContextKey, principal)
@@ -38,6 +39,18 @@ func ContextWithPrincipal(ctx context.Context, principal Principal) context.Cont
 func PrincipalFromContext(ctx context.Context) (Principal, bool) {
 	principal, ok := ctx.Value(principalContextKey).(Principal)
 	return principal, ok
+}
+
+// ContextWithShareToken は公開リンク token を context に載せる。
+// 無認証の閲覧経路 (tree の read 等) が token 認可に使う。
+func ContextWithShareToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, shareTokenContextKey, token)
+}
+
+// ShareTokenFromContext は載っている公開リンク token を返す。無ければ ("", false)。
+func ShareTokenFromContext(ctx context.Context) (string, bool) {
+	token, ok := ctx.Value(shareTokenContextKey).(string)
+	return token, ok && token != ""
 }
 
 func RequirePrincipal(ctx context.Context) (Principal, error) {

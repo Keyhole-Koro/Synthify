@@ -15,6 +15,20 @@ func requireUserID(ctx context.Context) (string, error) {
 	return apiauth.RequireUserID(ctx)
 }
 
+// requireUserIDOrShareToken は read RPC 用の認可入口。認証ユーザーなら user ID を、
+// 未認証でも公開リンク token が context にあれば空 user ID を返す (service 側が
+// token -> workspace の認可を行う)。どちらも無ければ Unauthenticated。
+func requireUserIDOrShareToken(ctx context.Context) (string, error) {
+	userID, err := requireUserID(ctx)
+	if err == nil {
+		return userID, nil
+	}
+	if _, ok := apiauth.ShareTokenFromContext(ctx); ok {
+		return "", nil
+	}
+	return "", err
+}
+
 // requireUserPrincipal は Principal 全体 (SubjectID + Email) を必要とする handler 用。
 // 現状は SyncUser のみが利用する。
 func requireUserPrincipal(ctx context.Context) (apiauth.Principal, error) {

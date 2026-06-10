@@ -16,6 +16,15 @@ func WithAuth(authenticator apiauth.Authenticator, logger *slog.Logger, next htt
 			return
 		}
 
+		// 公開リンク経由の閲覧: share token を持ち、対象が share でアクセス可能な
+		// read RPC なら、bearer 無しでも通す。token は context に載せ、各 service が
+		// token -> workspace の認可を行う (default-deny は service 側の責務)。
+		if shareToken := strings.TrimSpace(r.Header.Get("X-Synthify-Share-Token")); shareToken != "" && isShareReadable(r) {
+			ctx := apiauth.ContextWithShareToken(r.Context(), shareToken)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
 		if serviceToken := strings.TrimSpace(r.Header.Get("X-Synthify-Service-Token")); serviceToken != "" {
 			principal, err := authenticator.AuthenticateServiceToken(r.Context(), serviceToken)
 			if err != nil {
@@ -60,6 +69,18 @@ func isAuthExempt(r *http.Request) bool {
 		return true
 	// 公開リンクの解決は無認証経路 (token のみで workspace を解決する)。
 	case "/synthify.app.v1.WorkspaceService/ResolveShareLink":
+		return true
+	}
+	return false
+}
+
+// isShareReadable は share token で読める read 専用 RPC かを返す。
+// 書き込み RPC は含めない (公開リンクは閲覧専用)。
+func isShareReadable(r *http.Request) bool {
+	switch r.URL.Path {
+	case "/synthify.app.v1.TreeService/GetTree",
+		"/synthify.app.v1.TreeService/GetSubtree",
+		"/synthify.app.v1.TreeService/FindPaths":
 		return true
 	}
 	return false
