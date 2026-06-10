@@ -46,6 +46,7 @@ const (
 type DocumentService struct {
 	repo             repository.DocumentRepository
 	jobs             repository.JobRepository
+	accounts         repository.AccountRepository
 	workspaces       repository.WorkspaceRepository
 	tree             repository.TreeRepository
 	transactor       repository.Transactor
@@ -63,6 +64,7 @@ type DocumentService struct {
 type DocumentServiceDeps struct {
 	Repo             repository.DocumentRepository
 	Jobs             repository.JobRepository
+	Accounts         repository.AccountRepository
 	LifecycleRepo    joblifecycle.Repository
 	Workspaces       repository.WorkspaceRepository
 	Tree             repository.TreeRepository
@@ -81,6 +83,7 @@ func NewDocumentService(deps DocumentServiceDeps) *DocumentService {
 	return &DocumentService{
 		repo:             deps.Repo,
 		jobs:             deps.Jobs,
+		accounts:         deps.Accounts,
 		workspaces:       deps.Workspaces,
 		tree:             deps.Tree,
 		transactor:       deps.Transactor,
@@ -139,6 +142,26 @@ func (s *DocumentService) authorizeWrite(ctx context.Context, workspaceID, userI
 	}
 	if !role.CanWrite() {
 		return domain.ErrForbidden
+	}
+	return nil
+}
+
+// ensureBudgetAvailable は課金が生じる処理の前に、操作する本人の account が
+// budget 超過していないかを確認する。usage は本人負担 (Phase 2) なので、超過
+// 判定も本人の account に対して行う。超過していれば ErrBillingBudgetExceeded。
+// accounts 依存が未配線 (nil) のときはチェックをスキップする (後方互換)。
+func (s *DocumentService) ensureBudgetAvailable(ctx context.Context, userID string) error {
+	if s.accounts == nil {
+		return nil
+	}
+	account, err := s.accounts.GetAccountByUser(ctx, userID)
+	if err != nil {
+		// account を引けない場合は budget 不明。処理を止めず、計上側の
+		// exceeded 判定に委ねる (本人負担の最終ゲートは usage 計上時)。
+		return nil
+	}
+	if account.BudgetExceeded {
+		return domain.ErrBillingBudgetExceeded
 	}
 	return nil
 }
@@ -314,6 +337,9 @@ func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userI
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureBudgetAvailable(ctx, userID); err != nil {
+		return nil, err
+	}
 	if !forceReprocess {
 		if latest, err := s.jobs.GetLatestProcessingJob(ctx, documentID); err == nil {
 			switch latest.Status {
@@ -335,6 +361,9 @@ func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userI
 func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error) {
 	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureBudgetAvailable(ctx, userID); err != nil {
 		return nil, err
 	}
 	return s.startProcessingJob(ctx, doc, userID, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)

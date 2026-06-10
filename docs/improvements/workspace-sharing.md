@@ -101,10 +101,18 @@ service 層は「読み取り RPC = role 問わず可」「書き込み RPC = ed
 - **Phase 3**: 公開リンク(DB `workspace_share_links` + token 認可経路 + share link RPC、**閲覧専用・課金ゼロ**)
 - **Phase 4**: フロント(共有 paper node + `/view/[token]` ルート)
 
-## 未決事項
+## 実装状況
 
-- **pending 招待の扱い**: 課金操作は登録済みユーザーのみに限定する方針なので、未登録 email 招待は「閲覧専用の保留招待」として扱うか、そもそも登録必須にするか。`account_users` が `user_id` 文字列で疎結合なので保留も可能だが手間が増える
-- **storage quota の負担先**: 処理コストは本人 account 負担で確定。アップロード(storage)も本人 account の quota を消費させるか、storage だけは所有者持ちにするか
-- **budget 超過時の挙動**: 招待メンバー本人の account が budget 超過していたら、その人だけ処理不可。所有者の財布は無関係 — UI でどう見せるか
+Phase 1〜4 + 主要な未決事項 2 件まで実装済み。
+
+- **Phase 1〜4**: 完了(招待 / 課金本人負担 / 公開リンク / フロント)
+- **被共有 workspace の一覧表示**: 完了。`ListWorkspacesByUser` を account 経由 + `workspace_members` 経由の UNION に変更。招待された member の `ListWorkspaces` に workspace が出るようになった(これが無いと URL 直打ちしか導線が無かった)
+- **budget 超過時のゲート**: 完了。`DocumentService.ensureBudgetAvailable` で StartProcessing / ResumeProcessing 前に**本人 account** の `budget_exceeded` を確認し、超過していれば `ErrBillingBudgetExceeded`(ResourceExhausted)。本人だけが止まり所有者は無関係。Phase 2 の本人負担と一貫
+
+## 未決事項(残)
+
+- **pending 招待の扱い**: 課金操作は登録済みユーザーのみに限定する方針なので、未登録 email 招待は「閲覧専用の保留招待」として扱うか、そもそも登録必須にするか。`account_users` が `user_id` 文字列で疎結合なので保留も可能だが手間が増える(現状は登録必須 = 未登録は `ErrNotFound`)
+- **storage quota の負担先**: 処理コストは本人 account 負担で確定。アップロード(storage)は現状**所有者持ち**(`CreateDocument` が workspace→account JOIN)。本人 account の quota を消費させるかは保留
 - 公開リンク token のローテーション・1 workspace あたりの上限
-- 共有された workspace を被共有者の `ListWorkspaces` にどう出すか(現状は `account_users` JOIN なので別 UNION が必要)
+- `TransferOwnership`: proto 定義済みだが handler 未実装。account 経由の所有モデルとの整合に設計判断が要る
+- budget 超過の **UI 表示**: 現状はエラーを返すだけ。フロントでの見せ方は未対応

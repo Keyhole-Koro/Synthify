@@ -110,6 +110,7 @@ func main() {
 	documentSvc := service.NewDocumentService(service.DocumentServiceDeps{
 		Repo:             store,
 		Jobs:             store,
+		Accounts:         store,
 		LifecycleRepo:    store,
 		Workspaces:       store,
 		Tree:             store,

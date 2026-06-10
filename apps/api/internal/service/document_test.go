@@ -532,6 +532,69 @@ func TestCreateDocument_Editor_Succeeds(t *testing.T) {
 	assert.NotNil(t, doc)
 }
 
+func TestStartProcessing_BudgetExceeded_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+	require.NoError(t, err)
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		Accounts:         store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "paper.pdf", "application/pdf", 64)
+	require.NoError(t, err)
+
+	// 本人 account が budget 超過 → 処理を弾く (本人負担の事前ゲート)。
+	account.BudgetExceeded = true
+
+	_, err = svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
+	assert.ErrorIs(t, err, domain.ErrBillingBudgetExceeded, "budget-exceeded user cannot start processing")
+}
+
+// 招待 editor 本人が budget 超過なら、その人の処理だけ止まる (所有者は無関係)。
+func TestStartProcessing_EditorBudgetExceeded_BlocksEditorOnly(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	owner, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	ws, err := store.CreateWorkspace(ctx, owner.AccountID, "docs")
+	require.NoError(t, err)
+	editor, err := store.GetOrCreateAccount(ctx, "editor")
+	require.NoError(t, err)
+	require.NoError(t, store.UpsertWorkspaceMember(ctx, ws.WorkspaceID, "editor", domain.WorkspaceRoleEditor, "owner"))
+	svc := NewDocumentService(DocumentServiceDeps{
+		Repo:             store,
+		Jobs:             store,
+		Accounts:         store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: documentSourceURL,
+		Logger:           discardLogger(),
+	})
+	doc, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "editor", "paper.pdf", "application/pdf", 64)
+	require.NoError(t, err)
+	editor.BudgetExceeded = true
+
+	// editor 本人は budget 超過で弾かれる。
+	_, err = svc.StartProcessing(ctx, doc.DocumentID, "editor", false)
+	assert.ErrorIs(t, err, domain.ErrBillingBudgetExceeded, "budget-exceeded editor is blocked")
+
+	// owner の budget は無関係なので owner は処理できる。
+	_, err = svc.StartProcessing(ctx, doc.DocumentID, "owner", false)
+	require.NoError(t, err, "owner with available budget can start processing")
+}
+
 func (d *fakeDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
 	d.generateCalls++
 	return nil
