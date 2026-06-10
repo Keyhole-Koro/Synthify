@@ -151,6 +151,29 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
         }}
       />
 
+      {/* Share control. Kept outside the populated/empty branches so it stays
+          mounted regardless of isPopulated (which briefly flips to false while
+          the tree re-projects), avoiding the button flickering in and out. */}
+      <div className="flex justify-end px-5 pt-3">
+        <button
+          type="button"
+          onClick={openShare}
+          className="flex h-7 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 text-[12px] font-medium text-stone-500 transition-colors hover:border-indigo-300 hover:text-indigo-500"
+          title="共有"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+          </svg>
+          共有
+        </button>
+      </div>
+      {isSharing && (
+        <SharePanel
+          workspaceId={workspaceId}
+          onClose={() => setIsSharing(false)}
+        />
+      )}
+
       {/* Compact header (populated mode only) */}
       {isPopulated && (
         <>
@@ -164,19 +187,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             isFailed={isFailed}
             jobProgress={jobStatus?.progress}
             isJustCompleted={isJustCompleted}
-            onOpenShare={openShare}
             onStartRename={startRename}
             onDraftNameChange={setDraftName}
             onCommitName={commitName}
             onCancelRename={cancelRename}
           />
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
-          {isSharing && (
-            <SharePanel
-              workspaceId={workspaceId}
-              onClose={() => setIsSharing(false)}
-            />
-          )}
 
           {/* Always-visible section. The workspace's single root node content
               is its cover report, rendered as a CSS-isolated iframe. data-paper-id

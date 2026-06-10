@@ -10,7 +10,6 @@ interface WorkspaceHeaderProps {
   isFailed: boolean;
   jobProgress?: number;
   isJustCompleted: boolean;
-  onOpenShare?: () => void;
   onStartRename: () => void;
   onDraftNameChange: (name: string) => void;
   onCommitName: () => void;
@@ -27,7 +26,6 @@ export function WorkspaceHeader({
   isFailed,
   jobProgress,
   isJustCompleted,
-  onOpenShare,
   onStartRename,
   onDraftNameChange,
   onCommitName,
@@ -94,21 +92,6 @@ export function WorkspaceHeader({
           )}
         </div>
       </div>
-      {onOpenShare && (
-        <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenShare}
-            className="flex h-7 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 text-[12px] font-medium text-stone-500 transition-colors hover:border-indigo-300 hover:text-indigo-500"
-            title="共有"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
-            </svg>
-            共有
-          </button>
-        </div>
-      )}
     </div>
   );
 }
