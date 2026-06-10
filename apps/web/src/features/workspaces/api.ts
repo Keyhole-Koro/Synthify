@@ -1,7 +1,13 @@
+import { create } from '@bufbuild/protobuf';
 import { createRPCClient, createPublicRPCClient } from '@/lib/connect';
+import { env } from '@/config/env';
+import { getAuthHeaders } from '@/features/auth/session';
 import {
   WorkspaceService,
+  WorkspaceSchema,
+  WorkspacePlan,
   type WorkspaceRole,
+  type Workspace as WorkspaceType,
 } from '@/gen/proto/synthify/app/v1/workspace_pb';
 
 export type {
@@ -76,4 +82,53 @@ export async function revokeShareLink(workspaceId: string, token: string) {
 export async function resolveShareLink(token: string) {
   const res = await publicClient.resolveShareLink({ token });
   return { workspace: res.workspace!, role: res.role };
+}
+
+// --- Dev workspace seed (local/dev only) ---------------------------------
+
+interface DevSeedWorkspaceResponse {
+  workspace: {
+    workspace_id: string;
+    name: string;
+    account_id: string;
+    plan?: string;
+    storage_used_bytes?: number;
+    storage_quota_bytes?: number;
+    max_file_size_bytes?: number;
+    max_uploads_per_5h?: number;
+    max_uploads_per_1week?: number;
+    created_at: string;
+  };
+}
+
+export function canSeedDevWorkspace() {
+  return env.nodeEnv === 'development' && !!env.firebase.authEmulatorUrl;
+}
+
+export async function seedDevWorkspace(): Promise<WorkspaceType> {
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`${env.apiBaseUrl}/dev/seed-workspace`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders,
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  });
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  const body = await res.json() as DevSeedWorkspaceResponse;
+  const workspace = body.workspace;
+  return create(WorkspaceSchema, {
+    workspaceId: workspace.workspace_id,
+    name: workspace.name,
+    ownerId: workspace.account_id,
+    plan: workspace.plan === 'pro' ? WorkspacePlan.PRO : WorkspacePlan.FREE,
+    storageUsedBytes: BigInt(workspace.storage_used_bytes ?? 0),
+    storageQuotaBytes: BigInt(workspace.storage_quota_bytes ?? 0),
+    maxFileSizeBytes: BigInt(workspace.max_file_size_bytes ?? 0),
+    maxUploadsPerDay: BigInt(workspace.max_uploads_per_1week ?? workspace.max_uploads_per_5h ?? 0),
+    createdAt: workspace.created_at,
+  });
 }

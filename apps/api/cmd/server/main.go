@@ -162,6 +162,12 @@ func main() {
 		Workspaces: store,
 		Logger:     appLogger,
 	})
+	devSeedSvc := service.NewDevSeedService(service.DevSeedServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Tree:       store,
+		Items:      store,
+	})
 
 	authenticator, err := apiauth.NewFirebaseAuthenticator(apiauth.FirebaseAuthenticatorConfig{
 		ProjectID:        cfg.FirebaseProjectID,
@@ -198,6 +204,12 @@ func main() {
 	// endpoint, not Connect. The auth middleware exempts /stripe/webhook.
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, appLogger))
 
+	// Dev-only: seed a demo workspace with a sample knowledge tree. Gated to
+	// local/dev/test envs so it never exists in stage/prod.
+	if devSeedEnabled(cfg.Env) {
+		mux.Handle("POST /dev/seed-workspace", handler.NewDevSeedHTTPHandler(devSeedSvc, true))
+	}
+
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
 	// Outermost first: recover → log → security headers → CORS → auth → routes.
@@ -219,6 +231,17 @@ func main() {
 
 type readinessChecker interface {
 	CheckReadiness(context.Context) error
+}
+
+// devSeedEnabled reports whether the dev workspace seed endpoint is exposed.
+// Only local/dev/test envs get it; stage/prod never do.
+func devSeedEnabled(env string) bool {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "local", "dev", "development", "test":
+		return true
+	default:
+		return false
+	}
 }
 
 // requiresBilling reports whether the environment must have a fully wired
