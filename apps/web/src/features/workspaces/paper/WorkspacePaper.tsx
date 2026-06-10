@@ -8,7 +8,7 @@ import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
-import { getWorkspace, type Workspace, type WorkspaceMember } from '@/features/workspaces/api';
+import { type Workspace } from '@/features/workspaces/api';
 import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
@@ -98,14 +98,10 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
-  const [shareMembers, setShareMembers] = useState<WorkspaceMember[]>([]);
 
   const openShare = useCallback(() => {
     setIsSharing(true);
-    getWorkspace(workspaceId)
-      .then((res) => setShareMembers(res.members))
-      .catch(() => setShareMembers([]));
-  }, [workspaceId]);
+  }, []);
 
   const isTreeMissing = !hasTree;
   const isExpanded = !isPopulated || isHovered || isFailed;
@@ -178,7 +174,6 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
           {isSharing && (
             <SharePanel
               workspaceId={workspaceId}
-              initialMembers={shareMembers}
               onClose={() => setIsSharing(false)}
             />
           )}
