@@ -41,11 +41,21 @@ VALUES ($1, $2, $3, $4)
 ON CONFLICT (account_id, user_id) DO NOTHING;
 
 -- name: ListWorkspacesByUser :many
-SELECT w.workspace_id, w.account_id, w.name, w.created_at
-FROM workspaces w
-JOIN account_users au ON au.account_id = w.account_id
-WHERE au.user_id = $1 AND w.deleted_at IS NULL
-ORDER BY w.created_at DESC;
+-- account 経由 (所有) と workspace_members 経由 (被共有) の両方を返す。
+-- 両方に該当する workspace は UNION で 1 行に重複排除される。
+SELECT workspace_id, account_id, name, created_at
+FROM (
+  SELECT w.workspace_id, w.account_id, w.name, w.created_at
+  FROM workspaces w
+  JOIN account_users au ON au.account_id = w.account_id
+  WHERE au.user_id = $1 AND w.deleted_at IS NULL
+  UNION
+  SELECT w.workspace_id, w.account_id, w.name, w.created_at
+  FROM workspaces w
+  JOIN workspace_members wm ON wm.workspace_id = w.workspace_id
+  WHERE wm.user_id = $1 AND w.deleted_at IS NULL
+) AS accessible
+ORDER BY created_at DESC;
 
 -- name: GetWorkspace :one
 SELECT workspace_id, account_id, name, created_at

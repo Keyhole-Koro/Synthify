@@ -155,3 +155,21 @@ func TestListMembers_NonMember_ReturnsErrForbidden(t *testing.T) {
 	_, err := svc.ListMembers(ctx, wsID, "stranger")
 	assert.ErrorIs(t, err, domain.ErrForbidden, "non-member cannot list members")
 }
+
+// 招待された member の ListWorkspaces に被共有 workspace が出る (一覧導線が成立する)。
+func TestListWorkspaces_InvitedMember_SeesSharedWorkspace(t *testing.T) {
+	ctx := context.Background()
+	svc, store, wsID, inviteeID := newMemberTestService(t)
+
+	// 招待前は invitee の一覧に出ない。
+	before, err := svc.ListWorkspaces(ctx, inviteeID)
+	require.NoError(t, err, "ListWorkspaces before")
+	assert.Empty(t, before, "non-member sees no workspaces")
+
+	require.NoError(t, store.UpsertWorkspaceMember(ctx, wsID, inviteeID, domain.WorkspaceRoleViewer, "owner"))
+
+	after, err := svc.ListWorkspaces(ctx, inviteeID)
+	require.NoError(t, err, "ListWorkspaces after")
+	require.Len(t, after, 1, "invited member sees the shared workspace")
+	assert.Equal(t, wsID, after[0].WorkspaceID)
+}

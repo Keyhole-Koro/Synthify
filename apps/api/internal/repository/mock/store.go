@@ -363,7 +363,13 @@ func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) ([]*dom
 		if owner == "" {
 			owner = w.AccountID
 		}
-		if owner == userID {
+		accessible := owner == userID
+		if !accessible {
+			if members, ok := s.wsMembers[w.WorkspaceID]; ok {
+				_, accessible = members[userID]
+			}
+		}
+		if accessible {
 			res = append(res, s.workspaceWithAccount(w))
 		}
 	}
