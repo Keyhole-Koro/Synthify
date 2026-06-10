@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { resolveShareLink, type Workspace, WorkspaceRole } from '@/features/workspaces/api';
+import { ShareLinkTree } from './ShareLinkTree';
 import { toAppError } from '@/lib/error_normalize';
 
 interface ShareLinkViewerProps {
@@ -18,10 +19,10 @@ function roleLabel(role: WorkspaceRole): string {
     case WorkspaceRole.OWNER:
       return 'オーナー';
     case WorkspaceRole.EDITOR:
-      return '編集可';
+      return 'Read & write';
     case WorkspaceRole.VIEWER:
     default:
-      return '閲覧のみ';
+      return 'Read-only';
   }
 }
 
@@ -78,6 +79,7 @@ export function ShareLinkViewer({ token }: ShareLinkViewerProps) {
       <p className="mt-3 text-sm text-slate-600">
         このワークスペースは共有リンクで公開されています。閲覧専用です。
       </p>
+      <ShareLinkTree workspaceId={workspace.workspaceId} token={token} />
     </main>
   );
 }
