@@ -41,9 +41,10 @@ export function useWorkspaceTree(
 
   const treeCache = useMemo(() => createWorkspaceTreeCache(), []);
   const treeCommands = useMemo(() => createWorkspaceTreeCommands(treeCache), [treeCache]);
+
   useEffect(() => {
     if (workspaces.length === 0) return;
-    treeCache.pruneNewlyCreated(workspaces);
+    treeCache.pruneNewlyCreated(workspaces.filter((workspace) => treeCache.isFullyLoaded(workspace.workspaceId)));
   }, [treeCache, workspaces]);
 
   const store = useMemo<TreeStore>(() => ({
