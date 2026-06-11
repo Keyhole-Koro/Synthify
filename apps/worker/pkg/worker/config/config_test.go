@@ -30,6 +30,55 @@ func TestLoadWorker_RequestTimeoutDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadWorker_DefaultNewRelicAppNameIsLocalWhenEnvUnset(t *testing.T) {
+	t.Setenv("GCS_FUSE_MOUNT_PATH", t.TempDir())
+	t.Setenv("ENV", "")
+	t.Setenv("NEW_RELIC_APP_NAME", "")
+
+	cfg := LoadWorker()
+	if cfg.NewRelic.AppName != "synthify-worker-local" {
+		t.Fatalf("NewRelic.AppName = %q, want synthify-worker-local", cfg.NewRelic.AppName)
+	}
+}
+
+func TestLoadWorker_DefaultNewRelicAppNameFollowsEnv(t *testing.T) {
+	cases := []struct {
+		name string
+		env  string
+		want string
+	}{
+		{"production", "production", "synthify-worker"},
+		{"prod", "prod", "synthify-worker"},
+		{"staging", "staging", "synthify-worker-stage"},
+		{"stage", "stage", "synthify-worker-stage"},
+		{"custom", "preview", "synthify-worker-preview"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GCS_FUSE_MOUNT_PATH", t.TempDir())
+			t.Setenv("ENV", tc.env)
+			t.Setenv("NEW_RELIC_APP_NAME", "")
+
+			cfg := LoadWorker()
+			if cfg.NewRelic.AppName != tc.want {
+				t.Fatalf("NewRelic.AppName = %q, want %q", cfg.NewRelic.AppName, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadWorker_NewRelicAppNameOverrideWins(t *testing.T) {
+	t.Setenv("GCS_FUSE_MOUNT_PATH", t.TempDir())
+	t.Setenv("ENV", "")
+	t.Setenv("NEW_RELIC_APP_NAME", "custom-worker")
+
+	cfg := LoadWorker()
+	if cfg.NewRelic.AppName != "custom-worker" {
+		t.Fatalf("NewRelic.AppName = %q, want custom-worker", cfg.NewRelic.AppName)
+	}
+}
+
 func TestGetDurationSeconds(t *testing.T) {
 	const fallback = 300 * time.Second
 	cases := []struct {

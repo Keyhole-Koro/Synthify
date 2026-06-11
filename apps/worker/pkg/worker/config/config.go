@@ -96,7 +96,7 @@ func LoadWorker() Worker {
 		APIBaseURL:               get("NEXT_PUBLIC_API_BASE_URL", get("API_BASE_URL", "http://127.0.0.1:8080")),
 		InternalServiceToken:     os.Getenv("INTERNAL_WORKER_TOKEN"),
 		NewRelic: NewRelic{
-			AppName:    get("NEW_RELIC_APP_NAME", "synthify-worker"),
+			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-worker")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
 		RequestTimeout: getDurationSeconds("WORKER_REQUEST_TIMEOUT_SECONDS", defaultRequestTimeout),
@@ -176,6 +176,20 @@ func get(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func defaultNewRelicAppName(base string) string {
+	env := os.Getenv("ENV")
+	switch env {
+	case "prod", "production":
+		return base
+	case "stage", "staging":
+		return base + "-stage"
+	case "", "dev", "development", "local", "test":
+		return base + "-local"
+	default:
+		return base + "-" + env
+	}
 }
 
 // getInt reads a positive integer from the environment, falling back to def

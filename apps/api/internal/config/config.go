@@ -125,7 +125,7 @@ func LoadAPI() API {
 			PortalReturnURL: get("BILLING_PORTAL_RETURN_URL", "http://localhost:3000/workspaces"),
 		},
 		NewRelic: NewRelic{
-			AppName:    get("NEW_RELIC_APP_NAME", "synthify-api"),
+			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-api")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
 	}
@@ -163,6 +163,20 @@ func get(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func defaultNewRelicAppName(base string) string {
+	env := os.Getenv("ENV")
+	switch env {
+	case "prod", "production":
+		return base
+	case "stage", "staging":
+		return base + "-stage"
+	case "", "dev", "development", "local", "test":
+		return base + "-local"
+	default:
+		return base + "-" + env
+	}
 }
 
 // getInt reads a positive integer from the environment, falling back to def
