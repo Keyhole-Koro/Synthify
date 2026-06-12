@@ -2,6 +2,11 @@
 
 このマトリクスは、`user_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。
+> 「インターフェース網羅チェック」「依存エラー軸」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,34 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (`UserUsecase`)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `SignInUser` | ✅ 3件 | 75.0% | PARTIAL | **`userID == ""` の早期 error**、`upsertUserRow` / `ensureAccount` の repo error 伝播。 |
+
+内部 helper の実測: `upsertUserRow` 91.7% (`GetUser` の非NotFound error) / `ensureAccount` 77.8% (`CreateAccount` error) /
+`grantSignupCreditIfFirstTime` **50.0%**。
+
+→ `grantSignupCreditIfFirstTime` は **`billing == nil` 経路と「grant が error を返してもログのみで sign-in 成功」経路が未テスト**。
+後者は仕様 (credit 失敗で sign-in 全体を落とさない) の中核なので、billing が error を返す fake で
+`SignInUser` が成功し IsNewAccount=true を返すことを固めるべき。
+
+## 依存エラー軸 (dependency returns error)
+
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| 経路 | 条件 | 期待 | 状態 |
+| --- | --- | --- | --- |
+| 入力検証 | `userID == ""` | error | ❌ |
+| users repo | `GetUser` 非NotFound error / `UpsertUser` error | 伝播 | ❌ |
+| accounts repo | `GetAccountByUser` 非NotFound / `CreateAccount` error | 伝播 | ❌ |
+| billing | `GrantFreeSignupCredit` が error | **ログのみ・sign-in 成功** | ❌ |
+| billing 未配線 | `billing == nil` | grant skip・sign-in 成功 | ❌ |
+
+→ 正常系3経路 (新規 / 既存 / orphan 復旧) は手厚いが、**異常系・依存エラーが1件も無い**。
+特に billing grant 失敗時に sign-in が成功し続けることの確認が抜けている。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

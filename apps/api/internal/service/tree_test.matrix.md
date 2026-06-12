@@ -2,6 +2,11 @@
 
 このマトリクスは、`tree_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。
+> 「インターフェース網羅チェック」「依存エラー軸」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,33 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (`TreeUsecase`)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `GetTree` | ✅ 7件 | 100% | OK | — (share token 経路まで網羅) |
+| `GetSubtree` | ✅ 3件 | 71.4% | PARTIAL | **空 subtree → `ErrNotFound` (len==0)**、`maxDepth<=0` の default 補正、`tree.GetSubtree` repo error。 |
+| `FindPaths` | ✅ 2件 | 75.0% | PARTIAL | `tree.GetTree` / `tree.FindPaths` repo error、path not found、depth/limit 境界。 |
+
+補助の実測: `authorizeWorkspace` 87.5% / `authorizeShareToken` 90.9% (`ResolveShareLink` の非NotFound error 経路が残り)。
+
+→ `GetSubtree` の **空部分木 → `ErrNotFound` 分岐が未テスト**。これは存在秘匿 (Forbidden) と
+NotFound の出し分けに関わるので、空 subtree で NotFound を返すことを1件で固めるとよい。
+
+## 依存エラー軸 (dependency returns error)
+
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| メソッド | workspaces (authz) repo err | tree repo err |
+| --- | --- | --- |
+| `GetTree` | ◐ Forbidden | ❌ GetTreeByWorkspace |
+| `GetSubtree` | ◐ Forbidden | ❌ GetSubtree (error / empty) |
+| `FindPaths` | ◐ Forbidden | ❌ GetTree / FindPaths |
+| `authorizeShareToken` | ◐ ResolveShareLink (NotFound→Forbidden) | - |
+
+→ 認可拒否は手厚いが、tree repo の error 伝播は全面未テスト。`ResolveShareLink` の非NotFound error
+(DB障害) が Forbidden に潰れず伝播することも未確認。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

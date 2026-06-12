@@ -2,6 +2,11 @@
 
 このマトリクスは、`billing_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。取りこぼしを防ぐため、
+> 「インターフェース網羅チェック」「依存エラー軸」「未テスト分岐 (GAP)」の各節を併読すること。
+> カバレッジ数値は `go test -coverprofile ./apps/api/internal/service -run Billing` の実測 (2026-06-11)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,43 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック
+
+`BillingUsecase` (12) + `BillingReconciler` (2) の全メソッドに対し、専用テストの有無と実測カバレッジを突き合わせる。
+**テスト0件＝下のテストケース表に1行も現れないので、ここで検出する。**
+
+coverage は 2026-06-12 にギャップ閉じテスト22件を追加した後の実測。
+
+| メソッド | 専用テスト | coverage | 状態 | 残りの未テスト分岐 |
+| --- | --- | --- | --- | --- |
+| `GetBillingAccount` | ✅ 2件 (06-12) | 100% | OK | — |
+| `CreateCheckoutSession` | ✅ 6件 | 88.5% | OK | provider_failed (provider が error) の直接経路。 |
+| `CreatePortalSession` | ✅ 4件 | 84.2% | OK | customer_failed (ensureCustomer error)。 |
+| `HandleWebhook` | ✅ 11件 | 100% | OK | — (apply_failed の repo error は依存エラー軸へ) |
+| `GetUsage` | ✅ 3件 | 83.3% | PARTIAL | parseMinor 失敗行の黙殺 (:531)、usage repo error。 |
+| `RecordUsage` | ✅ 8件 | 87.0% | OK | PricingMissing→NewRelic notice、recorder!=nil で generic error。 |
+| `UpdateBudget` | ✅ 4件 | 86.7% | OK | usage repo の UpdateAccountBudgetLimit error。 |
+| `ListInvoices` | ✅ 2件 | 83.3% | PARTIAL | usage==nil スタブ、非空 mapping、repo error。 |
+| `ListPaymentMethods` | ✅ 2件 | 83.3% | PARTIAL | usage==nil で nil 返し、非空 mapping、repo error。 |
+| `GrantFreeSignupCredit` | ✅ 2件 (06-12) | 75.0% | PARTIAL | 冪等性 (credit_id衝突) は **mock が dedup しないため DB 統合テスト送り**、GrantCredit失敗 warn。 |
+| `GrantCredit` | ✅ 3件 (06-12) | 87.5% | OK | usage repo の GrantCredit error。 |
+| `GetCreditBalance` | ✅ 2件 (06-12) | 80.0% | OK | usage==nil 返り (間接)、repo error。 |
+| `ReconcileAccount` | ✅ 5件 | 83.3% | OK | GetAccount error (repo)。 |
+| `ReconcileLinkedAccounts` | ✅ 1件 | 71.4% | PARTIAL | 途中 account の失敗で partial diffs+error、ListStripeLinkedAccounts error。 |
+
+補助関数の実測: `formatMinor` **100%** / `parseMinor` **96.7%** / `newCreditID` **100%** /
+`reconcileAccount` 90.9% / `recordAndApplyWebhookEvent` 65.4% (invalid currency / "ignored" mark が残り) /
+`shouldNoticeBillingError` 42.9% / `noticeError` 55.6% / `ensureProviderCustomer` 55.6%。
+
+**2026-06-12 追加分 (22件)**: `GetBillingAccount` x2 / `GrantCredit` x3 / `GetCreditBalance` x2 /
+`GrantFreeSignupCredit` x2 / checkout customer_failed / portal provider==nil・provider_failed /
+webhook provider==nil・parse_failed・invalid plan / reconcile provider==nil・fetch失敗・apply収束 /
+GetUsage usage==nil / UpdateBudget invalid・JPY / `formatMinor`/`parseMinor` 通貨ラウンドトリップ。
+
+**残る主GAP**: repo (accounts/usage) のエラー伝播は **mock store にフォールト注入フックが無い**ため未着手。
+failing decorator か mock 拡張が前提（下記「依存エラー軸」参照）。`recordAndApplyWebhookEvent` の
+invalid currency / "ignored" mark、`GetUsage:531` の不正行黙殺もまだ。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -104,6 +146,55 @@
 | usage accounting | cost 計算、unknown model、budget crossing、credit split は確認済み。 | decimal rounding、threshold ちょうど、very small cost、複数 credit grant。 |
 | Stripe meter | failure でも local accounting 継続、credit 時 no meter は確認済み。 | retry queue / retry record、meter payload の詳細。 |
 | listing | empty list success は確認済み。 | non-empty invoice/payment method mapping、pagination。 |
+| credits | (なし) — `GrantFreeSignupCredit` は setup でしか呼ばれない。 | `GrantCredit` admin 付与全般、`GetCreditBalance` の認可、free signup の冪等性と金額。 |
+| account read | (なし) | `GetBillingAccount` の認可成功/拒否。 |
+| currency 整形 | usd 経路のみ。 | `formatMinor`/`parseMinor` の JPY (小数なし)、負数、小数3桁以上→BudgetInvalid。 |
+
+## 未テスト分岐 (GAP) — テストケース表に現れない経路
+
+メソッド単位ではなく分岐単位の穴。カバレッジ HTML の赤行に対応。
+
+| 場所 (billing.go) | 分岐 | 期待挙動 | なぜ重要か |
+| --- | --- | --- | --- |
+| `GetBillingAccount` :106 | 全体 | 認可 → account 返却 / 他ユーザは NotFound | メソッドごと未テスト (0%)。 |
+| `GrantCredit` :801 | `amountMinor<=0` / `usage==nil` / 成功 | BudgetInvalid / ProviderNotConfigured / grant 返却 | admin 付与経路がまるごと未テスト (0%)。 |
+| `GetCreditBalance` :824 | 認可失敗 / usage==nil / 成功 | 0+err / 0 / balance | service の認可ラッパ未通過。 |
+| `GrantFreeSignupCredit` :772 | 2回目呼び出し | credit_id 衝突で冪等 no-op | 二重付与＝収益漏れ。setup 流用では assert していない。 |
+| `HandleWebhook` :250 | `provider==nil` | ProviderNotConfigured + Error log | 設定漏れ検知。 |
+| `HandleWebhook` :269 | 署名以外の parse 失敗 | parse_failed Error log + NewRelic notice | 署名失敗 (warn) と別経路。 |
+| `recordAndApplyWebhookEvent` :342-353 | event の plan/currency invalid | `MarkProcessed(..,"failed",..)` | 不正イベントの failed 永続化。 |
+| `recordAndApplyWebhookEvent` :322 | `event==nil` | (false,nil) no-op | nil 安全性。 |
+| `ensureProviderCustomer` :314 | 新 customer ID 返却 | `SetAccountStripeCustomerID` で永続化 | customer ID の取り違え防止。44% のみ。 |
+| `CreateCheckout/Portal` :161,:219 | `ensureProviderCustomer` がエラー | customer_failed Error log + return | provider 障害時の握り潰し防止。 |
+| `reconcileAccount` :424 | apply=true かつ既に一致 | `ApplyBillingEvent` を呼ばない no-op | 無駄 mutation 防止。apply テストは差分有りのみ。 |
+| `ReconcileLinkedAccounts` :398 | 途中 account の失敗 | partial diffs + error 返却 | 一括処理の部分失敗挙動。 |
+| `GetUsage` :531 | `parseMinor` が行で失敗 | `continue` で黙って除外 | **不正コスト行が total から無言で消える** — 実害バグ候補。要 assert。 |
+| `GetUsage` :511 | `usage==nil` | ゼロ report スタブ | 未配線時の挙動。 |
+| `UpdateBudget` :726 | parseMinor 失敗 / 負数 | BudgetInvalid | 入力検証。usage==nil で非永続(:729)も。 |
+| `RecordUsage` :587 | `PricingMissing` | NewRelic notice | UnknownModel(cost 0) とは別の課金漏れアラート。 |
+| `reportStripeMeterPortion` :642 | `GetAccount` 失敗/nil | meter 送らず無言 return | meter 欠落の silent skip。 |
+| `formatMinor`/`parseMinor` :657,:673 | JPY (小数なし) / 負数 / frac>2 | 整数整形 / 符号 / BudgetInvalid | 通貨別ロジックが単体で一度も通っていない。 |
+| `shouldNoticeBillingError` :481 | 各 case (plan/currency/signature/NotFound) | NewRelic 抑制 vs notice | 28.6% のみ。誤アラート/見逃しの分類。 |
+
+## 依存エラー軸 (dependency returns error)
+
+各メソッドが外部 (`provider` / `accounts` / `usage`) のエラーをどう伝播するか。
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| メソッド | provider err | accounts(repo) err | usage(repo) err |
+| --- | --- | --- | --- |
+| `CreateCheckoutSession` | ☑ provider_failed | ❌ EnsureCustomer/SetID 失敗 | - |
+| `CreatePortalSession` | ❌ provider_failed | ❌ customer_failed | - |
+| `HandleWebhook` | ☑ signature / ❌ parse_failed | ❌ Record/Apply/Mark 失敗 | - |
+| `ReconcileAccount` | ❌ FetchBillingState 失敗 | ❌ GetAccount / ApplyBillingEvent 失敗 | - |
+| `GetUsage` | - | ◐ 認可 | ❌ ListUsageByModel/ListDailyUsage 失敗 |
+| `RecordUsage` | ☑ meter 失敗 | ❌ GetAccount 失敗 | ◐ recorder error |
+| `UpdateBudget` | - | ◐ 認可 | ❌ UpdateAccountBudgetLimit 失敗 |
+| `ListInvoices` | - | ◐ 認可 | ❌ ListInvoices 失敗 |
+| `ListPaymentMethods` | - | ◐ 認可 | ❌ ListPaymentMethods 失敗 |
+| `GrantCredit` | - | - | ❌ GrantCredit 失敗 |
+
+→ repo/provider のエラー伝播はほぼ全面的に未テスト。mock に `err` を返させる軽い table-driven test で一気に埋められる。
 
 ## 境界値チェックマトリクス
 

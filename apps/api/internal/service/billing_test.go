@@ -1080,6 +1080,531 @@ func TestListPaymentMethods_Success_ReturnsEmptyList(t *testing.T) {
 	assert.Empty(t, logger.entries)
 }
 
+// =========================================================
+// Coverage gap closers (matrix: インターフェース網羅 / 未テスト分岐)
+// =========================================================
+
+func TestGetBillingAccount_Success_ReturnsAccount(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	logger := &billingTestLogger{}
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   logger.asLogger(),
+	})
+
+	got, err := svc.GetBillingAccount(ctx, account.AccountID, "owner")
+
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, account.AccountID, got.AccountID)
+	assert.Empty(t, logger.entries)
+}
+
+func TestGetBillingAccount_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	logger := &billingTestLogger{}
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   logger.asLogger(),
+	})
+
+	got, err := svc.GetBillingAccount(ctx, account.AccountID, "stranger")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	assert.Nil(t, got)
+	require.Len(t, logger.entries, 1)
+	assert.Equal(t, "warn", logger.entries[0].level)
+	assert.Equal(t, "billing.get_account.authorize_failed", logger.entries[0].event)
+}
+
+func TestGrantCredit_Success_PersistsGrantAndIncreasesBalance(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	grant, err := svc.GrantCredit(ctx, "admin-1", account.AccountID, 500, "promo")
+
+	require.NoError(t, err)
+	require.NotNil(t, grant)
+	assert.Equal(t, account.AccountID, grant.AccountID)
+	assert.Equal(t, int64(500), grant.AmountMinor)
+	assert.Equal(t, "admin-1", grant.GrantedBy)
+	assert.Equal(t, "promo", grant.Note)
+	assert.Equal(t, domain.CreditTypeFree, grant.CreditType)
+	assert.Equal(t, "usd", grant.Currency)
+	assert.NotEmpty(t, grant.CreditID)
+
+	balance, err := store.GetCreditBalance(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(500), balance)
+}
+
+func TestGrantCredit_NonPositiveAmount_ReturnsBudgetInvalid(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	for _, amount := range []int64{0, -100} {
+		grant, err := svc.GrantCredit(ctx, "admin-1", "acc-1", amount, "")
+		require.Error(t, err)
+		assert.ErrorIs(t, err, domain.ErrBillingBudgetInvalid)
+		assert.Nil(t, grant)
+	}
+}
+
+func TestGrantCredit_NilUsageRepo_ReturnsProviderNotConfigured(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: mock.NewStore(),
+		Usage:    nil,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	grant, err := svc.GrantCredit(ctx, "admin-1", "acc-1", 500, "")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrBillingProviderNotConfigured)
+	assert.Nil(t, grant)
+}
+
+func TestGetCreditBalance_Success_ReturnsBalance(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+	require.NoError(t, svc.GrantFreeSignupCredit(ctx, account.AccountID)) // +100
+
+	balance, err := svc.GetCreditBalance(ctx, account.AccountID, "owner")
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), balance)
+}
+
+func TestGetCreditBalance_OtherUser_DeniedAndReturnsNotFound(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	balance, err := svc.GetCreditBalance(ctx, account.AccountID, "stranger")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	assert.Zero(t, balance)
+}
+
+func TestGrantFreeSignupCredit_GrantsOneDollarWithSystemAttribution(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	require.NoError(t, svc.GrantFreeSignupCredit(ctx, account.AccountID))
+
+	balance, err := store.GetCreditBalance(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.FreeSignupCreditMinor, balance)
+
+	grants, err := store.ListCreditGrants(ctx, account.AccountID, 10)
+	require.NoError(t, err)
+	require.Len(t, grants, 1)
+	assert.Equal(t, "free-signup-"+account.AccountID, grants[0].CreditID)
+	assert.Equal(t, domain.CreditTypeFree, grants[0].CreditType)
+	assert.Equal(t, "system", grants[0].GrantedBy)
+	assert.Equal(t, "usd", grants[0].Currency)
+}
+
+func TestGrantFreeSignupCredit_NilUsageRepo_Noop(t *testing.T) {
+	ctx := context.Background()
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: mock.NewStore(),
+		Usage:    nil,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	assert.NoError(t, svc.GrantFreeSignupCredit(ctx, "acc-1"))
+}
+
+func TestCreateCheckoutSession_EnsureCustomerFails_LogsErrorAndReturns(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	logger := &billingTestLogger{}
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		ensureCustomerFn: func(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error) {
+			return nil, errors.New("stripe customer create failed")
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: provider,
+		Logger:   logger.asLogger(),
+	})
+
+	session, err := svc.CreateCheckoutSession(ctx, account.AccountID, "owner", domain.BillingPlanUsageBased, "")
+
+	require.Error(t, err)
+	assert.Nil(t, session)
+	assert.Zero(t, provider.createCheckoutCalls, "must not reach provider checkout when customer setup fails")
+	require.Len(t, logger.entries, 1)
+	assert.Equal(t, "error", logger.entries[0].level)
+	assert.Equal(t, "billing.checkout_session.customer_failed", logger.entries[0].event)
+}
+
+func TestCreatePortalSession_ProviderNotConfigured_LogsError(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	logger := &billingTestLogger{}
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: nil,
+		Logger:   logger.asLogger(),
+	})
+
+	session, err := svc.CreatePortalSession(ctx, account.AccountID, "owner")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrBillingProviderNotConfigured)
+	assert.Nil(t, session)
+	require.Len(t, logger.entries, 1)
+	assert.Equal(t, "error", logger.entries[0].level)
+	assert.Equal(t, "billing.provider_not_configured", logger.entries[0].event)
+}
+
+func TestCreatePortalSession_ProviderFails_LogsError(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	logger := &billingTestLogger{}
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		createPortalFn: func(ctx context.Context, account *domain.Account) (*domain.BillingPortalSession, error) {
+			return nil, errors.New("portal unavailable")
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: provider,
+		Logger:   logger.asLogger(),
+	})
+
+	session, err := svc.CreatePortalSession(ctx, account.AccountID, "owner")
+
+	require.Error(t, err)
+	assert.Nil(t, session)
+	require.Len(t, logger.entries, 1)
+	assert.Equal(t, "error", logger.entries[0].level)
+	assert.Equal(t, "billing.portal_session.provider_failed", logger.entries[0].event)
+}
+
+func TestHandleWebhook_ProviderNotConfigured_LogsError(t *testing.T) {
+	ctx := context.Background()
+	logger := &billingTestLogger{}
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: mock.NewStore(),
+		Usage:    mock.NewStore(),
+		Provider: nil,
+		Logger:   logger.asLogger(),
+	})
+
+	err := svc.HandleWebhook(ctx, []byte(`{}`), "sig")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrBillingProviderNotConfigured)
+	require.Len(t, logger.entries, 1)
+	assert.Equal(t, "error", logger.entries[0].level)
+	assert.Equal(t, "billing.provider_not_configured", logger.entries[0].event)
+}
+
+func TestHandleWebhook_ParseError_NonSignature_LogsError(t *testing.T) {
+	ctx := context.Background()
+	logger := &billingTestLogger{}
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return nil, errors.New("malformed payload")
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: mock.NewStore(),
+		Usage:    mock.NewStore(),
+		Provider: provider,
+		Logger:   logger.asLogger(),
+	})
+
+	err := svc.HandleWebhook(ctx, []byte(`{`), "sig")
+
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, domain.ErrBillingWebhookSignatureInvalid)
+	require.Len(t, logger.entries, 1)
+	assert.Equal(t, "error", logger.entries[0].level)
+	assert.Equal(t, "billing.webhook.parse_failed", logger.entries[0].event)
+}
+
+func TestHandleWebhook_InvalidPlanInEvent_MarksFailedAndReturnsError(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{
+				Provider:  "stripe",
+				EventID:   "evt_bad_plan",
+				EventType: "customer.subscription.updated",
+				AccountID: account.AccountID,
+				Plan:      domain.BillingPlan("bogus"),
+				Status:    domain.BillingStatusActive,
+			}, nil
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: provider,
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	err = svc.HandleWebhook(ctx, []byte(`{}`), "sig")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrBillingPlanInvalid)
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan, "invalid plan event must not mutate entitlement")
+}
+
+func TestReconcileAccount_ProviderNotConfigured_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	usecase, _ := NewBillingService(BillingServiceDeps{
+		Accounts: mock.NewStore(),
+		Usage:    mock.NewStore(),
+		Provider: nil,
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+	svc := usecase.(BillingReconciler)
+
+	diff, err := svc.ReconcileAccount(ctx, "acc-1", false)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, domain.ErrBillingProviderNotConfigured)
+	assert.Nil(t, diff)
+}
+
+func TestReconcileAccount_ProviderFetchFails_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		fetchBillingStateFn: func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+			return nil, errors.New("stripe fetch failed")
+		},
+	}
+	usecase, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: provider,
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+	svc := usecase.(BillingReconciler)
+
+	diff, err := svc.ReconcileAccount(ctx, account.AccountID, true)
+
+	require.Error(t, err)
+	assert.Nil(t, diff)
+}
+
+func TestReconcileAccount_ApplyButAlreadyConverged_DoesNotMutate(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	// Remote matches the local free/default state exactly → apply must be a no-op.
+	provider := &billingTestProvider{
+		fetchBillingStateFn: func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{
+				AccountID: account.AccountID,
+				Plan:      domain.BillingPlanFree,
+				Status:    domain.BillingStatusFree,
+			}, nil
+		},
+	}
+	usecase, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: provider,
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+	svc := usecase.(BillingReconciler)
+
+	diff, err := svc.ReconcileAccount(ctx, account.AccountID, true)
+
+	require.NoError(t, err)
+	require.NotNil(t, diff)
+	assert.Equal(t, diff.LocalPlan, diff.RemotePlan)
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, string(domain.BillingPlanFree), updated.Plan)
+}
+
+func TestGetUsage_NilUsageRepo_ReturnsZeroStub(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    nil,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	report, err := svc.GetUsage(ctx, account.AccountID, "owner", "2026-05-01T00:00:00Z", "2026-05-31T23:59:59Z")
+
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.Equal(t, "0.00", report.TotalCost)
+	assert.Equal(t, "usd", report.Currency)
+	assert.Empty(t, report.ByModel)
+}
+
+func TestUpdateBudget_InvalidLimit_ReturnsBudgetInvalid(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	for _, bad := range []string{"-5.00", "abc", "1.234"} {
+		limit, err := svc.UpdateBudget(ctx, account.AccountID, "owner", bad)
+		require.Errorf(t, err, "input %q should be rejected", bad)
+		assert.ErrorIs(t, err, domain.ErrBillingBudgetInvalid)
+		assert.Empty(t, limit)
+	}
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Zero(t, updated.BudgetLimitMinor, "rejected updates must not persist")
+}
+
+func TestUpdateBudget_JPYAccount_FormatsWithoutDecimals(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	account.BillingCurrency = string(domain.BillingCurrencyJPY)
+	svc, _ := NewBillingService(BillingServiceDeps{
+		Accounts: store,
+		Usage:    store,
+		Provider: &billingTestProvider{},
+		Logger:   (&billingTestLogger{}).asLogger(),
+	})
+
+	limit, err := svc.UpdateBudget(ctx, account.AccountID, "owner", "1000")
+
+	require.NoError(t, err)
+	assert.Equal(t, "1000", limit, "JPY is a zero-decimal currency")
+	updated, err := store.GetAccount(ctx, account.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1000), updated.BudgetLimitMinor)
+}
+
+func TestFormatMinorAndParseMinor_CurrencyRoundTrip(t *testing.T) {
+	formatCases := []struct {
+		minor    int64
+		currency string
+		want     string
+	}{
+		{1050, "usd", "10.50"},
+		{5, "usd", "0.05"},
+		{-1050, "usd", "-10.50"},
+		{0, "usd", "0.00"},
+		{1000, "jpy", "1000"},
+		{-100, "jpy", "-100"},
+	}
+	for _, tc := range formatCases {
+		assert.Equalf(t, tc.want, formatMinor(tc.minor, tc.currency), "formatMinor(%d,%q)", tc.minor, tc.currency)
+	}
+
+	parseOK := []struct {
+		value    string
+		currency string
+		want     int64
+	}{
+		{"10.50", "usd", 1050},
+		{"5", "usd", 500},
+		{".5", "usd", 50},
+		{"-5.00", "usd", -500},
+		{"", "usd", 0},
+		{"1000", "jpy", 1000},
+	}
+	for _, tc := range parseOK {
+		got, err := parseMinor(tc.value, tc.currency)
+		require.NoErrorf(t, err, "parseMinor(%q,%q)", tc.value, tc.currency)
+		assert.Equalf(t, tc.want, got, "parseMinor(%q,%q)", tc.value, tc.currency)
+	}
+
+	// More than 2 fractional digits is not representable in minor units.
+	_, err := parseMinor("1.234", "usd")
+	assert.ErrorIs(t, err, domain.ErrBillingBudgetInvalid)
+	// Non-numeric input surfaces a parse error.
+	_, err = parseMinor("abc", "usd")
+	assert.Error(t, err)
+}
+
 type billingTestProvider struct {
 	createCheckoutCalls    int
 	createPortalCalls      int

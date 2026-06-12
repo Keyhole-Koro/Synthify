@@ -2,6 +2,12 @@
 
 このマトリクスは、`document_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。
+> 「インターフェース網羅チェック」「依存エラー軸」「未テスト分岐 (GAP)」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。
+> `IssueImageURL` は [document_image_url](document_image_url_test.matrix.md) を参照。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +15,43 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (`DocumentUsecase`)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `ListDocuments` | ❌ **なし** | **0.0%** | GAP | 全分岐 — 認可拒否 / 正常 list / `ListDocuments` repo error。 |
+| `GetDocument` | ❌ **なし** | **0.0%** | GAP | 全分岐 — `authorizeDocument` (0%) 経由。doc不在→Forbidden、非member拒否、正常取得。 |
+| `CreateDocument` | ✅ 5件 | 77.8% | OK | `CreateDocument` repo error の非quota系、`reportCreateDocumentRejection` の各 reason。 |
+| `ConfirmUpload` | ✅ 4件 | 83.3% | OK | `authorizeDocumentWrite` doc不在、二重 confirm idempotency。 |
+| `StartProcessing` | ✅ 5件 | 92.3% | OK | 既存 running/queued job の早期 return、dispatch 失敗経路。 |
+| `ResumeProcessing` | ◐ AutoResume 経由のみ | 66.7% | PARTIAL | **直接の専用テストが無い**。budget gate、resume 時の retry count 加算。 |
+
+補助/job 経路の実測: `authorizeDocument` **0.0%** / `GetLatestProcessingJob` **0.0%** /
+`handleDispatchFailure` **0.0%** (dispatch 失敗で job を fail にする経路) / `authorizeDocumentWrite` 50.0% /
+`startProcessingJob` 74.4% / `AutoResumeFailedJobs` 70.8% / `ResumeProcessing` 66.7% /
+`deleteOrphanedObject` 28.6% / `reportUploadIncident` 13.3% / `reportCreateDocumentRejection` 20.0%。
+
+→ **`ListDocuments` / `GetDocument` の read 2経路がまるごと未テスト** (0%)。認可拒否・正常取得を移植すれば即閉じる。
+**dispatch 失敗経路 (`handleDispatchFailure` 0%)** は worker 連携の重要分岐だが未確認 —
+`dispatcher.GenerateExecutionPlan`/`ExecuteApprovedPlan` がエラーを返したときに job を fail にして返す挙動。
+
+## 依存エラー軸 (dependency returns error)
+
+document service は依存が多い。各メソッドが依存のエラーをどう扱うか。☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| メソッド | workspaces (authz) | repo (Document) | jobs | dispatcher | objectMetadata | tree/transactor |
+| --- | --- | --- | --- | --- | --- | --- |
+| `ListDocuments` | ❌ | ❌ ListDocuments | - | - | - | - |
+| `GetDocument` | ❌ | ❌ GetDocument | - | - | - | - |
+| `CreateDocument` | ◐ Forbidden | ☑ quota系 / ❌ DB outage | - | - | - | - |
+| `ConfirmUpload` | ◐ | ◐ | - | - | ☑ mismatch / ❌ lookup error | - |
+| `StartProcessing` | ◐ | ◐ | ❌ GetLatestProcessingJob | ❌ dispatch 失敗 | ☑ | ❌ GetTree / WithTx |
+| `ResumeProcessing` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `AutoResumeFailedJobs` | - | - | ☑ ListAllJobs (空) / ◐ | ☑ execute | - | - |
+
+→ **dispatcher エラー / objectMetadata lookup エラー / transactor (WithTx) 失敗** の伝播が広く未テスト。
+provider/repo にエラーを返させる fake を足せば `startProcessingJob` の 74% と `handleDispatchFailure` の 0% を同時に上げられる。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

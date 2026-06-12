@@ -2,6 +2,11 @@
 
 このマトリクスは、`workspace_sharelink_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。
+> 「インターフェース網羅チェック」「依存エラー軸」「未テスト分岐 (GAP)」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,32 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (share link)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `CreateShareLink` | ✅ 5件 | 84.6% | OK | `CreateShareLink` repo error、`generateShareToken` 失敗 (rand)。 |
+| `ListShareLinks` | ✅ 1件 (非owner拒否) | 66.7% | PARTIAL | **owner の list 成功 (0/1/複数件・revoked表示) が未確認**、repo error。 |
+| `RevokeShareLink` | ✅ 1件 (非owner拒否) | 100% | PARTIAL† | †行カバレッジは満たすが **owner revoke 成功の状態遷移が未確認** (resolve 側で間接のみ)。 |
+| `ResolveShareLink` | ✅ 4件 | 85.7% | OK | resolve 後の `GetWorkspace` repo error (token有効だが ws 取得失敗)。 |
+| `generateShareToken` (helper) | ◐ 上記経由 | 75.0% | PARTIAL | `rand.Read` 失敗経路 (実質テスト困難)。 |
+
+→ `ListShareLinks` は **owner の成功経路が未テスト**。`RevokeShareLink` は revoke 後に
+list から消える／二重 revoke の挙動が未確認。
+
+## 依存エラー軸 (dependency returns error)
+
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| メソッド | workspaces repo err |
+| --- | --- |
+| `CreateShareLink` | ❌ GetWorkspaceRole / CreateShareLink |
+| `ListShareLinks` | ❌ GetWorkspaceRole / ListShareLinks |
+| `RevokeShareLink` | ❌ GetWorkspaceRole / RevokeShareLink |
+| `ResolveShareLink` | ◐ ResolveShareLink (unknown/expired/revoked) / ❌ GetWorkspace |
+
+→ ResolveShareLink の token 無効系は手厚いが、有効 token で `GetWorkspace` が落ちる経路 (整合性崩れ) は未確認。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

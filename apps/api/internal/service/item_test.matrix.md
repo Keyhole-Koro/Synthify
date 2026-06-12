@@ -2,6 +2,11 @@
 
 このマトリクスは、`item_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。
+> 「インターフェース網羅チェック」「依存エラー軸」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,32 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (`ItemUsecase`)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `GetItem` | ✅ 2件 | 75.0% | PARTIAL | `GetItem` repo error、authorizeWorkspace repo error。 |
+| `CreateItem` | ✅ 4件 | 100% | OK | `CreateItem` repo error。 |
+| `ApproveAlias` | ❌ **なし** | **0.0%** | GAP | 全分岐 — write 認可拒否 (viewer/non-member) / 正常承認 / `ApproveAlias` repo error。 |
+| `RejectAlias` | ❌ **なし** | **0.0%** | GAP | 全分岐 — write 認可拒否 / 正常却下 / `RejectAlias` repo error。 |
+
+→ **alias の承認/却下 (`ApproveAlias` / `RejectAlias`) がまるごと未テスト。** どちらも `authorizeWrite` →
+`repo.<Op>` の薄いラッパなので、`CreateItem` の viewer/non-member 拒否テストを移植 + 正常系1件で埋まる。
+alias は item の重複統合に関わるため、認可漏れは canonical/alias の取り違えに直結する。
+
+## 依存エラー軸 (dependency returns error)
+
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| メソッド | workspaces (authz) repo err | item repo err |
+| --- | --- | --- |
+| `GetItem` | ❌ IsWorkspaceAccessible | ❌ GetItem |
+| `CreateItem` | ◐ GetWorkspaceRole (Forbidden) | ❌ CreateItem |
+| `ApproveAlias` | ❌ GetWorkspaceRole | ❌ ApproveAlias |
+| `RejectAlias` | ❌ GetWorkspaceRole | ❌ RejectAlias |
+
+→ 認可拒否 (Forbidden) は確認済みだが、repo の error 伝播は全面未テスト。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

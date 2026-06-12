@@ -2,6 +2,11 @@
 
 このマトリクスは、`workspace_members_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無いメソッド／分岐はこの表に現れない**。
+> 「インターフェース網羅チェック」「依存エラー軸」「未テスト分岐 (GAP)」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,32 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (member 管理)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `ListMembers` | ✅ 1件 (非member拒否) | 66.7% | PARTIAL | **owner/editor/viewer の list 成功が未確認**、`ListWorkspaceMembers` repo error。 |
+| `InviteMember` | ✅ 5件 | 90.0% | OK | `UpsertWorkspaceMember` repo error、重複招待での role 更新。 |
+| `UpdateMemberRole` | ✅ 2件 | 70.0% | PARTIAL | invalid/unknown role、unknown target、`GetUser`/`Upsert` repo error。 |
+| `RemoveMember` | ✅ 2件 | 100% | OK | — |
+| `requireManageMembers` (helper) | ◐ 上記経由 | 83.3% | PARTIAL | `GetWorkspaceRole` repo error。 |
+
+→ `ListMembers` の **成功経路 (member が list を読める) が一度も通っていない**。
+非member拒否しか無いので「owner/editor/viewer は list 可」を1件足すべき。
+
+## 依存エラー軸 (dependency returns error)
+
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| メソッド | workspaces repo err | users repo err |
+| --- | --- | --- |
+| `ListMembers` | ❌ IsWorkspaceAccessible / ListWorkspaceMembers | - |
+| `InviteMember` | ❌ GetWorkspaceRole / UpsertWorkspaceMember | ☑ GetUserByEmail (未登録=NotFound) |
+| `UpdateMemberRole` | ❌ GetWorkspaceRole / UpsertWorkspaceMember | ❌ GetUser |
+| `RemoveMember` | ◐ GetWorkspaceRole / ❌ RemoveWorkspaceMember | - |
+
+→ `InviteMember` の user lookup 失敗のみ確認済み。workspaces repo の書き込み失敗伝播は全面未テスト。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

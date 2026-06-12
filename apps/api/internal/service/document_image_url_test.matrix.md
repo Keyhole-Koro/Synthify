@@ -2,6 +2,11 @@
 
 このマトリクスは、`document_image_url_test.go` の各テストケースが何を保証していて、何を意図的にカバーしていないかを確認するための表です。
 
+> **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
+> **テストが1件も無い分岐はこの表に現れない**。「インターフェース網羅チェック」「依存エラー軸」を併読すること。
+> カバレッジ数値は `go test -coverprofile` の実測 (2026-06-12)。本ファイルは `IssueImageURL` 単体を対象とする
+> ([document_test](document_test.matrix.md) の `DocumentUsecase` 表の一部)。
+
 ステータス:
 
 | ステータス | 意味 |
@@ -9,6 +14,28 @@
 | OK | 主要な挙動はこのテストファイルで担保している。 |
 | PARTIAL | 有用な挙動は担保しているが、重要な境界値や統合経路はこのファイルの外に残っている。 |
 | GAP | 必要な確認観点だが、現時点ではテストで担保されていない。 |
+
+## インターフェース網羅チェック (`IssueImageURL`)
+
+| メソッド | 専用テスト | coverage | 状態 | 未テストの主分岐 |
+| --- | --- | --- | --- | --- |
+| `IssueImageURL` | ✅ 3件 | 80.0% | PARTIAL | `imageURLIssuer == nil` → ErrNotFound、`GetDocumentFileForDelivery` の非NotFound error、`IssueDocumentImageURL` の error、viewer/editor の read 許可。 |
+
+## 依存エラー軸 (dependency returns error)
+
+☑=テスト有 / ◐=間接 / ❌=未テスト。
+
+| 分岐 | 入力/条件 | 期待 | 状態 |
+| --- | --- | --- | --- |
+| issuer 未配線 | `imageURLIssuer == nil` | ErrNotFound | ❌ |
+| file 不在 | `GetDocumentFileForDelivery` が NotFound | **ErrForbidden** (存在秘匿) | ☑ |
+| repo 障害 | `GetDocumentFileForDelivery` が非NotFound error | そのまま伝播 | ❌ |
+| 認可拒否 | 非member | ErrForbidden + issuer 未呼出 | ☑ (issuer未呼出は◐) |
+| issuer 障害 | `IssueDocumentImageURL` が error | そのまま伝播 | ❌ |
+| 正常 | owner | signed URL + issuer に正しい ws/doc/path | ☑ |
+
+→ **issuer 未配線 (nil)・repo 障害・issuer 障害の3経路が未テスト** (= 残り 20% の大半)。
+また非member拒否時に「issuer が呼ばれていない」ことの明示 assertion (call count == 0) がまだ ◐。
 
 | チェック | テストケース | 対象 | 観点 | セットアップ / 入力 | 期待結果 | 副作用 / 状態変化 | 主要 assertion | カバーしていること | カバーしていないこと | 追加候補 | ステータス |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
