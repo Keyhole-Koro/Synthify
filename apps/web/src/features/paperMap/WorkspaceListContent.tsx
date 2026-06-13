@@ -60,6 +60,13 @@ export function WorkspaceListContent({
 
   return (
     <div className="flex flex-col gap-3 pt-1">
+      {loading && (
+        <div className="flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-600">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+          ワークスペースを取得中
+        </div>
+      )}
+
       <WorkspaceItemList
         workspaces={workspaces}
         onOpenWorkspace={onOpenWorkspace}

@@ -60,6 +60,7 @@ function LoadingScreen() {
     <div className="h-screen w-screen bg-[#f0e6d3] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500/30 border-t-indigo-500" />
+        <p className="text-sm font-medium text-stone-600">ワークスペースを取得中</p>
       </div>
     </div>
   );
