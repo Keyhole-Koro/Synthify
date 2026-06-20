@@ -112,6 +112,41 @@ type ProviderWebhookEvent struct {
 	Interval               BillingInterval `json:"interval,omitempty"`
 	CurrentPeriodEnd       string          `json:"current_period_end,omitempty"`
 	CancelAtPeriodEnd      bool            `json:"cancel_at_period_end,omitempty"`
+
+	// 以下は invoice / payment_method キャッシュ同期用のサイドエフェクト・ペイロード。
+	// account の billing 状態更新とは独立に処理される（非 nil のものだけ反映）。
+	Invoice              *ProviderInvoice       `json:"invoice,omitempty"`
+	PaymentMethod        *ProviderPaymentMethod `json:"payment_method,omitempty"`
+	PaymentMethodDeleted string                 `json:"payment_method_deleted,omitempty"`
+	// DefaultPaymentMethodSet は customer.updated 由来で default PM を再計算すべき
+	// イベントであることを示す。DefaultPaymentMethod が空（デフォルト解除）でも
+	// 再計算を走らせるためのフラグ。
+	DefaultPaymentMethod    string `json:"default_payment_method,omitempty"`
+	DefaultPaymentMethodSet bool   `json:"default_payment_method_set,omitempty"`
+}
+
+// ProviderInvoice は Stripe invoice.* webhook から抽出した請求書明細。
+// invoices テーブルへの upsert に使う。account は ExternalCustomerID から解決する。
+type ProviderInvoice struct {
+	StripeInvoiceID  string `json:"stripe_invoice_id"`
+	AmountMinor      int64  `json:"amount_minor"`
+	Currency         string `json:"currency"`
+	Status           string `json:"status"`
+	HostedInvoiceURL string `json:"hosted_invoice_url"`
+	InvoicePDFURL    string `json:"invoice_pdf_url"`
+	PeriodStart      string `json:"period_start,omitempty"`
+	PeriodEnd        string `json:"period_end,omitempty"`
+	PaidAt           string `json:"paid_at,omitempty"`
+	CreatedAt        string `json:"created_at"`
+}
+
+// ProviderPaymentMethod は Stripe payment_method.* webhook から抽出したカード情報。
+type ProviderPaymentMethod struct {
+	StripePaymentMethodID string `json:"stripe_payment_method_id"`
+	Brand                 string `json:"brand"`
+	Last4                 string `json:"last4"`
+	ExpMonth              int32  `json:"exp_month"`
+	ExpYear               int32  `json:"exp_year"`
 }
 
 // =========================================================

@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -45,9 +46,21 @@ type Store struct {
 	usageEvents     []*domain.UsageEvent
 	dailyCosts      map[string]int64 // "accountID|date|model" -> cost_minor
 	credits         []*domain.CreditGrant
+	invoices        map[string]*mockInvoice       // stripeInvoiceID -> record
+	paymentMethods  map[string]*mockPaymentMethod // stripePaymentMethodID -> record
 	uploadURLIssuer repository.DocumentUploadURLIssuer
 	dynamicTools    []*domain.DynamicTool // insertion-ordered; ToolID is the identity
 	dynamicToolSeq  int
+}
+
+type mockInvoice struct {
+	accountID string
+	inv       domain.Invoice
+}
+
+type mockPaymentMethod struct {
+	accountID string
+	pm        domain.PaymentMethod
 }
 
 type uploadReservation struct {
@@ -79,6 +92,8 @@ func NewStore() *Store {
 		chunks:          make(map[string][]*domain.DocumentChunk),
 		checkpoints:     make(map[string]map[string]domain.JobStageCheckpoint),
 		reservations:    make(map[string]*uploadReservation),
+		invoices:        make(map[string]*mockInvoice),
+		paymentMethods:  make(map[string]*mockPaymentMethod),
 		billingEvents:   make(map[string]string),
 		pricing:         make(map[string]domain.ModelPricing),
 		dailyCosts:      make(map[string]int64),
@@ -1601,12 +1616,149 @@ func (s *Store) UpdateAccountBudgetLimit(_ context.Context, accountID string, li
 	return nil
 }
 
-func (s *Store) ListInvoices(_ context.Context, _ string, _ int) (*domain.InvoiceList, error) {
-	return &domain.InvoiceList{Invoices: nil, UpcomingAmount: "0.00", UpcomingPeriodEnd: ""}, nil
+func (s *Store) ListInvoices(_ context.Context, accountID string, limit int) (*domain.InvoiceList, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	var invoices []*domain.Invoice
+	for _, rec := range s.invoices {
+		if rec.accountID != accountID {
+			continue
+		}
+		cp := rec.inv
+		invoices = append(invoices, &cp)
+	}
+	sort.Slice(invoices, func(i, j int) bool {
+		return invoices[i].CreatedAt > invoices[j].CreatedAt
+	})
+	if len(invoices) > limit {
+		invoices = invoices[:limit]
+	}
+	return &domain.InvoiceList{Invoices: invoices, UpcomingAmount: "0.00", UpcomingPeriodEnd: ""}, nil
 }
 
-func (s *Store) ListPaymentMethods(_ context.Context, _ string) ([]*domain.PaymentMethod, error) {
-	return nil, nil
+func (s *Store) ListPaymentMethods(_ context.Context, accountID string) ([]*domain.PaymentMethod, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var result []*domain.PaymentMethod
+	for _, rec := range s.paymentMethods {
+		if rec.accountID != accountID {
+			continue
+		}
+		cp := rec.pm
+		result = append(result, &cp)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].IsDefault != result[j].IsDefault {
+			return result[i].IsDefault
+		}
+		return result[i].PaymentMethodID < result[j].PaymentMethodID
+	})
+	return result, nil
+}
+
+// accountIDByStripeCustomer resolves an account from its Stripe customer id.
+// Caller must hold at least a read lock.
+func (s *Store) accountIDByStripeCustomer(stripeCustomerID string) (string, bool) {
+	if stripeCustomerID == "" {
+		return "", false
+	}
+	for _, acc := range s.accounts {
+		if acc.StripeCustomerID == stripeCustomerID {
+			return acc.AccountID, true
+		}
+	}
+	return "", false
+}
+
+func (s *Store) UpsertInvoice(_ context.Context, stripeCustomerID string, inv *domain.ProviderInvoice) error {
+	if inv == nil || inv.StripeInvoiceID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	accountID, ok := s.accountIDByStripeCustomer(stripeCustomerID)
+	if !ok {
+		return nil // unlinked customer -> silent no-op, matches SQL behaviour
+	}
+	currency := inv.Currency
+	if currency == "" {
+		currency = "usd"
+	}
+	existing, found := s.invoices[inv.StripeInvoiceID]
+	created := inv.CreatedAt
+	if found {
+		created = existing.inv.CreatedAt // preserve original created_at on update
+	}
+	s.invoices[inv.StripeInvoiceID] = &mockInvoice{
+		accountID: accountID,
+		inv: domain.Invoice{
+			InvoiceID:        inv.StripeInvoiceID,
+			Amount:           formatMockMinor(inv.AmountMinor, currency),
+			Currency:         currency,
+			Status:           inv.Status,
+			HostedInvoiceURL: inv.HostedInvoiceURL,
+			InvoicePDFURL:    inv.InvoicePDFURL,
+			PeriodStart:      inv.PeriodStart,
+			PeriodEnd:        inv.PeriodEnd,
+			PaidAt:           inv.PaidAt,
+			CreatedAt:        created,
+		},
+	}
+	return nil
+}
+
+func (s *Store) UpsertPaymentMethod(_ context.Context, stripeCustomerID string, pm *domain.ProviderPaymentMethod) error {
+	if pm == nil || pm.StripePaymentMethodID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	accountID, ok := s.accountIDByStripeCustomer(stripeCustomerID)
+	if !ok {
+		return nil
+	}
+	isDefault := false
+	if existing, found := s.paymentMethods[pm.StripePaymentMethodID]; found {
+		isDefault = existing.pm.IsDefault // preserve default flag on update
+	}
+	s.paymentMethods[pm.StripePaymentMethodID] = &mockPaymentMethod{
+		accountID: accountID,
+		pm: domain.PaymentMethod{
+			PaymentMethodID: pm.StripePaymentMethodID,
+			Brand:           pm.Brand,
+			Last4:           pm.Last4,
+			ExpMonth:        pm.ExpMonth,
+			ExpYear:         pm.ExpYear,
+			IsDefault:       isDefault,
+		},
+	}
+	return nil
+}
+
+func (s *Store) DeletePaymentMethod(_ context.Context, stripePaymentMethodID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.paymentMethods, stripePaymentMethodID)
+	return nil
+}
+
+func (s *Store) SetDefaultPaymentMethod(_ context.Context, stripeCustomerID, defaultPaymentMethodID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	accountID, ok := s.accountIDByStripeCustomer(stripeCustomerID)
+	if !ok {
+		return nil
+	}
+	for id, rec := range s.paymentMethods {
+		if rec.accountID != accountID {
+			continue
+		}
+		rec.pm.IsDefault = id == defaultPaymentMethodID
+	}
+	return nil
 }
 
 func (s *Store) GrantCredit(_ context.Context, grant *domain.CreditGrant) error {

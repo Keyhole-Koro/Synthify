@@ -240,6 +240,90 @@ func (s *Store) ListPaymentMethods(ctx context.Context, accountID string) ([]*do
 	return result, nil
 }
 
+// UpsertInvoice writes a Stripe-sourced invoice into the cache table. account_id is
+// resolved from stripeCustomerID inside the query; an unlinked customer is a silent no-op.
+func (s *Store) UpsertInvoice(ctx context.Context, stripeCustomerID string, inv *domain.ProviderInvoice) error {
+	if inv == nil || stripeCustomerID == "" || inv.StripeInvoiceID == "" {
+		return nil
+	}
+	currency := inv.Currency
+	if currency == "" {
+		currency = "usd"
+	}
+	return s.q().UpsertInvoice(ctx, sqlcgen.UpsertInvoiceParams{
+		StripeInvoiceID:  inv.StripeInvoiceID,
+		AmountMinor:      inv.AmountMinor,
+		Currency:         currency,
+		Status:           inv.Status,
+		HostedInvoiceUrl: inv.HostedInvoiceURL,
+		InvoicePdfUrl:    inv.InvoicePDFURL,
+		PeriodStart:      nullTimeFromRFC3339(inv.PeriodStart),
+		PeriodEnd:        nullTimeFromRFC3339(inv.PeriodEnd),
+		PaidAt:           nullTimeFromRFC3339(inv.PaidAt),
+		Ts:               timeFromRFC3339OrNow(inv.CreatedAt),
+		StripeCustomerID: stripeCustomerID,
+	})
+}
+
+// UpsertPaymentMethod writes a Stripe-sourced card into the cache table.
+func (s *Store) UpsertPaymentMethod(ctx context.Context, stripeCustomerID string, pm *domain.ProviderPaymentMethod) error {
+	if pm == nil || stripeCustomerID == "" || pm.StripePaymentMethodID == "" {
+		return nil
+	}
+	return s.q().UpsertPaymentMethod(ctx, sqlcgen.UpsertPaymentMethodParams{
+		StripePaymentMethodID: pm.StripePaymentMethodID,
+		Brand:                 pm.Brand,
+		Last4:                 pm.Last4,
+		ExpMonth:              pm.ExpMonth,
+		ExpYear:               pm.ExpYear,
+		Ts:                    nowTime(),
+		StripeCustomerID:      stripeCustomerID,
+	})
+}
+
+// DeletePaymentMethod removes a card by its Stripe id (payment_method.detached).
+func (s *Store) DeletePaymentMethod(ctx context.Context, stripePaymentMethodID string) error {
+	if stripePaymentMethodID == "" {
+		return nil
+	}
+	return s.q().DeletePaymentMethod(ctx, stripePaymentMethodID)
+}
+
+// SetDefaultPaymentMethod flips is_default across the account's cards so that only the
+// one matching defaultPaymentMethodID is true (empty id clears all defaults).
+func (s *Store) SetDefaultPaymentMethod(ctx context.Context, stripeCustomerID, defaultPaymentMethodID string) error {
+	if stripeCustomerID == "" {
+		return nil
+	}
+	return s.q().SetDefaultPaymentMethodByCustomer(ctx, sqlcgen.SetDefaultPaymentMethodByCustomerParams{
+		DefaultPaymentMethodID: defaultPaymentMethodID,
+		Ts:                     nowTime(),
+		StripeCustomerID:       stripeCustomerID,
+	})
+}
+
+// nullTimeFromRFC3339 parses an RFC3339 string into a sql.NullTime; "" / parse error → NULL.
+func nullTimeFromRFC3339(value string) sql.NullTime {
+	if value == "" {
+		return sql.NullTime{}
+	}
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: t, Valid: true}
+}
+
+// timeFromRFC3339OrNow parses an RFC3339 string, falling back to now() on empty/invalid.
+func timeFromRFC3339OrNow(value string) time.Time {
+	if value != "" {
+		if t, err := time.Parse(time.RFC3339, value); err == nil {
+			return t
+		}
+	}
+	return nowTime()
+}
+
 // formatMinorCost converts a minor-unit amount to a decimal string.
 // JPY has no fractional unit; all other currencies use 2 decimal places.
 func formatMinorCost(minor int64, currency string) string {
