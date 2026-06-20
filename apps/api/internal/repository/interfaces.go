@@ -218,6 +218,13 @@ type UsageRepository interface {
 	ListInvoices(ctx context.Context, accountID string, limit int) (*domain.InvoiceList, error)
 	ListPaymentMethods(ctx context.Context, accountID string) ([]*domain.PaymentMethod, error)
 
+	// Invoice / payment method cache 同期 (Stripe webhook 由来)。
+	// account は stripeCustomerID から解決され、未連携顧客は黙って no-op。
+	UpsertInvoice(ctx context.Context, stripeCustomerID string, inv *domain.ProviderInvoice) error
+	UpsertPaymentMethod(ctx context.Context, stripeCustomerID string, pm *domain.ProviderPaymentMethod) error
+	DeletePaymentMethod(ctx context.Context, stripePaymentMethodID string) error
+	SetDefaultPaymentMethod(ctx context.Context, stripeCustomerID, defaultPaymentMethodID string) error
+
 	// Credits
 	GrantCredit(ctx context.Context, grant *domain.CreditGrant) error
 	GetCreditBalance(ctx context.Context, accountID string) (int64, error)

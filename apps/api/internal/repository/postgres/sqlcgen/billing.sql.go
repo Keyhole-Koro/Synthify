@@ -7,6 +7,7 @@ package sqlcgen
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -35,6 +36,16 @@ func (q *Queries) DeductCredit(ctx context.Context, arg DeductCreditParams) erro
 		arg.Note,
 		arg.GrantedAt,
 	)
+	return err
+}
+
+const deletePaymentMethod = `-- name: DeletePaymentMethod :exec
+DELETE FROM payment_methods
+WHERE stripe_payment_method_id = $1
+`
+
+func (q *Queries) DeletePaymentMethod(ctx context.Context, stripePaymentMethodID string) error {
+	_, err := q.db.ExecContext(ctx, deletePaymentMethod, stripePaymentMethodID)
 	return err
 }
 
@@ -449,6 +460,28 @@ func (q *Queries) MarkAccountBudgetExceeded(ctx context.Context, accountID strin
 	return err
 }
 
+const setDefaultPaymentMethodByCustomer = `-- name: SetDefaultPaymentMethodByCustomer :exec
+UPDATE payment_methods pm
+SET is_default = (pm.stripe_payment_method_id = $1),
+    updated_at = $2::timestamptz
+FROM accounts a
+WHERE pm.account_id = a.account_id
+  AND a.stripe_customer_id = $3
+`
+
+type SetDefaultPaymentMethodByCustomerParams struct {
+	DefaultPaymentMethodID string
+	Ts                     time.Time
+	StripeCustomerID       string
+}
+
+// 該当 account の全 PM のうち default_payment_method_id に一致する 1 件だけ is_default=TRUE、
+// 残りを FALSE にする。default_payment_method_id が空なら全件 FALSE。
+func (q *Queries) SetDefaultPaymentMethodByCustomer(ctx context.Context, arg SetDefaultPaymentMethodByCustomerParams) error {
+	_, err := q.db.ExecContext(ctx, setDefaultPaymentMethodByCustomer, arg.DefaultPaymentMethodID, arg.Ts, arg.StripeCustomerID)
+	return err
+}
+
 const sumUsageCostByAccount = `-- name: SumUsageCostByAccount :one
 SELECT COALESCE(SUM(cost_minor), 0)::bigint
 FROM usage_events
@@ -510,6 +543,113 @@ func (q *Queries) UpsertAccountUsageDaily(ctx context.Context, arg UpsertAccount
 		arg.OutputTokens,
 		arg.CostMinor,
 		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertInvoice = `-- name: UpsertInvoice :exec
+INSERT INTO invoices (
+  invoice_id, account_id, stripe_invoice_id, amount_minor, currency, status,
+  hosted_invoice_url, invoice_pdf_url, period_start, period_end, paid_at,
+  created_at, updated_at
+)
+SELECT
+  $1, a.account_id, $1,
+  $2, $3, $4,
+  $5, $6,
+  $7::timestamptz,
+  $8::timestamptz,
+  $9::timestamptz,
+  $10::timestamptz, $10::timestamptz
+FROM accounts a
+WHERE a.stripe_customer_id = $11
+LIMIT 1
+ON CONFLICT (invoice_id) DO UPDATE SET
+  amount_minor       = EXCLUDED.amount_minor,
+  status             = EXCLUDED.status,
+  hosted_invoice_url = EXCLUDED.hosted_invoice_url,
+  invoice_pdf_url    = EXCLUDED.invoice_pdf_url,
+  period_start       = EXCLUDED.period_start,
+  period_end         = EXCLUDED.period_end,
+  paid_at            = EXCLUDED.paid_at,
+  updated_at         = EXCLUDED.updated_at
+`
+
+type UpsertInvoiceParams struct {
+	StripeInvoiceID  string
+	AmountMinor      int64
+	Currency         string
+	Status           string
+	HostedInvoiceUrl string
+	InvoicePdfUrl    string
+	PeriodStart      sql.NullTime
+	PeriodEnd        sql.NullTime
+	PaidAt           sql.NullTime
+	Ts               time.Time
+	StripeCustomerID string
+}
+
+// account_id は stripe_customer_id から解決する。一致する account が無ければ
+// SELECT が 0 行となり何も挿入されない（未連携顧客の invoice は黙って捨てる）。
+// invoice_id には stripe_invoice_id をそのまま採用し、ON CONFLICT で冪等更新する。
+func (q *Queries) UpsertInvoice(ctx context.Context, arg UpsertInvoiceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertInvoice,
+		arg.StripeInvoiceID,
+		arg.AmountMinor,
+		arg.Currency,
+		arg.Status,
+		arg.HostedInvoiceUrl,
+		arg.InvoicePdfUrl,
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.PaidAt,
+		arg.Ts,
+		arg.StripeCustomerID,
+	)
+	return err
+}
+
+const upsertPaymentMethod = `-- name: UpsertPaymentMethod :exec
+INSERT INTO payment_methods (
+  payment_method_id, account_id, stripe_payment_method_id,
+  brand, last4, exp_month, exp_year, is_default, created_at, updated_at
+)
+SELECT
+  $1, a.account_id, $1,
+  $2, $3, $4, $5,
+  FALSE, $6::timestamptz, $6::timestamptz
+FROM accounts a
+WHERE a.stripe_customer_id = $7
+LIMIT 1
+ON CONFLICT (payment_method_id) DO UPDATE SET
+  brand      = EXCLUDED.brand,
+  last4      = EXCLUDED.last4,
+  exp_month  = EXCLUDED.exp_month,
+  exp_year   = EXCLUDED.exp_year,
+  updated_at = EXCLUDED.updated_at
+`
+
+type UpsertPaymentMethodParams struct {
+	StripePaymentMethodID string
+	Brand                 string
+	Last4                 string
+	ExpMonth              int32
+	ExpYear               int32
+	Ts                    time.Time
+	StripeCustomerID      string
+}
+
+// account_id は stripe_customer_id から解決。is_default は SetDefaultPaymentMethodByCustomer
+// が customer.updated イベントで別途管理するため、ここでは insert 時 FALSE 固定・更新時は触らない。
+func (q *Queries) UpsertPaymentMethod(ctx context.Context, arg UpsertPaymentMethodParams) error {
+	_, err := q.db.ExecContext(ctx, upsertPaymentMethod,
+		arg.StripePaymentMethodID,
+		arg.Brand,
+		arg.Last4,
+		arg.ExpMonth,
+		arg.ExpYear,
+		arg.Ts,
+		arg.StripeCustomerID,
 	)
 	return err
 }

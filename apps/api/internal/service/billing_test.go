@@ -1605,6 +1605,157 @@ func TestFormatMinorAndParseMinor_CurrencyRoundTrip(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestHandleWebhook_InvoicePaidUpsertsInvoiceCache(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{
+				Provider:           "stripe",
+				EventID:            "evt_inv_paid",
+				EventType:          "invoice.paid",
+				AccountID:          account.AccountID,
+				ExternalCustomerID: "cus_1",
+				Plan:               domain.BillingPlanUsageBased,
+				Status:             domain.BillingStatusActive,
+				Invoice: &domain.ProviderInvoice{
+					StripeInvoiceID:  "in_1",
+					AmountMinor:      2500,
+					Currency:         "usd",
+					Status:           "paid",
+					HostedInvoiceURL: "https://pay.stripe.com/in_1",
+					CreatedAt:        "2026-06-01T00:00:00Z",
+				},
+			}, nil
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{Accounts: store, Usage: store, Provider: provider, Logger: (&billingTestLogger{}).asLogger()})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	list, err := svc.ListInvoices(ctx, account.AccountID, "owner", 20)
+	require.NoError(t, err)
+	require.Len(t, list.Invoices, 1)
+	assert.Equal(t, "in_1", list.Invoices[0].InvoiceID)
+	assert.Equal(t, "25.00", list.Invoices[0].Amount)
+	assert.Equal(t, "paid", list.Invoices[0].Status)
+	// account 課金状態も並走して更新される
+	updated, _ := store.GetAccount(ctx, account.AccountID)
+	assert.Equal(t, string(domain.BillingPlanUsageBased), updated.Plan)
+}
+
+func TestHandleWebhook_InvoiceFinalizedDoesNotResetAccount(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	events := []*domain.ProviderWebhookEvent{
+		{
+			Provider: "stripe", EventID: "evt_paid", EventType: "invoice.paid",
+			AccountID: account.AccountID, ExternalCustomerID: "cus_1",
+			Plan: domain.BillingPlanUsageBased, Status: domain.BillingStatusActive,
+			Invoice: &domain.ProviderInvoice{StripeInvoiceID: "in_1", AmountMinor: 1000, Currency: "usd", Status: "paid", CreatedAt: "2026-06-01T00:00:00Z"},
+		},
+		{
+			// finalized は Plan 空。account billing 状態を巻き戻してはならない。
+			Provider: "stripe", EventID: "evt_finalized", EventType: "invoice.finalized",
+			ExternalCustomerID: "cus_1",
+			Invoice:            &domain.ProviderInvoice{StripeInvoiceID: "in_2", AmountMinor: 2000, Currency: "usd", Status: "open", CreatedAt: "2026-06-15T00:00:00Z"},
+		},
+	}
+	idx := 0
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			ev := events[idx]
+			idx++
+			return ev, nil
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{Accounts: store, Usage: store, Provider: provider, Logger: (&billingTestLogger{}).asLogger()})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig"))
+
+	updated, _ := store.GetAccount(ctx, account.AccountID)
+	assert.Equal(t, string(domain.BillingPlanUsageBased), updated.Plan, "finalized must not downgrade the account")
+	assert.Equal(t, string(domain.BillingStatusActive), updated.BillingStatus)
+	list, err := svc.ListInvoices(ctx, account.AccountID, "owner", 20)
+	require.NoError(t, err)
+	assert.Len(t, list.Invoices, 2)
+}
+
+func TestHandleWebhook_PaymentMethodAttachThenDefaultThenDetach(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	require.NoError(t, store.SetAccountStripeCustomerID(ctx, account.AccountID, "cus_1"))
+	events := []*domain.ProviderWebhookEvent{
+		{Provider: "stripe", EventID: "evt_pm1", EventType: "payment_method.attached", ExternalCustomerID: "cus_1",
+			PaymentMethod: &domain.ProviderPaymentMethod{StripePaymentMethodID: "pm_1", Brand: "visa", Last4: "4242", ExpMonth: 12, ExpYear: 2030}},
+		{Provider: "stripe", EventID: "evt_cust", EventType: "customer.updated", ExternalCustomerID: "cus_1",
+			DefaultPaymentMethodSet: true, DefaultPaymentMethod: "pm_1"},
+		{Provider: "stripe", EventID: "evt_pm_del", EventType: "payment_method.detached", PaymentMethodDeleted: "pm_1"},
+	}
+	idx := 0
+	provider := &billingTestProvider{
+		parseWebhookFn: func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
+			ev := events[idx]
+			idx++
+			return ev, nil
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{Accounts: store, Usage: store, Provider: provider, Logger: (&billingTestLogger{}).asLogger()})
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig")) // attach
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig")) // default
+	methods, err := svc.ListPaymentMethods(ctx, account.AccountID, "owner")
+	require.NoError(t, err)
+	require.Len(t, methods, 1)
+	assert.Equal(t, "pm_1", methods[0].PaymentMethodID)
+	assert.True(t, methods[0].IsDefault, "customer.updated should mark pm_1 default")
+
+	require.NoError(t, svc.HandleWebhook(ctx, []byte(`{}`), "sig")) // detach
+	methods, err = svc.ListPaymentMethods(ctx, account.AccountID, "owner")
+	require.NoError(t, err)
+	assert.Empty(t, methods, "detach should remove the card")
+}
+
+func TestReconcileAccount_ApplyBackfillsInvoicesAndPaymentMethods(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	account, err := store.GetOrCreateAccount(ctx, "owner")
+	require.NoError(t, err)
+	require.NoError(t, store.SetAccountStripeCustomerID(ctx, account.AccountID, "cus_1"))
+	provider := &billingTestProvider{
+		fetchBillingStateFn: func(ctx context.Context, a *domain.Account) (*domain.ProviderWebhookEvent, error) {
+			return &domain.ProviderWebhookEvent{Provider: "stripe", AccountID: a.AccountID, Plan: domain.BillingPlanFree, Status: domain.BillingStatusFree}, nil
+		},
+		listRemoteInvoicesFn: func(ctx context.Context, a *domain.Account, limit int) ([]*domain.ProviderInvoice, error) {
+			return []*domain.ProviderInvoice{{StripeInvoiceID: "in_old", AmountMinor: 500, Currency: "usd", Status: "paid", CreatedAt: "2026-05-01T00:00:00Z"}}, nil
+		},
+		listRemotePaymentMethodsFn: func(ctx context.Context, a *domain.Account) ([]*domain.ProviderPaymentMethod, string, error) {
+			return []*domain.ProviderPaymentMethod{{StripePaymentMethodID: "pm_old", Brand: "amex", Last4: "0005", ExpMonth: 1, ExpYear: 2031}}, "pm_old", nil
+		},
+	}
+	svc, _ := NewBillingService(BillingServiceDeps{Accounts: store, Usage: store, Provider: provider, Logger: (&billingTestLogger{}).asLogger()})
+	reconciler := svc.(BillingReconciler)
+
+	_, err = reconciler.ReconcileAccount(ctx, account.AccountID, true)
+	require.NoError(t, err)
+
+	list, err := svc.ListInvoices(ctx, account.AccountID, "owner", 20)
+	require.NoError(t, err)
+	require.Len(t, list.Invoices, 1)
+	assert.Equal(t, "in_old", list.Invoices[0].InvoiceID)
+	methods, err := svc.ListPaymentMethods(ctx, account.AccountID, "owner")
+	require.NoError(t, err)
+	require.Len(t, methods, 1)
+	assert.True(t, methods[0].IsDefault)
+}
+
 type billingTestProvider struct {
 	createCheckoutCalls    int
 	createPortalCalls      int
@@ -1618,6 +1769,9 @@ type billingTestProvider struct {
 	parseWebhookFn      func(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error)
 	reportTokenUsageFn  func(ctx context.Context, account *domain.Account, identifier string, inputTokens, outputTokens int64) error
 	fetchBillingStateFn func(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error)
+
+	listRemoteInvoicesFn       func(ctx context.Context, account *domain.Account, limit int) ([]*domain.ProviderInvoice, error)
+	listRemotePaymentMethodsFn func(ctx context.Context, account *domain.Account) ([]*domain.ProviderPaymentMethod, string, error)
 }
 
 func (p *billingTestProvider) EnsureCustomer(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error) {
@@ -1665,6 +1819,20 @@ func (p *billingTestProvider) FetchBillingState(ctx context.Context, account *do
 		return nil, errors.New("fetchBillingStateFn is not set")
 	}
 	return p.fetchBillingStateFn(ctx, account)
+}
+
+func (p *billingTestProvider) ListRemoteInvoices(ctx context.Context, account *domain.Account, limit int) ([]*domain.ProviderInvoice, error) {
+	if p.listRemoteInvoicesFn == nil {
+		return nil, nil
+	}
+	return p.listRemoteInvoicesFn(ctx, account, limit)
+}
+
+func (p *billingTestProvider) ListRemotePaymentMethods(ctx context.Context, account *domain.Account) ([]*domain.ProviderPaymentMethod, string, error) {
+	if p.listRemotePaymentMethodsFn == nil {
+		return nil, "", nil
+	}
+	return p.listRemotePaymentMethodsFn(ctx, account)
 }
 
 // billingTestLogger は slog.Handler を実装し、各 RPC ハンドラから出るログイベントを

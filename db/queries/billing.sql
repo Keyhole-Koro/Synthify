@@ -103,3 +103,68 @@ SELECT payment_method_id, brand, last4, exp_month, exp_year, is_default
 FROM payment_methods
 WHERE account_id = $1
 ORDER BY is_default DESC, created_at DESC;
+
+-- name: UpsertInvoice :exec
+-- account_id は stripe_customer_id から解決する。一致する account が無ければ
+-- SELECT が 0 行となり何も挿入されない（未連携顧客の invoice は黙って捨てる）。
+-- invoice_id には stripe_invoice_id をそのまま採用し、ON CONFLICT で冪等更新する。
+INSERT INTO invoices (
+  invoice_id, account_id, stripe_invoice_id, amount_minor, currency, status,
+  hosted_invoice_url, invoice_pdf_url, period_start, period_end, paid_at,
+  created_at, updated_at
+)
+SELECT
+  sqlc.arg(stripe_invoice_id), a.account_id, sqlc.arg(stripe_invoice_id),
+  sqlc.arg(amount_minor), sqlc.arg(currency), sqlc.arg(status),
+  sqlc.arg(hosted_invoice_url), sqlc.arg(invoice_pdf_url),
+  sqlc.narg(period_start)::timestamptz,
+  sqlc.narg(period_end)::timestamptz,
+  sqlc.narg(paid_at)::timestamptz,
+  sqlc.arg(ts)::timestamptz, sqlc.arg(ts)::timestamptz
+FROM accounts a
+WHERE a.stripe_customer_id = sqlc.arg(stripe_customer_id)
+LIMIT 1
+ON CONFLICT (invoice_id) DO UPDATE SET
+  amount_minor       = EXCLUDED.amount_minor,
+  status             = EXCLUDED.status,
+  hosted_invoice_url = EXCLUDED.hosted_invoice_url,
+  invoice_pdf_url    = EXCLUDED.invoice_pdf_url,
+  period_start       = EXCLUDED.period_start,
+  period_end         = EXCLUDED.period_end,
+  paid_at            = EXCLUDED.paid_at,
+  updated_at         = EXCLUDED.updated_at;
+
+-- name: UpsertPaymentMethod :exec
+-- account_id は stripe_customer_id から解決。is_default は SetDefaultPaymentMethodByCustomer
+-- が customer.updated イベントで別途管理するため、ここでは insert 時 FALSE 固定・更新時は触らない。
+INSERT INTO payment_methods (
+  payment_method_id, account_id, stripe_payment_method_id,
+  brand, last4, exp_month, exp_year, is_default, created_at, updated_at
+)
+SELECT
+  sqlc.arg(stripe_payment_method_id), a.account_id, sqlc.arg(stripe_payment_method_id),
+  sqlc.arg(brand), sqlc.arg(last4), sqlc.arg(exp_month), sqlc.arg(exp_year),
+  FALSE, sqlc.arg(ts)::timestamptz, sqlc.arg(ts)::timestamptz
+FROM accounts a
+WHERE a.stripe_customer_id = sqlc.arg(stripe_customer_id)
+LIMIT 1
+ON CONFLICT (payment_method_id) DO UPDATE SET
+  brand      = EXCLUDED.brand,
+  last4      = EXCLUDED.last4,
+  exp_month  = EXCLUDED.exp_month,
+  exp_year   = EXCLUDED.exp_year,
+  updated_at = EXCLUDED.updated_at;
+
+-- name: DeletePaymentMethod :exec
+DELETE FROM payment_methods
+WHERE stripe_payment_method_id = sqlc.arg(stripe_payment_method_id);
+
+-- name: SetDefaultPaymentMethodByCustomer :exec
+-- 該当 account の全 PM のうち default_payment_method_id に一致する 1 件だけ is_default=TRUE、
+-- 残りを FALSE にする。default_payment_method_id が空なら全件 FALSE。
+UPDATE payment_methods pm
+SET is_default = (pm.stripe_payment_method_id = sqlc.arg(default_payment_method_id)),
+    updated_at = sqlc.arg(ts)::timestamptz
+FROM accounts a
+WHERE pm.account_id = a.account_id
+  AND a.stripe_customer_id = sqlc.arg(stripe_customer_id);

@@ -282,6 +282,72 @@ func (p *Provider) FetchBillingState(ctx context.Context, account *domain.Accoun
 	return remote, nil
 }
 
+// ListRemoteInvoices fetches recent invoices for the account's customer (reconcile backfill).
+func (p *Provider) ListRemoteInvoices(ctx context.Context, account *domain.Account, limit int) ([]*domain.ProviderInvoice, error) {
+	if account == nil || account.StripeCustomerID == "" {
+		return nil, nil
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	params := url.Values{}
+	params.Set("customer", account.StripeCustomerID)
+	params.Set("limit", strconv.Itoa(limit))
+	var res struct {
+		Data []stripeObject `json:"data"`
+	}
+	if err := p.getForm(ctx, "/v1/invoices", params, &res); err != nil {
+		return nil, err
+	}
+	out := make([]*domain.ProviderInvoice, 0, len(res.Data))
+	for _, obj := range res.Data {
+		out = append(out, p.invoiceFromObject(obj, invoiceStatusFromStripe(obj.Status)))
+	}
+	return out, nil
+}
+
+// ListRemotePaymentMethods fetches the account's saved cards plus the default payment
+// method id (reconcile backfill). The default id comes from the customer object.
+func (p *Provider) ListRemotePaymentMethods(ctx context.Context, account *domain.Account) ([]*domain.ProviderPaymentMethod, string, error) {
+	if account == nil || account.StripeCustomerID == "" {
+		return nil, "", nil
+	}
+	params := url.Values{}
+	params.Set("customer", account.StripeCustomerID)
+	params.Set("type", "card")
+	var res struct {
+		Data []stripeObject `json:"data"`
+	}
+	if err := p.getForm(ctx, "/v1/payment_methods", params, &res); err != nil {
+		return nil, "", err
+	}
+	out := make([]*domain.ProviderPaymentMethod, 0, len(res.Data))
+	for _, obj := range res.Data {
+		out = append(out, paymentMethodFromObject(obj))
+	}
+	var customer stripeObject
+	if err := p.getForm(ctx, "/v1/customers/"+account.StripeCustomerID, nil, &customer); err != nil {
+		// default id は best-effort。取得失敗時は空（=全件 is_default=false）で返す。
+		return out, "", nil
+	}
+	return out, customer.InvoiceSettings.DefaultPaymentMethod, nil
+}
+
+// invoiceStatusFromStripe maps Stripe's invoice.status to our cached status value.
+func invoiceStatusFromStripe(status string) string {
+	switch status {
+	case "paid":
+		return "paid"
+	case "uncollectible":
+		return "uncollectible"
+	case "void":
+		return "void"
+	default:
+		// draft / open はまとめて "open" 扱い。
+		return "open"
+	}
+}
+
 func (p *Provider) reportMeterEvent(ctx context.Context, customerID, eventName string, value int64, identifier string) error {
 	if strings.TrimSpace(eventName) == "" || value <= 0 {
 		return nil
@@ -324,9 +390,37 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, signature s
 			Status:                 domain.BillingStatusCheckoutPending,
 		}, nil
 	case "invoice.paid", "invoice.payment_succeeded":
-		return p.providerEventFromPrice(event, obj, p.priceFromObject(obj), domain.BillingStatusActive), nil
+		ev := p.providerEventFromPrice(event, obj, p.priceFromObject(obj), domain.BillingStatusActive)
+		ev.Invoice = p.invoiceFromObject(obj, "paid")
+		return ev, nil
 	case "invoice.payment_failed":
-		return p.providerEventFromPrice(event, obj, p.priceFromObject(obj), domain.BillingStatusPastDue), nil
+		ev := p.providerEventFromPrice(event, obj, p.priceFromObject(obj), domain.BillingStatusPastDue)
+		ev.Invoice = p.invoiceFromObject(obj, "open")
+		return ev, nil
+	case "invoice.finalized":
+		return p.invoiceOnlyEvent(event, obj, "open"), nil
+	case "invoice.marked_uncollectible":
+		return p.invoiceOnlyEvent(event, obj, "uncollectible"), nil
+	case "invoice.voided":
+		return p.invoiceOnlyEvent(event, obj, "void"), nil
+	case "payment_method.attached", "payment_method.automatically_updated":
+		ev := p.baseEvent(event, obj)
+		ev.PaymentMethod = paymentMethodFromObject(obj)
+		return ev, nil
+	case "payment_method.detached":
+		ev := p.baseEvent(event, obj)
+		ev.PaymentMethodDeleted = obj.ID
+		return ev, nil
+	case "customer.updated":
+		// customer.updated の object は customer 本体なので顧客 ID は obj.ID。
+		return &domain.ProviderWebhookEvent{
+			Provider:                "stripe",
+			EventID:                 event.ID,
+			EventType:               event.Type,
+			ExternalCustomerID:      obj.ID,
+			DefaultPaymentMethodSet: true,
+			DefaultPaymentMethod:    obj.InvoiceSettings.DefaultPaymentMethod,
+		}, nil
 	case "customer.subscription.created", "customer.subscription.updated":
 		return p.providerEventFromPrice(event, obj, p.priceFromObject(obj), subscriptionStatus(obj.Status)), nil
 	case "customer.subscription.deleted":
@@ -369,6 +463,56 @@ func (p *Provider) providerEventFromPrice(event stripeEvent, obj stripeObject, p
 		Interval:               price.Interval,
 		CurrentPeriodEnd:       unixToRFC3339(obj.CurrentPeriodEnd),
 		CancelAtPeriodEnd:      obj.CancelAtPeriodEnd,
+	}
+}
+
+// baseEvent builds an event carrying only identity + customer, for side-effect-only
+// webhooks (payment_method.*) that must not touch the account billing state.
+func (p *Provider) baseEvent(event stripeEvent, obj stripeObject) *domain.ProviderWebhookEvent {
+	return &domain.ProviderWebhookEvent{
+		Provider:           "stripe",
+		EventID:            event.ID,
+		EventType:          event.Type,
+		AccountID:          metadataValue(obj.Metadata, "account_id"),
+		ExternalCustomerID: obj.Customer,
+	}
+}
+
+func (p *Provider) invoiceOnlyEvent(event stripeEvent, obj stripeObject, status string) *domain.ProviderWebhookEvent {
+	ev := p.baseEvent(event, obj)
+	ev.Invoice = p.invoiceFromObject(obj, status)
+	return ev
+}
+
+// invoiceFromObject maps a Stripe invoice object to a ProviderInvoice.
+// status は webhook 種別ごとに呼び出し側がマップした値 (paid/open/uncollectible/void)。
+func (p *Provider) invoiceFromObject(obj stripeObject, status string) *domain.ProviderInvoice {
+	amount := obj.AmountPaid
+	if amount == 0 {
+		amount = firstNonZero(obj.Total, obj.AmountDue)
+	}
+	start, end := obj.Lines.Data.firstPeriod()
+	return &domain.ProviderInvoice{
+		StripeInvoiceID:  obj.ID,
+		AmountMinor:      amount,
+		Currency:         strings.ToLower(obj.Currency),
+		Status:           status,
+		HostedInvoiceURL: obj.HostedInvoiceURL,
+		InvoicePDFURL:    obj.InvoicePDF,
+		PeriodStart:      unixToRFC3339(start),
+		PeriodEnd:        unixToRFC3339(end),
+		PaidAt:           unixToRFC3339(obj.StatusTransitions.PaidAt),
+		CreatedAt:        unixToRFC3339(obj.Created),
+	}
+}
+
+func paymentMethodFromObject(obj stripeObject) *domain.ProviderPaymentMethod {
+	return &domain.ProviderPaymentMethod{
+		StripePaymentMethodID: obj.ID,
+		Brand:                 obj.Card.Brand,
+		Last4:                 obj.Card.Last4,
+		ExpMonth:              obj.Card.ExpMonth,
+		ExpYear:               obj.Card.ExpYear,
 	}
 }
 
@@ -524,6 +668,31 @@ type stripeObject struct {
 			Subscription string `json:"subscription"`
 		} `json:"subscription_details"`
 	} `json:"parent"`
+
+	// invoice.* イベント用フィールド
+	Currency          string `json:"currency"`
+	HostedInvoiceURL  string `json:"hosted_invoice_url"`
+	InvoicePDF        string `json:"invoice_pdf"`
+	AmountPaid        int64  `json:"amount_paid"`
+	AmountDue         int64  `json:"amount_due"`
+	Total             int64  `json:"total"`
+	Created           int64  `json:"created"`
+	StatusTransitions struct {
+		PaidAt int64 `json:"paid_at"`
+	} `json:"status_transitions"`
+
+	// payment_method.* イベント用フィールド
+	Card struct {
+		Brand    string `json:"brand"`
+		Last4    string `json:"last4"`
+		ExpMonth int32  `json:"exp_month"`
+		ExpYear  int32  `json:"exp_year"`
+	} `json:"card"`
+
+	// customer.updated イベント用フィールド（default PM は通常 string id で届く）
+	InvoiceSettings struct {
+		DefaultPaymentMethod string `json:"default_payment_method"`
+	} `json:"invoice_settings"`
 }
 
 type stripeList struct {
@@ -533,7 +702,11 @@ type stripeList struct {
 type stripeLineItems []stripeLineItem
 
 type stripeLineItem struct {
-	Price stripePrice `json:"price"`
+	Price  stripePrice `json:"price"`
+	Period struct {
+		Start int64 `json:"start"`
+		End   int64 `json:"end"`
+	} `json:"period"`
 }
 
 type stripePrice struct {
@@ -561,6 +734,15 @@ func (items stripeLineItems) firstUnitAmount() int64 {
 		}
 	}
 	return 0
+}
+
+func (items stripeLineItems) firstPeriod() (int64, int64) {
+	for _, item := range items {
+		if item.Period.Start != 0 || item.Period.End != 0 {
+			return item.Period.Start, item.Period.End
+		}
+	}
+	return 0, 0
 }
 
 func metadataValue(metadata map[string]string, key string) string {

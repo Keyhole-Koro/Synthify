@@ -40,6 +40,10 @@ type BillingProvider interface {
 	ParseWebhook(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error)
 	ReportTokenUsage(ctx context.Context, account *domain.Account, identifier string, inputTokens, outputTokens int64) error
 	FetchBillingState(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error)
+	// reconcile バックフィル用: webhook を取りこぼした過去分の invoice / payment method を
+	// Stripe から引き直す。ListRemotePaymentMethods の第2戻り値は default payment method id。
+	ListRemoteInvoices(ctx context.Context, account *domain.Account, limit int) ([]*domain.ProviderInvoice, error)
+	ListRemotePaymentMethods(ctx context.Context, account *domain.Account) ([]*domain.ProviderPaymentMethod, string, error)
 }
 
 type BillingReconciler interface {
@@ -333,32 +337,91 @@ func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *
 		)
 		return false, nil
 	}
-	if event.Plan == "" && event.Status != domain.BillingStatusCheckoutPending {
+	// account billing 状態を更新するのは plan が解決できたイベント、もしくは
+	// checkout 完了の保留ステータスのみ。invoice/payment_method 専用イベントは
+	// plan が空でも下記サイドエフェクトだけ走らせ、accounts は触らない。
+	applyAccount := event.Plan != "" || event.Status == domain.BillingStatusCheckoutPending
+	hasSideEffect := event.Invoice != nil || event.PaymentMethod != nil ||
+		event.PaymentMethodDeleted != "" || event.DefaultPaymentMethodSet
+	if !applyAccount && !hasSideEffect {
 		if err := s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "ignored", ""); err != nil {
 			return false, err
 		}
 		return false, nil
 	}
-	if event.Plan != "" {
-		if err := event.Plan.Validate(); err != nil {
+	if applyAccount {
+		if event.Plan != "" {
+			if err := event.Plan.Validate(); err != nil {
+				_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
+				return false, err
+			}
+		}
+		if event.Currency != "" {
+			if err := event.Currency.Validate(); err != nil {
+				_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
+				return false, err
+			}
+		}
+		if err := s.accounts.ApplyBillingEvent(ctx, event); err != nil {
 			_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
 			return false, err
 		}
 	}
-	if event.Currency != "" {
-		if err := event.Currency.Validate(); err != nil {
-			_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
-			return false, err
-		}
-	}
-	if err := s.accounts.ApplyBillingEvent(ctx, event); err != nil {
-		_ = s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "failed", err.Error())
-		return false, err
-	}
+	// invoice / payment_method キャッシュ同期はベストエフォート。失敗しても accounts
+	// 更新は確定済みなので webhook は ack（重複再送は dedup されるため、取りこぼしは
+	// reconcile バックフィルで修復する）。
+	s.applyWebhookSideEffects(ctx, event)
 	if err := s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "processed", ""); err != nil {
 		return true, err
 	}
 	return true, nil
+}
+
+// applyWebhookSideEffects mirrors invoice / payment_method webhook payloads into the
+// local cache tables. Best-effort: errors are logged, not propagated.
+func (s *billingService) applyWebhookSideEffects(ctx context.Context, event *domain.ProviderWebhookEvent) {
+	if s.usage == nil {
+		return
+	}
+	if event.Invoice != nil {
+		if err := s.usage.UpsertInvoice(ctx, event.ExternalCustomerID, event.Invoice); err != nil {
+			s.logger.Error("billing.webhook.invoice_upsert_failed",
+				"error", err.Error(),
+				"event_id", event.EventID,
+				"external_customer_id", event.ExternalCustomerID,
+				"stripe_invoice_id", event.Invoice.StripeInvoiceID,
+			)
+		}
+	}
+	if event.PaymentMethod != nil {
+		if err := s.usage.UpsertPaymentMethod(ctx, event.ExternalCustomerID, event.PaymentMethod); err != nil {
+			s.logger.Error("billing.webhook.payment_method_upsert_failed",
+				"error", err.Error(),
+				"event_id", event.EventID,
+				"external_customer_id", event.ExternalCustomerID,
+				"stripe_payment_method_id", event.PaymentMethod.StripePaymentMethodID,
+			)
+		}
+	}
+	if event.PaymentMethodDeleted != "" {
+		if err := s.usage.DeletePaymentMethod(ctx, event.PaymentMethodDeleted); err != nil {
+			s.logger.Error("billing.webhook.payment_method_delete_failed",
+				"error", err.Error(),
+				"event_id", event.EventID,
+				"stripe_payment_method_id", event.PaymentMethodDeleted,
+			)
+		}
+	}
+	if event.DefaultPaymentMethodSet {
+		if err := s.usage.SetDefaultPaymentMethod(ctx, event.ExternalCustomerID, event.DefaultPaymentMethod); err != nil {
+			s.logger.Error("billing.webhook.default_payment_method_failed",
+				"error", err.Error(),
+				"event_id", event.EventID,
+				"external_customer_id", event.ExternalCustomerID,
+				"default_payment_method", event.DefaultPaymentMethod,
+			)
+		}
+	}
 }
 
 type BillingReconciliationDiff struct {
@@ -410,6 +473,11 @@ func (s *billingService) reconcileAccount(ctx context.Context, account *domain.A
 	if err != nil {
 		return nil, err
 	}
+	// apply 時は invoice / payment method キャッシュもバックフィルする（webhook 取りこぼし修復）。
+	if apply {
+		s.backfillInvoices(ctx, account)
+		s.backfillPaymentMethods(ctx, account)
+	}
 	diff := &BillingReconciliationDiff{
 		AccountID:          account.AccountID,
 		LocalPlan:          account.Plan,
@@ -441,6 +509,45 @@ func (s *billingService) reconcileAccount(ctx context.Context, account *domain.A
 	}
 	s.logger.Info("billing.reconciliation.applied", "account_id", diff.AccountID)
 	return diff, nil
+}
+
+// backfillInvoices pulls historical invoices from the provider and upserts them into
+// the cache table. Best-effort: errors are logged, not propagated.
+func (s *billingService) backfillInvoices(ctx context.Context, account *domain.Account) {
+	if s.usage == nil || account == nil || account.StripeCustomerID == "" {
+		return
+	}
+	invoices, err := s.provider.ListRemoteInvoices(ctx, account, 100)
+	if err != nil {
+		s.logger.Warn("billing.reconciliation.invoices_fetch_failed", "error", err.Error(), "account_id", account.AccountID)
+		return
+	}
+	for _, inv := range invoices {
+		if err := s.usage.UpsertInvoice(ctx, account.StripeCustomerID, inv); err != nil {
+			s.logger.Warn("billing.reconciliation.invoice_upsert_failed", "error", err.Error(), "account_id", account.AccountID, "stripe_invoice_id", inv.StripeInvoiceID)
+		}
+	}
+}
+
+// backfillPaymentMethods pulls the customer's payment methods + default from the provider
+// and upserts them into the cache table. Best-effort: errors are logged, not propagated.
+func (s *billingService) backfillPaymentMethods(ctx context.Context, account *domain.Account) {
+	if s.usage == nil || account == nil || account.StripeCustomerID == "" {
+		return
+	}
+	pms, defaultPM, err := s.provider.ListRemotePaymentMethods(ctx, account)
+	if err != nil {
+		s.logger.Warn("billing.reconciliation.payment_methods_fetch_failed", "error", err.Error(), "account_id", account.AccountID)
+		return
+	}
+	for _, pm := range pms {
+		if err := s.usage.UpsertPaymentMethod(ctx, account.StripeCustomerID, pm); err != nil {
+			s.logger.Warn("billing.reconciliation.payment_method_upsert_failed", "error", err.Error(), "account_id", account.AccountID, "stripe_payment_method_id", pm.StripePaymentMethodID)
+		}
+	}
+	if err := s.usage.SetDefaultPaymentMethod(ctx, account.StripeCustomerID, defaultPM); err != nil {
+		s.logger.Warn("billing.reconciliation.default_payment_method_failed", "error", err.Error(), "account_id", account.AccountID)
+	}
 }
 
 func (s *billingService) authorizeAccount(ctx context.Context, accountID, userID string) (*domain.Account, error) {
