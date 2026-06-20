@@ -4,7 +4,11 @@ FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 
-# Copy the entire workspace to handle local package dependencies (internal/gen, internal/platform)
+# Cache dependency downloads separately from source so the layer is reused
+# whenever go.mod/go.sum are unchanged.
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
 # Build the API binary

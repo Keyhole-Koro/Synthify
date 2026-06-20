@@ -162,32 +162,46 @@ jobs:
       - name: Configure Docker
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
 
-      - name: Build and push API image
-        run: |
-          docker build \
-            -t ${{ steps.registry.outputs.api_image }} \
-            -t ${{ steps.registry.outputs.registry }}/api:latest \
-            -f apps/api/Dockerfile .
-          docker push ${{ steps.registry.outputs.api_image }}
-          docker push ${{ steps.registry.outputs.registry }}/api:latest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build and push Worker image
+      # Build and push all three images in parallel. Each uses a GHA-scoped
+      # BuildKit cache keyed by image name + environment so pushes to stage
+      # and prod never share cache entries.
+      - name: Build and push images (parallel)
         run: |
-          docker build \
-            -t ${{ steps.registry.outputs.worker_image }} \
-            -t ${{ steps.registry.outputs.registry }}/worker:latest \
-            -f apps/worker/Dockerfile .
-          docker push ${{ steps.registry.outputs.worker_image }}
-          docker push ${{ steps.registry.outputs.registry }}/worker:latest
+          set -euo pipefail
+          pids=()
 
-      - name: Build and push Eval image
-        run: |
-          docker build \
-            -t ${{ steps.registry.outputs.eval_image }} \
-            -t ${{ steps.registry.outputs.registry }}/eval:latest \
-            -f apps/eval/Dockerfile .
-          docker push ${{ steps.registry.outputs.eval_image }}
-          docker push ${{ steps.registry.outputs.registry }}/eval:latest
+          docker buildx build \
+            --cache-from "type=gha,scope=api-${ENVIRONMENT}" \
+            --cache-to   "type=gha,scope=api-${ENVIRONMENT},mode=max" \
+            -t "${{ steps.registry.outputs.api_image }}" \
+            -t "${{ steps.registry.outputs.registry }}/api:latest" \
+            -f apps/api/Dockerfile --push . &
+          pids+=($!)
+
+          docker buildx build \
+            --cache-from "type=gha,scope=worker-${ENVIRONMENT}" \
+            --cache-to   "type=gha,scope=worker-${ENVIRONMENT},mode=max" \
+            -t "${{ steps.registry.outputs.worker_image }}" \
+            -t "${{ steps.registry.outputs.registry }}/worker:latest" \
+            -f apps/worker/Dockerfile --push . &
+          pids+=($!)
+
+          docker buildx build \
+            --cache-from "type=gha,scope=eval-${ENVIRONMENT}" \
+            --cache-to   "type=gha,scope=eval-${ENVIRONMENT},mode=max" \
+            -t "${{ steps.registry.outputs.eval_image }}" \
+            -t "${{ steps.registry.outputs.registry }}/eval:latest" \
+            -f apps/eval/Dockerfile --push . &
+          pids+=($!)
+
+          failed=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || failed=1
+          done
+          [ "$failed" -eq 0 ]
 
       # --- Pass 2: full apply. Images now exist, so Cloud Run services
       # are created/updated with the exact SHA-tagged images. api_base_url
