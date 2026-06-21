@@ -27,3 +27,7 @@ gcs-data
 apps/eval/results/
 
 apps/worker/server
+
+tmp/
+
+.gemini-cache
