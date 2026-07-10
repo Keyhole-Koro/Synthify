@@ -12,6 +12,7 @@ import (
 // 各メソッドは userID を受け取り、内部で workspace authz を実施する。
 type ItemUsecase interface {
 	GetItem(ctx context.Context, itemID, workspaceID, userID string) (*domain.Item, error)
+	GetItemEvidence(ctx context.Context, itemID, workspaceID, userID string) (*domain.ItemEvidence, error)
 	CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error)
 	ApproveAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
 	RejectAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
@@ -74,6 +75,25 @@ func (s *ItemService) GetItem(ctx context.Context, itemID, workspaceID, userID s
 		return nil, domain.ErrForbidden
 	}
 	return item, nil
+}
+
+func (s *ItemService) GetItemEvidence(ctx context.Context, itemID, workspaceID, userID string) (*domain.ItemEvidence, error) {
+	item, err := s.GetItem(ctx, itemID, workspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+	sources, err := s.repo.ListItemSources(ctx, item.ItemID)
+	if err != nil {
+		return nil, err
+	}
+	sourceRefs, err := s.repo.ListItemSourceRefs(ctx, item.ItemID)
+	if err != nil {
+		return nil, err
+	}
+	return &domain.ItemEvidence{
+		Sources:    sources,
+		SourceRefs: sourceRefs,
+	}, nil
 }
 
 func (s *ItemService) CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error) {

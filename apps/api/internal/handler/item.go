@@ -29,6 +29,10 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, toError(err)
 	}
+	evidence, err := h.service.GetItemEvidence(ctx, item.ItemID, req.Msg.GetTargetRef().GetWorkspaceId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
 
 	detail := &appv1.TreeEntityDetail{
 		Ref: &appv1.EntityRef{
@@ -36,10 +40,8 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 			Scope:       item.Scope,
 			Id:          item.ItemID,
 		},
-		Item: toProtoItem(item),
-		Evidence: &appv1.TreeEntityEvidence{
-			SourceDocumentIds: []string{},
-		},
+		Item:     toProtoItem(item),
+		Evidence: toProtoItemEvidence(evidence),
 	}
 	return connect.NewResponse(&appv1.GetTreeEntityDetailResponse{Detail: detail}), nil
 }

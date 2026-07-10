@@ -275,6 +275,78 @@ func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) (
 	return items, nil
 }
 
+const listItemSourceRefs = `-- name: ListItemSourceRefs :many
+SELECT source_ref_id, item_id, source_type, url, repo, ref, path, line_start, line_end,
+       kind, external_id, title, COALESCE(confidence, 0) AS confidence,
+       snapshot_ref, content_hash, metadata_json, created_at, updated_at
+FROM item_source_refs
+WHERE item_id = $1
+ORDER BY created_at ASC
+`
+
+type ListItemSourceRefsRow struct {
+	SourceRefID  string
+	ItemID       string
+	SourceType   string
+	Url          string
+	Repo         string
+	Ref          string
+	Path         string
+	LineStart    sql.NullInt32
+	LineEnd      sql.NullInt32
+	Kind         string
+	ExternalID   string
+	Title        string
+	Confidence   float64
+	SnapshotRef  string
+	ContentHash  string
+	MetadataJson string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+func (q *Queries) ListItemSourceRefs(ctx context.Context, itemID string) ([]ListItemSourceRefsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listItemSourceRefs, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListItemSourceRefsRow
+	for rows.Next() {
+		var i ListItemSourceRefsRow
+		if err := rows.Scan(
+			&i.SourceRefID,
+			&i.ItemID,
+			&i.SourceType,
+			&i.Url,
+			&i.Repo,
+			&i.Ref,
+			&i.Path,
+			&i.LineStart,
+			&i.LineEnd,
+			&i.Kind,
+			&i.ExternalID,
+			&i.Title,
+			&i.Confidence,
+			&i.SnapshotRef,
+			&i.ContentHash,
+			&i.MetadataJson,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listItemSources = `-- name: ListItemSources :many
 SELECT s.item_id, s.document_id, s.file_id, f.path AS sub_path, s.chunk_id, s.source_text, COALESCE(s.confidence, 0) AS confidence
 FROM item_sources s
@@ -584,6 +656,80 @@ func (q *Queries) UpsertItemSource(ctx context.Context, arg UpsertItemSourcePara
 		arg.ChunkID,
 		arg.SourceText,
 		arg.Confidence,
+	)
+	return err
+}
+
+const upsertItemSourceRef = `-- name: UpsertItemSourceRef :exec
+INSERT INTO item_source_refs (
+  source_ref_id, item_id, source_type, url, repo, ref, path, line_start, line_end,
+  kind, external_id, title, confidence, snapshot_ref, content_hash, metadata_json,
+  created_at, updated_at
+)
+VALUES (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9,
+  $10, $11, $12, $13, $14, $15, $16,
+  $17, $17
+)
+ON CONFLICT (source_ref_id)
+DO UPDATE SET
+  item_id = EXCLUDED.item_id,
+  source_type = EXCLUDED.source_type,
+  url = EXCLUDED.url,
+  repo = EXCLUDED.repo,
+  ref = EXCLUDED.ref,
+  path = EXCLUDED.path,
+  line_start = EXCLUDED.line_start,
+  line_end = EXCLUDED.line_end,
+  kind = EXCLUDED.kind,
+  external_id = EXCLUDED.external_id,
+  title = EXCLUDED.title,
+  confidence = EXCLUDED.confidence,
+  snapshot_ref = EXCLUDED.snapshot_ref,
+  content_hash = EXCLUDED.content_hash,
+  metadata_json = EXCLUDED.metadata_json,
+  updated_at = EXCLUDED.updated_at
+`
+
+type UpsertItemSourceRefParams struct {
+	SourceRefID  string
+	ItemID       string
+	SourceType   string
+	Url          string
+	Repo         string
+	Ref          string
+	Path         string
+	LineStart    sql.NullInt32
+	LineEnd      sql.NullInt32
+	Kind         string
+	ExternalID   string
+	Title        string
+	Confidence   sql.NullFloat64
+	SnapshotRef  string
+	ContentHash  string
+	MetadataJson string
+	CreatedAt    time.Time
+}
+
+func (q *Queries) UpsertItemSourceRef(ctx context.Context, arg UpsertItemSourceRefParams) error {
+	_, err := q.db.ExecContext(ctx, upsertItemSourceRef,
+		arg.SourceRefID,
+		arg.ItemID,
+		arg.SourceType,
+		arg.Url,
+		arg.Repo,
+		arg.Ref,
+		arg.Path,
+		arg.LineStart,
+		arg.LineEnd,
+		arg.Kind,
+		arg.ExternalID,
+		arg.Title,
+		arg.Confidence,
+		arg.SnapshotRef,
+		arg.ContentHash,
+		arg.MetadataJson,
+		arg.CreatedAt,
 	)
 	return err
 }

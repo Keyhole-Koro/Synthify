@@ -93,6 +93,7 @@ type TreeEntityEvidence struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	SourceChunks      []*DocumentChunk       `protobuf:"bytes,1,rep,name=source_chunks,json=sourceChunks,proto3" json:"source_chunks,omitempty"`
 	SourceDocumentIds []string               `protobuf:"bytes,2,rep,name=source_document_ids,json=sourceDocumentIds,proto3" json:"source_document_ids,omitempty"`
+	SourceRefs        []*ItemSourceRef       `protobuf:"bytes,3,rep,name=source_refs,json=sourceRefs,proto3" json:"source_refs,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -141,6 +142,177 @@ func (x *TreeEntityEvidence) GetSourceDocumentIds() []string {
 	return nil
 }
 
+func (x *TreeEntityEvidence) GetSourceRefs() []*ItemSourceRef {
+	if x != nil {
+		return x.SourceRefs
+	}
+	return nil
+}
+
+type ItemSourceRef struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SourceRefId   string                 `protobuf:"bytes,1,opt,name=source_ref_id,json=sourceRefId,proto3" json:"source_ref_id,omitempty"`
+	ItemId        string                 `protobuf:"bytes,2,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	Url           string                 `protobuf:"bytes,4,opt,name=url,proto3" json:"url,omitempty"`
+	Repo          string                 `protobuf:"bytes,5,opt,name=repo,proto3" json:"repo,omitempty"`
+	Ref           string                 `protobuf:"bytes,6,opt,name=ref,proto3" json:"ref,omitempty"`
+	Path          string                 `protobuf:"bytes,7,opt,name=path,proto3" json:"path,omitempty"`
+	LineStart     int32                  `protobuf:"varint,8,opt,name=line_start,json=lineStart,proto3" json:"line_start,omitempty"`
+	LineEnd       int32                  `protobuf:"varint,9,opt,name=line_end,json=lineEnd,proto3" json:"line_end,omitempty"`
+	Kind          string                 `protobuf:"bytes,10,opt,name=kind,proto3" json:"kind,omitempty"`
+	ExternalId    string                 `protobuf:"bytes,11,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
+	Title         string                 `protobuf:"bytes,12,opt,name=title,proto3" json:"title,omitempty"`
+	Confidence    float64                `protobuf:"fixed64,13,opt,name=confidence,proto3" json:"confidence,omitempty"`
+	SnapshotRef   string                 `protobuf:"bytes,14,opt,name=snapshot_ref,json=snapshotRef,proto3" json:"snapshot_ref,omitempty"`
+	ContentHash   string                 `protobuf:"bytes,15,opt,name=content_hash,json=contentHash,proto3" json:"content_hash,omitempty"`
+	MetadataJson  string                 `protobuf:"bytes,16,opt,name=metadata_json,json=metadataJson,proto3" json:"metadata_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ItemSourceRef) Reset() {
+	*x = ItemSourceRef{}
+	mi := &file_synthify_app_v1_item_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemSourceRef) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemSourceRef) ProtoMessage() {}
+
+func (x *ItemSourceRef) ProtoReflect() protoreflect.Message {
+	mi := &file_synthify_app_v1_item_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemSourceRef.ProtoReflect.Descriptor instead.
+func (*ItemSourceRef) Descriptor() ([]byte, []int) {
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ItemSourceRef) GetSourceRefId() string {
+	if x != nil {
+		return x.SourceRefId
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetItemId() string {
+	if x != nil {
+		return x.ItemId
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetRepo() string {
+	if x != nil {
+		return x.Repo
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetRef() string {
+	if x != nil {
+		return x.Ref
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetLineStart() int32 {
+	if x != nil {
+		return x.LineStart
+	}
+	return 0
+}
+
+func (x *ItemSourceRef) GetLineEnd() int32 {
+	if x != nil {
+		return x.LineEnd
+	}
+	return 0
+}
+
+func (x *ItemSourceRef) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetExternalId() string {
+	if x != nil {
+		return x.ExternalId
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetConfidence() float64 {
+	if x != nil {
+		return x.Confidence
+	}
+	return 0
+}
+
+func (x *ItemSourceRef) GetSnapshotRef() string {
+	if x != nil {
+		return x.SnapshotRef
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetContentHash() string {
+	if x != nil {
+		return x.ContentHash
+	}
+	return ""
+}
+
+func (x *ItemSourceRef) GetMetadataJson() string {
+	if x != nil {
+		return x.MetadataJson
+	}
+	return ""
+}
+
 type TreeEntityDetail struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Ref                 *EntityRef             `protobuf:"bytes,1,opt,name=ref,proto3" json:"ref,omitempty"`
@@ -153,7 +325,7 @@ type TreeEntityDetail struct {
 
 func (x *TreeEntityDetail) Reset() {
 	*x = TreeEntityDetail{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[2]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -165,7 +337,7 @@ func (x *TreeEntityDetail) String() string {
 func (*TreeEntityDetail) ProtoMessage() {}
 
 func (x *TreeEntityDetail) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[2]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -178,7 +350,7 @@ func (x *TreeEntityDetail) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TreeEntityDetail.ProtoReflect.Descriptor instead.
 func (*TreeEntityDetail) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{2}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TreeEntityDetail) GetRef() *EntityRef {
@@ -219,7 +391,7 @@ type GetTreeEntityDetailRequest struct {
 
 func (x *GetTreeEntityDetailRequest) Reset() {
 	*x = GetTreeEntityDetailRequest{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[3]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -231,7 +403,7 @@ func (x *GetTreeEntityDetailRequest) String() string {
 func (*GetTreeEntityDetailRequest) ProtoMessage() {}
 
 func (x *GetTreeEntityDetailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[3]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -244,7 +416,7 @@ func (x *GetTreeEntityDetailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTreeEntityDetailRequest.ProtoReflect.Descriptor instead.
 func (*GetTreeEntityDetailRequest) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{3}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetTreeEntityDetailRequest) GetTargetRef() *EntityRef {
@@ -270,7 +442,7 @@ type GetTreeEntityDetailResponse struct {
 
 func (x *GetTreeEntityDetailResponse) Reset() {
 	*x = GetTreeEntityDetailResponse{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[4]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -282,7 +454,7 @@ func (x *GetTreeEntityDetailResponse) String() string {
 func (*GetTreeEntityDetailResponse) ProtoMessage() {}
 
 func (x *GetTreeEntityDetailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[4]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -295,7 +467,7 @@ func (x *GetTreeEntityDetailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTreeEntityDetailResponse.ProtoReflect.Descriptor instead.
 func (*GetTreeEntityDetailResponse) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{4}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetTreeEntityDetailResponse) GetDetail() *TreeEntityDetail {
@@ -319,7 +491,7 @@ type CreateItemRequest struct {
 
 func (x *CreateItemRequest) Reset() {
 	*x = CreateItemRequest{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[5]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -331,7 +503,7 @@ func (x *CreateItemRequest) String() string {
 func (*CreateItemRequest) ProtoMessage() {}
 
 func (x *CreateItemRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[5]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -344,7 +516,7 @@ func (x *CreateItemRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateItemRequest.ProtoReflect.Descriptor instead.
 func (*CreateItemRequest) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{5}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateItemRequest) GetWorkspaceId() string {
@@ -398,7 +570,7 @@ type CreateItemResponse struct {
 
 func (x *CreateItemResponse) Reset() {
 	*x = CreateItemResponse{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[6]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -410,7 +582,7 @@ func (x *CreateItemResponse) String() string {
 func (*CreateItemResponse) ProtoMessage() {}
 
 func (x *CreateItemResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[6]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -423,7 +595,7 @@ func (x *CreateItemResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateItemResponse.ProtoReflect.Descriptor instead.
 func (*CreateItemResponse) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{6}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateItemResponse) GetItem() *Item {
@@ -444,7 +616,7 @@ type ApproveAliasRequest struct {
 
 func (x *ApproveAliasRequest) Reset() {
 	*x = ApproveAliasRequest{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[7]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -456,7 +628,7 @@ func (x *ApproveAliasRequest) String() string {
 func (*ApproveAliasRequest) ProtoMessage() {}
 
 func (x *ApproveAliasRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[7]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -469,7 +641,7 @@ func (x *ApproveAliasRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveAliasRequest.ProtoReflect.Descriptor instead.
 func (*ApproveAliasRequest) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{7}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ApproveAliasRequest) GetWorkspaceId() string {
@@ -504,7 +676,7 @@ type ApproveAliasResponse struct {
 
 func (x *ApproveAliasResponse) Reset() {
 	*x = ApproveAliasResponse{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[8]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -516,7 +688,7 @@ func (x *ApproveAliasResponse) String() string {
 func (*ApproveAliasResponse) ProtoMessage() {}
 
 func (x *ApproveAliasResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[8]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -529,7 +701,7 @@ func (x *ApproveAliasResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApproveAliasResponse.ProtoReflect.Descriptor instead.
 func (*ApproveAliasResponse) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{8}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ApproveAliasResponse) GetCanonicalItemId() string {
@@ -564,7 +736,7 @@ type RejectAliasRequest struct {
 
 func (x *RejectAliasRequest) Reset() {
 	*x = RejectAliasRequest{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[9]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -576,7 +748,7 @@ func (x *RejectAliasRequest) String() string {
 func (*RejectAliasRequest) ProtoMessage() {}
 
 func (x *RejectAliasRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[9]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -589,7 +761,7 @@ func (x *RejectAliasRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectAliasRequest.ProtoReflect.Descriptor instead.
 func (*RejectAliasRequest) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{9}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RejectAliasRequest) GetWorkspaceId() string {
@@ -624,7 +796,7 @@ type RejectAliasResponse struct {
 
 func (x *RejectAliasResponse) Reset() {
 	*x = RejectAliasResponse{}
-	mi := &file_synthify_app_v1_item_proto_msgTypes[10]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -636,7 +808,7 @@ func (x *RejectAliasResponse) String() string {
 func (*RejectAliasResponse) ProtoMessage() {}
 
 func (x *RejectAliasResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_synthify_app_v1_item_proto_msgTypes[10]
+	mi := &file_synthify_app_v1_item_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -649,7 +821,7 @@ func (x *RejectAliasResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RejectAliasResponse.ProtoReflect.Descriptor instead.
 func (*RejectAliasResponse) Descriptor() ([]byte, []int) {
-	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{10}
+	return file_synthify_app_v1_item_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RejectAliasResponse) GetCanonicalItemId() string {
@@ -692,7 +864,7 @@ var file_synthify_app_v1_item_proto_rawDesc = string([]byte{
 	0x6f, 0x70, 0x65, 0x52, 0x05, 0x73, 0x63, 0x6f, 0x70, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64,
 	0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x1f, 0x0a, 0x0b, 0x64, 0x6f,
 	0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x5f, 0x69, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x0a, 0x64, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x22, 0x89, 0x01, 0x0a, 0x12,
+	0x0a, 0x64, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x22, 0xca, 0x01, 0x0a, 0x12,
 	0x54, 0x72, 0x65, 0x65, 0x45, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x45, 0x76, 0x69, 0x64, 0x65, 0x6e,
 	0x63, 0x65, 0x12, 0x43, 0x0a, 0x0d, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x5f, 0x63, 0x68, 0x75,
 	0x6e, 0x6b, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x73, 0x79, 0x6e, 0x74,
@@ -701,7 +873,39 @@ var file_synthify_app_v1_item_proto_rawDesc = string([]byte{
 	0x65, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x12, 0x2e, 0x0a, 0x13, 0x73, 0x6f, 0x75, 0x72, 0x63,
 	0x65, 0x5f, 0x64, 0x6f, 0x63, 0x75, 0x6d, 0x65, 0x6e, 0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x02,
 	0x20, 0x03, 0x28, 0x09, 0x52, 0x11, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x44, 0x6f, 0x63, 0x75,
-	0x6d, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x73, 0x22, 0xf6, 0x01, 0x0a, 0x10, 0x54, 0x72, 0x65, 0x65,
+	0x6d, 0x65, 0x6e, 0x74, 0x49, 0x64, 0x73, 0x12, 0x3f, 0x0a, 0x0b, 0x73, 0x6f, 0x75, 0x72, 0x63,
+	0x65, 0x5f, 0x72, 0x65, 0x66, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x73,
+	0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x61, 0x70, 0x70, 0x2e, 0x76, 0x31, 0x2e, 0x49,
+	0x74, 0x65, 0x6d, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x66, 0x52, 0x0a, 0x73, 0x6f,
+	0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x66, 0x73, 0x22, 0xbc, 0x03, 0x0a, 0x0d, 0x49, 0x74, 0x65,
+	0x6d, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x66, 0x12, 0x22, 0x0a, 0x0d, 0x73, 0x6f,
+	0x75, 0x72, 0x63, 0x65, 0x5f, 0x72, 0x65, 0x66, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x0b, 0x73, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x52, 0x65, 0x66, 0x49, 0x64, 0x12, 0x17,
+	0x0a, 0x07, 0x69, 0x74, 0x65, 0x6d, 0x5f, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x69, 0x74, 0x65, 0x6d, 0x49, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x79, 0x70, 0x65, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x74, 0x79, 0x70, 0x65, 0x12, 0x10, 0x0a, 0x03, 0x75,
+	0x72, 0x6c, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x12, 0x12, 0x0a,
+	0x04, 0x72, 0x65, 0x70, 0x6f, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x72, 0x65, 0x70,
+	0x6f, 0x12, 0x10, 0x0a, 0x03, 0x72, 0x65, 0x66, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03,
+	0x72, 0x65, 0x66, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x61, 0x74, 0x68, 0x18, 0x07, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x12, 0x1d, 0x0a, 0x0a, 0x6c, 0x69, 0x6e, 0x65, 0x5f,
+	0x73, 0x74, 0x61, 0x72, 0x74, 0x18, 0x08, 0x20, 0x01, 0x28, 0x05, 0x52, 0x09, 0x6c, 0x69, 0x6e,
+	0x65, 0x53, 0x74, 0x61, 0x72, 0x74, 0x12, 0x19, 0x0a, 0x08, 0x6c, 0x69, 0x6e, 0x65, 0x5f, 0x65,
+	0x6e, 0x64, 0x18, 0x09, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x6c, 0x69, 0x6e, 0x65, 0x45, 0x6e,
+	0x64, 0x12, 0x12, 0x0a, 0x04, 0x6b, 0x69, 0x6e, 0x64, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x6b, 0x69, 0x6e, 0x64, 0x12, 0x1f, 0x0a, 0x0b, 0x65, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61,
+	0x6c, 0x5f, 0x69, 0x64, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0a, 0x65, 0x78, 0x74, 0x65,
+	0x72, 0x6e, 0x61, 0x6c, 0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18,
+	0x0c, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x1e, 0x0a, 0x0a,
+	0x63, 0x6f, 0x6e, 0x66, 0x69, 0x64, 0x65, 0x6e, 0x63, 0x65, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x01,
+	0x52, 0x0a, 0x63, 0x6f, 0x6e, 0x66, 0x69, 0x64, 0x65, 0x6e, 0x63, 0x65, 0x12, 0x21, 0x0a, 0x0c,
+	0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x5f, 0x72, 0x65, 0x66, 0x18, 0x0e, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x0b, 0x73, 0x6e, 0x61, 0x70, 0x73, 0x68, 0x6f, 0x74, 0x52, 0x65, 0x66, 0x12,
+	0x21, 0x0a, 0x0c, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x5f, 0x68, 0x61, 0x73, 0x68, 0x18,
+	0x0f, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x48, 0x61,
+	0x73, 0x68, 0x12, 0x23, 0x0a, 0x0d, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x5f, 0x6a,
+	0x73, 0x6f, 0x6e, 0x18, 0x10, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0c, 0x6d, 0x65, 0x74, 0x61, 0x64,
+	0x61, 0x74, 0x61, 0x4a, 0x73, 0x6f, 0x6e, 0x22, 0xf6, 0x01, 0x0a, 0x10, 0x54, 0x72, 0x65, 0x65,
 	0x45, 0x6e, 0x74, 0x69, 0x74, 0x79, 0x44, 0x65, 0x74, 0x61, 0x69, 0x6c, 0x12, 0x2c, 0x0a, 0x03,
 	0x72, 0x65, 0x66, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x73, 0x79, 0x6e, 0x74,
 	0x68, 0x69, 0x66, 0x79, 0x2e, 0x61, 0x70, 0x70, 0x2e, 0x76, 0x31, 0x2e, 0x45, 0x6e, 0x74, 0x69,
@@ -826,46 +1030,48 @@ func file_synthify_app_v1_item_proto_rawDescGZIP() []byte {
 	return file_synthify_app_v1_item_proto_rawDescData
 }
 
-var file_synthify_app_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_synthify_app_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_synthify_app_v1_item_proto_goTypes = []any{
 	(*EntityRef)(nil),                   // 0: synthify.app.v1.EntityRef
 	(*TreeEntityEvidence)(nil),          // 1: synthify.app.v1.TreeEntityEvidence
-	(*TreeEntityDetail)(nil),            // 2: synthify.app.v1.TreeEntityDetail
-	(*GetTreeEntityDetailRequest)(nil),  // 3: synthify.app.v1.GetTreeEntityDetailRequest
-	(*GetTreeEntityDetailResponse)(nil), // 4: synthify.app.v1.GetTreeEntityDetailResponse
-	(*CreateItemRequest)(nil),           // 5: synthify.app.v1.CreateItemRequest
-	(*CreateItemResponse)(nil),          // 6: synthify.app.v1.CreateItemResponse
-	(*ApproveAliasRequest)(nil),         // 7: synthify.app.v1.ApproveAliasRequest
-	(*ApproveAliasResponse)(nil),        // 8: synthify.app.v1.ApproveAliasResponse
-	(*RejectAliasRequest)(nil),          // 9: synthify.app.v1.RejectAliasRequest
-	(*RejectAliasResponse)(nil),         // 10: synthify.app.v1.RejectAliasResponse
-	(TreeProjectionScope)(0),            // 11: synthify.app.v1.TreeProjectionScope
-	(*DocumentChunk)(nil),               // 12: synthify.app.v1.DocumentChunk
-	(*Item)(nil),                        // 13: synthify.app.v1.Item
+	(*ItemSourceRef)(nil),               // 2: synthify.app.v1.ItemSourceRef
+	(*TreeEntityDetail)(nil),            // 3: synthify.app.v1.TreeEntityDetail
+	(*GetTreeEntityDetailRequest)(nil),  // 4: synthify.app.v1.GetTreeEntityDetailRequest
+	(*GetTreeEntityDetailResponse)(nil), // 5: synthify.app.v1.GetTreeEntityDetailResponse
+	(*CreateItemRequest)(nil),           // 6: synthify.app.v1.CreateItemRequest
+	(*CreateItemResponse)(nil),          // 7: synthify.app.v1.CreateItemResponse
+	(*ApproveAliasRequest)(nil),         // 8: synthify.app.v1.ApproveAliasRequest
+	(*ApproveAliasResponse)(nil),        // 9: synthify.app.v1.ApproveAliasResponse
+	(*RejectAliasRequest)(nil),          // 10: synthify.app.v1.RejectAliasRequest
+	(*RejectAliasResponse)(nil),         // 11: synthify.app.v1.RejectAliasResponse
+	(TreeProjectionScope)(0),            // 12: synthify.app.v1.TreeProjectionScope
+	(*DocumentChunk)(nil),               // 13: synthify.app.v1.DocumentChunk
+	(*Item)(nil),                        // 14: synthify.app.v1.Item
 }
 var file_synthify_app_v1_item_proto_depIdxs = []int32{
-	11, // 0: synthify.app.v1.EntityRef.scope:type_name -> synthify.app.v1.TreeProjectionScope
-	12, // 1: synthify.app.v1.TreeEntityEvidence.source_chunks:type_name -> synthify.app.v1.DocumentChunk
-	0,  // 2: synthify.app.v1.TreeEntityDetail.ref:type_name -> synthify.app.v1.EntityRef
-	13, // 3: synthify.app.v1.TreeEntityDetail.item:type_name -> synthify.app.v1.Item
-	1,  // 4: synthify.app.v1.TreeEntityDetail.evidence:type_name -> synthify.app.v1.TreeEntityEvidence
-	13, // 5: synthify.app.v1.TreeEntityDetail.representative_items:type_name -> synthify.app.v1.Item
-	0,  // 6: synthify.app.v1.GetTreeEntityDetailRequest.target_ref:type_name -> synthify.app.v1.EntityRef
-	2,  // 7: synthify.app.v1.GetTreeEntityDetailResponse.detail:type_name -> synthify.app.v1.TreeEntityDetail
-	13, // 8: synthify.app.v1.CreateItemResponse.item:type_name -> synthify.app.v1.Item
-	3,  // 9: synthify.app.v1.ItemService.GetTreeEntityDetail:input_type -> synthify.app.v1.GetTreeEntityDetailRequest
-	5,  // 10: synthify.app.v1.ItemService.CreateItem:input_type -> synthify.app.v1.CreateItemRequest
-	7,  // 11: synthify.app.v1.ItemService.ApproveAlias:input_type -> synthify.app.v1.ApproveAliasRequest
-	9,  // 12: synthify.app.v1.ItemService.RejectAlias:input_type -> synthify.app.v1.RejectAliasRequest
-	4,  // 13: synthify.app.v1.ItemService.GetTreeEntityDetail:output_type -> synthify.app.v1.GetTreeEntityDetailResponse
-	6,  // 14: synthify.app.v1.ItemService.CreateItem:output_type -> synthify.app.v1.CreateItemResponse
-	8,  // 15: synthify.app.v1.ItemService.ApproveAlias:output_type -> synthify.app.v1.ApproveAliasResponse
-	10, // 16: synthify.app.v1.ItemService.RejectAlias:output_type -> synthify.app.v1.RejectAliasResponse
-	13, // [13:17] is the sub-list for method output_type
-	9,  // [9:13] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	12, // 0: synthify.app.v1.EntityRef.scope:type_name -> synthify.app.v1.TreeProjectionScope
+	13, // 1: synthify.app.v1.TreeEntityEvidence.source_chunks:type_name -> synthify.app.v1.DocumentChunk
+	2,  // 2: synthify.app.v1.TreeEntityEvidence.source_refs:type_name -> synthify.app.v1.ItemSourceRef
+	0,  // 3: synthify.app.v1.TreeEntityDetail.ref:type_name -> synthify.app.v1.EntityRef
+	14, // 4: synthify.app.v1.TreeEntityDetail.item:type_name -> synthify.app.v1.Item
+	1,  // 5: synthify.app.v1.TreeEntityDetail.evidence:type_name -> synthify.app.v1.TreeEntityEvidence
+	14, // 6: synthify.app.v1.TreeEntityDetail.representative_items:type_name -> synthify.app.v1.Item
+	0,  // 7: synthify.app.v1.GetTreeEntityDetailRequest.target_ref:type_name -> synthify.app.v1.EntityRef
+	3,  // 8: synthify.app.v1.GetTreeEntityDetailResponse.detail:type_name -> synthify.app.v1.TreeEntityDetail
+	14, // 9: synthify.app.v1.CreateItemResponse.item:type_name -> synthify.app.v1.Item
+	4,  // 10: synthify.app.v1.ItemService.GetTreeEntityDetail:input_type -> synthify.app.v1.GetTreeEntityDetailRequest
+	6,  // 11: synthify.app.v1.ItemService.CreateItem:input_type -> synthify.app.v1.CreateItemRequest
+	8,  // 12: synthify.app.v1.ItemService.ApproveAlias:input_type -> synthify.app.v1.ApproveAliasRequest
+	10, // 13: synthify.app.v1.ItemService.RejectAlias:input_type -> synthify.app.v1.RejectAliasRequest
+	5,  // 14: synthify.app.v1.ItemService.GetTreeEntityDetail:output_type -> synthify.app.v1.GetTreeEntityDetailResponse
+	7,  // 15: synthify.app.v1.ItemService.CreateItem:output_type -> synthify.app.v1.CreateItemResponse
+	9,  // 16: synthify.app.v1.ItemService.ApproveAlias:output_type -> synthify.app.v1.ApproveAliasResponse
+	11, // 17: synthify.app.v1.ItemService.RejectAlias:output_type -> synthify.app.v1.RejectAliasResponse
+	14, // [14:18] is the sub-list for method output_type
+	10, // [10:14] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_synthify_app_v1_item_proto_init() }
@@ -881,7 +1087,7 @@ func file_synthify_app_v1_item_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_synthify_app_v1_item_proto_rawDesc), len(file_synthify_app_v1_item_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

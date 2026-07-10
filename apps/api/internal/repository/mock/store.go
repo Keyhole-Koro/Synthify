@@ -26,7 +26,7 @@ type Store struct {
 	users           map[string]*domain.User
 	accounts        map[string]*domain.Account
 	workspaces      map[string]*domain.Workspace
-	wsOwners        map[string]string                       // wsID -> ownerAccountID
+	wsOwners        map[string]string                             // wsID -> ownerAccountID
 	wsMembers       map[string]map[string]*domain.WorkspaceMember // wsID -> userID -> member
 	shareLinks      map[string]*domain.ShareLink                  // token -> link
 	documents       map[string]*domain.Document
@@ -38,6 +38,7 @@ type Store struct {
 	approvals       map[string][]*domain.JobApprovalRequest
 	items           map[string]map[string]*domain.Item // workspaceID -> itemID -> Item
 	sources         map[string][]*domain.ItemSource
+	sourceRefs      map[string][]*domain.ItemSourceRef
 	chunks          map[string][]*domain.DocumentChunk
 	checkpoints     map[string]map[string]domain.JobStageCheckpoint // jobID -> stage -> checkpoint
 	reservations    map[string]*uploadReservation
@@ -89,6 +90,7 @@ func NewStore() *Store {
 		approvals:       make(map[string][]*domain.JobApprovalRequest),
 		items:           make(map[string]map[string]*domain.Item),
 		sources:         make(map[string][]*domain.ItemSource),
+		sourceRefs:      make(map[string][]*domain.ItemSourceRef),
 		chunks:          make(map[string][]*domain.DocumentChunk),
 		checkpoints:     make(map[string]map[string]domain.JobStageCheckpoint),
 		reservations:    make(map[string]*uploadReservation),
@@ -1484,6 +1486,53 @@ func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID
 		Confidence: confidence,
 	})
 	return nil
+}
+
+func (s *Store) UpsertItemSourceRef(ctx context.Context, source *domain.ItemSourceRef) error {
+	if source == nil {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if source.SourceRefID == "" {
+		source.SourceRefID = fmt.Sprintf("source-ref-%d", len(s.sourceRefs[source.ItemID])+1)
+	}
+	refs := s.sourceRefs[source.ItemID]
+	for i, existing := range refs {
+		if existing.SourceRefID == source.SourceRefID {
+			copied := *source
+			refs[i] = &copied
+			s.sourceRefs[source.ItemID] = refs
+			return nil
+		}
+	}
+	copied := *source
+	s.sourceRefs[source.ItemID] = append(refs, &copied)
+	return nil
+}
+
+func (s *Store) ListItemSources(ctx context.Context, itemID string) ([]*domain.ItemSource, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sources := s.sources[itemID]
+	out := make([]*domain.ItemSource, 0, len(sources))
+	for _, source := range sources {
+		copied := *source
+		out = append(out, &copied)
+	}
+	return out, nil
+}
+
+func (s *Store) ListItemSourceRefs(ctx context.Context, itemID string) ([]*domain.ItemSourceRef, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	sources := s.sourceRefs[itemID]
+	out := make([]*domain.ItemSourceRef, 0, len(sources))
+	for _, source := range sources {
+		copied := *source
+		out = append(out, &copied)
+	}
+	return out, nil
 }
 
 func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error {

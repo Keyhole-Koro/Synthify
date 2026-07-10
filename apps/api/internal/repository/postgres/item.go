@@ -143,6 +143,84 @@ func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID
 	})
 }
 
+func (s *Store) UpsertItemSourceRef(ctx context.Context, source *domain.ItemSourceRef) error {
+	if source == nil {
+		return nil
+	}
+	now := nowTime()
+	sourceRefID := source.SourceRefID
+	if sourceRefID == "" {
+		sourceRefID = newID()
+	}
+	return s.q().UpsertItemSourceRef(ctx, sqlcgen.UpsertItemSourceRefParams{
+		SourceRefID:  sourceRefID,
+		ItemID:       source.ItemID,
+		SourceType:   source.Type,
+		Url:          source.URL,
+		Repo:         source.Repo,
+		Ref:          source.Ref,
+		Path:         source.Path,
+		LineStart:    nullInt32(source.LineStart),
+		LineEnd:      nullInt32(source.LineEnd),
+		Kind:         source.Kind,
+		ExternalID:   source.ExternalID,
+		Title:        source.Title,
+		Confidence:   sql.NullFloat64{Float64: source.Confidence, Valid: source.Confidence > 0},
+		SnapshotRef:  source.SnapshotRef,
+		ContentHash:  source.ContentHash,
+		MetadataJson: defaultMetadataJSON(source.MetadataJSON),
+		CreatedAt:    now,
+	})
+}
+
+func (s *Store) ListItemSources(ctx context.Context, itemID string) ([]*domain.ItemSource, error) {
+	rows, err := s.q().ListItemSources(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	sources := make([]*domain.ItemSource, 0, len(rows))
+	for _, row := range rows {
+		sources = append(sources, &domain.ItemSource{
+			ItemID:     row.ItemID,
+			DocumentID: row.DocumentID,
+			FileID:     row.FileID,
+			ChunkID:    row.ChunkID,
+			SourceText: row.SourceText,
+			Confidence: row.Confidence,
+		})
+	}
+	return sources, nil
+}
+
+func (s *Store) ListItemSourceRefs(ctx context.Context, itemID string) ([]*domain.ItemSourceRef, error) {
+	rows, err := s.q().ListItemSourceRefs(ctx, itemID)
+	if err != nil {
+		return nil, err
+	}
+	sources := make([]*domain.ItemSourceRef, 0, len(rows))
+	for _, row := range rows {
+		sources = append(sources, &domain.ItemSourceRef{
+			SourceRefID:  row.SourceRefID,
+			ItemID:       row.ItemID,
+			Type:         row.SourceType,
+			URL:          row.Url,
+			Repo:         row.Repo,
+			Ref:          row.Ref,
+			Path:         row.Path,
+			LineStart:    intFromNullInt32(row.LineStart),
+			LineEnd:      intFromNullInt32(row.LineEnd),
+			Kind:         row.Kind,
+			ExternalID:   row.ExternalID,
+			Title:        row.Title,
+			Confidence:   row.Confidence,
+			SnapshotRef:  row.SnapshotRef,
+			ContentHash:  row.ContentHash,
+			MetadataJSON: row.MetadataJson,
+		})
+	}
+	return sources, nil
+}
+
 func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error {
 	if capability == nil || !capability.Allows(appv1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
 		return fmt.Errorf("mutation not allowed by capability or expired")
@@ -282,6 +360,24 @@ func (s *Store) logMutationParams(ctx context.Context, q *sqlcgen.Queries, entry
 		ProvenanceJson: entry.ProvenanceJSON,
 		CreatedAt:      createdAt,
 	})
+}
+
+func nullInt32(value int) sql.NullInt32 {
+	return sql.NullInt32{Int32: int32(value), Valid: value > 0}
+}
+
+func intFromNullInt32(value sql.NullInt32) int {
+	if !value.Valid {
+		return 0
+	}
+	return int(value.Int32)
+}
+
+func defaultMetadataJSON(value string) string {
+	if value == "" {
+		return "{}"
+	}
+	return value
 }
 
 func mustJSON(value any) string {

@@ -204,6 +204,9 @@ type ItemRepository interface {
 	// Transactor.WithTx で包むこと。
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error)
 	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
+	UpsertItemSourceRef(ctx context.Context, source *domain.ItemSourceRef) error
+	ListItemSources(ctx context.Context, itemID string) ([]*domain.ItemSource, error)
+	ListItemSourceRefs(ctx context.Context, itemID string) ([]*domain.ItemSourceRef, error)
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
