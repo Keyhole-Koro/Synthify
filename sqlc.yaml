@@ -18,6 +18,7 @@ sql:
       - "db/migrations/0018_node_direct_tree.up.sql"
       - "db/migrations/0019_workspace_members.up.sql"
       - "db/migrations/0020_workspace_share_links.up.sql"
+      - "db/migrations/0021_item_source_refs.up.sql"
     queries:
       - "db/queries"
     gen:
@@ -50,6 +51,7 @@ sql:
       - "db/migrations/0018_node_direct_tree.up.sql"
       - "db/migrations/0019_workspace_members.up.sql"
       - "db/migrations/0020_workspace_share_links.up.sql"
+      - "db/migrations/0021_item_source_refs.up.sql"
     queries:
       - "db/queries"
     gen:

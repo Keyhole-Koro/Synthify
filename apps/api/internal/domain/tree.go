@@ -39,8 +39,28 @@ type ItemSource struct {
 	Confidence float64 `json:"confidence,omitempty"`
 }
 
+type ItemSourceRef struct {
+	SourceRefID  string  `json:"source_ref_id"`
+	ItemID       string  `json:"item_id"`
+	Type         string  `json:"type"`
+	URL          string  `json:"url,omitempty"`
+	Repo         string  `json:"repo,omitempty"`
+	Ref          string  `json:"ref,omitempty"`
+	Path         string  `json:"path,omitempty"`
+	LineStart    int     `json:"line_start,omitempty"`
+	LineEnd      int     `json:"line_end,omitempty"`
+	Kind         string  `json:"kind,omitempty"`
+	ExternalID   string  `json:"external_id,omitempty"`
+	Title        string  `json:"title,omitempty"`
+	Confidence   float64 `json:"confidence,omitempty"`
+	SnapshotRef  string  `json:"snapshot_ref,omitempty"`
+	ContentHash  string  `json:"content_hash,omitempty"`
+	MetadataJSON string  `json:"metadata_json,omitempty"`
+}
+
 type ItemEvidence struct {
-	Sources []*ItemSource `json:"sources,omitempty"`
+	Sources    []*ItemSource    `json:"sources,omitempty"`
+	SourceRefs []*ItemSourceRef `json:"source_refs,omitempty"`
 }
 
 // TreeItem is the item representation returned by the API.

@@ -95,6 +95,46 @@ func TestGetItem_Viewer_HasReadAccess(t *testing.T) {
 	assert.Equal(t, created.ItemID, got.ItemID)
 }
 
+func TestGetItemEvidence_ReturnsSourcesAndSourceRefs(t *testing.T) {
+	ctx := context.Background()
+	repo := mock.NewStore()
+	svc := NewItemService(ItemServiceDeps{
+		Repo:       repo,
+		Workspaces: repo,
+		Logger:     nil,
+	})
+	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
+	wsID := fixture.Workspace.WorkspaceID
+	item, err := svc.CreateItem(ctx, wsID, "api-design", "", "", "owner")
+	require.NoError(t, err)
+
+	require.NoError(t, repo.UpsertItemSource(ctx, item.ItemID, "doc-1", "file-1", "chunk-1", "source text", 0.8))
+	require.NoError(t, repo.UpsertItemSourceRef(ctx, &domain.ItemSourceRef{
+		ItemID:       item.ItemID,
+		Type:         "github",
+		URL:          "https://github.com/owner/repo/blob/abc123/docs/spec.md#L10-L42",
+		Repo:         "owner/repo",
+		Ref:          "abc123",
+		Path:         "docs/spec.md",
+		LineStart:    10,
+		LineEnd:      42,
+		Kind:         "file",
+		Confidence:   0.92,
+		MetadataJSON: "{}",
+	}))
+
+	evidence, err := svc.GetItemEvidence(ctx, item.ItemID, wsID, "owner")
+	require.NoError(t, err)
+	require.Len(t, evidence.Sources, 1)
+	assert.Equal(t, "doc-1", evidence.Sources[0].DocumentID)
+	require.Len(t, evidence.SourceRefs, 1)
+	assert.Equal(t, "github", evidence.SourceRefs[0].Type)
+	assert.Equal(t, "owner/repo", evidence.SourceRefs[0].Repo)
+	assert.Equal(t, "docs/spec.md", evidence.SourceRefs[0].Path)
+	assert.Equal(t, 10, evidence.SourceRefs[0].LineStart)
+	assert.Equal(t, 42, evidence.SourceRefs[0].LineEnd)
+}
+
 func TestGetItem_OtherWorkspaceID_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	repo := mock.NewStore()

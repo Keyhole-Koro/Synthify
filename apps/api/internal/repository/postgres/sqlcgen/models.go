@@ -189,6 +189,27 @@ type ItemSource struct {
 	Confidence sql.NullFloat64
 }
 
+type ItemSourceRef struct {
+	SourceRefID  string
+	ItemID       string
+	SourceType   string
+	Url          string
+	Repo         string
+	Ref          string
+	Path         string
+	LineStart    sql.NullInt32
+	LineEnd      sql.NullInt32
+	Kind         string
+	ExternalID   string
+	Title        string
+	Confidence   sql.NullFloat64
+	SnapshotRef  string
+	ContentHash  string
+	MetadataJson string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type JobApprovalRequest struct {
 	ApprovalID              string
 	JobID                   string

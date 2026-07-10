@@ -56,6 +56,11 @@ export declare type TreeEntityEvidence = Message<"synthify.app.v1.TreeEntityEvid
    * @generated from field: repeated string source_document_ids = 2;
    */
   sourceDocumentIds: string[];
+
+  /**
+   * @generated from field: repeated synthify.app.v1.ItemSourceRef source_refs = 3;
+   */
+  sourceRefs: ItemSourceRef[];
 };
 
 /**
@@ -63,6 +68,97 @@ export declare type TreeEntityEvidence = Message<"synthify.app.v1.TreeEntityEvid
  * Use `create(TreeEntityEvidenceSchema)` to create a new message.
  */
 export declare const TreeEntityEvidenceSchema: GenMessage<TreeEntityEvidence>;
+
+/**
+ * @generated from message synthify.app.v1.ItemSourceRef
+ */
+export declare type ItemSourceRef = Message<"synthify.app.v1.ItemSourceRef"> & {
+  /**
+   * @generated from field: string source_ref_id = 1;
+   */
+  sourceRefId: string;
+
+  /**
+   * @generated from field: string item_id = 2;
+   */
+  itemId: string;
+
+  /**
+   * @generated from field: string type = 3;
+   */
+  type: string;
+
+  /**
+   * @generated from field: string url = 4;
+   */
+  url: string;
+
+  /**
+   * @generated from field: string repo = 5;
+   */
+  repo: string;
+
+  /**
+   * @generated from field: string ref = 6;
+   */
+  ref: string;
+
+  /**
+   * @generated from field: string path = 7;
+   */
+  path: string;
+
+  /**
+   * @generated from field: int32 line_start = 8;
+   */
+  lineStart: number;
+
+  /**
+   * @generated from field: int32 line_end = 9;
+   */
+  lineEnd: number;
+
+  /**
+   * @generated from field: string kind = 10;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string external_id = 11;
+   */
+  externalId: string;
+
+  /**
+   * @generated from field: string title = 12;
+   */
+  title: string;
+
+  /**
+   * @generated from field: double confidence = 13;
+   */
+  confidence: number;
+
+  /**
+   * @generated from field: string snapshot_ref = 14;
+   */
+  snapshotRef: string;
+
+  /**
+   * @generated from field: string content_hash = 15;
+   */
+  contentHash: string;
+
+  /**
+   * @generated from field: string metadata_json = 16;
+   */
+  metadataJson: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.ItemSourceRef.
+ * Use `create(ItemSourceRefSchema)` to create a new message.
+ */
+export declare const ItemSourceRefSchema: GenMessage<ItemSourceRef>;
 
 /**
  * @generated from message synthify.app.v1.TreeEntityDetail

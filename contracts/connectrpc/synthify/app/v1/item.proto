@@ -27,6 +27,26 @@ message EntityRef {
 message TreeEntityEvidence {
   repeated DocumentChunk source_chunks = 1;
   repeated string source_document_ids = 2;
+  repeated ItemSourceRef source_refs = 3;
+}
+
+message ItemSourceRef {
+  string source_ref_id = 1;
+  string item_id = 2;
+  string type = 3;
+  string url = 4;
+  string repo = 5;
+  string ref = 6;
+  string path = 7;
+  int32 line_start = 8;
+  int32 line_end = 9;
+  string kind = 10;
+  string external_id = 11;
+  string title = 12;
+  double confidence = 13;
+  string snapshot_ref = 14;
+  string content_hash = 15;
+  string metadata_json = 16;
 }
 
 message TreeEntityDetail {

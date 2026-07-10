@@ -34,6 +34,56 @@ func toProtoItem(item *domain.Item) *appv1.Item {
 	}
 }
 
+func toProtoItemEvidence(evidence *domain.ItemEvidence) *appv1.TreeEntityEvidence {
+	if evidence == nil {
+		return &appv1.TreeEntityEvidence{}
+	}
+	documentIDs := make([]string, 0, len(evidence.Sources))
+	seenDocumentIDs := make(map[string]struct{}, len(evidence.Sources))
+	for _, source := range evidence.Sources {
+		if source == nil || source.DocumentID == "" {
+			continue
+		}
+		if _, ok := seenDocumentIDs[source.DocumentID]; ok {
+			continue
+		}
+		seenDocumentIDs[source.DocumentID] = struct{}{}
+		documentIDs = append(documentIDs, source.DocumentID)
+	}
+	return &appv1.TreeEntityEvidence{
+		SourceDocumentIds: documentIDs,
+		SourceRefs:        toProtoItemSourceRefs(evidence.SourceRefs),
+	}
+}
+
+func toProtoItemSourceRefs(sourceRefs []*domain.ItemSourceRef) []*appv1.ItemSourceRef {
+	refs := make([]*appv1.ItemSourceRef, 0, len(sourceRefs))
+	for _, source := range sourceRefs {
+		if source == nil {
+			continue
+		}
+		refs = append(refs, &appv1.ItemSourceRef{
+			SourceRefId:  source.SourceRefID,
+			ItemId:       source.ItemID,
+			Type:         source.Type,
+			Url:          source.URL,
+			Repo:         source.Repo,
+			Ref:          source.Ref,
+			Path:         source.Path,
+			LineStart:    int32(source.LineStart),
+			LineEnd:      int32(source.LineEnd),
+			Kind:         source.Kind,
+			ExternalId:   source.ExternalID,
+			Title:        source.Title,
+			Confidence:   source.Confidence,
+			SnapshotRef:  source.SnapshotRef,
+			ContentHash:  source.ContentHash,
+			MetadataJson: source.MetadataJSON,
+		})
+	}
+	return refs
+}
+
 func toProtoUser(user *domain.User) *appv1.User {
 	if user == nil {
 		return nil
