@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, type Auth } from 'firebase/auth';
+import { getAuth, connectAuthEmulator, signInWithEmailAndPassword, signOut, type Auth } from 'firebase/auth';
 import { initializeFirestore, connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
 import { env } from '@/config/env';
 import { log } from '@/lib/observability/log';
@@ -64,3 +64,23 @@ if (!getApps().length) {
 }
 
 export { app, auth, db };
+
+// Playwright needs a deterministic way to establish a real Firebase session.
+// Keep the hook strictly limited to development builds backed by Auth Emulator;
+// it is never present in a production bundle/environment.
+if (isBrowser && env.nodeEnv === 'development' && env.firebase.authEmulatorUrl) {
+  const win = window as Window & {
+    __synthifyE2E?: {
+      signIn(email: string, password: string): Promise<void>;
+      signOut(): Promise<void>;
+    };
+  };
+  win.__synthifyE2E = {
+    async signIn(email, password) {
+      await signInWithEmailAndPassword(auth, email, password);
+    },
+    async signOut() {
+      await signOut(auth);
+    },
+  };
+}

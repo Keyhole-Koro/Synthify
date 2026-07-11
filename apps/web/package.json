@@ -11,6 +11,10 @@
     "start": "next start --hostname 0.0.0.0 --port 5173",
     "lint": "eslint .",
     "test": "vitest run",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:debug": "playwright test --debug",
+    "e2e:report": "playwright show-report",
     "generate:firestore-types": "node ../../scripts/generate-firestore-types.mjs",
     "seed:jobs": "node ./scripts/seed-firestore-jobs.mjs"
   },
@@ -29,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.2.2",
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-hooks": "^8.0.1",
