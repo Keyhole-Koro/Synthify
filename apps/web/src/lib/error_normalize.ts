@@ -153,4 +153,3 @@ function mapFirebaseErrorMessage(code: string, originalMessage: string): string 
       return originalMessage;
   }
 }
-const __temp_lint_break = 
