@@ -133,6 +133,28 @@ variable "new_relic_worker_app_name" {
   default     = ""
 }
 
+variable "new_relic_browser_app_name" {
+  description = "New Relic Browser entity name for the web frontend (NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID's app)."
+  type        = string
+}
+
+variable "new_relic_account_id" {
+  description = "New Relic account ID, used by the newrelic Terraform provider to manage alert policies."
+  type        = string
+}
+
+variable "new_relic_api_key" {
+  description = "New Relic User API key (NRAK-...) used by the newrelic Terraform provider."
+  type        = string
+  sensitive   = true
+}
+
+variable "discord_alert_webhook_url" {
+  description = "Discord incoming webhook URL that receives application alert notifications (separate channel from CI/CD alerts)."
+  type        = string
+  sensitive   = true
+}
+
 variable "api_base_url" {
   description = "Public URL for the API service. Apply once with default empty, then set to the api Cloud Run URL and re-apply so the worker can call back."
   type        = string
@@ -141,6 +163,13 @@ variable "api_base_url" {
 
 variable "readiness_api_key" {
   description = "Ephemeral deploy-smoke key injected into API/Worker Cloud Run revisions for /health?ready=1."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "readiness_monitor_key" {
+  description = "Long-lived key for external uptime monitoring of /health?ready=1 (GitHub Actions cron), distinct from readiness_api_key which rotates on every deploy."
   type        = string
   default     = ""
   sensitive   = true

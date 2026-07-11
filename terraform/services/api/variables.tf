@@ -131,6 +131,13 @@ variable "readiness_api_key" {
   sensitive = true
 }
 
+variable "readiness_monitor_key" {
+  description = "Long-lived key for external uptime monitoring of /health?ready=1, distinct from readiness_api_key which rotates on every deploy."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "gcs_upload_issuer" {
   type    = string
   default = "signed"

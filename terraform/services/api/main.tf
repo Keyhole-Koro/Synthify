@@ -63,7 +63,8 @@ module "service" {
   }
 
   sensitive_env_vars = {
-    SYNTHIFY_READINESS_KEY = var.readiness_api_key
+    SYNTHIFY_READINESS_KEY         = var.readiness_api_key
+    SYNTHIFY_READINESS_MONITOR_KEY = var.readiness_monitor_key
   }
 
   secret_env_vars = [

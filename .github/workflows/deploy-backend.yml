@@ -216,6 +216,11 @@ jobs:
           ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
+          NEW_RELIC_ACCOUNT_ID: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_BROWSER_APP_NAME: ${{ vars.NEW_RELIC_BROWSER_APP_NAME }}
+          DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
         run: |
           args=(
             -auto-approve
@@ -224,8 +229,13 @@ jobs:
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
             -var="readiness_api_key=${READINESS_API_KEY}"
+            -var="readiness_monitor_key=${READINESS_MONITOR_KEY}"
             -var="stripe_pro_price_id_jpy=${STRIPE_PRO_PRICE_ID_JPY}"
             -var="stripe_pro_price_id_usd=${STRIPE_PRO_PRICE_ID_USD}"
+            -var="new_relic_account_id=${NEW_RELIC_ACCOUNT_ID}"
+            -var="new_relic_api_key=${NEW_RELIC_API_KEY}"
+            -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
+            -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
@@ -239,6 +249,11 @@ jobs:
           ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
+          NEW_RELIC_ACCOUNT_ID: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
+          NEW_RELIC_API_KEY: ${{ secrets.NEW_RELIC_API_KEY }}
+          NEW_RELIC_BROWSER_APP_NAME: ${{ vars.NEW_RELIC_BROWSER_APP_NAME }}
+          DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
         run: |
           API_URI="$(terraform output -raw api_uri)"
           args=(
@@ -249,8 +264,13 @@ jobs:
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
             -var="api_base_url=${API_URI}"
             -var="readiness_api_key=${READINESS_API_KEY}"
+            -var="readiness_monitor_key=${READINESS_MONITOR_KEY}"
             -var="stripe_pro_price_id_jpy=${STRIPE_PRO_PRICE_ID_JPY}"
             -var="stripe_pro_price_id_usd=${STRIPE_PRO_PRICE_ID_USD}"
+            -var="new_relic_account_id=${NEW_RELIC_ACCOUNT_ID}"
+            -var="new_relic_api_key=${NEW_RELIC_API_KEY}"
+            -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
+            -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
           )
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
