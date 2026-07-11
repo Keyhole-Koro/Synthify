@@ -110,3 +110,14 @@ jobs:
 
       - name: Smoke test Frontend
         run: scripts/smoke-test.sh frontend
+
+  notify:
+    needs: deploy
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Deploy Frontend
+      job_name: deploy (${{ github.event.inputs.environment || github.ref_name }})
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

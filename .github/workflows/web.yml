@@ -53,3 +53,14 @@ jobs:
       - name: Build
         working-directory: apps/web
         run: bun run build
+
+  notify:
+    needs: web
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Web
+      job_name: web
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
