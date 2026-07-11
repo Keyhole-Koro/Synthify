@@ -304,3 +304,14 @@ jobs:
 
           print(f"worker service Ready ({latest_ready})")
           PY
+
+  notify:
+    needs: deploy
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Deploy Backend
+      job_name: deploy (${{ github.event.inputs.environment || github.ref_name }})
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

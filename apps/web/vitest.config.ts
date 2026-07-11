@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    exclude: ['**/node_modules/**', '**/vender/**'],
+    exclude: ['**/node_modules/**', '**/vender/**', 'e2e/**'],
   },
   resolve: {
     alias: {

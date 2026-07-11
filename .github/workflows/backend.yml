@@ -60,3 +60,14 @@ jobs:
           cd terraform/environments
           terraform init -backend=false -lockfile=readonly
           terraform validate
+
+  notify:
+    needs: [build, terraform]
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Backend
+      job_name: ${{ needs.build.result == 'failure' && 'build' || 'terraform' }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
