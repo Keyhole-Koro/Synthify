@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 6.0"
     }
+    newrelic = {
+      source  = "newrelic/newrelic"
+      version = "~> 3.0"
+    }
   }
 
   # Backend is configured via partial config:

@@ -1,0 +1,73 @@
+name: Readiness Monitor
+
+on:
+  schedule:
+    # Every 5 minutes.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [stage, prod]
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environment }}
+    steps:
+      - name: Check readiness (with one retry)
+        id: check
+        env:
+          API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
+        run: |
+          set -uo pipefail
+
+          check() {
+            curl -sf --max-time 10 \
+              --header "X-Synthify-Readiness-Key: ${READINESS_MONITOR_KEY}" \
+              "${API_BASE_URL}/health?ready=1" > /dev/null
+          }
+
+          if check; then
+            echo "readiness OK"
+            exit 0
+          fi
+
+          echo "first readiness check failed, retrying in 30s..."
+          sleep 30
+
+          if check; then
+            echo "readiness OK on retry"
+            exit 0
+          fi
+
+          echo "readiness check failed twice"
+          exit 1
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ENVIRONMENT: ${{ matrix.environment }}
+          API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          PAYLOAD=$(jq -n \
+            --arg title "🔴 Readiness check failed: ${ENVIRONMENT}" \
+            --arg description "${API_BASE_URL}/health?ready=1 failed twice (30s apart)." \
+            --arg url "${RUN_URL}" \
+            '{
+              embeds: [
+                {
+                  title: $title,
+                  description: $description,
+                  url: $url,
+                  color: 15158332
+                }
+              ]
+            }')
+
+          curl -sf -X POST -H "Content-Type: application/json" -d "${PAYLOAD}" "${DISCORD_WEBHOOK_URL}"

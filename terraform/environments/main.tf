@@ -3,6 +3,12 @@ provider "google" {
   region  = var.region
 }
 
+provider "newrelic" {
+  account_id = var.new_relic_account_id
+  api_key    = var.new_relic_api_key
+  region     = "US"
+}
+
 module "bootstrap" {
   source = "../services/bootstrap"
 
@@ -86,6 +92,7 @@ module "api" {
   billing_portal_return_url        = local.billing_portal_return_url
   new_relic_app_name               = local.new_relic_app_name
   readiness_api_key                = var.readiness_api_key
+  readiness_monitor_key            = var.readiness_monitor_key
 
   gcs_upload_issuer                 = var.gcs_upload_issuer
   gcs_signing_service_account_email = var.gcs_signing_service_account_email == "" ? module.bootstrap.api_service_account_email : var.gcs_signing_service_account_email
@@ -94,6 +101,17 @@ module "api" {
   allowed_user_emails               = var.allowed_user_emails
   log_llm_payload                   = var.log_llm_payload
   deletion_protection               = local.deletion_protection
+}
+
+module "monitoring" {
+  source = "../services/monitoring"
+
+  environment               = var.environment
+  new_relic_account_id      = var.new_relic_account_id
+  api_app_name              = local.new_relic_app_name
+  worker_app_name           = local.new_relic_worker_app_name
+  browser_app_name          = var.new_relic_browser_app_name
+  discord_alert_webhook_url = var.discord_alert_webhook_url
 }
 
 resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {

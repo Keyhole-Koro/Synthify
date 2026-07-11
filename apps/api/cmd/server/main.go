@@ -210,7 +210,7 @@ func main() {
 		mux.Handle("POST /dev/seed-workspace", handler.NewDevSeedHTTPHandler(devSeedSvc, true))
 	}
 
-	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
+	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey, cfg.ReadinessMonitorKey))
 
 	// Outermost first: recover → log → security headers → CORS → auth → routes.
 	// CORS must be outside of Auth to handle preflight (OPTIONS) requests
@@ -256,7 +256,7 @@ func requiresBilling(env string) bool {
 	}
 }
 
-func healthHandler(store any, readinessKey string) http.HandlerFunc {
+func healthHandler(store any, readinessKey, readinessMonitorKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("ready") != "1" {
 			w.WriteHeader(http.StatusOK)
@@ -266,7 +266,10 @@ func healthHandler(store any, readinessKey string) http.HandlerFunc {
 
 		// Readiness is used by deploy smoke tests and exposes dependency
 		// status, so it is protected separately from the public liveness check.
-		if !readinessAuthorized(r, readinessKey) {
+		// readinessMonitorKey is a second, long-lived credential for external
+		// uptime monitoring (deploy smoke tests use readinessKey, which is
+		// regenerated on every deploy).
+		if !readinessAuthorized(r, readinessKey) && !readinessAuthorized(r, readinessMonitorKey) {
 			http.Error(w, `{"status":"error","error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
