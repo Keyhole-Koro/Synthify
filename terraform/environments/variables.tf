@@ -136,23 +136,30 @@ variable "new_relic_worker_app_name" {
 variable "new_relic_browser_app_name" {
   description = "New Relic Browser entity name for the web frontend (NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID's app)."
   type        = string
+  # Empty default so the Pass-1 (-target=module.bootstrap) apply, which does
+  # not pass these vars, doesn't block on an interactive prompt. The real
+  # value is supplied via -var in the Pass-2/3 full applies.
+  default = ""
 }
 
 variable "new_relic_account_id" {
   description = "New Relic account ID, used by the newrelic Terraform provider to manage alert policies."
   type        = string
+  default     = ""
 }
 
 variable "new_relic_api_key" {
   description = "New Relic User API key (NRAK-...) used by the newrelic Terraform provider."
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "discord_alert_webhook_url" {
   description = "Discord incoming webhook URL that receives application alert notifications (separate channel from CI/CD alerts)."
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "api_base_url" {
