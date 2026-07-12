@@ -81,3 +81,20 @@ func TestCreateWorkspace_Success_CreatesWorkspace(t *testing.T) {
 	require.NotNil(t, ws, "CreateWorkspace returned nil workspace")
 	assert.Equal(t, "my-workspace", ws.Name, "workspace.Name")
 }
+
+func TestWorkspaceMutations_EnforceRoleBoundary(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	wsID := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner").Workspace.WorkspaceID
+	svc := NewWorkspaceService(WorkspaceServiceDeps{Accounts: store, Workspaces: store})
+	require.NoError(t, store.UpsertWorkspaceMember(ctx, wsID, "editor", domain.WorkspaceRoleEditor, "owner"))
+	require.NoError(t, store.UpsertWorkspaceMember(ctx, wsID, "viewer", domain.WorkspaceRoleViewer, "owner"))
+
+	_, err := svc.UpdateWorkspace(ctx, wsID, "editor rename", "editor")
+	require.NoError(t, err)
+	_, err = svc.UpdateWorkspace(ctx, wsID, "viewer rename", "viewer")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+	assert.ErrorIs(t, svc.DeleteWorkspace(ctx, wsID, "editor"), domain.ErrForbidden)
+	assert.ErrorIs(t, svc.DeleteWorkspace(ctx, wsID, "viewer"), domain.ErrForbidden)
+	require.NoError(t, svc.DeleteWorkspace(ctx, wsID, "owner"))
+}

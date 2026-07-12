@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { isJobFailed, isJobSucceeded, isJobTerminal } from '@/features/jobs/contracts/jobStatusContract';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
@@ -8,7 +8,8 @@ import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
-import { type Workspace } from '@/features/workspaces/api';
+import { getWorkspace, WorkspaceRole, type Workspace } from '@/features/workspaces/api';
+import { getInitialAuthUser } from '@/features/auth/session';
 import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
@@ -39,6 +40,7 @@ interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   rootOverrideCss: string | null;
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (name: string) => Promise<Workspace>;
+  onDeleteWorkspace: () => Promise<void>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
   onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
@@ -56,6 +58,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     initialUploadMessage,
     onUploadFile,
     onRenameWorkspace,
+    onDeleteWorkspace,
     onSuggestedWorkspaceName,
     onProcessingComplete,
   } = props;
@@ -98,10 +101,38 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [accessRole, setAccessRole] = useState<WorkspaceRole>(WorkspaceRole.OWNER);
+
+  useEffect(() => {
+    const userId = getInitialAuthUser()?.id;
+    getWorkspace(workspaceId)
+      .then(({ members }) => {
+        const membership = members.find((member) => member.userId === userId);
+        setAccessRole(membership?.role ?? WorkspaceRole.OWNER);
+      })
+      .catch(() => setAccessRole(WorkspaceRole.VIEWER));
+  }, [workspaceId]);
+
+  const canWrite = accessRole === WorkspaceRole.OWNER || accessRole === WorkspaceRole.EDITOR;
+  const canManage = accessRole === WorkspaceRole.OWNER;
 
   const openShare = useCallback(() => {
     setIsSharing(true);
   }, []);
+
+  const handleDeleteWorkspace = useCallback(async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDeleteWorkspace();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'ワークスペースの削除に失敗しました');
+      setDeleting(false);
+    }
+  }, [onDeleteWorkspace]);
 
   const isTreeMissing = !hasTree;
   const isExpanded = !isPopulated || isHovered || isFailed;
@@ -154,8 +185,36 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
       {/* Share control. Kept outside the populated/empty branches so it stays
           mounted regardless of isPopulated (which briefly flips to false while
           the tree re-projects), avoiding the button flickering in and out. */}
-      <div className="flex justify-end px-5 pt-3">
-        <button
+      <div className="flex justify-end gap-2 px-5 pt-3">
+        {canManage && (confirmingDelete ? (
+          <>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => setConfirmingDelete(false)}
+              className="h-7 rounded-md border border-stone-200 bg-white px-2.5 text-[12px] text-stone-500 disabled:opacity-60"
+            >
+              キャンセル
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => void handleDeleteWorkspace()}
+              className="h-7 rounded-md border border-red-200 bg-red-50 px-2.5 text-[12px] font-medium text-red-600 disabled:opacity-60"
+            >
+              {deleting ? '削除中…' : '削除を確定'}
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="h-7 rounded-md border border-stone-200 bg-white px-2.5 text-[12px] text-stone-400 hover:border-red-200 hover:text-red-500"
+          >
+            削除
+          </button>
+        ))}
+        {canManage && <button
           type="button"
           onClick={openShare}
           className="flex h-7 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 text-[12px] font-medium text-stone-500 transition-colors hover:border-indigo-300 hover:text-indigo-500"
@@ -165,8 +224,9 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
           </svg>
           共有
-        </button>
+        </button>}
       </div>
+      {deleteError && <InlineError message={deleteError} className="px-5 pt-2" />}
       {isSharing && (
         <SharePanel
           workspaceId={workspaceId}
@@ -191,6 +251,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             onDraftNameChange={setDraftName}
             onCommitName={commitName}
             onCancelRename={cancelRename}
+            canEdit={canWrite}
           />
           {nameError && <InlineError message={nameError} className="-mt-2 px-5 pb-2" />}
 
@@ -234,18 +295,19 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
               onStartRename={startRename}
               onCommitName={commitName}
               onCancelRename={cancelRename}
+              canEdit={canWrite}
             />
           )}
 
           {/* Upload zone / add button */}
-          <div className={!isPopulated ? 'flex flex-1 flex-col justify-center' : ''}>
+          {canWrite && <div className={!isPopulated ? 'flex flex-1 flex-col justify-center' : ''}>
             <WorkspaceDropzone
               isTreeMissing={isTreeMissing}
               hasChildItems={childItems.length > 0}
               uploading={uploading}
               activeJobId={activeJobId}
               isDragging={isDragging}
-              jobStatusMessage={jobStatusError?.message ?? jobStatus?.message}
+              jobStatusMessage={jobStatusError?.message ?? jobStatus?.errorMessage ?? jobStatus?.message}
               jobStatusProgress={jobStatus?.progress}
               jobStatusFailed={isJobFailed(jobStatus)}
               onDragOver={handleDragOver}
@@ -271,7 +333,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
                 completion toast / Recent jobs list takes over from there. */}
             {isPopulated && (jobStatusError || (jobStatus && !isJobSucceeded(jobStatus))) && (
               <WorkspaceJobProgress
-                message={jobStatusError?.message ?? jobStatus?.message}
+                message={jobStatusError?.message ?? jobStatus?.errorMessage ?? jobStatus?.message}
                 progress={jobStatus?.progress}
                 isFailed={isJobFailed(jobStatus)}
                 startedAt={jobStatus?.startedAt}
@@ -280,7 +342,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
                 latestActivity={jobStatus?.latestActivity}
               />
             )}
-          </div>
+          </div>}
         </div>
       )}
     </div>

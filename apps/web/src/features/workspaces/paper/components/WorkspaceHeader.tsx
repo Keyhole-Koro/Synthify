@@ -14,6 +14,7 @@ interface WorkspaceHeaderProps {
   onDraftNameChange: (name: string) => void;
   onCommitName: () => void;
   onCancelRename: () => void;
+  canEdit?: boolean;
 }
 
 export function WorkspaceHeader({
@@ -30,6 +31,7 @@ export function WorkspaceHeader({
   onDraftNameChange,
   onCommitName,
   onCancelRename,
+  canEdit = true,
 }: WorkspaceHeaderProps) {
   return (
     <div
@@ -57,6 +59,7 @@ export function WorkspaceHeader({
             <button
               type="button"
               disabled={savingName}
+              onPointerDown={(e) => e.preventDefault()}
               onMouseDown={(e) => e.preventDefault()}
               onClick={onCancelRename}
               className="rounded-md border border-stone-200 px-2 py-1 text-[11px] text-stone-500 disabled:opacity-60"
@@ -68,7 +71,8 @@ export function WorkspaceHeader({
           <button
             type="button"
             onClick={onStartRename}
-            className="mt-0.5 block max-w-full truncate text-left text-lg font-semibold tracking-tight text-stone-800 hover:text-indigo-500"
+            disabled={!canEdit}
+            className="mt-0.5 block max-w-full truncate text-left text-lg font-semibold tracking-tight text-stone-800 enabled:hover:text-indigo-500"
           >
             {workspaceName}
           </button>

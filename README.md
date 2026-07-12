@@ -4,6 +4,36 @@ Synthify は、アップロードしたドキュメントから知識ツリー�
 
 ![Synthify demo](docs/materials/SynthifyDemo.gif)
 
+### E2Eテストとデバッグ
+
+初回だけChromiumをインストールし、Playwrightを実行します。通常はDocker Composeの開発環境も自動で起動します。
+
+```bash
+cd apps/web
+bunx playwright install chromium
+bun run e2e
+```
+
+既に開発環境を起動している場合は、再利用すると速くなります。
+
+```bash
+E2E_REUSE_SERVER=1 bun run e2e
+```
+
+失敗を調べるときは、UIモード、headed実行、直前に失敗したテストだけの再実行を利用できます。
+
+```bash
+bun run e2e:ui
+bun run e2e:headed
+bun run e2e:last
+bun run e2e:report
+bun run e2e:pr       # Chromiumの通常suite（外部サービス非依存）
+bun run e2e:repeat5  # flaky確認用に同じsuiteを5回反復
+bun run e2e:nightly  # @nightly の外部統合確認だけ
+```
+
+失敗時のHTML reportにはtrace、screenshot、videoに加えて、browser console、page error、失敗した通信、4xx/5xx response、テスト開始後のComposeログが添付されます。認証tokenや共有tokenは診断出力でマスクされます。
+
 
 ちょっと特殊な実装にしているところがいくつかあるので、ここにまとめておきます。
 

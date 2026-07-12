@@ -30,6 +30,7 @@ type Worker struct {
 	// hard-cancels the request ctx — a hard cancel risks wedging the job in
 	// RUNNING. See AgentBudget.
 	RequestTimeout time.Duration
+	FixtureMode    bool
 }
 
 // defaultRequestTimeout is the fallback when WORKER_REQUEST_TIMEOUT_SECONDS is
@@ -84,7 +85,7 @@ type LLM struct {
 const defaultVertexLocation = "global"
 
 func LoadWorker() Worker {
-	return Worker{
+	cfg := Worker{
 		Port:                     get("PORT", "8080"),
 		Env:                      get("ENV", "production"),
 		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
@@ -100,7 +101,12 @@ func LoadWorker() Worker {
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
 		RequestTimeout: getDurationSeconds("WORKER_REQUEST_TIMEOUT_SECONDS", defaultRequestTimeout),
+		FixtureMode:    os.Getenv("E2E_WORKER_FIXTURE") == "true",
 	}
+	if cfg.FixtureMode && cfg.Env != "local" && cfg.Env != "test" && cfg.Env != "development" && cfg.Env != "dev" {
+		panic("E2E_WORKER_FIXTURE is only allowed in local/test/development")
+	}
+	return cfg
 }
 
 // getDurationSeconds reads an integer-seconds env var. A missing, empty, or

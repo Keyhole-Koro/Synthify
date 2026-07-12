@@ -132,7 +132,11 @@ export function useWorkspaceSession({
 
   const commitName = useCallback(async () => {
     const nextName = state.rename.draftName.trim();
-    if (!nextName || nextName === workspaceName) {
+    if (!nextName) {
+      dispatch({ type: 'rename/saveFailed', message: 'ワークスペース名を入力してください。' });
+      return;
+    }
+    if (nextName === workspaceName) {
       dispatch({ type: 'rename/cancelled', currentName: workspaceName });
       return;
     }

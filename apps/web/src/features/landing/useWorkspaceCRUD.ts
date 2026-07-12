@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { signOutSession, type AuthUser } from '@/features/auth/session';
-import { createWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
+import { createWorkspace, deleteWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
 
 const NEW_WORKSPACE_NAME = '新規ワークスペース';
 
@@ -62,6 +62,12 @@ export function useWorkspaceCRUD({
     return ws;
   }, [handleOpenWorkspace, markWorkspaceVerified, setPendingRevealNodeId, setWorkspaces]);
 
+  const handleDeleteWorkspace = useCallback(async (workspaceId: string) => {
+    await deleteWorkspace(workspaceId);
+    setWorkspaces((prev) => prev.filter((workspace) => workspace.workspaceId !== workspaceId));
+    setPendingRevealNodeId(null);
+  }, [setPendingRevealNodeId, setWorkspaces]);
+
   const handleLogout = useCallback(async () => {
     const previousUser = user;
     await signOutSession();
@@ -74,6 +80,7 @@ export function useWorkspaceCRUD({
     handleRenameWorkspace,
     handleAutoNameWorkspace,
     handleCreateWorkspace,
+    handleDeleteWorkspace,
     handleLogout,
   };
 }

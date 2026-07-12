@@ -54,6 +54,30 @@ jobs:
         working-directory: apps/web
         run: bun run build
 
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Chromium E2E (PR smoke / main full)
+        working-directory: apps/web
+        env:
+          E2E_WORKER_FIXTURE: "true"
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            bun run e2e:pr
+          else
+            bun run e2e
+          fi
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 14
+
   notify:
     needs: web
     if: failure()

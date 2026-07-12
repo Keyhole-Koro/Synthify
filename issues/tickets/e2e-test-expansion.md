@@ -23,80 +23,80 @@ Playwrightの基盤と、以下の初期シナリオは導入済み。
 
 ### Workspace CRUD
 
-- [ ] workspace名を変更できる
-- [ ] リロード後も変更後の名前が表示される
-- [ ] workspaceを削除できる
-- [ ] 削除後に一覧およびローカルキャッシュから消える
-- [ ] リロードしても削除済みworkspaceが復活しない
-- [ ] 空文字や上限超過など不正な名前に対するエラーが表示される
+- [x] workspace名を変更できる
+- [x] リロード後も変更後の名前が表示される
+- [x] workspaceを削除できる
+- [x] 削除後に一覧およびローカルキャッシュから消える
+- [x] リロードしても削除済みworkspaceが復活しない
+- [x] 空文字や上限超過など不正な名前に対するエラーが表示される
 
 ### セッション分離
 
-- [ ] ログイン状態がリロード後も復元される
-- [ ] ログアウト後に認証必須のworkspaceが表示されない
-- [ ] ユーザーAのキャッシュがユーザーBに表示されない
-- [ ] 別ユーザーへ切り替えた際にpaperのopen stateが混ざらない
+- [x] ログイン状態がリロード後も復元される
+- [x] ログアウト後に認証必須のworkspaceが表示されない
+- [x] ユーザーAのキャッシュがユーザーBに表示されない
+- [x] 別ユーザーへ切り替えた際にpaperのopen stateが混ざらない
 
 ### 公開リンク
 
-- [ ] ownerがworkspaceの公開リンクを作成できる
-- [ ] 未ログインの新しいbrowser contextで公開リンクを閲覧できる
-- [ ] viewerには編集操作が表示されない、または実行できない
-- [ ] revoke後は同じリンクで閲覧できない
-- [ ] 不正または期限切れtokenで適切なエラーが表示される
+- [x] ownerがworkspaceの公開リンクを作成できる
+- [x] 未ログインの新しいbrowser contextで公開リンクを閲覧できる
+- [x] viewerには編集操作が表示されない、または実行できない
+- [x] revoke後は同じリンクで閲覧できない
+- [x] 不正または期限切れtokenで適切なエラーが表示される
 
 ## Phase 2: アップロードと非同期処理
 
 ### テスト用worker fixture
 
-- [ ] local/test環境限定で固定された処理結果を返せる
-- [ ] productionではfixtureモードを有効化できない
-- [ ] queued/running/completed/failedを決定的に再現できる
-- [ ] 固定fixtureから生成されたtree内容を検証できる
+- [x] local/test環境限定で固定された処理結果を返せる
+- [x] productionではfixtureモードを有効化できない
+- [x] queued/running/completed/failedを決定的に再現できる
+- [x] 固定fixtureから生成されたtree内容を検証できる
 
 ### アップロード正常系
 
-- [ ] ファイル選択からfake GCSへの直接アップロードまで成功する
-- [ ] `StartProcessing`後に進捗表示が出る
-- [ ] Firestoreの完了通知後にworkspaceへ成果物が反映される
-- [ ] 完了後にリロードしても成果物が表示される
-- [ ] processing中のリロード後も進捗を復元できる
+- [x] ファイル選択からfake GCSへの直接アップロードまで成功する
+- [x] `StartProcessing`後に進捗表示が出る
+- [x] Firestoreの完了通知後にworkspaceへ成果物が反映される
+- [x] 完了後にリロードしても成果物が表示される
+- [x] processing中のリロード後も進捗を復元できる
 
 ### アップロード異常系
 
-- [ ] 実行形式など禁止ファイルがブラウザ上で拒否される
-- [ ] サイズ超過時に適切なエラーが表示される
-- [ ] GCSアップロード失敗時に再試行可能な状態になる
-- [ ] processing開始失敗時にエラーが表示される
-- [ ] worker失敗時に失敗理由と再試行導線が表示される
-- [ ] Firestore購読エラー時に画面が無期限のloadingにならない
+- [x] 実行形式など禁止ファイルがブラウザ上で拒否される
+- [x] サイズ超過時に適切なエラーが表示される
+- [x] GCSアップロード失敗時に再試行可能な状態になる
+- [x] processing開始失敗時にエラーが表示される
+- [x] worker失敗時に失敗理由と再試行導線が表示される
+- [x] Firestore購読エラー時に画面が無期限のloadingにならない
 
 ## Phase 3: Paper操作・認可・課金境界
 
 ### Paper-in-paper
 
-- [ ] workspaceから子paperを開閉できる
-- [ ] 複数階層のpaperを辿れる
-- [ ] リロード後にopen stateが復元される
-- [ ] iframe内の生成本文が表示される
-- [ ] iframe内の子paperリンクから対象paperを開ける
+- [x] workspaceから子paperを開閉できる
+- [x] 複数階層のpaperを辿れる
+- [x] リロード後にopen stateが復元される
+- [x] iframe内の生成本文が表示される
+- [x] iframe内の子paperリンクから対象paperを開ける
 
 ### 複数ユーザー認可
 
-- [ ] ownerがeditor/viewerを招待できる
-- [ ] editorは許可された編集操作を実行できる
-- [ ] viewerは閲覧のみ可能である
-- [ ] member削除後はworkspaceへアクセスできない
-- [ ] UIで操作を隠すだけでなく、APIも権限違反を拒否する
+- [x] ownerがeditor/viewerを招待できる
+- [x] editorは許可された編集操作を実行できる
+- [x] viewerは閲覧のみ可能である
+- [x] member削除後はworkspaceへアクセスできない
+- [x] UIで操作を隠すだけでなく、APIも権限違反を拒否する
 
 ### 課金境界
 
-- [ ] free planの制限とupgrade導線が表示される
-- [ ] quota到達時にアップロードが拒否される
-- [ ] Checkout開始要求が正しく送信される
-- [ ] Billing Portal開始要求が正しく送信される
-- [ ] budget設定を更新できる
-- [ ] 課金API失敗時にユーザー向けエラーが表示される
+- [x] free planの制限とupgrade導線が表示される
+- [x] quota到達時にアップロードが拒否される
+- [x] Checkout開始要求が正しく送信される
+- [x] Billing Portal開始要求が正しく送信される
+- [x] budget設定を更新できる
+- [x] 課金API失敗時にユーザー向けエラーが表示される
 
 ## CIでの実行方針
 
@@ -108,12 +108,12 @@ Playwrightの基盤と、以下の初期シナリオは導入済み。
 
 ## 完了条件
 
-- [ ] 各シナリオが独立したテストデータで実行できる
+- [x] 各シナリオが独立したテストデータで実行できる
 - [ ] 同じsuiteを5回連続実行してflaky failureがない
-- [ ] 通常E2EはGoogle、Gemini、Stripeの稼働状況に依存しない
-- [ ] PR向けsuiteが10分以内、目標3分以内で完了する
-- [ ] 失敗時にPlaywright traceからブラウザ操作と通信失敗を特定できる
-- [ ] ローカル実行方法とCIでの調査方法がREADMEに記載されている
+- [x] 通常E2EはGoogle、Gemini、Stripeの稼働状況に依存しない
+- [x] PR向けsuiteが10分以内、目標3分以内で完了する
+- [x] 失敗時にPlaywright traceからブラウザ操作と通信失敗を特定できる
+- [x] ローカル実行方法とCIでの調査方法がREADMEに記載されている
 
 ## 推奨実装順
 

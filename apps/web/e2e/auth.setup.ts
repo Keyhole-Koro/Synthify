@@ -1,4 +1,4 @@
-import { expect, test as setup } from '@playwright/test';
+import { expect, test as setup } from './fixtures/test';
 import { fileURLToPath } from 'node:url';
 import { createTestUser, signInThroughApp } from './helpers/firebase-emulator';
 

@@ -30,6 +30,7 @@ export function WorkspaceDropzone({
   onClick,
 }: WorkspaceDropzoneProps) {
   const showLargeDropzone = isTreeMissing || !hasChildItems;
+  const canChooseFile = !uploading && (!activeJobId || jobStatusFailed);
 
   if (!showLargeDropzone) {
     return (
@@ -52,10 +53,10 @@ export function WorkspaceDropzone({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
-      onClick={() => !uploading && !activeJobId && onClick()}
+      onClick={() => canChooseFile && onClick()}
       className={[
         'group flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all select-none',
-        activeJobId ? 'cursor-default' : 'cursor-pointer',
+        canChooseFile ? 'cursor-pointer' : 'cursor-default',
         isDragging
           ? 'border-indigo-400 bg-indigo-50/60'
           : 'border-stone-200 hover:border-indigo-300 hover:bg-indigo-50/40',
@@ -83,7 +84,7 @@ export function WorkspaceDropzone({
       </div>
       <div className="w-full">
         <p className="text-sm font-medium text-stone-700">
-          {uploading ? 'アップロード中...' : activeJobId ? '解析中' : isDragging ? 'ここにドロップ' : 'ファイルをアップロード'}
+          {uploading ? 'アップロード中...' : jobStatusFailed ? '再試行' : activeJobId ? '解析中' : isDragging ? 'ここにドロップ' : 'ファイルをアップロード'}
         </p>
         {!uploading && !activeJobId && (
           <p className="mt-0.5 text-[11px] text-stone-400">クリックまたはドラッグ&ドロップ</p>

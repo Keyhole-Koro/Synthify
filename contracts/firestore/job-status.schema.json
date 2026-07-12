@@ -13,7 +13,6 @@
     "treeId",
     "status",
     "currentStage",
-    "errorMessage",
     "updatedAt"
   ],
   "properties": {

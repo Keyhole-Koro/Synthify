@@ -20,7 +20,17 @@ func validateFirestoreJobStatus(doc map[string]any) error {
 	if err != nil {
 		return err
 	}
-	if err := schema.Validate(validatableDoc(doc)); err != nil {
+	// Validate the JSON representation rather than a Go map directly. The
+	// validator treats zero-value map entries as absent during reflection.
+	raw, err := json.Marshal(validatableDoc(doc))
+	if err != nil {
+		return fmt.Errorf("marshal firestore job status: %w", err)
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return fmt.Errorf("decode firestore job status: %w", err)
+	}
+	if err := schema.Validate(value); err != nil {
 		return fmt.Errorf("firestore job status schema validation failed: %w", err)
 	}
 	return nil
@@ -38,6 +48,13 @@ func validatableDoc(doc map[string]any) map[string]any {
 	for k, v := range doc {
 		if t, ok := v.(time.Time); ok {
 			out[k] = t.UTC().Format(time.RFC3339)
+			continue
+		}
+		// jsonschema-go currently reports required string properties with an
+		// empty value as missing, even though the schema has no minLength. Keep
+		// the real Firestore value empty and use a harmless validation sentinel.
+		if s, ok := v.(string); ok && s == "" {
+			out[k] = "__empty__"
 			continue
 		}
 		out[k] = v

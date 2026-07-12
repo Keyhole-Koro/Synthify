@@ -20,7 +20,6 @@ const FirestoreJobStatusJSONSchema = `{
     "treeId",
     "status",
     "currentStage",
-    "errorMessage",
     "updatedAt"
   ],
   "properties": {
@@ -137,10 +136,10 @@ const FirestoreJobStatusJSONSchema = `{
 type FirestoreJobStatusState string
 
 const (
-	FirestoreJobStatusStateQueued FirestoreJobStatusState = "queued"
-	FirestoreJobStatusStateRunning FirestoreJobStatusState = "running"
+	FirestoreJobStatusStateQueued    FirestoreJobStatusState = "queued"
+	FirestoreJobStatusStateRunning   FirestoreJobStatusState = "running"
 	FirestoreJobStatusStateSucceeded FirestoreJobStatusState = "succeeded"
-	FirestoreJobStatusStateFailed FirestoreJobStatusState = "failed"
+	FirestoreJobStatusStateFailed    FirestoreJobStatusState = "failed"
 )
 
 type FirestoreJobStatusSuggestedWorkspaceNameSource string
@@ -153,56 +152,56 @@ type FirestoreJobStatusReason string
 
 const (
 	FirestoreJobStatusReasonVertexModelNotFound FirestoreJobStatusReason = "vertex_model_not_found"
-	FirestoreJobStatusReasonQuotaExceeded FirestoreJobStatusReason = "quota_exceeded"
-	FirestoreJobStatusReasonAgentError FirestoreJobStatusReason = "agent_error"
-	FirestoreJobStatusReasonCancelled FirestoreJobStatusReason = "cancelled"
-	FirestoreJobStatusReasonInternal FirestoreJobStatusReason = "internal"
+	FirestoreJobStatusReasonQuotaExceeded       FirestoreJobStatusReason = "quota_exceeded"
+	FirestoreJobStatusReasonAgentError          FirestoreJobStatusReason = "agent_error"
+	FirestoreJobStatusReasonCancelled           FirestoreJobStatusReason = "cancelled"
+	FirestoreJobStatusReasonInternal            FirestoreJobStatusReason = "internal"
 )
 
 const (
-	FirestoreJobStatusFieldJobID = "jobId"
-	FirestoreJobStatusFieldJobType = "jobType"
-	FirestoreJobStatusFieldDocumentID = "documentId"
-	FirestoreJobStatusFieldWorkspaceID = "workspaceId"
-	FirestoreJobStatusFieldTreeID = "treeId"
-	FirestoreJobStatusFieldStatus = "status"
-	FirestoreJobStatusFieldCurrentStage = "currentStage"
-	FirestoreJobStatusFieldProgress = "progress"
-	FirestoreJobStatusFieldMessage = "message"
-	FirestoreJobStatusFieldLatestActivity = "latestActivity"
-	FirestoreJobStatusFieldErrorMessage = "errorMessage"
-	FirestoreJobStatusFieldSuggestedWorkspaceName = "suggestedWorkspaceName"
+	FirestoreJobStatusFieldJobID                        = "jobId"
+	FirestoreJobStatusFieldJobType                      = "jobType"
+	FirestoreJobStatusFieldDocumentID                   = "documentId"
+	FirestoreJobStatusFieldWorkspaceID                  = "workspaceId"
+	FirestoreJobStatusFieldTreeID                       = "treeId"
+	FirestoreJobStatusFieldStatus                       = "status"
+	FirestoreJobStatusFieldCurrentStage                 = "currentStage"
+	FirestoreJobStatusFieldProgress                     = "progress"
+	FirestoreJobStatusFieldMessage                      = "message"
+	FirestoreJobStatusFieldLatestActivity               = "latestActivity"
+	FirestoreJobStatusFieldErrorMessage                 = "errorMessage"
+	FirestoreJobStatusFieldSuggestedWorkspaceName       = "suggestedWorkspaceName"
 	FirestoreJobStatusFieldSuggestedWorkspaceNameSource = "suggestedWorkspaceNameSource"
-	FirestoreJobStatusFieldCreatedAt = "createdAt"
-	FirestoreJobStatusFieldStartedAt = "startedAt"
-	FirestoreJobStatusFieldUpdatedAt = "updatedAt"
-	FirestoreJobStatusFieldCompletedAt = "completedAt"
-	FirestoreJobStatusFieldExpiresAt = "expiresAt"
-	FirestoreJobStatusFieldTreeChanged = "treeChanged"
-	FirestoreJobStatusFieldStageSummary = "stageSummary"
-	FirestoreJobStatusFieldReason = "reason"
+	FirestoreJobStatusFieldCreatedAt                    = "createdAt"
+	FirestoreJobStatusFieldStartedAt                    = "startedAt"
+	FirestoreJobStatusFieldUpdatedAt                    = "updatedAt"
+	FirestoreJobStatusFieldCompletedAt                  = "completedAt"
+	FirestoreJobStatusFieldExpiresAt                    = "expiresAt"
+	FirestoreJobStatusFieldTreeChanged                  = "treeChanged"
+	FirestoreJobStatusFieldStageSummary                 = "stageSummary"
+	FirestoreJobStatusFieldReason                       = "reason"
 )
 
 type FirestoreJobStatus struct {
-	JobID string `firestore:"jobId" json:"jobId"`
-	JobType string `firestore:"jobType" json:"jobType"`
-	DocumentID string `firestore:"documentId" json:"documentId"`
-	WorkspaceID string `firestore:"workspaceId" json:"workspaceId"`
-	TreeID string `firestore:"treeId" json:"treeId"`
-	Status FirestoreJobStatusState `firestore:"status" json:"status"`
-	CurrentStage string `firestore:"currentStage" json:"currentStage"`
-	Progress *int `firestore:"progress,omitempty" json:"progress,omitempty"`
-	Message *string `firestore:"message,omitempty" json:"message,omitempty"`
-	LatestActivity *string `firestore:"latestActivity,omitempty" json:"latestActivity,omitempty"`
-	ErrorMessage string `firestore:"errorMessage" json:"errorMessage"`
-	SuggestedWorkspaceName *string `firestore:"suggestedWorkspaceName,omitempty" json:"suggestedWorkspaceName,omitempty"`
+	JobID                        string                                          `firestore:"jobId" json:"jobId"`
+	JobType                      string                                          `firestore:"jobType" json:"jobType"`
+	DocumentID                   string                                          `firestore:"documentId" json:"documentId"`
+	WorkspaceID                  string                                          `firestore:"workspaceId" json:"workspaceId"`
+	TreeID                       string                                          `firestore:"treeId" json:"treeId"`
+	Status                       FirestoreJobStatusState                         `firestore:"status" json:"status"`
+	CurrentStage                 string                                          `firestore:"currentStage" json:"currentStage"`
+	Progress                     *int                                            `firestore:"progress,omitempty" json:"progress,omitempty"`
+	Message                      *string                                         `firestore:"message,omitempty" json:"message,omitempty"`
+	LatestActivity               *string                                         `firestore:"latestActivity,omitempty" json:"latestActivity,omitempty"`
+	ErrorMessage                 *string                                         `firestore:"errorMessage,omitempty" json:"errorMessage,omitempty"`
+	SuggestedWorkspaceName       *string                                         `firestore:"suggestedWorkspaceName,omitempty" json:"suggestedWorkspaceName,omitempty"`
 	SuggestedWorkspaceNameSource *FirestoreJobStatusSuggestedWorkspaceNameSource `firestore:"suggestedWorkspaceNameSource,omitempty" json:"suggestedWorkspaceNameSource,omitempty"`
-	CreatedAt *string `firestore:"createdAt,omitempty" json:"createdAt,omitempty"`
-	StartedAt *string `firestore:"startedAt,omitempty" json:"startedAt,omitempty"`
-	UpdatedAt string `firestore:"updatedAt" json:"updatedAt"`
-	CompletedAt *string `firestore:"completedAt,omitempty" json:"completedAt,omitempty"`
-	ExpiresAt *time.Time `firestore:"expiresAt,omitempty" json:"expiresAt,omitempty"`
-	TreeChanged *bool `firestore:"treeChanged,omitempty" json:"treeChanged,omitempty"`
-	StageSummary []string `firestore:"stageSummary,omitempty" json:"stageSummary,omitempty"`
-	Reason *FirestoreJobStatusReason `firestore:"reason,omitempty" json:"reason,omitempty"`
+	CreatedAt                    *string                                         `firestore:"createdAt,omitempty" json:"createdAt,omitempty"`
+	StartedAt                    *string                                         `firestore:"startedAt,omitempty" json:"startedAt,omitempty"`
+	UpdatedAt                    string                                          `firestore:"updatedAt" json:"updatedAt"`
+	CompletedAt                  *string                                         `firestore:"completedAt,omitempty" json:"completedAt,omitempty"`
+	ExpiresAt                    *time.Time                                      `firestore:"expiresAt,omitempty" json:"expiresAt,omitempty"`
+	TreeChanged                  *bool                                           `firestore:"treeChanged,omitempty" json:"treeChanged,omitempty"`
+	StageSummary                 []string                                        `firestore:"stageSummary,omitempty" json:"stageSummary,omitempty"`
+	Reason                       *FirestoreJobStatusReason                       `firestore:"reason,omitempty" json:"reason,omitempty"`
 }

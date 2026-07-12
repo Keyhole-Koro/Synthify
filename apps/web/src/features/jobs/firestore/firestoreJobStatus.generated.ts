@@ -12,7 +12,7 @@ export type FirestoreJobStatus = {
   progress?: number;
   message?: string;
   latestActivity?: string;
-  errorMessage: string;
+  errorMessage?: string;
   suggestedWorkspaceName?: string;
   suggestedWorkspaceNameSource?: "brief.topic";
   createdAt?: string;

@@ -20,7 +20,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // Next dev + the Go services share one local machine; unbounded browser
+  // workers can starve page compilation and cause navigation timeouts.
+  workers: process.env.CI ? 1 : 2,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'html',
   use: {
     baseURL,
@@ -44,7 +46,7 @@ export default defineConfig({
     : {
         // Build the only local image explicitly: Compose v5's bake path is
         // unstable on some Docker Desktop/WSL builds.
-        command: 'docker build -t synthify-dev-firebase-auth ../../docker/firebase-emulator && docker compose -f ../../compose.yaml up --no-build frontend backend worker',
+        command: 'docker build -t synthify-dev-firebase-auth ../../docker/firebase-emulator && E2E_WORKER_FIXTURE=true docker compose -f ../../compose.yaml up --no-build frontend backend worker',
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 300_000,

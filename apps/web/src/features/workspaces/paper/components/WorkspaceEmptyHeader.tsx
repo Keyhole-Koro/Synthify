@@ -11,6 +11,7 @@ interface WorkspaceEmptyHeaderProps {
   onStartRename: () => void;
   onCommitName: () => void | Promise<void>;
   onCancelRename: () => void;
+  canEdit?: boolean;
 }
 
 // WorkspaceEmptyHeader is the "Workspace" eyebrow + inline rename form that
@@ -26,6 +27,7 @@ export function WorkspaceEmptyHeader({
   onStartRename,
   onCommitName,
   onCancelRename,
+  canEdit = true,
 }: WorkspaceEmptyHeaderProps) {
   return (
     <div>
@@ -50,6 +52,8 @@ export function WorkspaceEmptyHeader({
           <button
             type="button"
             disabled={savingName}
+            onPointerDown={(e) => e.preventDefault()}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={onCancelRename}
             className="rounded-md border border-stone-200 px-2 py-1 text-[11px] text-stone-500 disabled:opacity-60"
           >
@@ -60,7 +64,8 @@ export function WorkspaceEmptyHeader({
         <button
           type="button"
           onClick={onStartRename}
-          className="mt-0.5 block max-w-full truncate text-left text-lg font-semibold tracking-tight text-stone-800 hover:text-indigo-500"
+          disabled={!canEdit}
+          className="mt-0.5 block max-w-full truncate text-left text-lg font-semibold tracking-tight text-stone-800 enabled:hover:text-indigo-500"
         >
           {workspaceName}
         </button>

@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   createShareLink,
+  getWorkspace,
+  inviteMember,
   listShareLinks,
+  removeMember,
+  updateMemberRole,
   revokeShareLink,
   WorkspaceRole,
   type ShareLink,
+  type WorkspaceMember,
 } from '@/features/workspaces/api';
 import { toAppError } from '@/lib/error_normalize';
 import { InlineError } from '@/components/error/InlineError';
@@ -27,8 +32,9 @@ function roleLabel(role: WorkspaceRole): string {
 }
 
 function shareLinkUrl(token: string): string {
-  if (typeof window === 'undefined') return `/view/${token}`;
-  return `${window.location.origin}/view/${token}`;
+  const path = `/view?token=${encodeURIComponent(token)}`;
+  if (typeof window === 'undefined') return path;
+  return `${window.location.origin}${path}`;
 }
 
 export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
@@ -37,6 +43,9 @@ export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copiedToken, setCopiedToken] = useState('');
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [email, setEmail] = useState('');
+  const [memberRole, setMemberRole] = useState<WorkspaceRole>(WorkspaceRole.VIEWER);
 
   const run = useCallback(async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -54,6 +63,10 @@ export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
     listShareLinks(workspaceId)
       .then(setLinks)
       .catch((err) => setError(toAppError(err).message || 'リンクの取得に失敗しました。'));
+  }, [workspaceId]);
+
+  useEffect(() => {
+    getWorkspace(workspaceId).then(({ members: next }) => setMembers(next)).catch(() => {});
   }, [workspaceId]);
 
   const copy = useCallback(async (token: string) => {
@@ -82,6 +95,22 @@ export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
 
   const activeLinks = links.filter((l) => !l.revoked);
 
+  const onInvite = () => run(async () => {
+    const member = await inviteMember(workspaceId, email.trim(), memberRole);
+    setMembers((prev) => [...prev.filter((item) => item.userId !== member.userId), member]);
+    setEmail('');
+  });
+
+  const onRemoveMember = (userId: string) => run(async () => {
+    await removeMember(workspaceId, userId);
+    setMembers((prev) => prev.filter((item) => item.userId !== userId));
+  });
+
+  const onMemberRoleChange = (userId: string, nextRole: WorkspaceRole) => run(async () => {
+    const member = await updateMemberRole(workspaceId, userId, nextRole);
+    setMembers((prev) => prev.map((item) => item.userId === userId ? member : item));
+  });
+
   return (
     <div className="border-t border-stone-100 px-5 py-4 text-sm">
       <div className="mb-1 flex items-center justify-between">
@@ -95,6 +124,26 @@ export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
       </p>
 
       {error && <InlineError message={error} className="mb-2" />}
+
+      <div className="mb-4 border-b border-stone-100 pb-4">
+        <h4 className="mb-2 text-[11px] font-semibold text-stone-600">メンバーを招待</h4>
+        <div className="flex gap-2">
+          <input aria-label="招待メールアドレス" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="member@example.com" className="min-w-0 flex-1 rounded-md border border-stone-200 px-2 py-1 text-[12px]" />
+          <select aria-label="メンバー権限" value={memberRole} onChange={(e) => setMemberRole(Number(e.target.value) as WorkspaceRole)} className="rounded-md border border-stone-200 px-2 py-1 text-[12px]">
+            {LINK_ROLES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+          </select>
+          <button type="button" disabled={busy || !email.trim()} onClick={onInvite} className="rounded-md bg-stone-900 px-3 py-1 text-[12px] text-white disabled:opacity-50">招待</button>
+        </div>
+        {members.length > 0 && <ul className="mt-2 space-y-1">{members.map((member) => (
+          <li key={member.userId} className="flex items-center gap-2 text-[11px] text-stone-600">
+            <span className="min-w-0 flex-1 truncate">{member.email}</span>
+            <select aria-label={`${member.email} の権限`} value={member.role} onChange={(event) => onMemberRoleChange(member.userId, Number(event.target.value) as WorkspaceRole)} className="rounded border border-stone-200 bg-white px-1 py-0.5">
+              {LINK_ROLES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+            <button type="button" onClick={() => onRemoveMember(member.userId)} className="text-red-500">削除</button>
+          </li>
+        ))}</ul>}
+      </div>
 
       {/* 入口は一つ: 権限を選んでリンクを生成 (生成と同時にコピー) */}
       <div className="flex items-center gap-2">

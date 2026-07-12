@@ -124,6 +124,7 @@ export function useLandingPageController() {
   // same closures everywhere.
   const renameRef = useRef<(workspaceId: string, name: string) => Promise<unknown>>(async () => undefined);
   const autoNameRef = useRef<(workspaceId: string, suggestedName: string) => Promise<void>>(async () => {});
+  const deleteRef = useRef<(workspaceId: string) => Promise<void>>(async () => {});
 
   const tree = useWorkspaceTree(
     getWorkspaceName,
@@ -135,6 +136,7 @@ export function useLandingPageController() {
     workspaces,
     useCallback((workspaceId: string, name: string) => renameRef.current(workspaceId, name) as Promise<import('@/features/workspaces/api').Workspace>, []),
     useCallback((workspaceId: string, suggestedName: string) => autoNameRef.current(workspaceId, suggestedName), []),
+    useCallback((workspaceId: string) => deleteRef.current(workspaceId), []),
     runtimeState.getRuntimeState,
     runtimeState.clearRuntimeState,
     useCallback((workspaceId: string) => verifiedWorkspaceIds.has(workspaceId), [verifiedWorkspaceIds]),
@@ -163,6 +165,9 @@ export function useLandingPageController() {
   useEffect(() => {
     autoNameRef.current = crud.handleAutoNameWorkspace;
   }, [crud.handleAutoNameWorkspace]);
+  useEffect(() => {
+    deleteRef.current = crud.handleDeleteWorkspace;
+  }, [crud.handleDeleteWorkspace]);
   const { handleCreateWorkspace } = crud;
 
   const handleRootUpload = useRootUpload({

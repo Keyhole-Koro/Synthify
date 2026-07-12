@@ -19,6 +19,7 @@ export interface WorkspacePaperFactoryDeps {
   onUploadFile: (workspaceId: string, file: File) => Promise<{ jobId: string; documentId: string }>;
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>;
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void> | void;
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>;
   onProcessingComplete: (workspaceId: string) => Promise<void> | void;
 }
 
@@ -109,6 +110,7 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
           initialUploadMessage={runtimeState.initialUploadMessage}
           onUploadFile={(file) => deps.onUploadFile(workspaceId, file)}
           onRenameWorkspace={(name) => deps.onRenameWorkspace(workspaceId, name)}
+          onDeleteWorkspace={() => deps.onDeleteWorkspace(workspaceId)}
           onSuggestedWorkspaceName={(name) => deps.onSuggestedWorkspaceName(workspaceId, name)}
           onProcessingComplete={() => deps.onProcessingComplete(workspaceId)}
         />

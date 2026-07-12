@@ -30,6 +30,22 @@ func TestLoadWorker_RequestTimeoutDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadWorker_FixtureModeIsLocalOnly(t *testing.T) {
+	t.Setenv("GCS_FUSE_MOUNT_PATH", t.TempDir())
+	t.Setenv("E2E_WORKER_FIXTURE", "true")
+	t.Setenv("ENV", "local")
+	if cfg := LoadWorker(); !cfg.FixtureMode {
+		t.Fatal("FixtureMode = false, want true")
+	}
+	t.Setenv("ENV", "production")
+	defer func() {
+		if recover() == nil {
+			t.Fatal("production fixture mode did not panic")
+		}
+	}()
+	_ = LoadWorker()
+}
+
 func TestLoadWorker_DefaultNewRelicAppNameIsLocalWhenEnvUnset(t *testing.T) {
 	t.Setenv("GCS_FUSE_MOUNT_PATH", t.TempDir())
 	t.Setenv("ENV", "")

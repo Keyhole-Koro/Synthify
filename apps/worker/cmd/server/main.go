@@ -69,6 +69,13 @@ func main() {
 	}
 	planner := worker.NewPlanner(store, adkModel, appLogger)
 	evaluator := worker.NewJobEvaluator(store, embedder, appLogger)
+	var processor interface {
+		Process(context.Context, worker.ExecutePlanRequest) error
+	} = workerService
+	if cfg.FixtureMode {
+		appLogger.Info("worker.fixture_enabled")
+		processor = worker.NewFixtureProcessor(store, notifier)
+	}
 
 	mux := http.NewServeMux()
 	handlerOpts := append(
@@ -76,7 +83,7 @@ func main() {
 		observability.MaskInternalErrorsHandlerOptions(appLogger)...,
 	)
 	mux.Handle(workerv1connect.NewWorkerServiceHandler(
-		worker.NewConnectHandler(workerService, store, planner, evaluator, appLogger),
+		worker.NewConnectHandler(processor, store, planner, evaluator, appLogger),
 		handlerOpts...,
 	))
 	// Cloud Tasks delivers job dispatches here as plain JSON POSTs. The
@@ -85,7 +92,7 @@ func main() {
 	// Cloud Run (allow_unauthenticated=false + run.invoker on the Cloud
 	// Tasks SA).
 	mux.Handle("POST /internal/dispatch-job",
-		worker.NewInternalDispatchHandler(workerService, planner, appLogger))
+		worker.NewInternalDispatchHandler(processor, planner, appLogger))
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)

@@ -143,6 +143,7 @@ services:
       NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
       NEW_RELIC_APP_NAME: ${NEW_RELIC_WORKER_APP_NAME:-synthify-worker-local}
       GCS_FUSE_MOUNT_PATH: /mnt/gcs/synthify-uploads
+      E2E_WORKER_FIXTURE: ${E2E_WORKER_FIXTURE:-false}
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/synthify-worker"]
       interval: 5s

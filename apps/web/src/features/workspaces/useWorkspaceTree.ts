@@ -29,6 +29,7 @@ export function useWorkspaceTree(
   workspaces: Workspace[],
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>,
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void>,
+  onDeleteWorkspace: (workspaceId: string) => Promise<void>,
   getWorkspacePaperRuntimeState: (workspaceId: string) => WorkspacePaperRuntimeState = () => ({}),
   onWorkspaceRuntimeStateComplete: (workspaceId: string) => void = () => {},
   canFetchWorkspaceTree: (workspaceId: string) => boolean = () => true,
@@ -156,10 +157,11 @@ export function useWorkspaceTree(
       onUploadFile: handleUploadWorkspaceFile,
       onRenameWorkspace,
       onSuggestedWorkspaceName,
+      onDeleteWorkspace,
       onProcessingComplete,
     }),
     [getWorkspace, isLoading, getWorkspaceName, getWorkspacePaperRuntimeState, handleUploadWorkspaceFile,
-      onRenameWorkspace, onSuggestedWorkspaceName, onProcessingComplete],
+      onRenameWorkspace, onSuggestedWorkspaceName, onDeleteWorkspace, onProcessingComplete],
   );
 
   const runProjectWorkspacePapers = useCallback((workspaceId: string): Paper[] => {

@@ -82,11 +82,11 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, name, userID str
 }
 
 func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error) {
-	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, id, userID)
+	role, err := s.workspaces.GetWorkspaceRole(ctx, id, userID)
 	if err != nil {
 		return nil, err
 	}
-	if !ok {
+	if !role.CanWrite() {
 		return nil, domain.ErrForbidden
 	}
 	ws, err := s.workspaces.UpdateWorkspaceName(ctx, id, name)
@@ -97,11 +97,11 @@ func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, id, name, userID
 }
 
 func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, id, userID string) error {
-	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, id, userID)
+	role, err := s.workspaces.GetWorkspaceRole(ctx, id, userID)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if !role.CanManageMembers() {
 		return domain.ErrForbidden
 	}
 	return s.workspaces.DeleteWorkspace(ctx, id)
