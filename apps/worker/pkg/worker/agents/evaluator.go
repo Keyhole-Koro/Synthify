@@ -8,6 +8,8 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 )
 
+const evaluationPassScore = 70
+
 type Evaluator struct {
 	llm llm.Client
 }
@@ -48,5 +50,13 @@ Return findings as a list of specific issues found.`,
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return nil, fmt.Errorf("parse evaluation result: %w", err)
 	}
+	if out.Score < 0 || out.Score > 100 {
+		return nil, fmt.Errorf("invalid evaluation score %d: must be between 0 and 100", out.Score)
+	}
+
+	// Do not trust the model to keep its boolean consistent with the numeric
+	// score. The score is the canonical value and the pass threshold is enforced
+	// deterministically so contradictory model output cannot pass evaluation.
+	out.Passed = out.Score >= evaluationPassScore
 	return &out, nil
 }
