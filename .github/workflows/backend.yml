@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - apps/api/**
+      - apps/eval/**
       - apps/worker/**
       - internal/platform/**
       - go.mod
@@ -15,6 +16,7 @@ on:
       - main
     paths:
       - apps/api/**
+      - apps/eval/**
       - apps/worker/**
       - internal/platform/**
       - go.mod
