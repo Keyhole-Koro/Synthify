@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -72,7 +73,7 @@ func TestEvaluateTree_DerivesPassedFromScore(t *testing.T) {
 
 func TestEvaluateTree_RejectsOutOfRangeScore(t *testing.T) {
 	for _, score := range []int{-1, 101} {
-		t.Run(string(rune(score+128)), func(t *testing.T) {
+		t.Run(fmt.Sprintf("score_%d", score), func(t *testing.T) {
 			raw, err := json.Marshal(evaluationOutput{Score: score})
 			if err != nil {
 				t.Fatal(err)
