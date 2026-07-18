@@ -13,6 +13,7 @@ import (
 	"time"
 
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
+	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/config"
 	"github.com/synthify/backend/apps/api/internal/handler"
@@ -20,7 +21,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/infrastructure/stripe"
 	apiworker "github.com/synthify/backend/apps/api/internal/infrastructure/worker"
 	apimiddleware "github.com/synthify/backend/apps/api/internal/middleware"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1connect "github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	"github.com/synthify/backend/internal/platform/observability"
@@ -52,7 +52,7 @@ func main() {
 	// immediately and Cloud Tasks handles cold-start retries on the
 	// worker side. Local runs that leave these unset still get the
 	// legacy synchronous Connect dispatcher driven by WORKER_BASE_URL.
-	var dispatcher service.WorkerDispatcher
+	var dispatcher application.WorkerDispatcher
 	if cfg.WorkerDispatch.CloudTasksQueue != "" {
 		ctDispatcher, err := apiworker.NewCloudTasksDispatcher(ctx, apiworker.CloudTasksDispatcherConfig{
 			QueuePath:        cfg.WorkerDispatch.CloudTasksQueue,
@@ -96,7 +96,7 @@ func main() {
 	// silently falls back to a logging stub that bills nothing. RequireUsage
 	// makes that a startup error instead of a silent revenue leak; dev/local
 	// leave it false so they can run without the usage tables.
-	billingSvc, err := service.NewBillingService(service.BillingServiceDeps{
+	billingSvc, err := application.NewBillingService(application.BillingServiceDeps{
 		Accounts:     store,
 		Usage:        store,
 		Provider:     stripeProvider,
@@ -107,7 +107,7 @@ func main() {
 		log.Fatalf("api.billing_init: %v (ENV=%s)", err, cfg.Env)
 	}
 
-	documentSvc := service.NewDocumentService(service.DocumentServiceDeps{
+	documentSvc := application.NewDocumentService(application.DocumentServiceDeps{
 		Repo:             store,
 		Jobs:             store,
 		Accounts:         store,
@@ -140,29 +140,29 @@ func main() {
 			appLogger.Info("job.auto_resume_completed", "resumed", resumed)
 		}
 	}()
-	itemSvc := service.NewItemService(service.ItemServiceDeps{
+	itemSvc := application.NewItemService(application.ItemServiceDeps{
 		Repo:       store,
 		Workspaces: store,
 		Logger:     appLogger,
 	})
-	workspaceSvc := service.NewWorkspaceService(service.WorkspaceServiceDeps{
+	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{
 		Accounts:   store,
 		Workspaces: store,
 		Users:      store,
 		Logger:     appLogger,
 	})
-	userSvc := service.NewUserService(service.UserServiceDeps{
+	userSvc := application.NewUserService(application.UserServiceDeps{
 		Users:    store,
 		Accounts: store,
 		Billing:  billingSvc,
 		Logger:   appLogger,
 	})
-	treeSvc := service.NewTreeService(service.TreeServiceDeps{
+	treeSvc := application.NewTreeService(application.TreeServiceDeps{
 		Tree:       store,
 		Workspaces: store,
 		Logger:     appLogger,
 	})
-	devSeedSvc := service.NewDevSeedService(service.DevSeedServiceDeps{
+	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{
 		Accounts:   store,
 		Workspaces: store,
 		Tree:       store,
@@ -258,44 +258,29 @@ func requiresBilling(env string) bool {
 
 func healthHandler(store any, readinessKey, readinessMonitorKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("ready") != "1" {
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintln(w, `{"status":"ok"}`)
-			return
+		if readinessKey != "" {
+			provided := r.Header.Get("X-Readiness-Key")
+			if provided == "" {
+				provided = r.URL.Query().Get("key")
+			}
+			if !constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey) {
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
 		}
-
-		// Readiness is used by deploy smoke tests and exposes dependency
-		// status, so it is protected separately from the public liveness check.
-		// readinessMonitorKey is a second, long-lived credential for external
-		// uptime monitoring (deploy smoke tests use readinessKey, which is
-		// regenerated on every deploy).
-		if !readinessAuthorized(r, readinessKey) && !readinessAuthorized(r, readinessMonitorKey) {
-			http.Error(w, `{"status":"error","error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
-		checker, ok := store.(readinessChecker)
-		if !ok {
-			http.Error(w, `{"status":"error","dependency":"store"}`, http.StatusServiceUnavailable)
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-		if err := checker.CheckReadiness(ctx); err != nil {
-			http.Error(w, `{"status":"error","dependency":"store"}`, http.StatusServiceUnavailable)
-			return
+		if checker, ok := store.(readinessChecker); ok {
+			if err := checker.CheckReadiness(r.Context()); err != nil {
+				http.Error(w, "not ready", http.StatusServiceUnavailable)
+				return
+			}
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, `{"status":"ok","ready":true}`)
+		_, _ = w.Write([]byte("ok"))
 	}
 }
 
-func readinessAuthorized(r *http.Request, expected string) bool {
-	expected = strings.TrimSpace(expected)
-	got := strings.TrimSpace(r.Header.Get("X-Synthify-Readiness-Key"))
-	if expected == "" || got == "" {
-		return false
-	}
-	expectedHash := sha256.Sum256([]byte(expected))
-	gotHash := sha256.Sum256([]byte(got))
-	return subtle.ConstantTimeCompare(gotHash[:], expectedHash[:]) == 1
+func constantTimeEqual(left, right string) bool {
+	leftSum := sha256.Sum256([]byte(left))
+	rightSum := sha256.Sum256([]byte(right))
+	return subtle.ConstantTimeCompare(leftSum[:], rightSum[:]) == 1
 }
