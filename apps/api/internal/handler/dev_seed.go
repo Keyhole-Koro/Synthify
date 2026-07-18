@@ -1,18 +1,23 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
-	"github.com/synthify/backend/apps/api/internal/service"
+	"github.com/synthify/backend/apps/api/internal/application"
 )
 
+type DevSeedUsecase interface {
+	SeedWorkspace(ctx context.Context, userID string) (*application.DevSeedResult, error)
+}
+
 type DevSeedHTTPHandler struct {
-	service service.DevSeedUsecase
+	service DevSeedUsecase
 	enabled bool
 }
 
-func NewDevSeedHTTPHandler(svc service.DevSeedUsecase, enabled bool) *DevSeedHTTPHandler {
+func NewDevSeedHTTPHandler(svc DevSeedUsecase, enabled bool) *DevSeedHTTPHandler {
 	return &DevSeedHTTPHandler{service: svc, enabled: enabled}
 }
 
