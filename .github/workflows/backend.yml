@@ -33,7 +33,14 @@ jobs:
           cache: true
 
       - name: go vet
-        run: go vet ./...
+        run: go vet ./... 2>&1 | tee vet.log
+
+      - name: upload vet diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-vet-diagnostics
+          path: vet.log
 
       - name: go build
         run: go build ./...
