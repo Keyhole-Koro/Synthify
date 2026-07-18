@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/config"
@@ -21,7 +22,6 @@ import (
 	appv1connect "github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	"github.com/synthify/backend/internal/platform/observability"
-	"github.com/newrelic/go-agent/v3/newrelic"
 )
 
 // Application is the fully wired API process. bootstrap is the only package
@@ -55,12 +55,18 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	imageURLIssuer := NewDocumentImageURLIssuer(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
 	stripeProvider, err := stripe.NewProvider(stripe.Config{
-		SecretKey: cfg.Stripe.SecretKey, WebhookSecret: cfg.Stripe.WebhookSecret,
-		ProPriceIDJPY: cfg.Stripe.ProPriceIDJPY, ProPriceIDUSD: cfg.Stripe.ProPriceIDUSD,
-		DefaultCurrency: cfg.Stripe.DefaultCurrency, SuccessURL: cfg.Billing.SuccessURL,
-		CancelURL: cfg.Billing.CancelURL, PortalReturnURL: cfg.Billing.PortalReturnURL,
-		APIBase: cfg.Stripe.APIBase, APIVersion: cfg.Stripe.APIVersion,
-		MeterInputEvent: cfg.Stripe.MeterInputEvent, MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
+		SecretKey:        cfg.Stripe.SecretKey,
+		WebhookSecret:    cfg.Stripe.WebhookSecret,
+		ProPriceIDJPY:    cfg.Stripe.ProPriceIDJPY,
+		ProPriceIDUSD:    cfg.Stripe.ProPriceIDUSD,
+		DefaultCurrency:  cfg.Stripe.DefaultCurrency,
+		SuccessURL:       cfg.Billing.SuccessURL,
+		CancelURL:        cfg.Billing.CancelURL,
+		PortalReturnURL:  cfg.Billing.PortalReturnURL,
+		APIBase:          cfg.Stripe.APIBase,
+		APIVersion:       cfg.Stripe.APIVersion,
+		MeterInputEvent:  cfg.Stripe.MeterInputEvent,
+		MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
 	})
 	if err != nil {
 		_ = closeDispatcher()
@@ -68,7 +74,10 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	}
 
 	billingSvc, err := application.NewBillingService(application.BillingServiceDeps{
-		Accounts: store, Usage: store, Provider: stripeProvider, Logger: logger,
+		Accounts:     store,
+		Usage:        store,
+		Provider:     stripeProvider,
+		Logger:       logger,
 		RequireUsage: requiresBilling(cfg.Env),
 	})
 	if err != nil {
@@ -77,11 +86,21 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	}
 
 	documentSvc := application.NewDocumentService(application.DocumentServiceDeps{
-		Repo: store, Jobs: store, Accounts: store, LifecycleRepo: store,
-		Workspaces: store, Tree: store, Transactor: store,
-		SourceURLBuilder: sourceURLBuilder, ImageURLIssuer: imageURLIssuer,
-		ObjectMetadata: objectMetadata, ObjectStore: objectStore,
-		Dispatcher: dispatcher, Notifier: appCtx.Notifier, Logger: logger, NRApp: nrApp,
+		Repo:             store,
+		Jobs:             store,
+		Accounts:         store,
+		LifecycleRepo:    store,
+		Workspaces:       store,
+		Tree:             store,
+		Transactor:       store,
+		SourceURLBuilder: sourceURLBuilder,
+		ImageURLIssuer:   imageURLIssuer,
+		ObjectMetadata:   objectMetadata,
+		ObjectStore:      objectStore,
+		Dispatcher:       dispatcher,
+		Notifier:         appCtx.Notifier,
+		Logger:           logger,
+		NRApp:            nrApp,
 	})
 	startAutoResume(documentSvc, logger)
 
@@ -92,8 +111,10 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{Accounts: store, Workspaces: store, Tree: store, Items: store})
 
 	authenticator, err := apiauth.NewFirebaseAuthenticator(apiauth.FirebaseAuthenticatorConfig{
-		ProjectID: cfg.FirebaseProjectID, ServiceToken: cfg.Auth.ServiceToken,
-		AdminEmailsCSV: cfg.Auth.AdminEmailsCSV, AllowedEmailsCSV: cfg.Auth.AllowedEmailsCSV,
+		ProjectID:        cfg.FirebaseProjectID,
+		ServiceToken:     cfg.Auth.ServiceToken,
+		AdminEmailsCSV:   cfg.Auth.AdminEmailsCSV,
+		AllowedEmailsCSV: cfg.Auth.AllowedEmailsCSV,
 	})
 	if err != nil {
 		_ = closeDispatcher()
@@ -101,7 +122,10 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	}
 
 	mux := http.NewServeMux()
-	connectOptions := append(observability.ConnectHandlerOptions(nrApp), observability.MaskInternalErrorsHandlerOptions(logger)...)
+	connectOptions := append(
+		observability.ConnectHandlerOptions(nrApp),
+		observability.MaskInternalErrorsHandlerOptions(logger)...,
+	)
 	mux.Handle(appv1connect.NewDocumentServiceHandler(handler.NewDocumentHandler(documentSvc, store), connectOptions...))
 	mux.Handle(appv1connect.NewTreeServiceHandler(handler.NewTreeHandler(treeSvc), connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(handler.NewItemHandler(itemSvc), connectOptions...))
@@ -130,9 +154,12 @@ func newWorkerDispatcher(ctx context.Context, cfg config.API, logger *slog.Logge
 		return apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, logger, observability.ConnectClientOptions(nrApp)...), func() error { return nil }, nil
 	}
 	dispatcher, err := apiworker.NewCloudTasksDispatcher(ctx, apiworker.CloudTasksDispatcherConfig{
-		QueuePath: cfg.WorkerDispatch.CloudTasksQueue, DispatchURL: cfg.WorkerDispatch.DispatchURL,
-		InvokerSA: cfg.WorkerDispatch.InvokerSA, OIDCAudience: cfg.WorkerDispatch.OIDCAudience,
-		DispatchDeadline: cfg.WorkerDispatch.DispatchDeadline, Logger: logger,
+		QueuePath:        cfg.WorkerDispatch.CloudTasksQueue,
+		DispatchURL:      cfg.WorkerDispatch.DispatchURL,
+		InvokerSA:        cfg.WorkerDispatch.InvokerSA,
+		OIDCAudience:     cfg.WorkerDispatch.OIDCAudience,
+		DispatchDeadline: cfg.WorkerDispatch.DispatchDeadline,
+		Logger:           logger,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("cloud tasks dispatcher init: %w", err)
@@ -156,31 +183,52 @@ func startAutoResume(documentSvc *application.DocumentService, logger *slog.Logg
 	}()
 }
 
-type readinessChecker interface { CheckReadiness(context.Context) error }
+type readinessChecker interface {
+	CheckReadiness(context.Context) error
+}
 
 func healthHandler(store any, readinessKey, readinessMonitorKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if readinessKey != "" {
-			provided := r.Header.Get("X-Readiness-Key")
-			if provided == "" { provided = r.URL.Query().Get("key") }
-			if !constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey) {
-				http.Error(w, "unauthorized", http.StatusUnauthorized); return
-			}
+		if r.URL.Query().Get("ready") != "1" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+			return
+		}
+
+		provided := r.Header.Get("X-Synthify-Readiness-Key")
+		if provided == "" {
+			provided = r.URL.Query().Get("key")
+		}
+		if !constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
 		}
 		if checker, ok := store.(readinessChecker); ok {
-			if err := checker.CheckReadiness(r.Context()); err != nil { http.Error(w, "not ready", http.StatusServiceUnavailable); return }
+			if err := checker.CheckReadiness(r.Context()); err != nil {
+				http.Error(w, "not ready", http.StatusServiceUnavailable)
+				return
+			}
 		}
-		w.WriteHeader(http.StatusOK); _, _ = w.Write([]byte("ok"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
 	}
 }
 
 func constantTimeEqual(left, right string) bool {
-	leftSum, rightSum := sha256.Sum256([]byte(left)), sha256.Sum256([]byte(right))
+	leftSum := sha256.Sum256([]byte(left))
+	rightSum := sha256.Sum256([]byte(right))
 	return subtle.ConstantTimeCompare(leftSum[:], rightSum[:]) == 1
 }
 
 func devSeedEnabled(env string) bool {
-	switch strings.ToLower(strings.TrimSpace(env)) { case "local", "dev", "development", "test": return true; default: return false }
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "local", "dev", "development", "test":
+		return true
+	default:
+		return false
+	}
 }
 
-func requiresBilling(env string) bool { return env == "production" || env == "staging" }
+func requiresBilling(env string) bool {
+	return env == "production" || env == "staging"
+}
