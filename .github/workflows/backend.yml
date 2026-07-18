@@ -33,7 +33,9 @@ jobs:
           cache: true
 
       - name: go vet
-        run: go vet ./... 2>&1 | tee vet.log
+        run: |
+          set -o pipefail
+          go vet ./... 2>&1 | tee vet.log
 
       - name: upload vet diagnostics
         if: failure()
