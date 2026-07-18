@@ -4,15 +4,19 @@ import (
 	"context"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/service"
+	"github.com/synthify/backend/apps/api/internal/application"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-type UserHandler struct {
-	service service.UserUsecase
+type UserUsecase interface {
+	SignInUser(ctx context.Context, userID, email, displayName string) (*application.SignInUserResult, error)
 }
 
-func NewUserHandler(svc service.UserUsecase) *UserHandler {
+type UserHandler struct {
+	service UserUsecase
+}
+
+func NewUserHandler(svc UserUsecase) *UserHandler {
 	return &UserHandler{service: svc}
 }
 
