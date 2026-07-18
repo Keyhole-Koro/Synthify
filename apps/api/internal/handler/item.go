@@ -21,11 +21,11 @@ type ItemUsecase interface {
 }
 
 type ItemHandler struct {
-	usecase ItemUsecase
+	service ItemUsecase
 }
 
-func NewItemHandler(usecase ItemUsecase) *ItemHandler {
-	return &ItemHandler{usecase: usecase}
+func NewItemHandler(service ItemUsecase) *ItemHandler {
+	return &ItemHandler{service: service}
 }
 
 func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Request[appv1.GetTreeEntityDetailRequest]) (*connect.Response[appv1.GetTreeEntityDetailResponse], error) {
@@ -36,11 +36,11 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
-	item, err := h.usecase.GetItem(ctx, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId(), userID)
+	item, err := h.service.GetItem(ctx, req.Msg.GetTargetRef().GetId(), req.Msg.GetTargetRef().GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
-	evidence, err := h.usecase.GetItemEvidence(ctx, item.ItemID, req.Msg.GetTargetRef().GetWorkspaceId(), userID)
+	evidence, err := h.service.GetItemEvidence(ctx, item.ItemID, req.Msg.GetTargetRef().GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -65,7 +65,7 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 	if err != nil {
 		return nil, err
 	}
-	item, err := h.usecase.CreateItem(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetLabel(), req.Msg.GetDescription(), req.Msg.GetParentId(), userID)
+	item, err := h.service.CreateItem(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetLabel(), req.Msg.GetDescription(), req.Msg.GetParentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -80,7 +80,7 @@ func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[app
 	if err != nil {
 		return nil, err
 	}
-	if err := h.usecase.ApproveAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId(), userID); err != nil {
+	if err := h.service.ApproveAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId(), userID); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.ApproveAliasResponse{
@@ -98,7 +98,7 @@ func (h *ItemHandler) RejectAlias(ctx context.Context, req *connect.Request[appv
 	if err != nil {
 		return nil, err
 	}
-	if err := h.usecase.RejectAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId(), userID); err != nil {
+	if err := h.service.RejectAlias(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetCanonicalItemId(), req.Msg.GetAliasItemId(), userID); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.RejectAliasResponse{
