@@ -9,9 +9,9 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
+	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -57,7 +57,7 @@ func TestDocumentHandler_ResumeProcessing_Unauthenticated(t *testing.T) {
 
 func TestTreeHandler_GetSubtree_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewTreeHandler(service.NewTreeService(service.TreeServiceDeps{
+	h := NewTreeHandler(application.NewTreeService(application.TreeServiceDeps{
 		Tree:       store,
 		Workspaces: store,
 		Logger:     nil,
@@ -71,7 +71,7 @@ func TestTreeHandler_GetSubtree_Unauthenticated(t *testing.T) {
 
 func TestTreeHandler_FindPaths_Unauthenticated(t *testing.T) {
 	store := mock.NewStore()
-	h := NewTreeHandler(service.NewTreeService(service.TreeServiceDeps{
+	h := NewTreeHandler(application.NewTreeService(application.TreeServiceDeps{
 		Tree:       store,
 		Workspaces: store,
 		Logger:     nil,

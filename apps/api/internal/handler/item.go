@@ -5,16 +5,27 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/service"
+	"github.com/synthify/backend/apps/api/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-type ItemHandler struct {
-	service service.ItemUsecase
+// ItemUsecase is the application API required by ItemHandler.
+// The consumer owns this interface so the application layer does not need to
+// define an interface for its own concrete implementation.
+type ItemUsecase interface {
+	GetItem(ctx context.Context, itemID, workspaceID, userID string) (*domain.Item, error)
+	GetItemEvidence(ctx context.Context, itemID, workspaceID, userID string) (*domain.ItemEvidence, error)
+	CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error)
+	ApproveAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
+	RejectAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
 }
 
-func NewItemHandler(svc service.ItemUsecase) *ItemHandler {
-	return &ItemHandler{service: svc}
+type ItemHandler struct {
+	service ItemUsecase
+}
+
+func NewItemHandler(service ItemUsecase) *ItemHandler {
+	return &ItemHandler{service: service}
 }
 
 func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Request[appv1.GetTreeEntityDetailRequest]) (*connect.Response[appv1.GetTreeEntityDetailResponse], error) {

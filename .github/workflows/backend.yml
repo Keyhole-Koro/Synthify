@@ -19,6 +19,7 @@ on:
       - internal/platform/**
       - go.mod
       - go.sum
+      - sqlc.yaml
       - .github/workflows/backend.yml
 
 jobs:

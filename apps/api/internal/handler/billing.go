@@ -10,19 +10,18 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type BillingHandler struct {
-	service service.BillingUsecase
+	service BillingUsecase
 }
 
-func NewBillingHandler(svc service.BillingUsecase) *BillingHandler {
+func NewBillingHandler(svc BillingUsecase) *BillingHandler {
 	return &BillingHandler{service: svc}
 }
 
-func NewBillingWebhookHTTPHandler(svc service.BillingUsecase, logger *slog.Logger) http.HandlerFunc {
+func NewBillingWebhookHTTPHandler(svc BillingUsecase, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.Header().Set("Allow", http.MethodPost)

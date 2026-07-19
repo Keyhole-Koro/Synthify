@@ -5,7 +5,7 @@
 > **読み方の注意**: 下の「テストケース表」は *既存テストが何を確認しているか* を写したものなので、
 > **テストが1件も無いメソッド／分岐はこの表に現れない**。取りこぼしを防ぐため、
 > 「インターフェース網羅チェック」「依存エラー軸」「未テスト分岐 (GAP)」の各節を併読すること。
-> カバレッジ数値は `go test -coverprofile ./apps/api/internal/service -run Billing` の実測 (2026-06-11)。
+> カバレッジ数値は `go test -coverprofile ./apps/api/internal/application -run Billing` の実測 (2026-06-11)。
 
 ステータス:
 

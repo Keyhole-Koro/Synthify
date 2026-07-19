@@ -1,4 +1,4 @@
-package service
+package application
 
 import (
 	"context"
@@ -7,16 +7,6 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
-
-// ItemUsecase は handler が依存する ItemService の API 表面。
-// 各メソッドは userID を受け取り、内部で workspace authz を実施する。
-type ItemUsecase interface {
-	GetItem(ctx context.Context, itemID, workspaceID, userID string) (*domain.Item, error)
-	GetItemEvidence(ctx context.Context, itemID, workspaceID, userID string) (*domain.ItemEvidence, error)
-	CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error)
-	ApproveAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
-	RejectAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
-}
 
 type ItemService struct {
 	repo       repository.ItemRepository

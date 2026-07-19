@@ -5,15 +5,21 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/service"
+	"github.com/synthify/backend/apps/api/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-type TreeHandler struct {
-	service service.TreeUsecase
+type TreeUsecase interface {
+	GetTree(ctx context.Context, workspaceID, userID string) ([]*domain.Item, error)
+	GetSubtree(ctx context.Context, workspaceID, itemID, userID string, maxDepth int) ([]*domain.SubtreeItem, error)
+	FindPaths(ctx context.Context, workspaceID, sourceItemID, targetItemID, userID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error)
 }
 
-func NewTreeHandler(svc service.TreeUsecase) *TreeHandler {
+type TreeHandler struct {
+	service TreeUsecase
+}
+
+func NewTreeHandler(svc TreeUsecase) *TreeHandler {
 	return &TreeHandler{service: svc}
 }
 
@@ -29,7 +35,6 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 	if err != nil {
 		return nil, toError(err)
 	}
-
 	tree := &appv1.Tree{WorkspaceId: req.Msg.GetWorkspaceId()}
 	for _, item := range items {
 		tree.Items = append(tree.Items, toProtoItem(item))
@@ -71,37 +76,17 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 	if err != nil {
 		return nil, err
 	}
-
-	items, paths, err := h.service.FindPaths(
-		ctx,
-		req.Msg.GetWorkspaceId(),
-		req.Msg.GetSourceItemId(),
-		req.Msg.GetTargetItemId(),
-		userID,
-		int(req.Msg.GetMaxDepth()),
-		int(req.Msg.GetLimit()),
-	)
+	items, paths, err := h.service.FindPaths(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetSourceItemId(), req.Msg.GetTargetItemId(), userID, int(req.Msg.GetMaxDepth()), int(req.Msg.GetLimit()))
 	if err != nil {
 		return nil, toError(err)
 	}
-
-	protoTree := &appv1.Tree{
-		WorkspaceId:   req.Msg.GetWorkspaceId(),
-		CrossDocument: req.Msg.GetCrossDocument(),
-	}
+	protoTree := &appv1.Tree{WorkspaceId: req.Msg.GetWorkspaceId(), CrossDocument: req.Msg.GetCrossDocument()}
 	for _, item := range items {
 		protoTree.Items = append(protoTree.Items, toProtoItem(item))
 	}
-
 	res := connect.NewResponse(&appv1.FindPathsResponse{Tree: protoTree})
 	for _, path := range paths {
-		res.Msg.Paths = append(res.Msg.Paths, &appv1.TreePath{
-			ItemIds:  path.ItemIDs,
-			HopCount: int32(path.HopCount),
-			EvidenceRef: &appv1.PathEvidenceRef{
-				SourceDocumentIds: path.Evidence.SourceDocumentIDs,
-			},
-		})
+		res.Msg.Paths = append(res.Msg.Paths, &appv1.TreePath{ItemIds: path.ItemIDs, HopCount: int32(path.HopCount), EvidenceRef: &appv1.PathEvidenceRef{SourceDocumentIds: path.Evidence.SourceDocumentIDs}})
 	}
 	return res, nil
 }

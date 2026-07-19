@@ -7,15 +7,14 @@ import (
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type WorkspaceHandler struct {
-	service service.WorkspaceUsecase
+	service WorkspaceUsecase
 }
 
-func NewWorkspaceHandler(svc service.WorkspaceUsecase) *WorkspaceHandler {
+func NewWorkspaceHandler(svc WorkspaceUsecase) *WorkspaceHandler {
 	return &WorkspaceHandler{service: svc}
 }
 
