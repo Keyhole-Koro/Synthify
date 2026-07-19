@@ -54,13 +54,51 @@ jobs:
         working-directory: apps/web
         run: bun run build
 
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+      E2E_API_BASE_URL: http://127.0.0.1:8080
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        working-directory: apps/web
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        working-directory: apps/web
+        run: bun run e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+      - name: Stop composed services
+        if: always()
+        run: docker compose -f compose.yaml down --volumes --remove-orphans
+
   notify:
-    needs: web
+    needs: [web, e2e]
     if: failure()
     uses: ./.github/workflows/notify-discord.yml
     with:
       status: failure
       workflow_name: Web
-      job_name: web
+      job_name: ${{ needs.web.result == 'failure' && 'web' || 'e2e' }}
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
