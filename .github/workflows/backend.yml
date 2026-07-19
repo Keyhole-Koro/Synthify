@@ -33,68 +33,22 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: move remaining use case contracts to handlers
+      - name: adopt handler-owned use case contracts
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          if grep -q '^type BillingUsecase interface' apps/api/internal/application/billing.go; then
-            python3 - <<'PY'
-            from pathlib import Path
-
-            def remove_interface(path: Path, name: str) -> None:
-                lines = path.read_text().splitlines(keepends=True)
-                start = next(i for i, line in enumerate(lines) if line.startswith(f'type {name} interface'))
-                depth = 0
-                end = start
-                for i in range(start, len(lines)):
-                    depth += lines[i].count('{')
-                    depth -= lines[i].count('}')
-                    if i > start and depth == 0:
-                        end = i
-                        break
-                comment_start = start
-                while comment_start > 0 and lines[comment_start - 1].lstrip().startswith('//'):
-                    comment_start -= 1
-                while end + 1 < len(lines) and lines[end + 1].strip() == '':
-                    end += 1
-                path.write_text(''.join(lines[:comment_start] + lines[end + 1:]))
-
-            handler = Path('apps/api/internal/handler')
-            replacements = {
-                'billing.go': ('application.BillingUsecase', 'BillingUsecase'),
-                'document.go': ('application.DocumentUsecase', 'DocumentUsecase'),
-                'workspace.go': ('application.WorkspaceUsecase', 'WorkspaceUsecase'),
-            }
-            for filename, (old, new) in replacements.items():
-                path = handler / filename
-                text = path.read_text().replace(old, new)
-                text = text.replace('\n\t"github.com/synthify/backend/apps/api/internal/application"', '')
-                path.write_text(text)
-
-            application = Path('apps/api/internal/application')
-            for filename, name in [
-                ('billing.go', 'BillingUsecase'),
-                ('document.go', 'DocumentUsecase'),
-                ('workspace.go', 'WorkspaceUsecase'),
-                ('user.go', 'UserUsecase'),
-                ('tree.go', 'TreeUsecase'),
-                ('dev_seed.go', 'DevSeedUsecase'),
-            ]:
-                remove_interface(application / filename, name)
-
-            billing = application / 'billing.go'
-            text = billing.read_text().replace(
-                'func NewBillingService(deps BillingServiceDeps) (BillingUsecase, error)',
-                'func NewBillingService(deps BillingServiceDeps) (*billingService, error)',
-            )
-            billing.write_text(text)
-            PY
-
-            gofmt -w apps/api/internal/application/*.go apps/api/internal/handler/*.go
+          if grep -q 'application.BillingUsecase' apps/api/internal/handler/billing.go; then
+            sed -i '/apps\/api\/internal\/application/d' apps/api/internal/handler/billing.go
+            sed -i 's/application\.BillingUsecase/BillingUsecase/g' apps/api/internal/handler/billing.go
+            sed -i '/apps\/api\/internal\/application/d' apps/api/internal/handler/document.go
+            sed -i 's/application\.DocumentUsecase/DocumentUsecase/g' apps/api/internal/handler/document.go
+            sed -i '/apps\/api\/internal\/application/d' apps/api/internal/handler/workspace.go
+            sed -i 's/application\.WorkspaceUsecase/WorkspaceUsecase/g' apps/api/internal/handler/workspace.go
+            gofmt -w apps/api/internal/handler/*.go
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add apps/api/internal/application apps/api/internal/handler
-            git commit -m "Move use case contracts to handlers"
+            git add apps/api/internal/handler
+            git commit -m "Adopt handler-owned use case contracts"
             git push origin HEAD:${{ github.head_ref }}
           fi
 
