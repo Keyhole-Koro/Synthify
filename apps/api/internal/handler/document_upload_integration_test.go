@@ -11,10 +11,10 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/auth"
-	"github.com/synthify/backend/apps/api/internal/bootstrap"
+	infrastorage "github.com/synthify/backend/apps/api/internal/infrastructure/storage"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -24,27 +24,25 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	}
 
 	gcsBaseURL := "http://localhost:4443"
-	// Check if fake-gcs-server is running
 	resp, err := http.Get(gcsBaseURL + "/storage/v1/b")
 	if err != nil {
 		t.Skipf("fake-gcs-server not running at %s, skipping integration test", gcsBaseURL)
 	}
 	resp.Body.Close()
 
-	// Ensure bucket exists
 	bucket := "synthify-uploads"
 	createBucketURL := fmt.Sprintf("%s/storage/v1/b?project=synthify-local", gcsBaseURL)
 	createBucketBody := fmt.Sprintf(`{"name":"%s"}`, bucket)
-	http.Post(createBucketURL, "application/json", strings.NewReader(createBucketBody))
+	_, _ = http.Post(createBucketURL, "application/json", strings.NewReader(createBucketBody))
 
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
 
-	uploadURLIssuer := bootstrap.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL, bucket)
+	uploadURLIssuer := infrastorage.NewFakeGCSDocumentUploadURLIssuer(gcsBaseURL, bucket)
 	store.SetUploadURLIssuer(uploadURLIssuer)
 
-	svc := service.NewDocumentService(service.DocumentServiceDeps{
+	svc := application.NewDocumentService(application.DocumentServiceDeps{
 		Repo:          store,
 		Jobs:          store,
 		LifecycleRepo: store,
@@ -58,7 +56,6 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
 
 	t.Run("upload via issued URL using POST", func(t *testing.T) {
-		// 1. Get Upload URL
 		createResp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Filename:    "test-post.txt",
@@ -70,7 +67,6 @@ func TestDocumentUpload_Integration(t *testing.T) {
 		assert.NotEmpty(t, uploadURL)
 		assert.Equal(t, "POST", createResp.Msg.GetUploadMethod())
 
-		// 2. Perform Upload
 		content := "hello world!"
 		req, err := http.NewRequest(createResp.Msg.GetUploadMethod(), uploadURL, strings.NewReader(content))
 		require.NoError(t, err)
@@ -85,7 +81,6 @@ func TestDocumentUpload_Integration(t *testing.T) {
 			t.Fatalf("POST upload failed with status %d: %s", uploadResp.StatusCode, string(body))
 		}
 
-		// 3. Verify object exists
 		docID := createResp.Msg.GetDocument().GetDocumentId()
 		verifyURL := fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s?alt=media", gcsBaseURL, bucket, fixture.Workspace.WorkspaceID, docID)
 		verifyResp, err := http.Get(verifyURL)
@@ -99,7 +94,6 @@ func TestDocumentUpload_Integration(t *testing.T) {
 	})
 
 	t.Run("upload via issued URL using PUT (check if emulator supports it)", func(t *testing.T) {
-		// 1. Get Upload URL
 		createResp, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
 			WorkspaceId: fixture.Workspace.WorkspaceID,
 			Filename:    "test-put.txt",
@@ -109,7 +103,6 @@ func TestDocumentUpload_Integration(t *testing.T) {
 		require.NoError(t, err)
 		uploadURL := createResp.Msg.GetUploadUrl()
 
-		// 2. Perform Upload with PUT
 		content := "hello world PUT!"
 		req, err := http.NewRequest(http.MethodPut, uploadURL, strings.NewReader(content))
 		require.NoError(t, err)
