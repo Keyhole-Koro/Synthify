@@ -7,9 +7,9 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -110,7 +110,7 @@ func TestTreeHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
-	handler := NewTreeHandler(service.NewTreeService(service.TreeServiceDeps{
+	handler := NewTreeHandler(application.NewTreeService(application.TreeServiceDeps{
 		Tree:       store,
 		Workspaces: store,
 		Logger:     nil,
@@ -234,7 +234,7 @@ func TestJobHandler_AuthFlow(t *testing.T) {
 }
 
 func newTestWorkspaceHandler(store *mock.Store) *WorkspaceHandler {
-	svc := service.NewWorkspaceService(service.WorkspaceServiceDeps{
+	svc := application.NewWorkspaceService(application.WorkspaceServiceDeps{
 		Accounts:   store,
 		Workspaces: store,
 		Logger:     nil,
@@ -246,7 +246,7 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 	sourceURL := func(workspaceID, documentID string) string {
 		return "https://storage.example/" + workspaceID + "/" + documentID
 	}
-	svc := service.NewDocumentService(service.DocumentServiceDeps{
+	svc := application.NewDocumentService(application.DocumentServiceDeps{
 		Repo:             store,
 		Jobs:             store,
 		LifecycleRepo:    store,
@@ -259,7 +259,7 @@ func newTestDocumentHandler(store *mock.Store) *DocumentHandler {
 }
 
 func newTestItemHandler(store *mock.Store) *ItemHandler {
-	svc := service.NewItemService(service.ItemServiceDeps{
+	svc := application.NewItemService(application.ItemServiceDeps{
 		Repo:       store,
 		Workspaces: store,
 		Logger:     nil,

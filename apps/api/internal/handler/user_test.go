@@ -7,9 +7,9 @@ import (
 	connect "connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
-	"github.com/synthify/backend/apps/api/internal/service"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -17,7 +17,7 @@ func TestUserHandler_SignInUser(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	// Mock billing as nil for simplicity here
-	userSvc := service.NewUserService(service.UserServiceDeps{
+	userSvc := application.NewUserService(application.UserServiceDeps{
 		Users:    store,
 		Accounts: store,
 		Billing:  nil,

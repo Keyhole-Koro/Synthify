@@ -26,7 +26,7 @@ func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1
 		return nil, err
 	}
 
-	result, err := h.service.SignInUser(ctx, principal.SubjectID, principal.Email, principal.DisplayName)
+	result, err := h.application.SignInUser(ctx, principal.SubjectID, principal.Email, principal.DisplayName)
 	if err != nil {
 		return nil, toError(err)
 	}

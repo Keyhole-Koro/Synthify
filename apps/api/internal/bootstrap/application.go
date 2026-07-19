@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/application"
+	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/config"
 	"github.com/synthify/backend/apps/api/internal/handler"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/storage"

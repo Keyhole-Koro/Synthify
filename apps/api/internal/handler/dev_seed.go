@@ -38,7 +38,7 @@ func (h *DevSeedHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.service.SeedWorkspace(r.Context(), userID)
+	result, err := h.application.SeedWorkspace(r.Context(), userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
