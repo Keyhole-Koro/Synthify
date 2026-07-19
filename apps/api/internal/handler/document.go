@@ -6,19 +6,18 @@ import (
 	"time"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 type DocumentHandler struct {
-	service application.DocumentUsecase
+	service DocumentUsecase
 	jobs    repository.JobRepository
 }
 
 func NewDocumentHandler(
-	svc application.DocumentUsecase,
+	svc DocumentUsecase,
 	jobRepo repository.JobRepository,
 ) *DocumentHandler {
 	return &DocumentHandler{
