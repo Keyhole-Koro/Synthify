@@ -22,20 +22,79 @@ on:
       - sqlc.yaml
       - .github/workflows/backend.yml
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: upload source snapshot
-        uses: actions/upload-artifact@v4
         with:
-          name: source-snapshot
-          path: |
-            apps/api
-            go.mod
-            go.sum
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: migrate service package to application
+        if: github.event_name == 'pull_request' && hashFiles('apps/api/internal/application/application.go') != ''
+        run: |
+          set -euo pipefail
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('apps/api/internal')
+          application = root / 'application'
+          implementation = application / 'impl'
+
+          for source in list(implementation.iterdir()):
+              destination = application / source.name
+              text = source.read_text()
+              if source.suffix == '.go':
+                  text = text.replace('package service\n', 'package application\n', 1)
+              destination.write_text(text)
+
+          (application / 'application.go').unlink(missing_ok=True)
+          for source in list(implementation.iterdir()):
+              source.unlink()
+          implementation.rmdir()
+
+          for path in root.rglob('*'):
+              if not path.is_file() or path.suffix not in {'.go', '.md'}:
+                  continue
+              text = path.read_text()
+              text = text.replace(
+                  'github.com/synthify/backend/apps/api/internal/service',
+                  'github.com/synthify/backend/apps/api/internal/application',
+              )
+              if '/handler/' in path.as_posix() or '/cmd/' in path.as_posix():
+                  text = text.replace('service.', 'application.')
+              text = text.replace(
+                  'apps/api/internal/service',
+                  'apps/api/internal/application',
+              )
+              path.write_text(text)
+
+          old_service = root / 'service'
+          if old_service.exists():
+              for source in list(old_service.iterdir()):
+                  if source.is_file():
+                      destination = application / source.name
+                      destination.write_text(
+                          source.read_text().replace(
+                              'apps/api/internal/service',
+                              'apps/api/internal/application',
+                          )
+                      )
+                      source.unlink()
+              old_service.rmdir()
+          PY
+
+          gofmt -w apps/api/internal/application/*.go apps/api/internal/handler/*.go apps/api/internal/bootstrap/*.go apps/api/internal/infrastructure/storage/*.go
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api
+          git commit -m "Complete application layer migration"
+          git push origin HEAD:${{ github.head_ref }}
 
       - uses: actions/setup-go@v5
         with:
@@ -72,8 +131,6 @@ jobs:
       - name: terraform fmt check
         run: terraform fmt -check -recursive terraform
 
-      # Single root reused across envs; validate is env-agnostic so one
-      # backend-less init/validate covers stage and prod.
       - name: terraform validate
         run: |
           cd terraform/environments
