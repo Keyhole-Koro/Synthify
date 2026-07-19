@@ -19,6 +19,7 @@ on:
       - internal/platform/**
       - go.mod
       - go.sum
+      - sqlc.yaml
       - .github/workflows/backend.yml
 
 jobs:
@@ -26,6 +27,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: |
+            apps/api
+            go.mod
+            go.sum
 
       - uses: actions/setup-go@v5
         with:
