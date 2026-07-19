@@ -31,7 +31,7 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 	if err != nil {
 		return nil, err
 	}
-	items, err := h.application.GetTree(ctx, req.Msg.GetWorkspaceId(), userID)
+	items, err := h.service.GetTree(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -54,7 +54,7 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 	if err != nil {
 		return nil, err
 	}
-	items, err := h.application.GetSubtree(ctx, wsID, req.Msg.GetItemId(), userID, int(req.Msg.GetMaxDepth()))
+	items, err := h.service.GetSubtree(ctx, wsID, req.Msg.GetItemId(), userID, int(req.Msg.GetMaxDepth()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -76,7 +76,7 @@ func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.
 	if err != nil {
 		return nil, err
 	}
-	items, paths, err := h.application.FindPaths(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetSourceItemId(), req.Msg.GetTargetItemId(), userID, int(req.Msg.GetMaxDepth()), int(req.Msg.GetLimit()))
+	items, paths, err := h.service.FindPaths(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetSourceItemId(), req.Msg.GetTargetItemId(), userID, int(req.Msg.GetMaxDepth()), int(req.Msg.GetLimit()))
 	if err != nil {
 		return nil, toError(err)
 	}

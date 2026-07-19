@@ -35,7 +35,7 @@ func (h *DocumentHandler) ListDocuments(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	docs, err := h.application.ListDocuments(ctx, req.Msg.GetWorkspaceId(), userID)
+	docs, err := h.service.ListDocuments(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -55,7 +55,7 @@ func (h *DocumentHandler) GetDocument(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	doc, err := h.application.GetDocument(ctx, req.Msg.GetDocumentId(), userID)
+	doc, err := h.service.GetDocument(ctx, req.Msg.GetDocumentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -71,7 +71,7 @@ func (h *DocumentHandler) CreateDocument(ctx context.Context, req *connect.Reque
 	if err != nil {
 		return nil, err
 	}
-	doc, uploadTarget, err := h.application.CreateDocument(ctx, req.Msg.GetWorkspaceId(), userID, req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
+	doc, uploadTarget, err := h.service.CreateDocument(ctx, req.Msg.GetWorkspaceId(), userID, req.Msg.GetFilename(), req.Msg.GetMimeType(), req.Msg.GetFileSize())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -98,7 +98,7 @@ func (h *DocumentHandler) ConfirmUpload(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	doc, err := h.application.ConfirmUpload(ctx, req.Msg.GetDocumentId(), userID)
+	doc, err := h.service.ConfirmUpload(ctx, req.Msg.GetDocumentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -114,7 +114,7 @@ func (h *DocumentHandler) StartProcessing(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
-	job, err := h.application.StartProcessing(ctx, req.Msg.GetDocumentId(), userID, req.Msg.GetForceReprocess())
+	job, err := h.service.StartProcessing(ctx, req.Msg.GetDocumentId(), userID, req.Msg.GetForceReprocess())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -137,7 +137,7 @@ func (h *DocumentHandler) ResumeProcessing(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	job, err := h.application.ResumeProcessing(ctx, req.Msg.GetDocumentId(), userID)
+	job, err := h.service.ResumeProcessing(ctx, req.Msg.GetDocumentId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -160,7 +160,7 @@ func (h *DocumentHandler) GetImageURL(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	signed, err := h.application.IssueImageURL(ctx, req.Msg.GetFileId(), userID)
+	signed, err := h.service.IssueImageURL(ctx, req.Msg.GetFileId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}

@@ -24,7 +24,7 @@ func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	workspaces, err := h.application.ListWorkspaces(ctx, userID)
+	workspaces, err := h.service.ListWorkspaces(ctx, userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -43,11 +43,11 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	workspace, err := h.application.GetWorkspace(ctx, req.Msg.GetWorkspaceId(), userID)
+	workspace, err := h.service.GetWorkspace(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
-	members, err := h.application.ListMembers(ctx, req.Msg.GetWorkspaceId(), userID)
+	members, err := h.service.ListMembers(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -69,7 +69,7 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	ws, err := h.application.CreateWorkspace(ctx, name, userID)
+	ws, err := h.service.CreateWorkspace(ctx, name, userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -91,7 +91,7 @@ func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	ws, err := h.application.UpdateWorkspace(ctx, workspaceID, name, userID)
+	ws, err := h.service.UpdateWorkspace(ctx, workspaceID, name, userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -109,7 +109,7 @@ func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	if err := h.application.DeleteWorkspace(ctx, workspaceID, userID); err != nil {
+	if err := h.service.DeleteWorkspace(ctx, workspaceID, userID); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.DeleteWorkspaceResponse{}), nil
@@ -128,7 +128,7 @@ func (h *WorkspaceHandler) InviteMember(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	member, err := h.application.InviteMember(ctx, workspaceID, userID, email, fromProtoWorkspaceRole(req.Msg.GetRole()))
+	member, err := h.service.InviteMember(ctx, workspaceID, userID, email, fromProtoWorkspaceRole(req.Msg.GetRole()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -150,7 +150,7 @@ func (h *WorkspaceHandler) UpdateMemberRole(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, err
 	}
-	member, err := h.application.UpdateMemberRole(ctx, workspaceID, userID, targetUserID, fromProtoWorkspaceRole(req.Msg.GetRole()))
+	member, err := h.service.UpdateMemberRole(ctx, workspaceID, userID, targetUserID, fromProtoWorkspaceRole(req.Msg.GetRole()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -172,7 +172,7 @@ func (h *WorkspaceHandler) RemoveMember(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	if err := h.application.RemoveMember(ctx, workspaceID, userID, targetUserID); err != nil {
+	if err := h.service.RemoveMember(ctx, workspaceID, userID, targetUserID); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.RemoveMemberResponse{}), nil
@@ -191,7 +191,7 @@ func (h *WorkspaceHandler) CreateShareLink(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	link, err := h.application.CreateShareLink(ctx, workspaceID, userID, fromProtoWorkspaceRole(req.Msg.GetRole()), strings.TrimSpace(req.Msg.GetExpiresAt()))
+	link, err := h.service.CreateShareLink(ctx, workspaceID, userID, fromProtoWorkspaceRole(req.Msg.GetRole()), strings.TrimSpace(req.Msg.GetExpiresAt()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -209,7 +209,7 @@ func (h *WorkspaceHandler) ListShareLinks(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
-	links, err := h.application.ListShareLinks(ctx, workspaceID, userID)
+	links, err := h.service.ListShareLinks(ctx, workspaceID, userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -233,7 +233,7 @@ func (h *WorkspaceHandler) RevokeShareLink(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	if err := h.application.RevokeShareLink(ctx, workspaceID, userID, token); err != nil {
+	if err := h.service.RevokeShareLink(ctx, workspaceID, userID, token); err != nil {
 		return nil, toError(err)
 	}
 	return connect.NewResponse(&appv1.RevokeShareLinkResponse{}), nil
@@ -245,7 +245,7 @@ func (h *WorkspaceHandler) ResolveShareLink(ctx context.Context, req *connect.Re
 	if token == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("token is required"))
 	}
-	workspace, role, err := h.application.ResolveShareLink(ctx, token)
+	workspace, role, err := h.service.ResolveShareLink(ctx, token)
 	if err != nil {
 		return nil, toError(err)
 	}

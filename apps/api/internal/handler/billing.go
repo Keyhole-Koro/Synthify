@@ -56,11 +56,11 @@ func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, err
 	}
-	account, err := h.application.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
+	account, err := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
-	creditBalance, _ := h.application.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	creditBalance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
 	return connect.NewResponse(&appv1.GetBillingAccountResponse{
 		AccountId:              account.AccountID,
 		Plan:                   account.Plan,
@@ -103,7 +103,7 @@ func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect
 	if err != nil {
 		return nil, err
 	}
-	session, err := h.application.CreateCheckoutSession(ctx, req.Msg.GetAccountId(), userID, domain.BillingPlanUsageBased, domain.BillingCurrency(req.Msg.GetCurrency()))
+	session, err := h.service.CreateCheckoutSession(ctx, req.Msg.GetAccountId(), userID, domain.BillingPlanUsageBased, domain.BillingCurrency(req.Msg.GetCurrency()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -120,7 +120,7 @@ func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.R
 	if err != nil {
 		return nil, err
 	}
-	session, err := h.application.CreatePortalSession(ctx, req.Msg.GetAccountId(), userID)
+	session, err := h.service.CreatePortalSession(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -141,7 +141,7 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv
 	if err != nil {
 		return nil, err
 	}
-	report, err := h.application.GetUsage(ctx, req.Msg.GetAccountId(), userID, req.Msg.GetPeriodStart(), req.Msg.GetPeriodEnd())
+	report, err := h.service.GetUsage(ctx, req.Msg.GetAccountId(), userID, req.Msg.GetPeriodStart(), req.Msg.GetPeriodEnd())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -191,7 +191,7 @@ func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[a
 		InputTokens:  req.Msg.GetInputTokens(),
 		OutputTokens: req.Msg.GetOutputTokens(),
 	}
-	result, err := h.application.RecordUsage(ctx, ev)
+	result, err := h.service.RecordUsage(ctx, ev)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -210,7 +210,7 @@ func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	limit, err := h.application.UpdateBudget(ctx, req.Msg.GetAccountId(), userID, req.Msg.GetBudgetLimit())
+	limit, err := h.service.UpdateBudget(ctx, req.Msg.GetAccountId(), userID, req.Msg.GetBudgetLimit())
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -225,7 +225,7 @@ func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[
 	if err != nil {
 		return nil, err
 	}
-	list, err := h.application.ListInvoices(ctx, req.Msg.GetAccountId(), userID, int(req.Msg.GetLimit()))
+	list, err := h.service.ListInvoices(ctx, req.Msg.GetAccountId(), userID, int(req.Msg.GetLimit()))
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -261,11 +261,11 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[a
 	if _, err := requireAdminPrincipal(ctx); err != nil {
 		return nil, err
 	}
-	grant, err := h.application.GrantCredit(ctx, userID, req.Msg.GetAccountId(), req.Msg.GetAmountMinor(), req.Msg.GetNote())
+	grant, err := h.service.GrantCredit(ctx, userID, req.Msg.GetAccountId(), req.Msg.GetAmountMinor(), req.Msg.GetNote())
 	if err != nil {
 		return nil, toError(err)
 	}
-	balance, _ := h.application.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	balance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
 	return connect.NewResponse(&appv1.GrantCreditResponse{
 		CreditId:      grant.CreditID,
 		AccountId:     grant.AccountID,
@@ -282,11 +282,11 @@ func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, err
 	}
-	balance, err := h.application.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	balance, err := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
-	account, _ := h.application.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
+	account, _ := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
 	stopped := account != nil && account.Plan == string(domain.BillingPlanFree) && balance <= 0
 	return connect.NewResponse(&appv1.GetCreditBalanceResponse{
 		CreditBalance: minorToDecimal(balance),
@@ -302,7 +302,7 @@ func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Re
 	if err != nil {
 		return nil, err
 	}
-	methods, err := h.application.ListPaymentMethods(ctx, req.Msg.GetAccountId(), userID)
+	methods, err := h.service.ListPaymentMethods(ctx, req.Msg.GetAccountId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
