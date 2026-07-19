@@ -33,68 +33,23 @@ jobs:
         with:
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: migrate service package to application
-        if: github.event_name == 'pull_request' && hashFiles('apps/api/internal/application/application.go') != ''
+      - name: fix migrated handler field references
+        if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          root = Path('apps/api/internal')
-          application = root / 'application'
-          implementation = application / 'impl'
-
-          for source in list(implementation.iterdir()):
-              destination = application / source.name
-              text = source.read_text()
-              if source.suffix == '.go':
-                  text = text.replace('package service\n', 'package application\n', 1)
-              destination.write_text(text)
-
-          (application / 'application.go').unlink(missing_ok=True)
-          for source in list(implementation.iterdir()):
-              source.unlink()
-          implementation.rmdir()
-
-          for path in root.rglob('*'):
-              if not path.is_file() or path.suffix not in {'.go', '.md'}:
-                  continue
-              text = path.read_text()
-              text = text.replace(
-                  'github.com/synthify/backend/apps/api/internal/service',
-                  'github.com/synthify/backend/apps/api/internal/application',
-              )
-              if '/handler/' in path.as_posix() or '/cmd/' in path.as_posix():
-                  text = text.replace('service.', 'application.')
-              text = text.replace(
-                  'apps/api/internal/service',
-                  'apps/api/internal/application',
-              )
-              path.write_text(text)
-
-          old_service = root / 'service'
-          if old_service.exists():
-              for source in list(old_service.iterdir()):
-                  if source.is_file():
-                      destination = application / source.name
-                      destination.write_text(
-                          source.read_text().replace(
-                              'apps/api/internal/service',
-                              'apps/api/internal/application',
-                          )
-                      )
-                      source.unlink()
-              old_service.rmdir()
-          PY
-
-          gofmt -w apps/api/internal/application/*.go apps/api/internal/handler/*.go apps/api/internal/bootstrap/*.go apps/api/internal/infrastructure/storage/*.go
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/api
-          git commit -m "Complete application layer migration"
-          git push origin HEAD:${{ github.head_ref }}
+          if grep -R -q 'h\.application' apps/api/internal/handler; then
+            grep -RIl 'h\.application' apps/api/internal/handler | xargs sed -i 's/h\.application/h.service/g'
+            gofmt -w apps/api/internal/handler/*.go
+            if grep -R 'apps/api/internal/service' apps/api; then
+              echo 'legacy service import remains' >&2
+              exit 1
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add apps/api/internal/handler
+            git commit -m "Fix handler references after application migration"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
 
       - uses: actions/setup-go@v5
         with:
