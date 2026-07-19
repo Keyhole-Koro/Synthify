@@ -22,35 +22,11 @@ on:
       - sqlc.yaml
       - .github/workflows/backend.yml
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-
-      - name: adopt handler-owned use case contracts
-        if: github.event_name == 'pull_request'
-        run: |
-          set -euo pipefail
-          if grep -q 'application.BillingUsecase' apps/api/internal/handler/billing.go; then
-            sed -i '/apps\/api\/internal\/application/d' apps/api/internal/handler/billing.go
-            sed -i 's/application\.BillingUsecase/BillingUsecase/g' apps/api/internal/handler/billing.go
-            sed -i '/apps\/api\/internal\/application/d' apps/api/internal/handler/document.go
-            sed -i 's/application\.DocumentUsecase/DocumentUsecase/g' apps/api/internal/handler/document.go
-            sed -i '/apps\/api\/internal\/application/d' apps/api/internal/handler/workspace.go
-            sed -i 's/application\.WorkspaceUsecase/WorkspaceUsecase/g' apps/api/internal/handler/workspace.go
-            gofmt -w apps/api/internal/handler/*.go
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add apps/api/internal/handler
-            git commit -m "Adopt handler-owned use case contracts"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
 
       - uses: actions/setup-go@v5
         with:
@@ -58,16 +34,7 @@ jobs:
           cache: true
 
       - name: go vet
-        run: |
-          set -o pipefail
-          go vet ./... 2>&1 | tee vet.log
-
-      - name: upload vet diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: go-vet-diagnostics
-          path: vet.log
+        run: go vet ./...
 
       - name: go build
         run: go build ./...
@@ -87,6 +54,8 @@ jobs:
       - name: terraform fmt check
         run: terraform fmt -check -recursive terraform
 
+      # Single root reused across envs; validate is env-agnostic so one
+      # backend-less init/validate covers stage and prod.
       - name: terraform validate
         run: |
           cd terraform/environments
