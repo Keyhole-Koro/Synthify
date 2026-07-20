@@ -18,6 +18,10 @@ jobs:
       NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-synthify.appspot.com
       NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1234567890"
       NEXT_PUBLIC_FIREBASE_APP_ID: 1:1234567890:web:demo-synthify
+      # The API refuses to boot without a Stripe key and at least one price
+      # ID. E2E specs mock BillingService in the browser, so dummies suffice.
+      STRIPE_SECRET_KEY: sk_test_e2e_dummy
+      STRIPE_PRO_PRICE_ID_JPY: price_e2e_dummy_jpy
     steps:
       - uses: actions/checkout@v4
         with:

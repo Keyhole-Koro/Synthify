@@ -12,6 +12,10 @@ function localFrontendPort(): string {
 
 const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${localFrontendPort()}`;
 const authFile = fileURLToPath(new URL('./e2e/.auth/user.json', import.meta.url));
+// Gate webServer readiness on the API, not the frontend: Next dev answers
+// within seconds while the Go backend builds for minutes on a cold cache,
+// and tests that start in that window fail on dead connections.
+const apiHealthURL = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'}/health`;
 
 export default defineConfig({
   testDir: './e2e',
@@ -47,7 +51,7 @@ export default defineConfig({
         // Build the only local image explicitly: Compose v5's bake path is
         // unstable on some Docker Desktop/WSL builds.
         command: 'docker build -t synthify-dev-firebase-auth ../../docker/firebase-emulator && E2E_WORKER_FIXTURE=true docker compose -f ../../compose.yaml up --no-build frontend backend worker',
-        url: baseURL,
+        url: apiHealthURL,
         reuseExistingServer: !process.env.CI,
         timeout: 300_000,
         stdout: 'pipe',
