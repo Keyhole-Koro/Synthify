@@ -43,8 +43,10 @@ HEAD_VERSION="$(ls "$MIGRATIONS_DIR" | grep -oE '^[0-9]+' | sort -n | tail -1)"
 HEAD_VERSION="$((10#$HEAD_VERSION))"
 
 # --format=csv prints a header row then the value; tail -n +2 drops the header
-# so an empty result set yields an empty string (not the column name).
-probe() { sql --database=synthify --format=csv -e "$1" 2>/dev/null | tail -n +2 | tr -d '[:space:]'; }
+# so an empty result set yields an empty string (not the column name). The
+# probed table may not exist yet (fresh volume); `|| true` keeps a failed
+# query from killing the script via pipefail — it just yields "".
+probe() { { sql --database=synthify --format=csv -e "$1" || true; } 2>/dev/null | tail -n +2 | tr -d '[:space:]'; }
 
 has_accounts="$(probe "SELECT to_regclass('public.accounts') IS NOT NULL")"
 applied_version="$(probe "SELECT version::text FROM schema_migrations LIMIT 1")"
