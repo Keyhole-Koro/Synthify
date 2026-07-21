@@ -1,0 +1,13 @@
+# apps/eval/variants
+#
+# Handwritten prompt variant template sets. Each variant lives in its own
+# directory and is selected with `--variant {name}`:
+#
+#   apps/eval/variants/{name}/knowledge_tree.system.tmpl
+#   apps/eval/variants/{name}/knowledge_tree.user.tmpl
+#
+# The render input contract is identical to the production templates
+# (apps/worker/pkg/worker/prompts/templates). Variant templates must NOT be
+# baked into the production worker image.
+#
+# Contract: docs/contracts/prompt-variant-eval-contract.md §3.

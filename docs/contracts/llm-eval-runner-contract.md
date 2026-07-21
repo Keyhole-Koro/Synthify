@@ -56,12 +56,21 @@ input:
   chunks: ../testdata/api_spec_chunks.json
 expect:
   schema_valid: true
-  min_items: 3
-  max_depth: 4
-  must_contain_titles:
-    - "認証"
-    - "エラーハンドリング"
+  json:
+    - path: $.items
+      op: count_gte
+      value: 3
+    - path: $.items
+      op: tree_depth_lte
+      value: 4
+    - path: $.items[*].title
+      op: contains_all
+      value:
+        - "認証"
+        - "エラーハンドリング"
 ```
+
+`expect` は道A（[llm-eval-runner.md](../improvements/llm-eval-runner.md)）で `schema_valid` と `json` rule に統一済み。旧 `min_items` / `max_depth` / `must_contain_titles` は廃止し、それぞれ `count_gte` / `tree_depth_lte` / `contains_all`（`$.items[*].title` に対する部分一致）で表現する。JSON path は軽量 subset（`$.x`, `$.x[*].y`, `$.x[i]`）のみを扱う。
 
 `input.chunks` は case file の directory からの相対 path、または絶対 path とする。fixture は `[]domain.Chunk` JSON で固定する。PDF や raw document からの抽出は eval 対象に含めない。
 
@@ -71,20 +80,21 @@ JSON report は `[]Result` を stdout に出す。`--out` 指定時は同じ byt
 
 主な field:
 
+道A 移行で Result は tool 非依存の output JSON に統一済み。tree 固有 field（`item_count` / `max_depth` / `missing_titles` / `items`）は削除された（[prompt-variant-eval-contract.md](prompt-variant-eval-contract.md) §6）。
+
 | field | 内容 |
 | :--- | :--- |
 | `case_name` / `tool` | 実行 case の識別子 |
-| `passed` | schema/rule/error を総合した合否 |
-| `schema_valid` | LLM 出力が `GeneratedTreeItem` として parse できたか |
-| `item_count` / `max_depth` | 生成 item 数と最大階層 |
-| `missing_titles` | `expect.must_contain_titles` の未達項目 |
+| `passed` | `schema_valid` かつ `expect.json` の全 rule pass、かつ tool error なしの総合合否 |
+| `schema_valid` | tool の宣言 IOSchema に output JSON が適合したか（道A の共通最低判定） |
+| `output` | tool が返した output JSON そのまま（tool 非依存）。JSON report のみ実質レビュー対象 |
+| `prompt_source` | `production` または `variant:{name}` |
 | `duration_ms` | LLM call を含む case 実行時間 |
 | `model` / `input_tokens` / `output_tokens` | LLM provider の usage |
-| `items` | 生成された `[]domain.GeneratedTreeItem`。JSON report のみ実質レビュー対象 |
-| `error` | LLM call / parse error |
+| `error` | tool-level error（LLM call / parse error / no items）。空なら成功 |
 | `failed_input` | fail 時のみ。document_id、instruction、chunks path、chunks 本体 |
 
-`content` 内の HTML は可読性のため `<`, `>`, `&` を Unicode escape しない。
+`output` 内の HTML は可読性のため `<`, `>`, `&` を Unicode escape しない。
 
 ## 5. Cloud Run Job / Scheduler 契約
 
