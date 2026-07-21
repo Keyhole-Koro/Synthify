@@ -23,6 +23,13 @@ jobs:
       STRIPE_SECRET_KEY: sk_test_e2e_dummy
       STRIPE_PRO_PRICE_ID_JPY: price_e2e_dummy_jpy
     steps:
+      - name: Start CI/CD sensor
+        uses: cicd-sensor/cicd-sensor-action@v0.0.43
+        with:
+          enable-html-report: true
+          enable-attestation-artifact: false
+          enable-debug: false
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
