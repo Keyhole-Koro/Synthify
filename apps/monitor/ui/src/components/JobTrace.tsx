@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { JobTraceData, ToolCallEntry } from '@/lib/trace-queries';
+import { authFetch } from '@/lib/auth-client';
 
 function fmtDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -93,7 +94,7 @@ export function JobTrace({ jobId }: { jobId: string }) {
   useEffect(() => {
     setLoading(true);
     setData(null);
-    fetch(`/api/jobs/trace?jobId=${encodeURIComponent(jobId)}`)
+    authFetch(`/api/jobs/trace?jobId=${encodeURIComponent(jobId)}`)
       .then((r) => r.json())
       .then((d: JobTraceData) => setData(d))
       .catch(console.error)

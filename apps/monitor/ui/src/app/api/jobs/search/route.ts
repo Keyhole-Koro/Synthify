@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import { logRowToWireFormat, searchLogs } from '@/lib/log-queries';
 import type { ListJobLogsResponse, SearchJobLogsRequest } from '@/types';
 
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   let body: SearchJobLogsRequest;
   try {
     body = (await req.json()) as SearchJobLogsRequest;

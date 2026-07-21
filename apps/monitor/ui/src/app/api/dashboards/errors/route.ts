@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import { queryErrors, type Period } from '@/lib/dashboard-queries';
 
 const EMPTY_ERRORS = {
@@ -14,6 +15,9 @@ function parsePeriod(value: string | null): Period {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   const period = parsePeriod(req.nextUrl.searchParams.get('period'));
   try {
     const data = await queryErrors(getPool(), period);

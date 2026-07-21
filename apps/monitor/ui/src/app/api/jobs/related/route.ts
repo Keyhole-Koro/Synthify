@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import { logRowToWireFormat } from '@/lib/log-queries';
 import type { JobLog, ListRelatedJobLogsRequest, ListRelatedJobLogsResponse } from '@/types';
 
 // POST /api/jobs/related — scope に応じて関連 job を取って logs を group 化する。
 export async function POST(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   let body: ListRelatedJobLogsRequest;
   try {
     body = (await req.json()) as ListRelatedJobLogsRequest;

@@ -1,9 +1,13 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import type { ListJobsResponse } from '@/types';
 
 // GET /api/jobs - 全 job 列挙 (admin / monitor 用途)
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   try {
     const pool = getPool();
     const { rows } = await pool.query(`

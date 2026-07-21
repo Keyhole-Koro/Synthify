@@ -25,9 +25,14 @@ Synthify の内部運用ツール。ジョブログ閲覧と運用 BI ダッシ�
 ## 認証・認可
 
 `/api/jobs/*` と `/api/dashboards/*` は Firebase ID トークンによる認証で保護され、
-`SYNTHIFY_ADMIN_USER_EMAILS` に含まれる管理者メールのみアクセスできる。
-ブラウザからは `/login` で Google サインイン後、httpOnly のセッション Cookie が
-発行される。API サーバー (`apps/api`) の認可モデルと同じ admin 判定を共有する。
+`SYNTHIFY_ADMIN_USER_EMAILS` に含まれる管理者メールのみアクセスできる
+(未設定なら fail-closed で全拒否)。API サーバー (`apps/api`) と同じ admin 判定を共有する。
+
+- クライアントはサインイン後、`authFetch` が `Authorization: Bearer <idToken>` を
+  付与して各 API を叩く。トークンは Firebase SDK が自動でリフレッシュする。
+- 実質的なセキュリティ境界は各ルートの `requireAdmin`。`AuthGate` は UX 上のログイン
+  画面で、サインイン (Google / dev はエミュレータのメール・パスワード) 後に
+  `/api/auth/me` で admin かどうかを判定してダッシュボードを表示する。
 
 ## データソース
 

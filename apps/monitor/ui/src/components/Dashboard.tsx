@@ -20,6 +20,7 @@ import type {
   Period,
 } from '@/lib/dashboard-queries';
 import { AuditPage } from './AuditPage';
+import { authFetch } from '@/lib/auth-client';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ function shortDate(iso: string): string {
 }
 
 async function fetchDashboardData<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await authFetch(url);
   if (!res.ok) {
     const message = await res.text().catch(() => '');
     throw new Error(message || `Request failed: ${res.status}`);

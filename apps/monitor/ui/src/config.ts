@@ -7,10 +7,20 @@ const envSchema = z.object({
   MONITOR_DATABASE_URL: z
     .string()
     .default('postgres://monitor@127.0.0.1:5432/synthify?sslmode=disable'),
+
+  // Firebase ID トークン検証に使う project ID (apps/api と共通)。
+  // FIREBASE_AUTH_EMULATOR_HOST が設定されていればエミュレータに接続する。
+  FIREBASE_PROJECT_ID: z.string().default('demo-synthify'),
+
+  // admin として API を叩けるメールの CSV。apps/api の SYNTHIFY_ADMIN_USER_EMAILS
+  // と同じ値を指す想定。未設定なら fail-closed で全アクセスを拒否する。
+  SYNTHIFY_ADMIN_USER_EMAILS: z.string().default(''),
 });
 
 const processEnv = {
   MONITOR_DATABASE_URL: process.env.MONITOR_DATABASE_URL,
+  FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+  SYNTHIFY_ADMIN_USER_EMAILS: process.env.SYNTHIFY_ADMIN_USER_EMAILS,
 };
 
 const parsed = envSchema.safeParse(processEnv);
