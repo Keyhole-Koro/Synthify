@@ -6,10 +6,14 @@ const EMPTY_JOB_HEALTH = {
   totalJobs: 0,
   successRate: 0,
   avgProcessingMs: 0,
+  p50ProcessingMs: 0,
   p95ProcessingMs: 0,
   byDay: [],
   stageFailures: [],
   topRetryJobs: [],
+  errorMessages: [],
+  byMimeType: [],
+  activeFailures: [],
 };
 
 function parsePeriod(value: string | null): Period {

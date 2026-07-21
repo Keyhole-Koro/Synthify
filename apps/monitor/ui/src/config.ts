@@ -3,7 +3,7 @@ import { z } from 'zod';
 const envSchema = z.object({
   // BFF (Next.js Route Handlers) は MONITOR_DATABASE_URL で Postgres を直接参照する。
   // monitor ロールに GRANT SELECT が与えられた read-only DSN を指す想定
-  // (db/init/004_monitor_role.sql)。
+  // (db/migrations/0014_monitor_role.up.sql, view は 0013_monitor_views.up.sql)。
   MONITOR_DATABASE_URL: z
     .string()
     .default('postgres://monitor@127.0.0.1:5432/synthify?sslmode=disable'),

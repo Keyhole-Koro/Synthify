@@ -35,7 +35,7 @@ monitor を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 クエリ元: `usage_events`, `account_usage_daily`, `model_pricing`
 
 新規 view: `v_account_usage_daily`, `v_usage_events` (account_id / job_id だけ
-を公開、PII は遮蔽) を `db/init/004_monitor_role.sql` に追加する。
+を公開、PII は遮蔽) を `db/migrations/0013_monitor_views.up.sql` に追加する。
 
 ### 3. Workspace Activity
 - workspace 別のドキュメント追加ペース (created_at の日次)
@@ -58,7 +58,7 @@ monitor を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 - [x] BFF `app/api/dashboards/{job-health,cost,workspace,errors}` で集計クエリを発行
 - [x] 描画は recharts (BarChart / LineChart)
 - [x] 期間プリセット (今日 / 過去7日 / 今月)
-- [x] BI 用 DB view を `004_monitor_role.sql` に追加 (v_usage_events, v_account_usage_daily, v_workspaces, v_documents, v_tree_items)
+- [x] BI 用 DB view を `db/migrations/0013_monitor_views.up.sql` に追加 (v_usage_events, v_account_usage_daily, v_workspaces, v_documents, v_tree_items)、read-only ロールへの GRANT を `0014_monitor_role.up.sql` に追加
 
 ### Phase 2: Ad-hoc 分析ツール接続 (検討)
 - Metabase / Redash / Grafana のいずれかを Postgres の monitor ロールで接続

@@ -54,6 +54,7 @@ export interface JobHealthData {
   totalJobs: number;
   successRate: number;
   avgProcessingMs: number;
+  p50ProcessingMs: number;
   p95ProcessingMs: number;
   byDay: JobStatusByDay[];
   stageFailures: StageFailure[];
@@ -80,6 +81,9 @@ export async function queryJobHealth(pool: Pool, period: Period): Promise<JobHea
         ROUND(
           AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) * 1000)
         )                                                                AS avg_ms,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (
+          ORDER BY EXTRACT(EPOCH FROM (updated_at - created_at)) * 1000
+        )                                                                AS p50_ms,
         PERCENTILE_CONT(0.95) WITHIN GROUP (
           ORDER BY EXTRACT(EPOCH FROM (updated_at - created_at)) * 1000
         )                                                                AS p95_ms
@@ -150,6 +154,7 @@ export async function queryJobHealth(pool: Pool, period: Period): Promise<JobHea
     totalJobs: total,
     successRate: total > 0 ? succeeded / total : 0,
     avgProcessingMs: Number(ov.avg_ms ?? 0),
+    p50ProcessingMs: Number(ov.p50_ms ?? 0),
     p95ProcessingMs: Number(ov.p95_ms ?? 0),
     byDay: byDay.rows.map((r) => ({
       date: String(r.date),
