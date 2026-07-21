@@ -41,6 +41,13 @@ type DocumentUsecase interface {
 const (
 	autoResumeMaxRetries = 1
 	autoResumeMaxAge     = 24 * time.Hour
+	// stuckJobMinAge is how long a job may sit in QUEUED/RUNNING before it is
+	// treated as stuck. A job wedged in RUNNING (worker crash mid-run, or Cloud
+	// Tasks exhausting max_attempts and silently dropping the task) never emits
+	// a JobFailed event, so without this sweep it is invisible. The bound is
+	// generous: a legitimate agent run is capped by the worker's wall-clock
+	// budget plus a few Cloud Tasks redeliveries, well under this.
+	stuckJobMinAge = 30 * time.Minute
 )
 
 type DocumentService struct {
@@ -412,6 +419,59 @@ func (s *DocumentService) AutoResumeFailedJobs(ctx context.Context) (int, error)
 		resumed++
 	}
 	return resumed, nil
+}
+
+// ReportStuckJobs scans for jobs wedged in QUEUED/RUNNING past stuckJobMinAge
+// and emits a JobStuck custom event per stale job. These are the failures that
+// JobFailed cannot catch — a worker crash mid-run or a Cloud Tasks task dropped
+// after exhausting retries leaves the job in RUNNING with no terminal event, so
+// to the user it just never finishes. Emitting per job_id lets the NR alert use
+// uniqueCount(), which dedups across API instances and the alert window.
+// Returns the number of stuck jobs found. Best-effort: NR-disabled is a no-op.
+func (s *DocumentService) ReportStuckJobs(ctx context.Context) (int, error) {
+	jobs, err := s.jobs.ListAllJobs(ctx)
+	if err != nil {
+		return 0, err
+	}
+	cutoff := time.Now().UTC().Add(-stuckJobMinAge)
+	stuck := 0
+	for _, job := range jobs {
+		if job == nil {
+			continue
+		}
+		switch job.Status {
+		case appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_QUEUED,
+			appv1.JobLifecycleState_JOB_LIFECYCLE_STATE_RUNNING:
+		default:
+			continue
+		}
+		// UpdatedAt moves on every state/stage transition, so a job still making
+		// progress stays fresh; only a genuinely wedged one crosses the cutoff.
+		updatedAt, err := time.Parse(time.RFC3339, job.UpdatedAt)
+		if err != nil || !updatedAt.Before(cutoff) {
+			continue
+		}
+		stuck++
+		s.logger.Warn("job.stuck_detected",
+			"job_id", job.JobID,
+			"document_id", job.DocumentID,
+			"workspace_id", job.WorkspaceID,
+			"status", job.Status.String(),
+			"age_seconds", int(time.Since(updatedAt).Seconds()),
+		)
+		if s.nrApp == nil {
+			continue
+		}
+		s.nrApp.RecordCustomEvent("JobStuck", map[string]any{
+			"job_id":       job.JobID,
+			"document_id":  job.DocumentID,
+			"workspace_id": job.WorkspaceID,
+			"job_type":     job.JobType.String(),
+			"status":       job.Status.String(),
+			"age_seconds":  int(time.Since(updatedAt).Seconds()),
+		})
+	}
+	return stuck, nil
 }
 
 func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Document, requestedBy string, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {

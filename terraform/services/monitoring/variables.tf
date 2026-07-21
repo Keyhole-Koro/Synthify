@@ -86,3 +86,27 @@ variable "upload_rejected_count_threshold" {
   type        = number
   default     = 50
 }
+
+variable "stuck_job_count_threshold" {
+  description = "Distinct stuck jobs (JobStuck, by job_id) over 5 minutes before a critical incident opens. A job wedged in QUEUED/RUNNING never emits JobFailed, so this is the only signal it silently stopped progressing. Default 0 = any stuck job alerts."
+  type        = number
+  default     = 0
+}
+
+variable "notification_failure_count_threshold" {
+  description = "NotificationFailed count over 5 minutes that opens a warning incident. A dropped Firestore status write leaves the frontend hanging on an otherwise-finished job."
+  type        = number
+  default     = 3
+}
+
+variable "orphan_delete_failure_count_threshold" {
+  description = "OrphanObjectDeleteFailed count over 5 minutes that opens a warning incident. Repeated GCS cleanup failures leak storage and cost."
+  type        = number
+  default     = 5
+}
+
+variable "auth_error_count_threshold" {
+  description = "API 401/403 count over 5 minutes that opens a warning incident. A spike suggests credential-stuffing, a broken client, or an auth-config regression."
+  type        = number
+  default     = 100
+}
