@@ -8,7 +8,8 @@
     "dev": "next dev --hostname 0.0.0.0 --port 5174",
     "gen:openapi": "openapi-typescript ../../../contracts/openapi/monitor.yaml -o ./src/generated/openapi.ts",
     "build": "next build",
-    "start": "next start --hostname 0.0.0.0 --port 5174"
+    "start": "next start --hostname 0.0.0.0 --port 5174",
+    "screenshots": "node scripts/screenshots/run.mjs"
   },
   "dependencies": {
     "firebase": "^12.12.0",
@@ -27,6 +28,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "playwright-core": "^1.56.0",
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2"
   }

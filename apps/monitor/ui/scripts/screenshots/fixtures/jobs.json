@@ -1,0 +1,10 @@
+{
+  "jobs": [
+    { "jobId": "job_7f3a9c21e8b0", "documentId": "Q3-strategy-deck.pdf", "workspaceId": "ws_acme", "jobType": "ingest", "status": 4, "currentStage": "llm_summarize", "errorMessage": "context deadline exceeded while calling gemini", "retryCount": 5, "createdAt": "2026-07-21T09:12:00.000Z", "updatedAt": "2026-07-21T09:41:22.000Z" },
+    { "jobId": "job_9adf1200bce4", "documentId": "annual-report-2025.pdf", "workspaceId": "ws_acme", "jobType": "ingest", "status": 3, "currentStage": "persist", "errorMessage": "", "retryCount": 0, "createdAt": "2026-07-21T09:05:00.000Z", "updatedAt": "2026-07-21T09:07:41.000Z" },
+    { "jobId": "job_1d92ff0ab3c7", "documentId": "contract-v3.docx", "workspaceId": "ws_globex", "jobType": "ingest", "status": 4, "currentStage": "extract_text", "errorMessage": "pdf: encrypted document without password", "retryCount": 4, "createdAt": "2026-07-21T08:58:00.000Z", "updatedAt": "2026-07-21T09:33:04.000Z" },
+    { "jobId": "job_a03e77cd1200", "documentId": "handbook.md", "workspaceId": "ws_initech", "jobType": "ingest", "status": 2, "currentStage": "embed_chunks", "errorMessage": "", "retryCount": 3, "createdAt": "2026-07-21T09:38:00.000Z", "updatedAt": "2026-07-21T09:40:12.000Z" },
+    { "jobId": "job_c7f0091aa2de", "documentId": "screenshot-diagram.png", "workspaceId": "ws_globex", "jobType": "ingest", "status": 3, "currentStage": "persist", "errorMessage": "", "retryCount": 2, "createdAt": "2026-07-21T08:44:00.000Z", "updatedAt": "2026-07-21T08:49:55.000Z" },
+    { "jobId": "job_e5510abc93f1", "documentId": "notes.pages", "workspaceId": "ws_umbrella", "jobType": "ingest", "status": 1, "currentStage": "", "errorMessage": "", "retryCount": 0, "createdAt": "2026-07-21T09:44:00.000Z", "updatedAt": "2026-07-21T09:44:00.000Z" }
+  ]
+}

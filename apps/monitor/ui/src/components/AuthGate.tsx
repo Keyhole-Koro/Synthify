@@ -13,6 +13,13 @@ import { isAuthEmulator } from '@/lib/firebase-client';
 
 type GateState = 'loading' | 'signed-out' | 'checking' | 'authorized' | 'forbidden';
 
+// スクリーンショット / ローカルプレビュー用の認証バイパス。本番ビルドでは
+// NODE_ENV === 'production' により常に false へ畳み込まれるため、production で
+// 認証を素通りさせることはない (dev サーバー + 明示フラグのときだけ有効)。
+const PREVIEW_BYPASS =
+  process.env.NODE_ENV !== 'production' &&
+  process.env.NEXT_PUBLIC_MONITOR_PREVIEW === '1';
+
 // monitor の実質的なセキュリティ境界は各 API ルートの requireAdmin。
 // AuthGate は UX 上のログイン画面で、サインイン後に /api/auth/me で admin 判定して
 // ダッシュボードを出すか「権限なし」を出すかを切り替える。
@@ -66,7 +73,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     [email, password],
   );
 
-  if (state === 'authorized') {
+  if (PREVIEW_BYPASS || state === 'authorized') {
     return <>{children}</>;
   }
 
