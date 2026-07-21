@@ -26,6 +26,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Start CI/CD sensor
+        uses: cicd-sensor/cicd-sensor-action@v0.0.43
+        with:
+          enable-html-report: true
+          enable-attestation-artifact: false
+          enable-debug: false
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
@@ -45,6 +52,13 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     steps:
+      - name: Start CI/CD sensor
+        uses: cicd-sensor/cicd-sensor-action@v0.0.43
+        with:
+          enable-html-report: true
+          enable-attestation-artifact: false
+          enable-debug: false
+
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
