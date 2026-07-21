@@ -74,3 +74,15 @@ variable "billing_error_count_threshold" {
   type        = number
   default     = 3
 }
+
+variable "llm_throttle_count_threshold" {
+  description = "LLMThrottled(reason=rate_limited) count over 5 minutes that opens a warning incident. Sustained rate-limiting is the leading indicator of quota starvation, ahead of the job failures it eventually causes."
+  type        = number
+  default     = 30
+}
+
+variable "upload_rejected_count_threshold" {
+  description = "UploadRejected count over 5 minutes that opens a warning incident. A spike suggests abuse, a misbehaving client, or a regression in upload validation."
+  type        = number
+  default     = 50
+}

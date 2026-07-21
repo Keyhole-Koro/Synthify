@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	"google.golang.org/adk/model"
@@ -13,7 +14,7 @@ import (
 
 // Init initializes the LLM clients (both ADK and custom Gemini client) based on the config.
 // If the LLM config is disabled (missing GCP project), it returns nil for both clients.
-func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *slog.Logger) (model.LLM, *GeminiClient) {
+func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *slog.Logger, nrApp *newrelic.Application) (model.LLM, *GeminiClient) {
 	if !cfg.Enabled() {
 		logger.Info("worker.gemini_disabled", "reason", "no gcp project")
 		return nil, nil
@@ -31,7 +32,7 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *s
 		q := QuotaFor(cfg.GeminiModel)
 		logger.Info("worker.llm_quota_reference",
 			"model", q.Model, "tier", q.Tier, "rpm", q.RPM)
-		adkModel = NewRetryingModel(adkModel, RetryConfig{}, logger)
+		adkModel = NewRetryingModel(adkModel, RetryConfig{}, logger, nrApp)
 	}
 
 	embedder, err := NewGeminiClient(ctx, cfg, fs)

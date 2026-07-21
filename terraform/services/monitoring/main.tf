@@ -208,6 +208,67 @@ resource "newrelic_nrql_alert_condition" "billing_errors" {
   aggregation_window = 300
 }
 
+# LLM throttling spike: the worker's RetryingModel emits an LLMThrottled
+# custom event for every retryable LLM failure (see apps/worker/.../llm). The
+# rate of reason=rate_limited events climbs while retries are still masking the
+# pressure — a leading indicator of Vertex/Gemini quota starvation that would
+# otherwise only surface later as failed jobs.
+resource "newrelic_nrql_alert_condition" "llm_throttling" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.warning.id
+  type                         = "static"
+  name                         = "LLM rate-limit/quota pressure"
+  enabled                      = true
+  violation_time_limit_seconds = 3600
+
+  nrql {
+    query = <<-NRQL
+      SELECT count(*)
+      FROM LLMThrottled
+      WHERE reason = 'rate_limited'
+    NRQL
+  }
+
+  warning {
+    operator              = "above"
+    threshold             = var.llm_throttle_count_threshold
+    threshold_duration    = 300
+    threshold_occurrences = "at_least_once"
+  }
+
+  fill_option        = "none"
+  aggregation_window = 300
+}
+
+# Upload rejection spike: the API emits an UploadRejected custom event when it
+# turns away an upload for quota/size/type reasons (see DocumentService). A
+# spike is a misuse/attack signal or a regression in upload validation.
+resource "newrelic_nrql_alert_condition" "upload_rejected" {
+  account_id                   = var.new_relic_account_id
+  policy_id                    = newrelic_alert_policy.warning.id
+  type                         = "static"
+  name                         = "Upload rejection spike"
+  enabled                      = true
+  violation_time_limit_seconds = 3600
+
+  nrql {
+    query = <<-NRQL
+      SELECT count(*)
+      FROM UploadRejected
+    NRQL
+  }
+
+  warning {
+    operator              = "above"
+    threshold             = var.upload_rejected_count_threshold
+    threshold_duration    = 300
+    threshold_occurrences = "at_least_once"
+  }
+
+  fill_option        = "none"
+  aggregation_window = 300
+}
+
 # Frontend JS error spike.
 resource "newrelic_nrql_alert_condition" "browser_js_errors" {
   account_id                   = var.new_relic_account_id

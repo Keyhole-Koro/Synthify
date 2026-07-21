@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/newrelic/go-agent/v3/newrelic"
 	"golang.org/x/time/rate"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
@@ -54,9 +55,10 @@ type RetryingModel struct {
 	cfg     RetryConfig
 	limiter *rate.Limiter
 	logger  *slog.Logger
+	nrApp   *newrelic.Application
 }
 
-func NewRetryingModel(inner model.LLM, cfg RetryConfig, logger *slog.Logger) *RetryingModel {
+func NewRetryingModel(inner model.LLM, cfg RetryConfig, logger *slog.Logger, nrApp *newrelic.Application) *RetryingModel {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -65,6 +67,7 @@ func NewRetryingModel(inner model.LLM, cfg RetryConfig, logger *slog.Logger) *Re
 		cfg:     cfg.withDefaults(),
 		limiter: newRateLimiter(inner.Name()),
 		logger:  logger,
+		nrApp:   nrApp,
 	}
 }
 
@@ -140,6 +143,11 @@ func (m *RetryingModel) GenerateContent(ctx context.Context, req *model.LLMReque
 				"model", m.inner.Name(),
 				"error", finalErr.Error(),
 			)
+			// Surface throttling to New Relic so sustained 429/quota pressure can
+			// be alerted on before it degrades into failed jobs. The slog line
+			// above only reaches Cloud Logging; retried-away 429s never otherwise
+			// appear in NR. no-op when NR is disabled.
+			m.recordThrottle(attempt, finalErr)
 			select {
 			case <-time.After(delay):
 			case <-ctx.Done():
@@ -167,6 +175,60 @@ func (m *RetryingModel) backoff(attempt int, _ error) time.Duration {
 		d = 0
 	}
 	return d
+}
+
+// recordThrottle emits an LLMThrottled custom event for each retryable LLM
+// failure. The rate of these events is the leading indicator of quota
+// starvation — it climbs while retries are still masking the pressure, ahead
+// of the JobFailed events that only fire once retries are exhausted.
+func (m *RetryingModel) recordThrottle(attempt int, cause error) {
+	if m.nrApp == nil {
+		return
+	}
+	m.nrApp.RecordCustomEvent("LLMThrottled", map[string]any{
+		"model":   m.inner.Name(),
+		"attempt": attempt,
+		"reason":  throttleReason(cause),
+		"error":   cause.Error(),
+	})
+}
+
+// throttleReason buckets a retryable error into a stable, low-cardinality
+// label so alerts and dashboards can distinguish rate-limit (429/quota)
+// pressure from upstream 5xx/unavailable blips.
+func throttleReason(err error) string {
+	var apiErr genai.APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.Code {
+		case 429:
+			return "rate_limited"
+		case 408, 504:
+			return "timeout"
+		case 500, 502, 503:
+			return "upstream_5xx"
+		}
+		switch strings.ToUpper(apiErr.Status) {
+		case "RESOURCE_EXHAUSTED":
+			return "rate_limited"
+		case "DEADLINE_EXCEEDED":
+			return "timeout"
+		case "UNAVAILABLE", "INTERNAL", "ABORTED":
+			return "upstream_5xx"
+		}
+	}
+	s := err.Error()
+	switch {
+	case strings.Contains(s, "Error 429") || strings.Contains(s, "RESOURCE_EXHAUSTED"):
+		return "rate_limited"
+	case strings.Contains(s, "Error 504") || strings.Contains(s, "DEADLINE_EXCEEDED"):
+		return "timeout"
+	case strings.Contains(s, "UNAVAILABLE") ||
+		strings.Contains(s, "Error 500") ||
+		strings.Contains(s, "Error 502") ||
+		strings.Contains(s, "Error 503"):
+		return "upstream_5xx"
+	}
+	return "other"
 }
 
 // isRetryable は genai.APIError や ADK が wrap した err 文字列から
