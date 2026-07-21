@@ -104,12 +104,11 @@ resource "newrelic_nrql_alert_condition" "worker_error_rate" {
   # Loss of signal: unlike the API, the worker is internal-only and has no
   # readiness cron, so if it stops reporting entirely (crash, broken deploy,
   # instrumentation dropped) nothing else would catch it. Open an incident
-  # when telemetry goes silent.
-  expiration {
-    expiration_duration            = var.worker_signal_loss_seconds
-    open_violation_on_expiration   = true
-    close_violations_on_expiration = true
-  }
+  # when telemetry goes silent. (These are top-level arguments on the
+  # condition, not a nested block, in the newrelic provider.)
+  expiration_duration            = var.worker_signal_loss_seconds
+  open_violation_on_expiration   = true
+  close_violations_on_expiration = true
 
   fill_option        = "none"
   aggregation_window = 300
