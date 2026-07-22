@@ -55,9 +55,15 @@ export interface EvalCaseRow {
   runId: string;
   caseName: string;
   tool: string;
+  passed: boolean;
+  schemaValid: boolean;
   model: string;
   durationMs: number;
+  inputTokens: number;
+  outputTokens: number;
   error: string;
+  output: unknown;
+  failedInput: unknown;
   promptSource: string;
   createdAt: string;
 }
@@ -74,6 +80,7 @@ export interface EvalData {
   byPromptSource: EvalPromptSourceRow[];
   byModel: EvalModelRow[];
   recentRuns: EvalRunRow[];
+  recentCases: EvalCaseRow[];
   recentFailures: EvalCaseRow[];
   slowestCases: EvalCaseRow[];
 }
@@ -85,7 +92,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     ? `to_char(date_trunc('hour', started_at), 'HH24:00')`
     : `date_trunc('day', started_at)::date::text`;
 
-  const [overview, latency, trend, byPromptSource, byModel, recentRuns, recentFailures, slowestCases] = await Promise.all([
+  const [overview, latency, trend, byPromptSource, byModel, recentRuns, recentCases, recentFailures, slowestCases] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(*) AS total_runs,
@@ -167,9 +174,36 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
         run_id,
         case_name,
         tool,
+        passed,
+        schema_valid,
         model,
         duration_ms,
+        input_tokens,
+        output_tokens,
         error,
+        output_json,
+        failed_input_json,
+        prompt_source,
+        created_at
+      FROM v_eval_case_results
+      WHERE created_at >= ${since}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `),
+    pool.query(`
+      SELECT
+        run_id,
+        case_name,
+        tool,
+        passed,
+        schema_valid,
+        model,
+        duration_ms,
+        input_tokens,
+        output_tokens,
+        error,
+        output_json,
+        failed_input_json,
         prompt_source,
         created_at
       FROM v_eval_case_results
@@ -182,9 +216,15 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
         run_id,
         case_name,
         tool,
+        passed,
+        schema_valid,
         model,
         duration_ms,
+        input_tokens,
+        output_tokens,
         error,
+        output_json,
+        failed_input_json,
         prompt_source,
         created_at
       FROM v_eval_case_results
@@ -202,9 +242,15 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     runId: String(r.run_id),
     caseName: String(r.case_name),
     tool: String(r.tool),
+    passed: Boolean(r.passed),
+    schemaValid: Boolean(r.schema_valid),
     model: String(r.model || 'unknown'),
     durationMs: Number(r.duration_ms),
+    inputTokens: Number(r.input_tokens ?? 0),
+    outputTokens: Number(r.output_tokens ?? 0),
     error: String(r.error || ''),
+    output: r.output_json ?? null,
+    failedInput: r.failed_input_json ?? null,
     promptSource: String(r.prompt_source),
     createdAt: toISO(r.created_at),
   });
@@ -267,6 +313,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
       artifactUri: String(r.artifact_uri || ''),
       startedAt: toISO(r.started_at),
     })),
+    recentCases: recentCases.rows.map(caseRow),
     recentFailures: recentFailures.rows.map(caseRow),
     slowestCases: slowestCases.rows.map(caseRow),
   };
