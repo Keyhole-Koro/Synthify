@@ -28,6 +28,9 @@ apps/eval/results/
 
 apps/worker/server
 
+# Prebuilt Go binaries injected into the e2e compose stack (see web.yml).
+.e2e-bin/
+
 tmp/
 
 .gemini-cache

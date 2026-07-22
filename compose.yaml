@@ -49,6 +49,10 @@ services:
     working_dir: /workspace
     command: >
       bash -c '
+        if [ -x /workspace/.e2e-bin/synthify-api ]; then
+          echo "using prebuilt api binary";
+          exec /workspace/.e2e-bin/synthify-api;
+        fi;
         if [ ! -f go.mod ]; then
           echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
@@ -115,6 +119,10 @@ services:
     working_dir: /workspace
     command: >
       bash -c '
+        if [ -x /workspace/.e2e-bin/synthify-worker ]; then
+          echo "using prebuilt worker binary";
+          exec /workspace/.e2e-bin/synthify-worker;
+        fi;
         if [ ! -f go.mod ]; then
           echo "go.mod not found. Waiting for Go implementation...";
           sleep infinity;
