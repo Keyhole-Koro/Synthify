@@ -63,12 +63,48 @@ jobs:
         working-directory: apps/web
         run: bun run build
 
+  # Compile the API and worker once, up front, instead of letting every e2e
+  # shard's Docker Compose boot rebuild them from a cold cache. In-container the
+  # golang image's build cache lives in a named volume that starts empty on each
+  # runner, so every shard paid a ~4-minute `go build` floor. Building static
+  # (CGO_ENABLED=0) binaries here — cached natively by setup-go — and injecting
+  # them into the compose stack removes that floor from both shards.
+  binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build API and worker binaries
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p .e2e-bin
+          go build -buildvcs=false -o .e2e-bin/synthify-api ./apps/api/cmd/server
+          go build -buildvcs=false -o .e2e-bin/synthify-worker ./apps/worker/cmd/server
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-binaries
+          path: .e2e-bin
+          retention-days: 1
+
   # The Playwright suite dominates wall time, so split it across parallel shards.
   # Each shard is its own runner with its own Docker Compose stack, so adding
   # shards buys wall-clock time without the single-machine contention that keeps
   # in-process workers pinned to 1 (see playwright.config.ts).
   e2e:
     runs-on: ubuntu-latest
+    needs: binaries
     strategy:
       fail-fast: false
       matrix:
@@ -99,6 +135,17 @@ jobs:
 
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
+
+      # Prebuilt API/worker binaries (see the binaries job) that the compose
+      # backend/worker exec instead of running `go build` at boot.
+      - name: Download prebuilt binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-binaries
+          path: .e2e-bin
+
+      - name: Make binaries executable
+        run: chmod +x .e2e-bin/*
 
       # The compose frontend container runs as ${LOCAL_UID:-1000}, but the
       # runner's workspace is owned by uid 1001 — align them or the bind
@@ -131,7 +178,7 @@ jobs:
           retention-days: 14
 
   notify:
-    needs: [checks, e2e]
+    needs: [checks, binaries, e2e]
     if: failure()
     uses: ./.github/workflows/notify-discord.yml
     with:
