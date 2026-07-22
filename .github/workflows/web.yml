@@ -6,6 +6,13 @@ on:
     branches:
       - main
 
+# Cancel superseded runs for the same ref so a burst of pushes to a PR does not
+# keep old, expensive e2e runs alive. Only cancel PR runs — let every push to
+# main run to completion.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 # Shared browser-app env. The API refuses to boot without a Stripe key and at
 # least one price ID; E2E specs mock BillingService in the browser, so dummies
 # suffice.

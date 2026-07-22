@@ -22,6 +22,11 @@ on:
       - sqlc.yaml
       - .github/workflows/backend.yml
 
+# Cancel superseded PR runs for the same ref; let pushes to main finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
