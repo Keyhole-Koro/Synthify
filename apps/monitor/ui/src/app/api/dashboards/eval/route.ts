@@ -16,6 +16,7 @@ const EMPTY_EVAL = {
   byPromptSource: [],
   byModel: [],
   recentRuns: [],
+  recentCases: [],
   recentFailures: [],
   slowestCases: [],
 };
