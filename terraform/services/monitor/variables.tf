@@ -38,3 +38,9 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "domain" {
+  description = "Custom domain to map to the service (e.g. monitor.synthify.keyhole.work). Empty => no mapping (use the run.app URL). The domain must be verified in the project and its DNS records pointed at Cloud Run out-of-band."
+  type        = string
+  default     = ""
+}

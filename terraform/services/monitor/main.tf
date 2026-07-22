@@ -39,3 +39,24 @@ module "service" {
     },
   ]
 }
+
+# Optional custom domain (e.g. monitor.synthify.keyhole.work). Prerequisites,
+# done out-of-band: (1) verify the domain in this GCP project, and (2) add the
+# DNS records Cloud Run returns (see the monitor_dns_records output) to the
+# keyhole.work zone. Region availability for domain mappings is limited; if the
+# deploy region is unsupported, front the service with a global external HTTPS
+# load balancer (serverless NEG) instead and leave var.domain empty.
+resource "google_cloud_run_domain_mapping" "this" {
+  count    = var.domain == "" ? 0 : 1
+  project  = var.project_id
+  location = var.region
+  name     = var.domain
+
+  metadata {
+    namespace = var.project_id
+  }
+
+  spec {
+    route_name = module.service.name
+  }
+}

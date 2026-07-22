@@ -69,6 +69,10 @@ api / worker / eval と同じ `deploy-backend.yml` パイプラインで Cloud R
 - **公開範囲**: `ingress = all` の公開 Cloud Run。ネットワーク層では開き、
   アプリ層の `requireAdmin`（Firebase ID トークン + `SYNTHIFY_ADMIN_USER_EMAILS`）
   で認可する。
+- **URL**: カスタムドメインを Cloud Run domain mapping で割り当てる。ドメインは
+  各環境の tfvars の `monitor_domain` で注入する（`web_base_url` と同じ流儀）:
+  prod = `monitor.synthify.keyhole.work` / stage = `stage.monitor.synthify.keyhole.work`。
+  空にすると mapping を作らず run.app URL のまま。
 - **terraform**: `terraform/services/monitor`。SA・`monitor-database-dsn`
   シークレット・IAM は `terraform/services/platform` に定義。
 
@@ -83,3 +87,8 @@ api / worker / eval と同じ `deploy-backend.yml` パイプラインで Cloud R
    （frontend デプロイと共通なので既存の可能性が高い）。
 4. `SYNTHIFY_ADMIN_USER_EMAILS`（tfvars の `admin_user_emails`）が api と
    同じ値になっていることを確認する。
+5. **カスタムドメイン**: (a) 対象ドメインを GCP プロジェクトで所有権確認
+   （domain verification）し、(b) apply 後に `terraform output monitor_dns_records`
+   が返す DNS レコードを keyhole.work ゾーンに登録する。domain mapping は
+   リージョン制限があるため、デプロイリージョンが非対応の場合は
+   `monitor_domain` を空にして external HTTPS LB（serverless NEG）で前段する。

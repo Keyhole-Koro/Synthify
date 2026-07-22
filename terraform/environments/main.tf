@@ -115,6 +115,7 @@ module "monitor" {
   firebase_project_id   = local.firebase_project_id
   admin_user_emails     = var.admin_user_emails
   deletion_protection   = local.deletion_protection
+  domain                = var.monitor_domain
 }
 
 module "monitoring" {
