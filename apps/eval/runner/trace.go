@@ -31,10 +31,16 @@ type TraceEvent struct {
 
 // TraceCollector collects events for the currently executing case. Eval cases
 // are intentionally executed sequentially, so a single collector can be reused.
+//
+// It maintains a span stack so nested work is recorded with the right parent:
+// a tool span is opened before the tool runs, and every LLM call the tool makes
+// while that span is open is recorded as its child (parent_event_id). This is
+// what turns the flat llm/validation/assertion list into a real tool → llm tree.
 type TraceCollector struct {
 	mu       sync.Mutex
 	sequence int
 	events   []TraceEvent
+	stack    []string // open parent span IDs, innermost last
 }
 
 func (c *TraceCollector) BeginCase() {
@@ -42,17 +48,65 @@ func (c *TraceCollector) BeginCase() {
 	defer c.mu.Unlock()
 	c.sequence = 0
 	c.events = nil
+	c.stack = nil
 }
 
 func (c *TraceCollector) Record(event TraceEvent) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.recordLocked(event)
+}
+
+// recordLocked appends an event, assigning its sequence, id, and — unless the
+// caller set one explicitly — the innermost open span as its parent. Callers
+// must hold c.mu.
+func (c *TraceCollector) recordLocked(event TraceEvent) string {
 	c.sequence++
 	event.Sequence = c.sequence
 	if event.EventID == "" {
 		event.EventID = uuid.NewString()
 	}
+	if event.ParentEventID == "" && len(c.stack) > 0 {
+		event.ParentEventID = c.stack[len(c.stack)-1]
+	}
 	c.events = append(c.events, event)
+	return event.EventID
+}
+
+// BeginSpan records an open parent span (e.g. a tool invocation) and pushes it
+// onto the stack so subsequent events nest under it. The span is recorded
+// immediately — before its children — so the ordered sequence reads parent-first.
+// Pair every BeginSpan with EndSpan(id, ...).
+func (c *TraceCollector) BeginSpan(kind, name string) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	id := c.recordLocked(TraceEvent{Kind: kind, Name: name, StartedAt: time.Now().UTC()})
+	c.stack = append(c.stack, id)
+	return id
+}
+
+// EndSpan finalizes an open span: it pops the stack and fills in the span's
+// completion time, duration (from its recorded StartedAt) and error.
+func (c *TraceCollector) EndSpan(id, errStr string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := len(c.stack) - 1; i >= 0; i-- {
+		if c.stack[i] == id {
+			c.stack = append(c.stack[:i], c.stack[i+1:]...)
+			break
+		}
+	}
+	now := time.Now().UTC()
+	for i := range c.events {
+		if c.events[i].EventID == id {
+			c.events[i].CompletedAt = now
+			c.events[i].DurationMS = now.Sub(c.events[i].StartedAt).Milliseconds()
+			if errStr != "" {
+				c.events[i].Error = errStr
+			}
+			return
+		}
+	}
 }
 
 // RecordValidation records the schema-validation span for the current case.

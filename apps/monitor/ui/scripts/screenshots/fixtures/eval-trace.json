@@ -1,9 +1,25 @@
 {
   "events": [
     {
-      "eventId": "b1c2d3e4-0000-4000-8000-000000000001",
+      "eventId": "a0000000-0000-4000-8000-000000000000",
       "parentEventId": "",
       "sequence": 1,
+      "kind": "tool",
+      "name": "knowledge_tree",
+      "startedAt": "2026-07-21T03:00:31.190Z",
+      "completedAt": "2026-07-21T03:00:37.630Z",
+      "durationMs": 6440,
+      "model": "",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "input": null,
+      "output": null,
+      "error": ""
+    },
+    {
+      "eventId": "b1c2d3e4-0000-4000-8000-000000000001",
+      "parentEventId": "a0000000-0000-4000-8000-000000000000",
+      "sequence": 2,
       "kind": "llm",
       "name": "GenerateStructured",
       "startedAt": "2026-07-21T03:00:31.200Z",
@@ -29,7 +45,7 @@
     {
       "eventId": "b1c2d3e4-0000-4000-8000-000000000002",
       "parentEventId": "",
-      "sequence": 2,
+      "sequence": 3,
       "kind": "validation",
       "name": "schema_validation",
       "startedAt": "2026-07-21T03:00:37.621Z",
@@ -45,7 +61,7 @@
     {
       "eventId": "b1c2d3e4-0000-4000-8000-000000000003",
       "parentEventId": "",
-      "sequence": 3,
+      "sequence": 4,
       "kind": "assertion",
       "name": "semantic_assertions",
       "startedAt": "2026-07-21T03:00:37.622Z",

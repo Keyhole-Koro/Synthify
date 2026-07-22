@@ -105,11 +105,11 @@ export function EvalDashboard() {
         <div className="flex-1 overflow-y-auto p-6">
           {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
           {loading || !data ? <p className="py-12 text-center text-sm text-stone-400">Loading eval traces…</p> : <>
-            <Section title="Trace summary" detail="Counts reflect persisted case telemetry; dedicated nested spans are added as instrumentation becomes available.">
+            <Section title="Trace summary" detail="Counts reflect persisted case telemetry. Each case records real LLM spans nested under its tool span; select a case below to inspect them.">
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                 <Stat label="Runs" value={fmtNumber(data.totalRuns)} />
                 <Stat label="Cases" value={fmtNumber(data.totalCases)} />
-                <Stat label="Visible LLM calls" value={fmtNumber(llmCalls)} detail="one top-level call per persisted case" />
+                <Stat label="Recent cases" value={fmtNumber(llmCalls)} detail="per-case LLM/tool spans in the trace view" />
                 <Stat label="Failed nodes" value={fmtNumber(failedNodes)} />
                 <Stat label="p95 case" value={fmtMs(data.p95CaseDurationMs)} />
                 <Stat label="Tokens" value={fmtNumber(data.inputTokens + data.outputTokens)} />

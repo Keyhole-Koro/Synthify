@@ -13,6 +13,7 @@ type TraceNode = {
   subtitle: string;
   status: 'ok' | 'error' | 'unknown';
   durationMs?: number;
+  depth: number;
   details: Record<string, unknown>;
 };
 
@@ -34,17 +35,17 @@ function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
   const executionFailed = Boolean(row.error) && !row.output;
   return [
     {
-      id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok',
+      id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok', depth: 0,
       details: { runId: row.runId, caseName: row.caseName, promptSource: row.promptSource, failedInput: row.failedInput },
     },
     {
       id: 'tool', kind: 'tool', title: `Tool · ${row.tool}`, subtitle: 'Top-level eval tool invocation',
-      status: executionFailed ? 'error' : 'ok', durationMs: row.durationMs,
+      status: executionFailed ? 'error' : 'ok', durationMs: row.durationMs, depth: 0,
       details: { tool: row.tool, output: row.output, error: row.error || null },
     },
     {
       id: 'llm', kind: 'llm', title: `LLM · ${row.model || 'unknown model'}`, subtitle: row.promptSource,
-      status: executionFailed ? 'error' : 'ok', durationMs: row.durationMs,
+      status: executionFailed ? 'error' : 'ok', durationMs: row.durationMs, depth: 1,
       details: {
         model: row.model, inputTokens: row.inputTokens, outputTokens: row.outputTokens,
         prompt: 'Not recorded — run predates trace instrumentation',
@@ -53,12 +54,12 @@ function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
     },
     {
       id: 'validation', kind: 'validation', title: 'Schema validation', subtitle: row.schemaValid ? 'Output contract satisfied' : 'Output contract failed',
-      status: row.schemaValid ? 'ok' : 'error',
+      status: row.schemaValid ? 'ok' : 'error', depth: 0,
       details: { schemaValid: row.schemaValid, error: !row.schemaValid ? row.error : null },
     },
     {
       id: 'assertion', kind: 'assertion', title: 'Semantic assertions', subtitle: row.passed ? 'Expectations passed' : 'Expectation failed',
-      status: row.passed ? 'ok' : 'error',
+      status: row.passed ? 'ok' : 'error', depth: 0,
       details: { passed: row.passed, error: !row.passed ? row.error : null, output: row.output },
     },
   ];
@@ -69,10 +70,15 @@ function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
 // prompt/response, tokens and duration.
 function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[] {
   const caseNode: TraceNode = {
-    id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok',
+    id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok', depth: 0,
     details: { runId: row.runId, caseIndex: row.caseIndex, caseName: row.caseName, promptSource: row.promptSource },
   };
+  // Depth from parent chain. Events arrive parent-first (ordered by sequence),
+  // so a parent's depth is always known before its children.
+  const depthById = new Map<string, number>();
   const eventNodes = events.map((ev): TraceNode => {
+    const depth = ev.parentEventId && depthById.has(ev.parentEventId) ? depthById.get(ev.parentEventId)! + 1 : 0;
+    depthById.set(ev.eventId, depth);
     const status: TraceNode['status'] = ev.error ? 'error' : 'ok';
     const title =
       ev.kind === 'llm' ? `LLM · ${ev.model || 'unknown model'}`
@@ -88,6 +94,7 @@ function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[
       subtitle: ev.error ? ev.error : ev.name,
       status,
       durationMs: ev.kind === 'llm' || ev.kind === 'tool' ? ev.durationMs : undefined,
+      depth,
       details,
     };
   });
@@ -170,8 +177,9 @@ export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases:
           </div>
           <div className="mx-auto max-w-xl">
             {nodes.map((node, index) => (
-              <div key={node.id}>
-                <button onClick={() => setNodeId(node.id)} className={`w-full rounded-xl border p-4 text-left transition ${selectedNode?.id === node.id ? 'border-stone-500 ring-2 ring-stone-200' : 'border-stone-200 hover:border-stone-300'} ${node.status === 'error' ? 'bg-red-50/60' : 'bg-white'}`}>
+              <div key={node.id} style={{ marginLeft: `${node.depth * 32}px` }}>
+                {node.depth > 0 && <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-stone-300">└ nested under {node.kind === 'llm' ? 'tool' : 'parent'}</p>}
+                <button onClick={() => setNodeId(node.id)} className={`w-full rounded-xl border p-4 text-left transition ${selectedNode?.id === node.id ? 'border-stone-500 ring-2 ring-stone-200' : 'border-stone-200 hover:border-stone-300'} ${node.status === 'error' ? 'bg-red-50/60' : node.depth > 0 ? 'bg-stone-50/70' : 'bg-white'}`}>
                   <div className="flex items-center gap-3"><span className={`rounded px-2 py-1 text-[9px] font-bold ${node.kind === 'llm' ? 'bg-violet-100 text-violet-700' : node.kind === 'tool' ? 'bg-sky-100 text-sky-700' : 'bg-stone-100 text-stone-600'}`}>{kindLabel[node.kind]}</span><div className="min-w-0 flex-1"><p className="text-xs font-bold text-stone-800">{node.title}</p><p className="truncate text-[10px] text-stone-400">{node.subtitle}</p></div>{node.durationMs !== undefined && <span className="font-mono text-[10px] text-stone-500">{fmtMs(node.durationMs)}</span>}<span className={`h-2.5 w-2.5 rounded-full ${node.status === 'error' ? 'bg-red-500' : node.status === 'ok' ? 'bg-emerald-500' : 'bg-stone-300'}`} /></div>
                 </button>
                 {index < nodes.length - 1 && <div className="mx-auto h-8 w-px bg-stone-300"><div className="relative top-6 -left-[3px] h-2 w-2 rotate-45 border-b border-r border-stone-400" /></div>}

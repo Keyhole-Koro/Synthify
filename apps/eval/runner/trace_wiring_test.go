@@ -45,11 +45,26 @@ func TestRunCase_CollectsTrace(t *testing.T) {
 		}
 		kinds = append(kinds, ev.Kind)
 	}
-	if len(kinds) != 3 || kinds[0] != "llm" || kinds[1] != "validation" || kinds[2] != "assertion" {
-		t.Fatalf("trace kinds = %v, want [llm validation assertion]", kinds)
+	if len(kinds) != 4 || kinds[0] != "tool" || kinds[1] != "llm" || kinds[2] != "validation" || kinds[3] != "assertion" {
+		t.Fatalf("trace kinds = %v, want [tool llm validation assertion]", kinds)
 	}
 
-	llmEv := res.Trace[0]
+	toolEv := res.Trace[0]
+	llmEv := res.Trace[1]
+	// The llm call must nest under the tool span; validation/assertion are
+	// top-level siblings recorded after the tool returned.
+	if llmEv.ParentEventID != toolEv.EventID {
+		t.Errorf("llm span parent = %q, want tool span %q", llmEv.ParentEventID, toolEv.EventID)
+	}
+	if res.Trace[2].ParentEventID != "" || res.Trace[3].ParentEventID != "" {
+		t.Errorf("validation/assertion should be top-level, got parents %q / %q", res.Trace[2].ParentEventID, res.Trace[3].ParentEventID)
+	}
+	if toolEv.ParentEventID != "" {
+		t.Errorf("tool span should be top-level, got parent %q", toolEv.ParentEventID)
+	}
+	if toolEv.DurationMS < 0 {
+		t.Errorf("tool span duration not finalized: %#v", toolEv)
+	}
 	if llmEv.Model != "fake" || llmEv.InputTokens != 3 || llmEv.OutputTokens != 4 {
 		t.Errorf("llm span usage not recorded: %#v", llmEv)
 	}

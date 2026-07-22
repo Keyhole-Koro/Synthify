@@ -207,8 +207,12 @@ func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSourc
 	}
 
 	res := Result{CaseName: c.Name, Tool: c.Tool, PromptSource: promptSource}
+	var toolSpanID string
 	if r.Collector != nil {
 		r.Collector.BeginCase()
+		// Open the tool span before running so the LLM calls the tool makes are
+		// recorded as its children (parent_event_id), not flat siblings.
+		toolSpanID = r.Collector.BeginSpan("tool", c.Tool)
 	}
 	start := time.Now()
 	output, usage, toolErr := tool.Run(ctx, prepared.Raw)
@@ -216,6 +220,13 @@ func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSourc
 	res.Model = usage.Model
 	res.InputTokens = usage.InputTokens
 	res.OutputTokens = usage.OutputTokens
+	if r.Collector != nil {
+		toolErrStr := ""
+		if toolErr != nil {
+			toolErrStr = toolErr.Error()
+		}
+		r.Collector.EndSpan(toolSpanID, toolErrStr)
+	}
 	if toolErr != nil {
 		res.Error = toolErr.Error()
 		res.FailedInput = prepared.Snapshot
