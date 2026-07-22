@@ -1,0 +1,44 @@
+{
+  "totalRuns": 18,
+  "totalCases": 216,
+  "passRate": 0.9444,
+  "avgRunDurationMs": 48210,
+  "p95CaseDurationMs": 6810,
+  "inputTokens": 2841600,
+  "outputTokens": 412800,
+  "trend": [
+    { "date": "07-15", "runs": 2, "cases": 24, "passed": 21, "passRate": 0.875 },
+    { "date": "07-16", "runs": 3, "cases": 36, "passed": 34, "passRate": 0.9444 },
+    { "date": "07-17", "runs": 2, "cases": 24, "passed": 23, "passRate": 0.9583 },
+    { "date": "07-18", "runs": 3, "cases": 36, "passed": 35, "passRate": 0.9722 },
+    { "date": "07-19", "runs": 2, "cases": 24, "passed": 22, "passRate": 0.9167 },
+    { "date": "07-20", "runs": 3, "cases": 36, "passed": 35, "passRate": 0.9722 },
+    { "date": "07-21", "runs": 3, "cases": 36, "passed": 34, "passRate": 0.9444 }
+  ],
+  "byPromptSource": [
+    { "promptSource": "production", "runs": 9, "cases": 108, "passRate": 0.9259, "avgDurationMs": 50120 },
+    { "promptSource": "variant:concise-v3", "runs": 5, "cases": 60, "passRate": 0.9833, "avgDurationMs": 43840 },
+    { "promptSource": "variant:grounded-v2", "runs": 4, "cases": 48, "passRate": 0.9583, "avgDurationMs": 46770 }
+  ],
+  "byModel": [
+    { "model": "gemini-2.5-pro", "cases": 84, "passRate": 0.9762, "avgDurationMs": 4920, "p95DurationMs": 7620, "inputTokens": 1428000, "outputTokens": 221000 },
+    { "model": "gemini-2.5-flash", "cases": 132, "passRate": 0.9242, "avgDurationMs": 2410, "p95DurationMs": 4180, "inputTokens": 1413600, "outputTokens": 191800 }
+  ],
+  "recentRuns": [
+    { "runId": "7d76f5f8-2b6d-49b6-a343-793ce8e75c20", "promptSource": "variant:concise-v3", "status": "succeeded", "caseCount": 12, "passedCount": 12, "failedCount": 0, "passRate": 1, "durationMs": 42180, "model": "gemini-2.5-pro", "inputTokens": 164200, "outputTokens": 21800, "artifactUri": "gs://synthify-eval/variant-concise-v3/2026-07-21T03-00.json", "startedAt": "2026-07-21T03:00:00Z" },
+    { "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1", "promptSource": "production", "status": "failed", "caseCount": 12, "passedCount": 10, "failedCount": 2, "passRate": 0.8333, "durationMs": 51220, "model": "gemini-2.5-pro", "inputTokens": 172900, "outputTokens": 24600, "artifactUri": "gs://synthify-eval/production/2026-07-21T02-00.json", "startedAt": "2026-07-21T02:00:00Z" },
+    { "runId": "db14f416-42d9-49d5-8c9c-96bb509dad52", "promptSource": "variant:grounded-v2", "status": "succeeded", "caseCount": 12, "passedCount": 12, "failedCount": 0, "passRate": 1, "durationMs": 46110, "model": "gemini-2.5-flash", "inputTokens": 151300, "outputTokens": 20800, "artifactUri": "gs://synthify-eval/variant-grounded-v2/2026-07-20T03-00.json", "startedAt": "2026-07-20T03:00:00Z" },
+    { "runId": "a2e7118c-e682-43c0-b6ae-18a982b9fae9", "promptSource": "production", "status": "succeeded", "caseCount": 12, "passedCount": 12, "failedCount": 0, "passRate": 1, "durationMs": 48730, "model": "gemini-2.5-flash", "inputTokens": 159700, "outputTokens": 23200, "artifactUri": "gs://synthify-eval/production/2026-07-20T02-00.json", "startedAt": "2026-07-20T02:00:00Z" }
+  ],
+  "recentFailures": [
+    { "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1", "caseName": "knowledge-tree-long-document", "tool": "knowledge_tree", "model": "gemini-2.5-pro", "durationMs": 6810, "error": "expected at least 4 root nodes; got 2", "promptSource": "production", "createdAt": "2026-07-21T02:00:44Z" },
+    { "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1", "caseName": "knowledge-tree-japanese-finance", "tool": "knowledge_tree", "model": "gemini-2.5-pro", "durationMs": 5940, "error": "output failed schema validation: missing item summary", "promptSource": "production", "createdAt": "2026-07-21T02:00:31Z" },
+    { "runId": "bb18ab91-645c-4b2a-92c4-e7852766cc37", "caseName": "knowledge-tree-citations", "tool": "knowledge_tree", "model": "gemini-2.5-flash", "durationMs": 3890, "error": "citation coverage below threshold: 0.72 < 0.80", "promptSource": "production", "createdAt": "2026-07-19T02:00:29Z" }
+  ],
+  "slowestCases": [
+    { "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1", "caseName": "knowledge-tree-long-document", "tool": "knowledge_tree", "model": "gemini-2.5-pro", "durationMs": 6810, "error": "expected at least 4 root nodes; got 2", "promptSource": "production", "createdAt": "2026-07-21T02:00:44Z" },
+    { "runId": "7d76f5f8-2b6d-49b6-a343-793ce8e75c20", "caseName": "knowledge-tree-multilingual", "tool": "knowledge_tree", "model": "gemini-2.5-pro", "durationMs": 6420, "error": "", "promptSource": "variant:concise-v3", "createdAt": "2026-07-21T03:00:38Z" },
+    { "runId": "db14f416-42d9-49d5-8c9c-96bb509dad52", "caseName": "knowledge-tree-scientific-paper", "tool": "knowledge_tree", "model": "gemini-2.5-flash", "durationMs": 6110, "error": "", "promptSource": "variant:grounded-v2", "createdAt": "2026-07-20T03:00:33Z" },
+    { "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1", "caseName": "knowledge-tree-japanese-finance", "tool": "knowledge_tree", "model": "gemini-2.5-pro", "durationMs": 5940, "error": "output failed schema validation: missing item summary", "promptSource": "production", "createdAt": "2026-07-21T02:00:31Z" }
+  ]
+}
