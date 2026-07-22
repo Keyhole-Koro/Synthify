@@ -1,6 +1,10 @@
 import { expect, test } from './fixtures/test';
 
-test.describe.configure({ mode: 'serial' });
+// Keep local runs serialized to avoid multiple uploads competing for the same
+// developer stack. CI gives each shard an isolated Compose stack and runs one
+// worker per shard, so parallel mode only makes these tests shardable; it does
+// not add in-shard concurrency.
+test.describe.configure({ mode: process.env.CI ? 'parallel' : 'serial' });
 
 async function chooseFile(page: import('@playwright/test').Page, file: { name: string; mimeType: string; buffer: Buffer }) {
   const [chooser] = await Promise.all([
