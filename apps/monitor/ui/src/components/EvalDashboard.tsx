@@ -16,6 +16,12 @@ import {
 import { authFetch } from '@/lib/auth-client';
 import type { Period } from '@/lib/dashboard-queries';
 import type { EvalData, EvalCaseRow } from '@/lib/eval-queries';
+import {
+  EvalFailureFunnel,
+  EvalPipelineDiagram,
+  EvalRunTimeline,
+  EvalVariantComparison,
+} from './eval/EvalDiagrams';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -31,6 +37,15 @@ const EMPTY_EVAL: EvalData = {
   p95CaseDurationMs: 0,
   inputTokens: 0,
   outputTokens: 0,
+  funnel: {
+    totalCases: 0,
+    executionCompleted: 0,
+    schemaValid: 0,
+    passed: 0,
+    executionErrors: 0,
+    schemaInvalid: 0,
+    assertionFailures: 0,
+  },
   trend: [],
   byPromptSource: [],
   byModel: [],
@@ -44,6 +59,10 @@ function normalize(data: Partial<EvalData> | null | undefined): EvalData {
   return {
     ...EMPTY_EVAL,
     ...data,
+    funnel: {
+      ...EMPTY_EVAL.funnel,
+      ...(data?.funnel ?? {}),
+    },
     trend: Array.isArray(data?.trend) ? data.trend : [],
     byPromptSource: Array.isArray(data?.byPromptSource) ? data.byPromptSource : [],
     byModel: Array.isArray(data?.byModel) ? data.byModel : [],
@@ -70,10 +89,13 @@ function fmtDate(value: string): string {
   return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-stone-500">{title}</h2>
+      <div className="mb-3">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-stone-500">{title}</h2>
+        {description && <p className="mt-1 text-[10px] text-stone-400">{description}</p>}
+      </div>
       {children}
     </section>
   );
@@ -100,11 +122,11 @@ function jsonText(value: unknown): string {
 
 function CaseTable({ rows, empty }: { rows: EvalCaseRow[]; empty: string }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
+    <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
       {rows.length === 0 ? (
         <p className="py-6 text-center text-sm text-stone-400">{empty}</p>
       ) : (
-        <table className="w-full text-[11px]">
+        <table className="min-w-[980px] w-full text-[11px]">
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
               <th className="px-3 py-2 text-left font-semibold text-stone-500">Case</th>
@@ -200,6 +222,7 @@ export function EvalDashboard() {
     ...point,
     passRatePct: Number((point.passRate * 100).toFixed(1)),
   }));
+  const artifactRuns = data?.recentRuns.filter((run) => run.artifactUri).length ?? 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-stone-50">
@@ -215,7 +238,7 @@ export function EvalDashboard() {
           <span className="mb-0.5 block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval</span>
         </nav>
         <div className="border-t border-stone-100 p-3 text-[10px] text-stone-400">
-          Run, case, latency, token and failure telemetry
+          Diagram-first run, case, latency, token and failure telemetry
         </div>
       </aside>
 
@@ -223,7 +246,7 @@ export function EvalDashboard() {
         <header className="flex shrink-0 items-center justify-between border-b border-stone-200 bg-white px-6 py-3">
           <div>
             <h1 className="text-sm font-bold text-stone-800">LLM Eval Monitor</h1>
-            <p className="text-[10px] text-stone-400">Postgres-backed eval observability</p>
+            <p className="text-[10px] text-stone-400">Follow the evaluation flow, then drill into rows</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="mr-1 text-xs text-stone-400">Period:</span>
@@ -240,142 +263,133 @@ export function EvalDashboard() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div>
-            {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-            {loading || !data ? (
-              <p className="py-12 text-center text-sm text-stone-400">Loading eval telemetry…</p>
-            ) : (
-              <>
-                <Section title="Overview">
-                  <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
-                    <StatCard label="Runs" value={fmtNumber(data.totalRuns)} />
-                    <StatCard label="Cases" value={fmtNumber(data.totalCases)} />
-                    <StatCard label="Pass Rate" value={`${(data.passRate * 100).toFixed(1)}%`} />
-                    <StatCard label="Avg Run" value={fmtMs(data.avgRunDurationMs)} />
-                    <StatCard label="p95 Case" value={fmtMs(data.p95CaseDurationMs)} />
-                    <StatCard label="Input Tokens" value={fmtNumber(data.inputTokens)} />
-                    <StatCard label="Output Tokens" value={fmtNumber(data.outputTokens)} />
+          {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          {loading || !data ? (
+            <p className="py-12 text-center text-sm text-stone-400">Loading eval telemetry…</p>
+          ) : (
+            <>
+              <Section title="Overview">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+                  <StatCard label="Runs" value={fmtNumber(data.totalRuns)} />
+                  <StatCard label="Cases" value={fmtNumber(data.totalCases)} />
+                  <StatCard label="Pass Rate" value={`${(data.passRate * 100).toFixed(1)}%`} />
+                  <StatCard label="Avg Run" value={fmtMs(data.avgRunDurationMs)} />
+                  <StatCard label="p95 Case" value={fmtMs(data.p95CaseDurationMs)} />
+                  <StatCard label="Input Tokens" value={fmtNumber(data.inputTokens)} />
+                  <StatCard label="Output Tokens" value={fmtNumber(data.outputTokens)} />
+                </div>
+              </Section>
+
+              <Section title="Evaluation Pipeline" description="Actual case counts through execution, contract validation and semantic assertions.">
+                <EvalPipelineDiagram funnel={data.funnel} artifactRuns={artifactRuns} runCount={data.recentRuns.length} />
+              </Section>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <Section title="Failure Funnel" description="Where cases leave the happy path.">
+                  <EvalFailureFunnel funnel={data.funnel} />
+                </Section>
+                <Section title="Recent Run Duration Lanes" description="Relative duration and status for the latest runs.">
+                  <EvalRunTimeline runs={data.recentRuns} />
+                </Section>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <Section title="Pass Rate Trend">
+                  <div className="rounded-xl border border-stone-200 bg-white p-4">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <LineChart data={trend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                        <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="passRatePct" name="Pass rate" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Section>
+                <Section title="Prompt Variant Comparison" description="Pass rate, run latency and tokens per case on one visual scale.">
+                  <EvalVariantComparison rows={data.byPromptSource} />
+                </Section>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                <Section title="Model Latency (p95)">
+                  <div className="rounded-xl border border-stone-200 bg-white p-4">
+                    <ResponsiveContainer width="100%" height={240}>
+                      <BarChart data={data.byModel} layout="vertical" margin={{ left: 55 }}>
+                        <XAxis type="number" tick={{ fontSize: 10 }} />
+                        <YAxis type="category" dataKey="model" tick={{ fontSize: 10 }} width={110} />
+                        <Tooltip formatter={(value) => fmtMs(Number(value))} />
+                        <Bar dataKey="p95DurationMs" name="p95 duration" fill="#f59e0b" />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </Section>
 
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                  <Section title="Pass Rate Trend">
-                    <div className="rounded-lg border border-stone-200 bg-white p-4">
-                      <ResponsiveContainer width="100%" height={220}>
-                        <LineChart data={trend}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="passRatePct" name="Pass rate" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Section>
-
-                  <Section title="Model Latency (p95)">
-                    <div className="rounded-lg border border-stone-200 bg-white p-4">
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={data.byModel} layout="vertical" margin={{ left: 55 }}>
-                          <XAxis type="number" tick={{ fontSize: 10 }} />
-                          <YAxis type="category" dataKey="model" tick={{ fontSize: 10 }} width={110} />
-                          <Tooltip formatter={(value) => fmtMs(Number(value))} />
-                          <Bar dataKey="p95DurationMs" name="p95 duration" fill="#f59e0b" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Section>
-                </div>
-
-                <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                  <Section title="Prompt Sources">
-                    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
-                      <table className="w-full text-[11px]">
-                        <thead><tr className="border-b border-stone-200 bg-stone-50">
-                          <th className="px-3 py-2 text-left font-semibold text-stone-500">Source</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Runs</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Cases</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Avg run</th>
-                        </tr></thead>
-                        <tbody>{data.byPromptSource.map((row) => (
-                          <tr key={row.promptSource} className="border-b border-stone-50">
-                            <td className="px-3 py-2 font-mono text-stone-600">{row.promptSource}</td>
-                            <td className="px-3 py-2 text-right text-stone-500">{row.runs}</td>
-                            <td className="px-3 py-2 text-right text-stone-500">{row.cases}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-emerald-600">{(row.passRate * 100).toFixed(1)}%</td>
-                            <td className="px-3 py-2 text-right text-stone-500">{fmtMs(row.avgDurationMs)}</td>
-                          </tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  </Section>
-
-                  <Section title="Models & Tokens">
-                    <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
-                      <table className="w-full text-[11px]">
-                        <thead><tr className="border-b border-stone-200 bg-stone-50">
-                          <th className="px-3 py-2 text-left font-semibold text-stone-500">Model</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Cases</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Avg / p95</th>
-                          <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
-                        </tr></thead>
-                        <tbody>{data.byModel.map((row) => (
-                          <tr key={row.model} className="border-b border-stone-50">
-                            <td className="px-3 py-2 font-mono text-stone-600">{row.model}</td>
-                            <td className="px-3 py-2 text-right text-stone-500">{row.cases}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-emerald-600">{(row.passRate * 100).toFixed(1)}%</td>
-                            <td className="px-3 py-2 text-right text-stone-500">{fmtMs(row.avgDurationMs)} / {fmtMs(row.p95DurationMs)}</td>
-                            <td className="px-3 py-2 text-right text-stone-500">{fmtNumber(row.inputTokens + row.outputTokens)}</td>
-                          </tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  </Section>
-                </div>
-
-                <Section title="Recent Runs">
-                  <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
+                <Section title="Models & Tokens">
+                  <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
                     <table className="w-full text-[11px]">
                       <thead><tr className="border-b border-stone-200 bg-stone-50">
-                        <th className="px-3 py-2 text-left font-semibold text-stone-500">Run</th>
-                        <th className="px-3 py-2 text-left font-semibold text-stone-500">Prompt / model</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Result</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass rate</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Duration</th>
+                        <th className="px-3 py-2 text-left font-semibold text-stone-500">Model</th>
+                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Cases</th>
+                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass</th>
+                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Avg / p95</th>
                         <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
-                        <th className="px-3 py-2 text-left font-semibold text-stone-500">Artifact</th>
                       </tr></thead>
-                      <tbody>{data.recentRuns.map((run) => (
-                        <tr key={run.runId} className="border-b border-stone-50">
-                          <td className="px-3 py-2"><p className="font-mono text-stone-600">{run.runId.slice(0, 12)}…</p><p className="text-[9px] text-stone-400">{fmtDate(run.startedAt)}</p></td>
-                          <td className="px-3 py-2"><p className="font-mono text-stone-600">{run.promptSource}</p><p className="text-[9px] text-stone-400">{run.model}</p></td>
-                          <td className="px-3 py-2 text-right"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${run.status === 'succeeded' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{run.passedCount}/{run.caseCount} passed</span></td>
-                          <td className="px-3 py-2 text-right font-semibold text-stone-700">{(run.passRate * 100).toFixed(1)}%</td>
-                          <td className="px-3 py-2 text-right text-stone-500">{fmtMs(run.durationMs)}</td>
-                          <td className="px-3 py-2 text-right text-stone-500">{fmtNumber(run.inputTokens + run.outputTokens)}</td>
-                          <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[9px] text-stone-400" title={run.artifactUri}>{run.artifactUri || '—'}</td>
+                      <tbody>{data.byModel.map((row) => (
+                        <tr key={row.model} className="border-b border-stone-50">
+                          <td className="px-3 py-2 font-mono text-stone-600">{row.model}</td>
+                          <td className="px-3 py-2 text-right text-stone-500">{row.cases}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-emerald-600">{(row.passRate * 100).toFixed(1)}%</td>
+                          <td className="px-3 py-2 text-right text-stone-500">{fmtMs(row.avgDurationMs)} / {fmtMs(row.p95DurationMs)}</td>
+                          <td className="px-3 py-2 text-right text-stone-500">{fmtNumber(row.inputTokens + row.outputTokens)}</td>
                         </tr>
                       ))}</tbody>
                     </table>
                   </div>
                 </Section>
+              </div>
 
-                <Section title="Recent Case Results">
-                  <CaseTable rows={data.recentCases} empty="No case results in this period" />
-                </Section>
+              <Section title="Recent Runs">
+                <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
+                  <table className="min-w-[900px] w-full text-[11px]">
+                    <thead><tr className="border-b border-stone-200 bg-stone-50">
+                      <th className="px-3 py-2 text-left font-semibold text-stone-500">Run</th>
+                      <th className="px-3 py-2 text-left font-semibold text-stone-500">Prompt / model</th>
+                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Result</th>
+                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass rate</th>
+                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Duration</th>
+                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
+                      <th className="px-3 py-2 text-left font-semibold text-stone-500">Artifact</th>
+                    </tr></thead>
+                    <tbody>{data.recentRuns.map((run) => (
+                      <tr key={run.runId} className="border-b border-stone-50">
+                        <td className="px-3 py-2"><p className="font-mono text-stone-600">{run.runId.slice(0, 12)}…</p><p className="text-[9px] text-stone-400">{fmtDate(run.startedAt)} → {fmtDate(run.completedAt)}</p></td>
+                        <td className="px-3 py-2"><p className="font-mono text-stone-600">{run.promptSource}</p><p className="text-[9px] text-stone-400">{run.model}</p></td>
+                        <td className="px-3 py-2 text-right"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${run.status === 'succeeded' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{run.passedCount}/{run.caseCount} passed</span></td>
+                        <td className="px-3 py-2 text-right font-semibold text-stone-700">{(run.passRate * 100).toFixed(1)}%</td>
+                        <td className="px-3 py-2 text-right text-stone-500">{fmtMs(run.durationMs)}</td>
+                        <td className="px-3 py-2 text-right text-stone-500">{fmtNumber(run.inputTokens + run.outputTokens)}</td>
+                        <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[9px] text-stone-400" title={run.artifactUri}>{run.artifactUri || '—'}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </Section>
 
-                <Section title="Recent Failures">
-                  <CaseTable rows={data.recentFailures} empty="No failed cases in this period" />
-                </Section>
+              <Section title="Recent Case Results">
+                <CaseTable rows={data.recentCases} empty="No case results in this period" />
+              </Section>
 
-                <Section title="Slowest Cases">
-                  <CaseTable rows={data.slowestCases} empty="No case data in this period" />
-                </Section>
-              </>
-            )}
-          </div>
+              <Section title="Recent Failures">
+                <CaseTable rows={data.recentFailures} empty="No failed cases in this period" />
+              </Section>
+
+              <Section title="Slowest Cases">
+                <CaseTable rows={data.slowestCases} empty="No case data in this period" />
+              </Section>
+            </>
+          )}
         </div>
       </main>
     </div>
