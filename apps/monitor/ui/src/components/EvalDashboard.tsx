@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { authFetch } from '@/lib/auth-client';
 import type { Period } from '@/lib/dashboard-queries';
@@ -56,7 +56,7 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
   return <div className="rounded-lg border border-stone-200 bg-white p-4"><p className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{label}</p><p className="mt-1 text-xl font-bold text-stone-800">{value}</p>{detail && <p className="mt-1 text-[9px] text-stone-400">{detail}</p>}</div>;
 }
 
-function Section({ title, detail, children }: { title: string; detail?: string; children: React.ReactNode }) {
+function Section({ title, detail, children }: { title: string; detail?: string; children: ReactNode }) {
   return <section className="mb-8"><div className="mb-3"><h2 className="text-xs font-bold uppercase tracking-wider text-stone-500">{title}</h2>{detail && <p className="mt-1 text-[10px] text-stone-400">{detail}</p>}</div>{children}</section>;
 }
 
