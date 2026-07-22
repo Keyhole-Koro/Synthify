@@ -35,6 +35,7 @@ const EMPTY_EVAL: EvalData = {
   byPromptSource: [],
   byModel: [],
   recentRuns: [],
+  recentCases: [],
   recentFailures: [],
   slowestCases: [],
 };
@@ -47,6 +48,7 @@ function normalize(data: Partial<EvalData> | null | undefined): EvalData {
     byPromptSource: Array.isArray(data?.byPromptSource) ? data.byPromptSource : [],
     byModel: Array.isArray(data?.byModel) ? data.byModel : [],
     recentRuns: Array.isArray(data?.recentRuns) ? data.recentRuns : [],
+    recentCases: Array.isArray(data?.recentCases) ? data.recentCases : [],
     recentFailures: Array.isArray(data?.recentFailures) ? data.recentFailures : [],
     slowestCases: Array.isArray(data?.slowestCases) ? data.slowestCases : [],
   };
@@ -87,6 +89,15 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+function jsonText(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 function CaseTable({ rows, empty }: { rows: EvalCaseRow[]; empty: string }) {
   return (
     <div className="overflow-hidden rounded-lg border border-stone-200 bg-white">
@@ -97,30 +108,60 @@ function CaseTable({ rows, empty }: { rows: EvalCaseRow[]; empty: string }) {
           <thead>
             <tr className="border-b border-stone-200 bg-stone-50">
               <th className="px-3 py-2 text-left font-semibold text-stone-500">Case</th>
+              <th className="px-3 py-2 text-left font-semibold text-stone-500">Result</th>
               <th className="px-3 py-2 text-left font-semibold text-stone-500">Tool / model</th>
               <th className="px-3 py-2 text-left font-semibold text-stone-500">Prompt</th>
               <th className="px-3 py-2 text-right font-semibold text-stone-500">Duration</th>
-              <th className="px-3 py-2 text-left font-semibold text-stone-500">Error</th>
+              <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
+              <th className="px-3 py-2 text-left font-semibold text-stone-500">Details</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={`${row.runId}-${row.caseName}-${index}`} className="border-b border-stone-50 align-top">
-                <td className="px-3 py-2">
-                  <p className="font-medium text-stone-700">{row.caseName}</p>
-                  <p className="font-mono text-[9px] text-stone-400">{row.runId.slice(0, 12)}… · {fmtDate(row.createdAt)}</p>
-                </td>
-                <td className="px-3 py-2 text-stone-500">
-                  <p>{row.tool}</p>
-                  <p className="font-mono text-[9px] text-stone-400">{row.model}</p>
-                </td>
-                <td className="px-3 py-2 font-mono text-[10px] text-stone-500">{row.promptSource}</td>
-                <td className="px-3 py-2 text-right font-semibold text-stone-700">{fmtMs(row.durationMs)}</td>
-                <td className="max-w-xs px-3 py-2 text-red-600">
-                  <p className="line-clamp-2">{row.error || '—'}</p>
-                </td>
-              </tr>
-            ))}
+            {rows.map((row, index) => {
+              const output = jsonText(row.output);
+              const failedInput = jsonText(row.failedInput);
+              return (
+                <tr key={`${row.runId}-${row.caseName}-${index}`} className="border-b border-stone-50 align-top">
+                  <td className="px-3 py-2">
+                    <p className="font-medium text-stone-700">{row.caseName}</p>
+                    <p className="font-mono text-[9px] text-stone-400">{row.runId.slice(0, 12)}… · {fmtDate(row.createdAt)}</p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${row.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                      {row.passed ? 'passed' : 'failed'}
+                    </span>
+                    <p className={`mt-1 text-[9px] ${row.schemaValid ? 'text-stone-400' : 'font-semibold text-red-600'}`}>
+                      schema {row.schemaValid ? 'valid' : 'invalid'}
+                    </p>
+                  </td>
+                  <td className="px-3 py-2 text-stone-500">
+                    <p>{row.tool}</p>
+                    <p className="font-mono text-[9px] text-stone-400">{row.model}</p>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-[10px] text-stone-500">{row.promptSource}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-stone-700">{fmtMs(row.durationMs)}</td>
+                  <td className="px-3 py-2 text-right text-stone-500">
+                    <p>{fmtNumber(row.inputTokens + row.outputTokens)}</p>
+                    <p className="text-[9px] text-stone-400">{fmtNumber(row.inputTokens)} in / {fmtNumber(row.outputTokens)} out</p>
+                  </td>
+                  <td className="max-w-sm px-3 py-2">
+                    {row.error && <p className="mb-1 line-clamp-2 text-red-600">{row.error}</p>}
+                    {(output || failedInput) ? (
+                      <details>
+                        <summary className="cursor-pointer text-[10px] font-semibold text-stone-500 hover:text-stone-700">Output / input JSON</summary>
+                        {output && <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-stone-950 p-2 text-[9px] text-stone-100">{output}</pre>}
+                        {failedInput && (
+                          <>
+                            <p className="mt-2 text-[9px] font-semibold uppercase tracking-wider text-stone-400">Failed input</p>
+                            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-stone-950 p-2 text-[9px] text-stone-100">{failedInput}</pre>
+                          </>
+                        )}
+                      </details>
+                    ) : !row.error ? <span className="text-stone-400">—</span> : null}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
@@ -319,6 +360,10 @@ export function EvalDashboard() {
                       ))}</tbody>
                     </table>
                   </div>
+                </Section>
+
+                <Section title="Recent Case Results">
+                  <CaseTable rows={data.recentCases} empty="No case results in this period" />
                 </Section>
 
                 <Section title="Recent Failures">
