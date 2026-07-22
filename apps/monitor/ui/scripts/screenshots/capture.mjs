@@ -136,7 +136,7 @@ async function main() {
   await shot(page, 'logs', 'viewport');
 
   // Eval は独立ルート。既存の operations タブを壊さず、同じ screenshot harness で撮る。
-  await page.setViewportSize({ width: 1440, height: 2400 });
+  await page.setViewportSize({ width: 1440, height: 4200 });
   await page.goto(`${BASE_URL}/dashboards/eval`, { waitUntil: 'networkidle' });
   await hideDevTools(page);
   await page.getByText('LLM Eval Monitor').waitFor({ timeout: 15000 });
