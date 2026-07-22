@@ -2,7 +2,7 @@ import type { Pool } from 'pg';
 
 export type Period = 'today' | '7d' | '30d';
 
-function periodInterval(period: Period): string {
+export function periodInterval(period: Period): string {
   switch (period) {
     case 'today': return "date_trunc('day', NOW())";
     case '7d':    return "NOW() - INTERVAL '7 days'";
