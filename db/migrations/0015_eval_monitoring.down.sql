@@ -1,2 +1,0 @@
--- No automatic rollback. Migrations are forward-only by convention.
--- Add a follow-up migration for destructive rollback if required.
