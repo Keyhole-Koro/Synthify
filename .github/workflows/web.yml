@@ -6,22 +6,27 @@ on:
     branches:
       - main
 
+# Shared browser-app env. The API refuses to boot without a Stripe key and at
+# least one price ID; E2E specs mock BillingService in the browser, so dummies
+# suffice.
+env:
+  SKIP_ENV_VALIDATION: true
+  NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+  NEXT_PUBLIC_FIREBASE_API_KEY: demo-api-key
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-synthify
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-synthify.firebaseapp.com
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-synthify.appspot.com
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1234567890"
+  NEXT_PUBLIC_FIREBASE_APP_ID: 1:1234567890:web:demo-synthify
+  STRIPE_SECRET_KEY: sk_test_e2e_dummy
+  STRIPE_PRO_PRICE_ID_JPY: price_e2e_dummy_jpy
+
 jobs:
-  web:
+  # Static checks run once, in parallel with the e2e shards, instead of being
+  # repeated inside every shard. None of lint/test/build feeds the e2e run (the
+  # compose frontend builds itself), so they are independent work.
+  checks:
     runs-on: ubuntu-latest
-    env:
-      SKIP_ENV_VALIDATION: true
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
-      NEXT_PUBLIC_FIREBASE_API_KEY: demo-api-key
-      NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-synthify
-      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-synthify.firebaseapp.com
-      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-synthify.appspot.com
-      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: "1234567890"
-      NEXT_PUBLIC_FIREBASE_APP_ID: 1:1234567890:web:demo-synthify
-      # The API refuses to boot without a Stripe key and at least one price
-      # ID. E2E specs mock BillingService in the browser, so dummies suffice.
-      STRIPE_SECRET_KEY: sk_test_e2e_dummy
-      STRIPE_PRO_PRICE_ID_JPY: price_e2e_dummy_jpy
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,6 +63,40 @@ jobs:
         working-directory: apps/web
         run: bun run build
 
+  # The Playwright suite dominates wall time, so split it across parallel shards.
+  # Each shard is its own runner with its own Docker Compose stack, so adding
+  # shards buys wall-clock time without the single-machine contention that keeps
+  # in-process workers pinned to 1 (see playwright.config.ts).
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
       - name: Install Chromium
         run: bunx playwright install --with-deps chromium
 
@@ -74,24 +113,25 @@ jobs:
         env:
           E2E_WORKER_FIXTURE: "true"
         run: |
+          shard="--shard=${{ matrix.shard }}/${{ strategy.job-total }}"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
-            bun run e2e:pr
+            bun run e2e:pr -- "$shard"
           else
-            bun run e2e
+            bun run e2e -- "$shard"
           fi
 
       - name: Upload Playwright diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: |
             apps/web/playwright-report
             apps/web/test-results
           retention-days: 14
 
   notify:
-    needs: web
+    needs: [checks, e2e]
     if: failure()
     uses: ./.github/workflows/notify-discord.yml
     with:
