@@ -29,10 +29,37 @@ env:
   STRIPE_PRO_PRICE_ID_JPY: price_e2e_dummy_jpy
 
 jobs:
+  # Decide whether the app/e2e jobs need to run at all. The e2e suite exercises
+  # the running frontend + backend, so it must run for any code change — but a
+  # PR that only touches docs or terraform cannot affect it and should not pay
+  # the ~8-minute cost. We gate on a job-level `if` (not trigger-level
+  # paths-ignore) so the workflow still starts and the gated jobs report a
+  # "skipped" conclusion, which satisfies required status checks instead of
+  # leaving them pending forever.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!learn/**'
+              - '!terraform/**'
+              - '!LICENSE'
+
   # Static checks run once, in parallel with the e2e shards, instead of being
   # repeated inside every shard. None of lint/test/build feeds the e2e run (the
   # compose frontend builds itself), so they are independent work.
   checks:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +104,8 @@ jobs:
   # (CGO_ENABLED=0) binaries here — cached natively by setup-go — and injecting
   # them into the compose stack removes that floor from both shards.
   binaries:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -112,7 +141,8 @@ jobs:
   # in-process workers pinned to 1 (see playwright.config.ts).
   e2e:
     runs-on: ubuntu-latest
-    needs: binaries
+    needs: [changes, binaries]
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -186,7 +216,7 @@ jobs:
           retention-days: 14
 
   notify:
-    needs: [checks, binaries, e2e]
+    needs: [changes, checks, binaries, e2e]
     if: failure()
     uses: ./.github/workflows/notify-discord.yml
     with:
