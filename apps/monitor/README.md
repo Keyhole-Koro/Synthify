@@ -43,7 +43,7 @@ BI 用の view と read-only ロールへの GRANT は以下のマイグレー�
   `v_usage_events`, `v_account_usage_daily`, `v_workspaces`, `v_documents`,
   `v_tree_items` など (PII は view 側で遮蔽)
 - `db/migrations/0014_monitor_role.up.sql` — `monitor` ロールへの `GRANT SELECT`
-- `db/migrations/0015_eval_monitoring.up.sql` — `eval_runs`, `eval_case_results`,
+- `db/migrations/0022_eval_monitoring.up.sql` — `eval_runs`, `eval_case_results`,
   `v_eval_runs`, `v_eval_case_results` と monitor 用 read-only grant
 
 LLM Eval runner は `DATABASE_DSN` (または `EVAL_DATABASE_DSN`) が設定されている場合、
