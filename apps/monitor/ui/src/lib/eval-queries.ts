@@ -23,6 +23,8 @@ export interface EvalPromptSourceRow {
   cases: number;
   passRate: number;
   avgDurationMs: number;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 export interface EvalModelRow {
@@ -49,6 +51,7 @@ export interface EvalRunRow {
   outputTokens: number;
   artifactUri: string;
   startedAt: string;
+  completedAt: string;
 }
 
 export interface EvalCaseRow {
@@ -68,6 +71,16 @@ export interface EvalCaseRow {
   createdAt: string;
 }
 
+export interface EvalFunnelData {
+  totalCases: number;
+  executionCompleted: number;
+  schemaValid: number;
+  passed: number;
+  executionErrors: number;
+  schemaInvalid: number;
+  assertionFailures: number;
+}
+
 export interface EvalData {
   totalRuns: number;
   totalCases: number;
@@ -76,6 +89,7 @@ export interface EvalData {
   p95CaseDurationMs: number;
   inputTokens: number;
   outputTokens: number;
+  funnel: EvalFunnelData;
   trend: EvalTrendPoint[];
   byPromptSource: EvalPromptSourceRow[];
   byModel: EvalModelRow[];
@@ -92,7 +106,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     ? `to_char(date_trunc('hour', started_at), 'HH24:00')`
     : `date_trunc('day', started_at)::date::text`;
 
-  const [overview, latency, trend, byPromptSource, byModel, recentRuns, recentCases, recentFailures, slowestCases] = await Promise.all([
+  const [overview, caseOverview, trend, byPromptSource, byModel, recentRuns, recentCases, recentFailures, slowestCases] = await Promise.all([
     pool.query(`
       SELECT
         COUNT(*) AS total_runs,
@@ -105,10 +119,15 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
       WHERE started_at >= ${since}
     `),
     pool.query(`
-      SELECT COALESCE(
-        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms),
-        0
-      ) AS p95_case_duration_ms
+      SELECT
+        COALESCE(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms), 0) AS p95_case_duration_ms,
+        COUNT(*) AS total_cases,
+        COUNT(*) FILTER (WHERE error = '') AS execution_completed,
+        COUNT(*) FILTER (WHERE schema_valid) AS schema_valid,
+        COUNT(*) FILTER (WHERE passed) AS passed,
+        COUNT(*) FILTER (WHERE error <> '') AS execution_errors,
+        COUNT(*) FILTER (WHERE error = '' AND NOT schema_valid) AS schema_invalid,
+        COUNT(*) FILTER (WHERE error = '' AND schema_valid AND NOT passed) AS assertion_failures
       FROM v_eval_case_results
       WHERE created_at >= ${since}
     `),
@@ -129,7 +148,9 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
         COUNT(*) AS runs,
         COALESCE(SUM(case_count), 0) AS cases,
         COALESCE(SUM(passed_count), 0) AS passed,
-        COALESCE(ROUND(AVG(duration_ms)), 0) AS avg_duration_ms
+        COALESCE(ROUND(AVG(duration_ms)), 0) AS avg_duration_ms,
+        COALESCE(SUM(input_tokens), 0) AS input_tokens,
+        COALESCE(SUM(output_tokens), 0) AS output_tokens
       FROM v_eval_runs
       WHERE started_at >= ${since}
       GROUP BY prompt_source
@@ -163,7 +184,8 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
         input_tokens,
         output_tokens,
         artifact_uri,
-        started_at
+        started_at,
+        completed_at
       FROM v_eval_runs
       WHERE started_at >= ${since}
       ORDER BY started_at DESC
@@ -235,6 +257,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
   ]);
 
   const ov = overview.rows[0] ?? {};
+  const caseOv = caseOverview.rows[0] ?? {};
   const totalCases = Number(ov.total_cases ?? 0);
   const passedCases = Number(ov.passed_cases ?? 0);
   const toISO = (value: unknown) => value instanceof Date ? value.toISOString() : String(value ?? '');
@@ -260,9 +283,18 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     totalCases,
     passRate: totalCases > 0 ? passedCases / totalCases : 0,
     avgRunDurationMs: Number(ov.avg_run_duration_ms ?? 0),
-    p95CaseDurationMs: Number(latency.rows[0]?.p95_case_duration_ms ?? 0),
+    p95CaseDurationMs: Number(caseOv.p95_case_duration_ms ?? 0),
     inputTokens: Number(ov.input_tokens ?? 0),
     outputTokens: Number(ov.output_tokens ?? 0),
+    funnel: {
+      totalCases: Number(caseOv.total_cases ?? totalCases),
+      executionCompleted: Number(caseOv.execution_completed ?? 0),
+      schemaValid: Number(caseOv.schema_valid ?? 0),
+      passed: Number(caseOv.passed ?? passedCases),
+      executionErrors: Number(caseOv.execution_errors ?? 0),
+      schemaInvalid: Number(caseOv.schema_invalid ?? 0),
+      assertionFailures: Number(caseOv.assertion_failures ?? 0),
+    },
     trend: trend.rows.map((r) => {
       const cases = Number(r.cases ?? 0);
       const passed = Number(r.passed ?? 0);
@@ -283,6 +315,8 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
         cases,
         passRate: cases > 0 ? passed / cases : 0,
         avgDurationMs: Number(r.avg_duration_ms ?? 0),
+        inputTokens: Number(r.input_tokens ?? 0),
+        outputTokens: Number(r.output_tokens ?? 0),
       };
     }),
     byModel: byModel.rows.map((r) => {
@@ -312,6 +346,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
       outputTokens: Number(r.output_tokens),
       artifactUri: String(r.artifact_uri || ''),
       startedAt: toISO(r.started_at),
+      completedAt: toISO(r.completed_at),
     })),
     recentCases: recentCases.rows.map(caseRow),
     recentFailures: recentFailures.rows.map(caseRow),
