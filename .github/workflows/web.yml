@@ -96,6 +96,7 @@ jobs:
         with:
           name: e2e-binaries
           path: .e2e-bin
+          include-hidden-files: true
           retention-days: 1
 
   # The Playwright suite dominates wall time, so split it across parallel shards.
