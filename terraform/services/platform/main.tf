@@ -104,6 +104,7 @@ locals {
   ])
 
   eval_secrets = toset([
+    "database-dsn",
     "gemini-api-key",
   ])
 
