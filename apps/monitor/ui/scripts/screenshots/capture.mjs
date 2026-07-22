@@ -29,6 +29,7 @@ const JOB_HEALTH = fixture('job-health.json');
 const COST = fixture('cost.json');
 const WORKSPACE = fixture('workspace.json');
 const ERRORS = fixture('errors.json');
+const EVAL = fixture('eval.json');
 const JOBS = fixture('jobs.json');
 const LOGS = fixture('logs.json');
 
@@ -42,6 +43,7 @@ async function installMocks(page) {
     if (path.endsWith('/api/dashboards/cost')) return json(COST);
     if (path.endsWith('/api/dashboards/workspace')) return json(WORKSPACE);
     if (path.endsWith('/api/dashboards/errors')) return json(ERRORS);
+    if (path.endsWith('/api/dashboards/eval')) return json(EVAL);
     if (path.endsWith('/api/jobs')) return json(JOBS);
     if (/\/api\/jobs\/[^/]+\/logs$/.test(path)) return json(LOGS);
     if (path.endsWith('/api/jobs/search')) return json(LOGS);
@@ -49,6 +51,12 @@ async function installMocks(page) {
     if (path.endsWith('/api/jobs/trace')) return json({ jobId: '', toolCalls: [] });
     if (path.endsWith('/api/auth/me')) return json({ uid: 'preview', email: 'preview@example.com', admin: true });
     return json({});
+  });
+}
+
+async function hideDevTools(page) {
+  await page.addStyleTag({
+    content: `nextjs-portal, [data-nextjs-dev-tools-button], #__next-dev-tools-indicator { display: none !important; }`,
   });
 }
 
@@ -101,11 +109,7 @@ async function main() {
 
   console.log(`→ ${BASE_URL}`);
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
-
-  // dev サーバーの Next.js インジケータ (隅の丸いバッジ) をスクショから隠す。
-  await page.addStyleTag({
-    content: `nextjs-portal, [data-nextjs-dev-tools-button], #__next-dev-tools-indicator { display: none !important; }`,
-  });
+  await hideDevTools(page);
 
   // 既定は Job Health タブ。
   await page.getByText('Overview').first().waitFor({ timeout: 15000 });
@@ -130,6 +134,14 @@ async function main() {
   await page.locator('button:has-text("job_")').first().click().catch(() => {});
   await page.waitForTimeout(1000);
   await shot(page, 'logs', 'viewport');
+
+  // Eval は独立ルート。既存の operations タブを壊さず、同じ screenshot harness で撮る。
+  await page.setViewportSize({ width: 1440, height: 2400 });
+  await page.goto(`${BASE_URL}/dashboards/eval`, { waitUntil: 'networkidle' });
+  await hideDevTools(page);
+  await page.getByText('LLM Eval Monitor').waitFor({ timeout: 15000 });
+  await page.getByText('Pass Rate Trend').waitFor({ timeout: 15000 });
+  await shot(page, 'eval');
 
   await browser.close();
   console.log(`\nSaved to ${outDir}`);
