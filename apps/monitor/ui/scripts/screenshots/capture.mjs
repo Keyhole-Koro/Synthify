@@ -30,6 +30,7 @@ const COST = fixture('cost.json');
 const WORKSPACE = fixture('workspace.json');
 const ERRORS = fixture('errors.json');
 const EVAL = fixture('eval.json');
+const EVAL_TRACE = fixture('eval-trace.json');
 const JOBS = fixture('jobs.json');
 const LOGS = fixture('logs.json');
 
@@ -43,6 +44,7 @@ async function installMocks(page) {
     if (path.endsWith('/api/dashboards/cost')) return json(COST);
     if (path.endsWith('/api/dashboards/workspace')) return json(WORKSPACE);
     if (path.endsWith('/api/dashboards/errors')) return json(ERRORS);
+    if (path.endsWith('/api/dashboards/eval/trace')) return json(EVAL_TRACE);
     if (path.endsWith('/api/dashboards/eval')) return json(EVAL);
     if (path.endsWith('/api/jobs')) return json(JOBS);
     if (/\/api\/jobs\/[^/]+\/logs$/.test(path)) return json(LOGS);
@@ -73,11 +75,15 @@ async function shot(page, name, mode = 'clip') {
   await page.waitForTimeout(1600);
 
   const clipHeight = await page.evaluate(() => {
+    // Clip to the LAST child's bottom, not the first: the eval page renders its
+    // sections as a fragment, so firstElementChild is only the first section
+    // (too short) while the container's flex-stretched scrollHeight is the full
+    // viewport (too tall, trailing whitespace). lastElementChild.bottom is the
+    // real content end for both the fragment page and the single-wrapper tabs.
     const el = document.querySelector('div.overflow-y-auto');
-    const inner = el?.firstElementChild;
-    if (!inner) return null;
-    const rect = inner.getBoundingClientRect();
-    return Math.ceil(rect.bottom + 24);
+    const last = el?.lastElementChild;
+    if (!last) return null;
+    return Math.ceil(last.getBoundingClientRect().bottom + 24);
   });
   if (clipHeight) {
     await page.screenshot({

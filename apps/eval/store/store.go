@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -128,10 +129,46 @@ func Persist(ctx context.Context, dsn string, run Run) error {
 		if err != nil {
 			return fmt.Errorf("insert eval case %q: %w", result.CaseName, err)
 		}
+
+		if err := insertTraceEvents(ctx, tx, run.ID, index, result.Trace); err != nil {
+			return fmt.Errorf("insert trace for case %q: %w", result.CaseName, err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit eval transaction: %w", err)
+	}
+	return nil
+}
+
+// insertTraceEvents writes the per-case LLM/tool execution spans captured by
+// the runner's tracing client. case_index ties each event to its eval_case_results
+// row (the foreign key eval_trace_events_case_fk).
+func insertTraceEvents(ctx context.Context, tx *sql.Tx, runID string, caseIndex int, events []runner.TraceEvent) error {
+	for _, ev := range events {
+		var parent any
+		if strings.TrimSpace(ev.ParentEventID) != "" {
+			parent = ev.ParentEventID
+		}
+		inputJSON, err := rawJSONOrNil(ev.Input)
+		if err != nil {
+			return fmt.Errorf("marshal trace input (event %q): %w", ev.Name, err)
+		}
+		outputJSON, err := rawJSONOrNil(ev.Output)
+		if err != nil {
+			return fmt.Errorf("marshal trace output (event %q): %w", ev.Name, err)
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO eval_trace_events (
+				run_id, case_index, event_id, parent_event_id, sequence, kind, name,
+				started_at, completed_at, duration_ms, model, input_tokens, output_tokens,
+				input_json, output_json, error
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		`, runID, caseIndex, ev.EventID, parent, ev.Sequence, ev.Kind, ev.Name,
+			ev.StartedAt, ev.CompletedAt, ev.DurationMS, ev.Model, ev.InputTokens, ev.OutputTokens,
+			inputJSON, outputJSON, ev.Error); err != nil {
+			return fmt.Errorf("insert trace event %q: %w", ev.Name, err)
+		}
 	}
 	return nil
 }

@@ -85,6 +85,7 @@ func main() {
 		LLM:          client,
 		Renderer:     renderer,
 		PromptSource: promptSource,
+		Collector:    &runner.TraceCollector{},
 	}.RunCaseFiles(ctx, caseFiles)
 	completedAt := time.Now().UTC()
 	if err != nil {

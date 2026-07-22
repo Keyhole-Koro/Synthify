@@ -13,20 +13,20 @@ import (
 
 // TraceEvent is one persisted execution span for an eval case.
 type TraceEvent struct {
-	EventID      string          `json:"event_id"`
-	ParentEventID string         `json:"parent_event_id,omitempty"`
-	Sequence     int             `json:"sequence"`
-	Kind         string          `json:"kind"`
-	Name         string          `json:"name"`
-	StartedAt    time.Time       `json:"started_at"`
-	CompletedAt  time.Time       `json:"completed_at"`
-	DurationMS   int64           `json:"duration_ms"`
-	Model        string          `json:"model,omitempty"`
-	InputTokens  int64           `json:"input_tokens,omitempty"`
-	OutputTokens int64           `json:"output_tokens,omitempty"`
-	Input        json.RawMessage `json:"input,omitempty"`
-	Output       json.RawMessage `json:"output,omitempty"`
-	Error        string          `json:"error,omitempty"`
+	EventID       string          `json:"event_id"`
+	ParentEventID string          `json:"parent_event_id,omitempty"`
+	Sequence      int             `json:"sequence"`
+	Kind          string          `json:"kind"`
+	Name          string          `json:"name"`
+	StartedAt     time.Time       `json:"started_at"`
+	CompletedAt   time.Time       `json:"completed_at"`
+	DurationMS    int64           `json:"duration_ms"`
+	Model         string          `json:"model,omitempty"`
+	InputTokens   int64           `json:"input_tokens,omitempty"`
+	OutputTokens  int64           `json:"output_tokens,omitempty"`
+	Input         json.RawMessage `json:"input,omitempty"`
+	Output        json.RawMessage `json:"output,omitempty"`
+	Error         string          `json:"error,omitempty"`
 }
 
 // TraceCollector collects events for the currently executing case. Eval cases
@@ -55,6 +55,38 @@ func (c *TraceCollector) Record(event TraceEvent) {
 	c.events = append(c.events, event)
 }
 
+// RecordValidation records the schema-validation span for the current case.
+// Unlike LLM spans it is instantaneous (the check runs in-process), so start and
+// end coincide; the value is the ordered pass/fail record, not a duration.
+func (c *TraceCollector) RecordValidation(schemaValid bool, caseError string) {
+	now := time.Now().UTC()
+	ev := TraceEvent{Kind: "validation", Name: "schema_validation", StartedAt: now, CompletedAt: now}
+	if !schemaValid {
+		ev.Error = firstNonEmpty(caseError, "output failed schema validation")
+	}
+	c.Record(ev)
+}
+
+// RecordAssertion records the semantic-assertion span (expect.json rules) for
+// the current case.
+func (c *TraceCollector) RecordAssertion(passed bool, caseError string) {
+	now := time.Now().UTC()
+	ev := TraceEvent{Kind: "assertion", Name: "semantic_assertions", StartedAt: now, CompletedAt: now}
+	if !passed {
+		ev.Error = firstNonEmpty(caseError, "expectation failed")
+	}
+	c.Record(ev)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func (c *TraceCollector) Events() []TraceEvent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -78,9 +110,9 @@ func (t *tracingLLM) GenerateStructured(ctx context.Context, req llm.StructuredR
 	completed := time.Now().UTC()
 	input, _ := json.Marshal(map[string]any{
 		"system_prompt": req.SystemPrompt,
-		"user_prompt": req.UserPrompt,
-		"source_files": req.SourceFiles,
-		"schema": req.Schema,
+		"user_prompt":   req.UserPrompt,
+		"source_files":  req.SourceFiles,
+		"schema":        req.Schema,
 	})
 	event := TraceEvent{
 		Kind: "llm", Name: "GenerateStructured", StartedAt: started, CompletedAt: completed,
@@ -101,8 +133,8 @@ func (t *tracingLLM) GenerateText(ctx context.Context, req llm.TextRequest) (str
 	completed := time.Now().UTC()
 	input, _ := json.Marshal(map[string]any{
 		"system_prompt": req.SystemPrompt,
-		"user_prompt": req.UserPrompt,
-		"source_files": req.SourceFiles,
+		"user_prompt":   req.UserPrompt,
+		"source_files":  req.SourceFiles,
 	})
 	output, _ := json.Marshal(out)
 	event := TraceEvent{

@@ -56,6 +56,7 @@ export interface EvalRunRow {
 
 export interface EvalCaseRow {
   runId: string;
+  caseIndex: number;
   caseName: string;
   tool: string;
   passed: boolean;
@@ -194,6 +195,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     pool.query(`
       SELECT
         run_id,
+        case_index,
         case_name,
         tool,
         passed,
@@ -215,6 +217,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     pool.query(`
       SELECT
         run_id,
+        case_index,
         case_name,
         tool,
         passed,
@@ -236,6 +239,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     pool.query(`
       SELECT
         run_id,
+        case_index,
         case_name,
         tool,
         passed,
@@ -263,6 +267,7 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
   const toISO = (value: unknown) => value instanceof Date ? value.toISOString() : String(value ?? '');
   const caseRow = (r: Record<string, unknown>): EvalCaseRow => ({
     runId: String(r.run_id),
+    caseIndex: Number(r.case_index ?? 0),
     caseName: String(r.case_name),
     tool: String(r.tool),
     passed: Boolean(r.passed),
@@ -352,4 +357,62 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
     recentFailures: recentFailures.rows.map(caseRow),
     slowestCases: slowestCases.rows.map(caseRow),
   };
+}
+
+// ── Eval execution trace ────────────────────────────────────────────────────
+//
+// Per-case ordered LLM/tool/validation/assertion spans persisted by the eval
+// runner (db/migrations/0023_eval_trace_events). Unlike the reconstructed
+// nodes, these are real recorded events: prompt/response payloads, tokens and
+// per-call duration.
+
+export interface EvalTraceEvent {
+  eventId: string;
+  parentEventId: string;
+  sequence: number;
+  kind: 'tool' | 'llm' | 'validation' | 'assertion';
+  name: string;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  input: unknown;
+  output: unknown;
+  error: string;
+}
+
+export async function queryEvalCaseTrace(
+  pool: Pool,
+  runId: string,
+  caseIndex: number,
+): Promise<EvalTraceEvent[]> {
+  const { rows } = await pool.query(
+    `SELECT
+       event_id, parent_event_id, sequence, kind, name,
+       started_at, completed_at, duration_ms, model,
+       input_tokens, output_tokens, input_json, output_json, error
+     FROM v_eval_trace_events
+     WHERE run_id = $1 AND case_index = $2
+     ORDER BY sequence ASC`,
+    [runId, caseIndex],
+  );
+  const toISO = (value: unknown) => (value instanceof Date ? value.toISOString() : String(value ?? ''));
+  return rows.map((r) => ({
+    eventId: String(r.event_id),
+    parentEventId: r.parent_event_id ? String(r.parent_event_id) : '',
+    sequence: Number(r.sequence ?? 0),
+    kind: (String(r.kind) as EvalTraceEvent['kind']),
+    name: String(r.name ?? ''),
+    startedAt: toISO(r.started_at),
+    completedAt: toISO(r.completed_at),
+    durationMs: Number(r.duration_ms ?? 0),
+    model: String(r.model ?? ''),
+    inputTokens: Number(r.input_tokens ?? 0),
+    outputTokens: Number(r.output_tokens ?? 0),
+    input: r.input_json ?? null,
+    output: r.output_json ?? null,
+    error: String(r.error ?? ''),
+  }));
 }

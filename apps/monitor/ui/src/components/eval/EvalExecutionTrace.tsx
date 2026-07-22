@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { EvalCaseRow, EvalRunRow } from '@/lib/eval-queries';
+import { useEffect, useMemo, useState } from 'react';
+import type { EvalCaseRow, EvalRunRow, EvalTraceEvent } from '@/lib/eval-queries';
+import { authFetch } from '@/lib/auth-client';
 
 type TraceKind = 'case' | 'tool' | 'llm' | 'validation' | 'assertion';
 
@@ -26,7 +27,10 @@ function json(value: unknown): string {
   try { return JSON.stringify(value, null, 2); } catch { return String(value); }
 }
 
-function buildNodes(row: EvalCaseRow): TraceNode[] {
+// buildReconstructedNodes is the fallback for runs recorded before trace
+// instrumentation existed. It derives the skeleton from the aggregate case row;
+// the LLM prompt is genuinely not available for those runs.
+function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
   const executionFailed = Boolean(row.error) && !row.output;
   return [
     {
@@ -36,19 +40,15 @@ function buildNodes(row: EvalCaseRow): TraceNode[] {
     {
       id: 'tool', kind: 'tool', title: `Tool · ${row.tool}`, subtitle: 'Top-level eval tool invocation',
       status: executionFailed ? 'error' : 'ok', durationMs: row.durationMs,
-      details: { tool: row.tool, input: row.failedInput ?? 'Input payload is only persisted for failed cases', output: row.output, error: row.error || null },
+      details: { tool: row.tool, output: row.output, error: row.error || null },
     },
     {
       id: 'llm', kind: 'llm', title: `LLM · ${row.model || 'unknown model'}`, subtitle: row.promptSource,
       status: executionFailed ? 'error' : 'ok', durationMs: row.durationMs,
       details: {
-        model: row.model,
-        promptSource: row.promptSource,
-        inputTokens: row.inputTokens,
-        outputTokens: row.outputTokens,
-        prompt: 'Not recorded yet',
+        model: row.model, inputTokens: row.inputTokens, outputTokens: row.outputTokens,
+        prompt: 'Not recorded — run predates trace instrumentation',
         rawResponse: row.output ?? 'Not recorded',
-        note: 'Duration currently covers the top-level tool execution. Dedicated LLM spans will replace this when instrumentation is available.',
       },
     },
     {
@@ -64,6 +64,36 @@ function buildNodes(row: EvalCaseRow): TraceNode[] {
   ];
 }
 
+// buildTraceNodes builds nodes from real persisted spans. The case node frames
+// the run; every following node is an actual recorded event with its own
+// prompt/response, tokens and duration.
+function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[] {
+  const caseNode: TraceNode = {
+    id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok',
+    details: { runId: row.runId, caseIndex: row.caseIndex, caseName: row.caseName, promptSource: row.promptSource },
+  };
+  const eventNodes = events.map((ev): TraceNode => {
+    const status: TraceNode['status'] = ev.error ? 'error' : 'ok';
+    const title =
+      ev.kind === 'llm' ? `LLM · ${ev.model || 'unknown model'}`
+      : ev.kind === 'tool' ? `Tool · ${ev.name}`
+      : ev.kind === 'validation' ? 'Schema validation'
+      : ev.kind === 'assertion' ? 'Semantic assertions'
+      : ev.name;
+    const details = ev.kind === 'llm'
+      ? { call: ev.name, model: ev.model, inputTokens: ev.inputTokens, outputTokens: ev.outputTokens, prompt: ev.input, response: ev.output, error: ev.error || null }
+      : { name: ev.name, error: ev.error || null, input: ev.input, output: ev.output };
+    return {
+      id: ev.eventId, kind: ev.kind, title,
+      subtitle: ev.error ? ev.error : ev.name,
+      status,
+      durationMs: ev.kind === 'llm' || ev.kind === 'tool' ? ev.durationMs : undefined,
+      details,
+    };
+  });
+  return [caseNode, ...eventNodes];
+}
+
 const kindLabel: Record<TraceKind, string> = { case: 'CASE', tool: 'TOOL', llm: 'LLM', validation: 'CHECK', assertion: 'ASSERT' };
 
 export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases: EvalCaseRow[] }) {
@@ -71,9 +101,36 @@ export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases:
   const visibleCases = useMemo(() => cases.filter((row) => !runId || row.runId === runId), [cases, runId]);
   const [caseKey, setCaseKey] = useState(cases[0] ? `${cases[0].runId}:${cases[0].caseName}` : '');
   const selectedCase = visibleCases.find((row) => `${row.runId}:${row.caseName}` === caseKey) ?? visibleCases[0] ?? cases[0];
-  const nodes = selectedCase ? buildNodes(selectedCase) : [];
-  const [nodeId, setNodeId] = useState('llm');
-  const selectedNode = nodes.find((node) => node.id === nodeId) ?? nodes[0];
+
+  const [trace, setTrace] = useState<EvalTraceEvent[] | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+
+  const selectedRunId = selectedCase?.runId;
+  const selectedCaseIndex = selectedCase?.caseIndex;
+
+  useEffect(() => {
+    if (!selectedRunId || selectedCaseIndex === undefined) { setTrace(null); return; }
+    let cancelled = false;
+    setTraceLoading(true);
+    setTrace(null);
+    const url = `/api/dashboards/eval/trace?runId=${encodeURIComponent(selectedRunId)}&caseIndex=${selectedCaseIndex}`;
+    authFetch(url)
+      .then((res) => (res.ok ? res.json() : { events: [] }))
+      .then((body: { events?: EvalTraceEvent[] }) => { if (!cancelled) setTrace(Array.isArray(body.events) ? body.events : []); })
+      .catch(() => { if (!cancelled) setTrace([]); })
+      .finally(() => { if (!cancelled) setTraceLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedRunId, selectedCaseIndex]);
+
+  const hasRealTrace = Array.isArray(trace) && trace.length > 0;
+  const nodes = useMemo(() => {
+    if (!selectedCase) return [];
+    return hasRealTrace ? buildTraceNodes(selectedCase, trace!) : buildReconstructedNodes(selectedCase);
+  }, [selectedCase, hasRealTrace, trace]);
+
+  const defaultNodeId = nodes.find((node) => node.kind === 'llm')?.id ?? nodes[0]?.id ?? '';
+  const [nodeId, setNodeId] = useState('');
+  const selectedNode = nodes.find((node) => node.id === nodeId) ?? nodes.find((node) => node.id === defaultNodeId) ?? nodes[0];
 
   if (!selectedCase) return <div className="rounded-xl border border-stone-200 bg-white p-10 text-center text-sm text-stone-400">No eval cases in this period.</div>;
 
@@ -82,14 +139,14 @@ export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases:
       <div className="grid min-h-[620px] grid-cols-[240px_minmax(460px,1fr)_360px]">
         <aside className="border-r border-stone-200 bg-stone-50/70 p-3">
           <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-stone-400">Run</p>
-          <select className="mb-4 w-full rounded border border-stone-200 bg-white px-2 py-2 text-[10px] font-mono" value={runId} onChange={(event) => { setRunId(event.target.value); setCaseKey(''); }}>
+          <select className="mb-4 w-full rounded border border-stone-200 bg-white px-2 py-2 text-[10px] font-mono" value={runId} onChange={(event) => { setRunId(event.target.value); setCaseKey(''); setNodeId(''); }}>
             {runs.map((run) => <option key={run.runId} value={run.runId}>{run.promptSource} · {run.runId.slice(0, 8)}</option>)}
           </select>
           <p className="mb-2 text-[9px] font-bold uppercase tracking-wider text-stone-400">Cases</p>
           <div className="space-y-1">
             {visibleCases.map((row) => {
               const key = `${row.runId}:${row.caseName}`;
-              return <button key={key} onClick={() => { setCaseKey(key); setNodeId('llm'); }} className={`w-full rounded-md border px-3 py-2 text-left ${key === `${selectedCase.runId}:${selectedCase.caseName}` ? 'border-stone-400 bg-white shadow-sm' : 'border-transparent hover:bg-white'}`}>
+              return <button key={key} onClick={() => { setCaseKey(key); setNodeId(''); }} className={`w-full rounded-md border px-3 py-2 text-left ${key === `${selectedCase.runId}:${selectedCase.caseName}` ? 'border-stone-400 bg-white shadow-sm' : 'border-transparent hover:bg-white'}`}>
                 <p className="truncate text-[10px] font-semibold text-stone-700">{row.caseName}</p>
                 <p className={`mt-1 text-[9px] ${row.passed ? 'text-emerald-600' : 'text-red-600'}`}>{row.passed ? 'passed' : 'failed'} · {fmtMs(row.durationMs)}</p>
               </button>;
@@ -99,8 +156,17 @@ export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases:
 
         <section className="overflow-auto p-5">
           <div className="mb-5 flex items-center justify-between">
-            <div><h3 className="text-sm font-bold text-stone-800">{selectedCase.caseName}</h3><p className="text-[10px] text-stone-400">Ordered execution trace · persisted telemetry only</p></div>
-            <div className="flex gap-2 text-[9px]"><span className="rounded bg-stone-100 px-2 py-1">{selectedCase.inputTokens + selectedCase.outputTokens} tokens</span><span className="rounded bg-stone-100 px-2 py-1">{fmtMs(selectedCase.durationMs)}</span></div>
+            <div>
+              <h3 className="text-sm font-bold text-stone-800">{selectedCase.caseName}</h3>
+              <p className="text-[10px] text-stone-400">
+                {traceLoading ? 'Loading execution trace…' : hasRealTrace ? 'Ordered execution trace · recorded telemetry' : 'Reconstructed outline · no recorded trace for this run'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[9px]">
+              <span className={`rounded px-2 py-1 font-semibold ${hasRealTrace ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{hasRealTrace ? 'recorded' : 'reconstructed'}</span>
+              <span className="rounded bg-stone-100 px-2 py-1">{selectedCase.inputTokens + selectedCase.outputTokens} tokens</span>
+              <span className="rounded bg-stone-100 px-2 py-1">{fmtMs(selectedCase.durationMs)}</span>
+            </div>
           </div>
           <div className="mx-auto max-w-xl">
             {nodes.map((node, index) => (
