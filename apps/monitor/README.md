@@ -57,3 +57,29 @@ BI 用の view と read-only ロールへの GRANT は以下のマイグレー�
 
 リポジトリ全体の `compose.yaml` で `monitor` サービスとして起動する
 (`bun run dev`, port 5174)。詳細はルートの `README.md` / `Makefile` を参照。
+
+## デプロイ (Cloud Run)
+
+api / worker / eval と同じ `deploy-backend.yml` パイプラインで Cloud Run
+サービス `synthify-monitor-<env>` としてデプロイされる。
+
+- **イメージ**: `apps/monitor/ui/Dockerfile`（monorepo コンテキスト・Next.js
+  standalone）。`NEXT_PUBLIC_FIREBASE_*` はクライアントバンドルに焼き込まれる
+  ため **ビルド時の build-arg** で渡す（GitHub Environment vars を利用）。
+- **公開範囲**: `ingress = all` の公開 Cloud Run。ネットワーク層では開き、
+  アプリ層の `requireAdmin`（Firebase ID トークン + `SYNTHIFY_ADMIN_USER_EMAILS`）
+  で認可する。
+- **terraform**: `terraform/services/monitor`。SA・`monitor-database-dsn`
+  シークレット・IAM は `terraform/services/platform` に定義。
+
+### 初回デプロイ時の手動作業
+
+1. DB マイグレーション適用後、`monitor` ロールにパスワードを設定する
+   （`0014_monitor_role.up.sql` はパスワードなしで `CREATE ROLE`）:
+   `ALTER ROLE monitor WITH PASSWORD '…';`
+2. read-only DSN をシークレットに登録する:
+   `printf '<dsn>' | gcloud secrets versions add synthify-monitor-database-dsn --project <project> --data-file=-`
+3. `NEXT_PUBLIC_FIREBASE_*` の GitHub Environment vars を設定する
+   （frontend デプロイと共通なので既存の可能性が高い）。
+4. `SYNTHIFY_ADMIN_USER_EMAILS`（tfvars の `admin_user_emails`）が api と
+   同じ値になっていることを確認する。

@@ -6,6 +6,10 @@ output "worker_uri" {
   value = module.worker.uri
 }
 
+output "monitor_uri" {
+  value = module.monitor.uri
+}
+
 output "eval_job_name" {
   value = module.eval.name
 }
