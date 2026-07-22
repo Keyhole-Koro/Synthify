@@ -1,27 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-} from 'recharts';
+import { useEffect, useState } from 'react';
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { authFetch } from '@/lib/auth-client';
 import type { Period } from '@/lib/dashboard-queries';
-import type { EvalData, EvalCaseRow } from '@/lib/eval-queries';
-import {
-  EvalFailureFunnel,
-  EvalPipelineDiagram,
-  EvalRunTimeline,
-  EvalVariantComparison,
-} from './eval/EvalDiagrams';
+import type { EvalData } from '@/lib/eval-queries';
+import { EvalExecutionTrace } from './eval/EvalExecutionTrace';
+import { EvalRunTimeline, EvalVariantComparison } from './eval/EvalDiagrams';
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -37,32 +23,15 @@ const EMPTY_EVAL: EvalData = {
   p95CaseDurationMs: 0,
   inputTokens: 0,
   outputTokens: 0,
-  funnel: {
-    totalCases: 0,
-    executionCompleted: 0,
-    schemaValid: 0,
-    passed: 0,
-    executionErrors: 0,
-    schemaInvalid: 0,
-    assertionFailures: 0,
-  },
-  trend: [],
-  byPromptSource: [],
-  byModel: [],
-  recentRuns: [],
-  recentCases: [],
-  recentFailures: [],
-  slowestCases: [],
+  funnel: { totalCases: 0, executionCompleted: 0, schemaValid: 0, passed: 0, executionErrors: 0, schemaInvalid: 0, assertionFailures: 0 },
+  trend: [], byPromptSource: [], byModel: [], recentRuns: [], recentCases: [], recentFailures: [], slowestCases: [],
 };
 
 function normalize(data: Partial<EvalData> | null | undefined): EvalData {
   return {
     ...EMPTY_EVAL,
     ...data,
-    funnel: {
-      ...EMPTY_EVAL.funnel,
-      ...(data?.funnel ?? {}),
-    },
+    funnel: { ...EMPTY_EVAL.funnel, ...(data?.funnel ?? {}) },
     trend: Array.isArray(data?.trend) ? data.trend : [],
     byPromptSource: Array.isArray(data?.byPromptSource) ? data.byPromptSource : [],
     byModel: Array.isArray(data?.byModel) ? data.byModel : [],
@@ -83,112 +52,12 @@ function fmtNumber(value: number): string {
   return new Intl.NumberFormat('en-US', { notation: value >= 10_000 ? 'compact' : 'standard' }).format(value);
 }
 
-function fmtDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return <div className="rounded-lg border border-stone-200 bg-white p-4"><p className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{label}</p><p className="mt-1 text-xl font-bold text-stone-800">{value}</p>{detail && <p className="mt-1 text-[9px] text-stone-400">{detail}</p>}</div>;
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
-  return (
-    <section className="mb-8">
-      <div className="mb-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-stone-500">{title}</h2>
-        {description && <p className="mt-1 text-[10px] text-stone-400">{description}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg border border-stone-200 bg-white p-4">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">{label}</p>
-      <p className="text-2xl font-bold text-stone-800">{value}</p>
-      {sub && <p className="mt-1 text-[11px] text-stone-400">{sub}</p>}
-    </div>
-  );
-}
-
-function jsonText(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-function CaseTable({ rows, empty }: { rows: EvalCaseRow[]; empty: string }) {
-  return (
-    <div className="overflow-x-auto rounded-lg border border-stone-200 bg-white">
-      {rows.length === 0 ? (
-        <p className="py-6 text-center text-sm text-stone-400">{empty}</p>
-      ) : (
-        <table className="min-w-[980px] w-full text-[11px]">
-          <thead>
-            <tr className="border-b border-stone-200 bg-stone-50">
-              <th className="px-3 py-2 text-left font-semibold text-stone-500">Case</th>
-              <th className="px-3 py-2 text-left font-semibold text-stone-500">Result</th>
-              <th className="px-3 py-2 text-left font-semibold text-stone-500">Tool / model</th>
-              <th className="px-3 py-2 text-left font-semibold text-stone-500">Prompt</th>
-              <th className="px-3 py-2 text-right font-semibold text-stone-500">Duration</th>
-              <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
-              <th className="px-3 py-2 text-left font-semibold text-stone-500">Details</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => {
-              const output = jsonText(row.output);
-              const failedInput = jsonText(row.failedInput);
-              return (
-                <tr key={`${row.runId}-${row.caseName}-${index}`} className="border-b border-stone-50 align-top">
-                  <td className="px-3 py-2">
-                    <p className="font-medium text-stone-700">{row.caseName}</p>
-                    <p className="font-mono text-[9px] text-stone-400">{row.runId.slice(0, 12)}… · {fmtDate(row.createdAt)}</p>
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${row.passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                      {row.passed ? 'passed' : 'failed'}
-                    </span>
-                    <p className={`mt-1 text-[9px] ${row.schemaValid ? 'text-stone-400' : 'font-semibold text-red-600'}`}>
-                      schema {row.schemaValid ? 'valid' : 'invalid'}
-                    </p>
-                  </td>
-                  <td className="px-3 py-2 text-stone-500">
-                    <p>{row.tool}</p>
-                    <p className="font-mono text-[9px] text-stone-400">{row.model}</p>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-[10px] text-stone-500">{row.promptSource}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-stone-700">{fmtMs(row.durationMs)}</td>
-                  <td className="px-3 py-2 text-right text-stone-500">
-                    <p>{fmtNumber(row.inputTokens + row.outputTokens)}</p>
-                    <p className="text-[9px] text-stone-400">{fmtNumber(row.inputTokens)} in / {fmtNumber(row.outputTokens)} out</p>
-                  </td>
-                  <td className="max-w-sm px-3 py-2">
-                    {row.error && <p className="mb-1 line-clamp-2 text-red-600">{row.error}</p>}
-                    {(output || failedInput) ? (
-                      <details>
-                        <summary className="cursor-pointer text-[10px] font-semibold text-stone-500 hover:text-stone-700">Output / input JSON</summary>
-                        {output && <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-stone-950 p-2 text-[9px] text-stone-100">{output}</pre>}
-                        {failedInput && (
-                          <>
-                            <p className="mt-2 text-[9px] font-semibold uppercase tracking-wider text-stone-400">Failed input</p>
-                            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-stone-950 p-2 text-[9px] text-stone-100">{failedInput}</pre>
-                          </>
-                        )}
-                      </details>
-                    ) : !row.error ? <span className="text-stone-400">—</span> : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
+function Section({ title, detail, children }: { title: string; detail?: string; children: React.ReactNode }) {
+  return <section className="mb-8"><div className="mb-3"><h2 className="text-xs font-bold uppercase tracking-wider text-stone-500">{title}</h2>{detail && <p className="mt-1 text-[10px] text-stone-400">{detail}</p>}</div>{children}</section>;
 }
 
 export function EvalDashboard() {
@@ -209,187 +78,57 @@ export function EvalDashboard() {
       .then((body) => { if (!cancelled) setData(normalize(body)); })
       .catch((reason) => {
         console.error(reason);
-        if (!cancelled) {
-          setData(EMPTY_EVAL);
-          setError(reason instanceof Error ? reason.message : 'Failed to load');
-        }
+        if (!cancelled) { setData(EMPTY_EVAL); setError(reason instanceof Error ? reason.message : 'Failed to load'); }
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [period]);
 
-  const trend = (data?.trend ?? []).map((point) => ({
-    ...point,
-    passRatePct: Number((point.passRate * 100).toFixed(1)),
-  }));
-  const artifactRuns = data?.recentRuns.filter((run) => run.artifactUri).length ?? 0;
+  const trend = (data?.trend ?? []).map((point) => ({ ...point, passRatePct: Number((point.passRate * 100).toFixed(1)) }));
+  const llmCalls = data?.recentCases.length ?? 0;
+  const failedNodes = data?.recentFailures.length ?? 0;
 
   return (
     <div className="flex h-screen overflow-hidden bg-stone-50">
       <aside className="flex w-56 shrink-0 flex-col border-r border-stone-200 bg-white">
-        <div className="border-b border-stone-100 bg-stone-50/50 p-4">
-          <h1 className="text-sm font-bold uppercase tracking-tight text-stone-800">Dashboards</h1>
-          <p className="mt-0.5 text-[10px] font-medium text-stone-400">Operations BI</p>
-        </div>
-        <nav className="flex-1 p-2">
-          <Link href="/dashboards" className="mb-0.5 block rounded-md px-3 py-2 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100">
-            Logs & Operations
-          </Link>
-          <span className="mb-0.5 block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval</span>
-        </nav>
-        <div className="border-t border-stone-100 p-3 text-[10px] text-stone-400">
-          Diagram-first run, case, latency, token and failure telemetry
-        </div>
+        <div className="border-b border-stone-100 bg-stone-50/50 p-4"><h1 className="text-sm font-bold uppercase tracking-tight text-stone-800">Dashboards</h1><p className="mt-0.5 text-[10px] text-stone-400">Operations BI</p></div>
+        <nav className="flex-1 p-2"><Link href="/dashboards" className="mb-0.5 block rounded-md px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100">Logs & Operations</Link><span className="block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval Trace</span></nav>
+        <div className="border-t border-stone-100 p-3 text-[10px] text-stone-400">Inspect LLM calls, tool calls, validation and assertion failures.</div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center justify-between border-b border-stone-200 bg-white px-6 py-3">
-          <div>
-            <h1 className="text-sm font-bold text-stone-800">LLM Eval Monitor</h1>
-            <p className="text-[10px] text-stone-400">Follow the evaluation flow, then drill into rows</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="mr-1 text-xs text-stone-400">Period:</span>
-            {PERIODS.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setPeriod(item.id)}
-                className={`rounded px-3 py-1 text-xs font-medium transition-colors ${period === item.id ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <div><h1 className="text-sm font-bold text-stone-800">LLM Eval Execution Trace</h1><p className="text-[10px] text-stone-400">Select a run and case, then inspect each execution node.</p></div>
+          <div className="flex items-center gap-2"><span className="text-xs text-stone-400">Period:</span>{PERIODS.map((item) => <button key={item.id} onClick={() => setPeriod(item.id)} className={`rounded px-3 py-1 text-xs font-medium ${period === item.id ? 'bg-stone-800 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}`}>{item.label}</button>)}</div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-6">
           {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-          {loading || !data ? (
-            <p className="py-12 text-center text-sm text-stone-400">Loading eval telemetry…</p>
-          ) : (
-            <>
-              <Section title="Overview">
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
-                  <StatCard label="Runs" value={fmtNumber(data.totalRuns)} />
-                  <StatCard label="Cases" value={fmtNumber(data.totalCases)} />
-                  <StatCard label="Pass Rate" value={`${(data.passRate * 100).toFixed(1)}%`} />
-                  <StatCard label="Avg Run" value={fmtMs(data.avgRunDurationMs)} />
-                  <StatCard label="p95 Case" value={fmtMs(data.p95CaseDurationMs)} />
-                  <StatCard label="Input Tokens" value={fmtNumber(data.inputTokens)} />
-                  <StatCard label="Output Tokens" value={fmtNumber(data.outputTokens)} />
-                </div>
-              </Section>
-
-              <Section title="Evaluation Pipeline" description="Actual case counts through execution, contract validation and semantic assertions.">
-                <EvalPipelineDiagram funnel={data.funnel} artifactRuns={artifactRuns} runCount={data.recentRuns.length} />
-              </Section>
-
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <Section title="Failure Funnel" description="Where cases leave the happy path.">
-                  <EvalFailureFunnel funnel={data.funnel} />
-                </Section>
-                <Section title="Recent Run Duration Lanes" description="Relative duration and status for the latest runs.">
-                  <EvalRunTimeline runs={data.recentRuns} />
-                </Section>
+          {loading || !data ? <p className="py-12 text-center text-sm text-stone-400">Loading eval traces…</p> : <>
+            <Section title="Trace summary" detail="Counts reflect persisted case telemetry; dedicated nested spans are added as instrumentation becomes available.">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+                <Stat label="Runs" value={fmtNumber(data.totalRuns)} />
+                <Stat label="Cases" value={fmtNumber(data.totalCases)} />
+                <Stat label="Visible LLM calls" value={fmtNumber(llmCalls)} detail="one top-level call per persisted case" />
+                <Stat label="Failed nodes" value={fmtNumber(failedNodes)} />
+                <Stat label="p95 case" value={fmtMs(data.p95CaseDurationMs)} />
+                <Stat label="Tokens" value={fmtNumber(data.inputTokens + data.outputTokens)} />
               </div>
+            </Section>
 
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <Section title="Pass Rate Trend">
-                  <div className="rounded-xl border border-stone-200 bg-white p-4">
-                    <ResponsiveContainer width="100%" height={260}>
-                      <LineChart data={trend}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-                        <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="passRatePct" name="Pass rate" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Section>
-                <Section title="Prompt Variant Comparison" description="Pass rate, run latency and tokens per case on one visual scale.">
-                  <EvalVariantComparison rows={data.byPromptSource} />
-                </Section>
-              </div>
+            <Section title="Execution trace" detail="Tool, LLM, schema validation and assertion nodes are ordered per selected eval case.">
+              <EvalExecutionTrace runs={data.recentRuns} cases={data.recentCases} />
+            </Section>
 
-              <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                <Section title="Model Latency (p95)">
-                  <div className="rounded-xl border border-stone-200 bg-white p-4">
-                    <ResponsiveContainer width="100%" height={240}>
-                      <BarChart data={data.byModel} layout="vertical" margin={{ left: 55 }}>
-                        <XAxis type="number" tick={{ fontSize: 10 }} />
-                        <YAxis type="category" dataKey="model" tick={{ fontSize: 10 }} width={110} />
-                        <Tooltip formatter={(value) => fmtMs(Number(value))} />
-                        <Bar dataKey="p95DurationMs" name="p95 duration" fill="#f59e0b" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Section>
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <Section title="Recent run duration lanes" detail="Supporting run-level context."><EvalRunTimeline runs={data.recentRuns} /></Section>
+              <Section title="Prompt variant comparison" detail="Supporting aggregate comparison."><EvalVariantComparison rows={data.byPromptSource} /></Section>
+            </div>
 
-                <Section title="Models & Tokens">
-                  <div className="overflow-hidden rounded-xl border border-stone-200 bg-white">
-                    <table className="w-full text-[11px]">
-                      <thead><tr className="border-b border-stone-200 bg-stone-50">
-                        <th className="px-3 py-2 text-left font-semibold text-stone-500">Model</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Cases</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Avg / p95</th>
-                        <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
-                      </tr></thead>
-                      <tbody>{data.byModel.map((row) => (
-                        <tr key={row.model} className="border-b border-stone-50">
-                          <td className="px-3 py-2 font-mono text-stone-600">{row.model}</td>
-                          <td className="px-3 py-2 text-right text-stone-500">{row.cases}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-emerald-600">{(row.passRate * 100).toFixed(1)}%</td>
-                          <td className="px-3 py-2 text-right text-stone-500">{fmtMs(row.avgDurationMs)} / {fmtMs(row.p95DurationMs)}</td>
-                          <td className="px-3 py-2 text-right text-stone-500">{fmtNumber(row.inputTokens + row.outputTokens)}</td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  </div>
-                </Section>
-              </div>
-
-              <Section title="Recent Runs">
-                <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
-                  <table className="min-w-[900px] w-full text-[11px]">
-                    <thead><tr className="border-b border-stone-200 bg-stone-50">
-                      <th className="px-3 py-2 text-left font-semibold text-stone-500">Run</th>
-                      <th className="px-3 py-2 text-left font-semibold text-stone-500">Prompt / model</th>
-                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Result</th>
-                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Pass rate</th>
-                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Duration</th>
-                      <th className="px-3 py-2 text-right font-semibold text-stone-500">Tokens</th>
-                      <th className="px-3 py-2 text-left font-semibold text-stone-500">Artifact</th>
-                    </tr></thead>
-                    <tbody>{data.recentRuns.map((run) => (
-                      <tr key={run.runId} className="border-b border-stone-50">
-                        <td className="px-3 py-2"><p className="font-mono text-stone-600">{run.runId.slice(0, 12)}…</p><p className="text-[9px] text-stone-400">{fmtDate(run.startedAt)} → {fmtDate(run.completedAt)}</p></td>
-                        <td className="px-3 py-2"><p className="font-mono text-stone-600">{run.promptSource}</p><p className="text-[9px] text-stone-400">{run.model}</p></td>
-                        <td className="px-3 py-2 text-right"><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${run.status === 'succeeded' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{run.passedCount}/{run.caseCount} passed</span></td>
-                        <td className="px-3 py-2 text-right font-semibold text-stone-700">{(run.passRate * 100).toFixed(1)}%</td>
-                        <td className="px-3 py-2 text-right text-stone-500">{fmtMs(run.durationMs)}</td>
-                        <td className="px-3 py-2 text-right text-stone-500">{fmtNumber(run.inputTokens + run.outputTokens)}</td>
-                        <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[9px] text-stone-400" title={run.artifactUri}>{run.artifactUri || '—'}</td>
-                      </tr>
-                    ))}</tbody>
-                  </table>
-                </div>
-              </Section>
-
-              <Section title="Recent Case Results">
-                <CaseTable rows={data.recentCases} empty="No case results in this period" />
-              </Section>
-
-              <Section title="Recent Failures">
-                <CaseTable rows={data.recentFailures} empty="No failed cases in this period" />
-              </Section>
-
-              <Section title="Slowest Cases">
-                <CaseTable rows={data.slowestCases} empty="No case data in this period" />
-              </Section>
-            </>
-          )}
+            <Section title="Pass-rate trend" detail="Aggregate health remains available below the trace inspector.">
+              <div className="rounded-xl border border-stone-200 bg-white p-4"><ResponsiveContainer width="100%" height={240}><LineChart data={trend}><CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" /><XAxis dataKey="date" tick={{ fontSize: 10 }} /><YAxis domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" /><Tooltip /><Line type="monotone" dataKey="passRatePct" name="Pass rate" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} /></LineChart></ResponsiveContainer></div>
+            </Section>
+          </>}
         </div>
       </main>
     </div>
