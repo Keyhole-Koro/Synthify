@@ -103,6 +103,21 @@ module "api" {
   deletion_protection               = local.deletion_protection
 }
 
+module "monitor" {
+  source = "../services/monitor"
+
+  project_id            = var.project_id
+  region                = var.region
+  name                  = "synthify-monitor-${var.environment}"
+  image                 = var.monitor_image
+  service_account_email = module.bootstrap.monitor_service_account_email
+  secret_ids            = module.bootstrap.secret_ids
+  firebase_project_id   = local.firebase_project_id
+  admin_user_emails     = var.admin_user_emails
+  deletion_protection   = local.deletion_protection
+  domain                = var.monitor_domain
+}
+
 module "monitoring" {
   source = "../services/monitoring"
 

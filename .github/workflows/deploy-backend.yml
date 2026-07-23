@@ -65,6 +65,7 @@ jobs:
           echo "api_image=${REGISTRY}/api:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "worker_image=${REGISTRY}/worker:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "eval_image=${REGISTRY}/eval:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          echo "monitor_image=${REGISTRY}/monitor:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
 
       - name: Generate readiness smoke key
         run: |
@@ -109,7 +110,7 @@ jobs:
       - name: Verify all secrets have a version
         run: |
           missing=()
-          for s in database-dsn stripe-secret-key \
+          for s in database-dsn monitor-database-dsn stripe-secret-key \
                    stripe-webhook-secret new-relic-license-key internal-worker-token \
                    gemini-api-key; do
             name="synthify-${s}"
@@ -165,7 +166,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Build and push all three images in parallel. Each uses a GHA-scoped
+      # Build and push all four images in parallel. Each uses a GHA-scoped
       # BuildKit cache keyed by image name + environment so pushes to stage
       # and prod never share cache entries.
       - name: Build and push images (parallel)
@@ -195,6 +196,23 @@ jobs:
             -t "${{ steps.registry.outputs.eval_image }}" \
             -t "${{ steps.registry.outputs.registry }}/eval:latest" \
             -f apps/eval/Dockerfile --push . &
+          pids+=($!)
+
+          # Monitor is a Next.js app: NEXT_PUBLIC_* are baked into the client
+          # bundle at build time, so they are passed as build args (not runtime
+          # env). Server-side secrets (MONITOR_DATABASE_URL) stay in Cloud Run.
+          docker buildx build \
+            --cache-from "type=gha,scope=monitor-${ENVIRONMENT}" \
+            --cache-to   "type=gha,scope=monitor-${ENVIRONMENT},mode=max" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ vars.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET }}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ vars.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}" \
+            --build-arg "NEXT_PUBLIC_FIREBASE_APP_ID=${{ vars.NEXT_PUBLIC_FIREBASE_APP_ID }}" \
+            -t "${{ steps.registry.outputs.monitor_image }}" \
+            -t "${{ steps.registry.outputs.registry }}/monitor:latest" \
+            -f apps/monitor/ui/Dockerfile --push . &
           pids+=($!)
 
           failed=0
@@ -228,6 +246,7 @@ jobs:
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
+            -var="monitor_image=${{ steps.registry.outputs.monitor_image }}"
             -var="readiness_api_key=${READINESS_API_KEY}"
             -var="readiness_monitor_key=${READINESS_MONITOR_KEY}"
             -var="stripe_pro_price_id_jpy=${STRIPE_PRO_PRICE_ID_JPY}"
@@ -262,6 +281,7 @@ jobs:
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
             -var="eval_image=${{ steps.registry.outputs.eval_image }}"
+            -var="monitor_image=${{ steps.registry.outputs.monitor_image }}"
             -var="api_base_url=${API_URI}"
             -var="readiness_api_key=${READINESS_API_KEY}"
             -var="readiness_monitor_key=${READINESS_MONITOR_KEY}"

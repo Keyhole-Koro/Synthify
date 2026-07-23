@@ -22,6 +22,10 @@ output "eval_scheduler_service_account_email" {
   value = module.eval_scheduler_service_account.email
 }
 
+output "monitor_service_account_email" {
+  value = module.monitor_service_account.email
+}
+
 output "pipeline_queue_name" {
   value = module.pipeline_queue.name
 }

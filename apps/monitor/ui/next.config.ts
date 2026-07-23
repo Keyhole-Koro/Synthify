@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.join(__dirname, '..', '..', '..'),
   },
+  // monorepo (bun workspaces) なので standalone のトレース基点をリポジトリルート
+  // に固定する。これで出力は .next/standalone/apps/monitor/ui/server.js になる。
+  outputFileTracingRoot: path.join(__dirname, '..', '..', '..'),
   output: 'standalone',
   images: { unoptimized: true },
 };
