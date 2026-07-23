@@ -40,6 +40,16 @@ resource "google_cloud_run_v2_job" "this" {
         }
 
         env {
+          name = "DATABASE_DSN"
+          value_source {
+            secret_key_ref {
+              secret  = var.secret_ids["database-dsn"]
+              version = "latest"
+            }
+          }
+        }
+
+        env {
           name = "GEMINI_API_KEY"
           value_source {
             secret_key_ref {

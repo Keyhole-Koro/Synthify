@@ -41,6 +41,10 @@ type Result struct {
 	Error        string          `json:"error,omitempty"`
 	FailedInput  *InputSnapshot  `json:"failed_input,omitempty"`
 	PromptSource string          `json:"prompt_source"`
+	// Trace holds the ordered LLM/tool execution spans captured for this case.
+	// Empty unless the Runner was given a Collector. Persisted to
+	// eval_trace_events keyed by the case's index in the run.
+	Trace []TraceEvent `json:"trace,omitempty"`
 }
 
 type InputSnapshot struct {
@@ -65,6 +69,11 @@ type Runner struct {
 	// same Tool abstraction.
 	DynTools        DynamicToolSource
 	TransformEngine transform.Engine
+
+	// Collector, when set, captures per-case LLM execution spans. The runner
+	// wraps LLM with a tracing client and resets the collector before each case,
+	// attaching the collected events to that case's Result.Trace.
+	Collector *TraceCollector
 }
 
 func CaseFiles(path string) ([]string, error) {
@@ -173,7 +182,11 @@ func (r Runner) RunCase(ctx context.Context, c Case, baseDir string) (Result, er
 // concrete builtin tools exist — that enumeration lives in builtins.go.
 // Dynamic tools are merged in on-demand by resolveRunTool (see DynamicToolSource).
 func (r Runner) toolTable(renderer *prompts.Renderer) (map[string]Tool, error) {
-	return builtinTable(r.LLM, renderer), nil
+	llmClient := r.LLM
+	if r.Collector != nil {
+		llmClient = NewTracingLLM(r.LLM, r.Collector)
+	}
+	return builtinTable(llmClient, renderer), nil
 }
 
 func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSource string, tools map[string]Tool) (Result, error) {
@@ -194,15 +207,32 @@ func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSourc
 	}
 
 	res := Result{CaseName: c.Name, Tool: c.Tool, PromptSource: promptSource}
+	var toolSpanID string
+	if r.Collector != nil {
+		r.Collector.BeginCase()
+		// Open the tool span before running so the LLM calls the tool makes are
+		// recorded as its children (parent_event_id), not flat siblings.
+		toolSpanID = r.Collector.BeginSpan("tool", c.Tool)
+	}
 	start := time.Now()
 	output, usage, toolErr := tool.Run(ctx, prepared.Raw)
 	res.DurationMS = time.Since(start).Milliseconds()
 	res.Model = usage.Model
 	res.InputTokens = usage.InputTokens
 	res.OutputTokens = usage.OutputTokens
+	if r.Collector != nil {
+		toolErrStr := ""
+		if toolErr != nil {
+			toolErrStr = toolErr.Error()
+		}
+		r.Collector.EndSpan(toolSpanID, toolErrStr)
+	}
 	if toolErr != nil {
 		res.Error = toolErr.Error()
 		res.FailedInput = prepared.Snapshot
+		if r.Collector != nil {
+			res.Trace = r.Collector.Events()
+		}
 		return res, nil
 	}
 
@@ -213,6 +243,11 @@ func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSourc
 		return Result{}, fmt.Errorf("%s expectations: %w", c.Name, err)
 	}
 	res.Passed = passed && res.Error == ""
+	if r.Collector != nil {
+		r.Collector.RecordValidation(res.SchemaValid, res.Error)
+		r.Collector.RecordAssertion(res.Passed, res.Error)
+		res.Trace = r.Collector.Events()
+	}
 	if !res.Passed {
 		res.FailedInput = prepared.Snapshot
 	}

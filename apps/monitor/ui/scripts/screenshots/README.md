@@ -1,7 +1,7 @@
 # Monitor screenshot harness
 
 `monitor` のダッシュボード画面を Playwright で撮影するための最小ハーネス。
-実 DB / Firebase を立てずに、モックデータで各タブを撮影できる。
+実 DB / Firebase を立てずに、モックデータで各タブと LLM Eval 画面を撮影できる。
 
 ## 仕組み
 
@@ -23,7 +23,8 @@ bun run screenshots  # next dev を起動 → 撮影 → 後始末
 ```
 
 出力は `docs/monitor-screenshots/*.png` (job-health / cost / workspace /
-errors / logs)。
+errors / logs / eval)。`eval.png` は独立ルート `/dashboards/eval` を、
+`fixtures/eval.json` の run・case・failure・latency・token モックで撮影する。
 
 既に dev サーバーが動いている場合は capture だけ実行できる:
 
@@ -36,5 +37,5 @@ BASE_URL=http://127.0.0.1:5174 node scripts/screenshots/capture.mjs
 | ファイル | 役割 |
 | --- | --- |
 | `run.mjs` | next dev をプレビューモードで起動し capture を回すランナー |
-| `capture.mjs` | ルートをモックしてタブを巡回・撮影する Playwright スクリプト |
-| `fixtures/*.json` | 各ダッシュボード / ジョブ一覧 / ログのモック応答 |
+| `capture.mjs` | ルートをモックして既存タブと `/dashboards/eval` を巡回・撮影する Playwright スクリプト |
+| `fixtures/*.json` | 各ダッシュボード / eval / ジョブ一覧 / ログのモック応答 |

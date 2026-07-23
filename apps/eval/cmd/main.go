@@ -11,9 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/synthify/backend/apps/eval/artifact"
 	"github.com/synthify/backend/apps/eval/report"
 	"github.com/synthify/backend/apps/eval/runner"
+	"github.com/synthify/backend/apps/eval/store"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
@@ -78,11 +80,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	startedAt := time.Now().UTC()
 	results, err := runner.Runner{
 		LLM:          client,
 		Renderer:     renderer,
 		PromptSource: promptSource,
+		Collector:    &runner.TraceCollector{},
 	}.RunCaseFiles(ctx, caseFiles)
+	completedAt := time.Now().UTC()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "run eval: %v\n", err)
 		os.Exit(1)
@@ -103,14 +108,37 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	artifactURI := ""
 	if gcsURI := resolveGCSOutputURI(*outGCS); gcsURI != "" {
 		res, err := artifact.UploadGCS(ctx, artifact.GCSConfig{PrefixURI: gcsURI, PromptSource: promptSource}, buf.Bytes())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "write --out-gcs: %v\n", err)
 			os.Exit(1)
 		}
+		artifactURI = res.URI
 		fmt.Fprintf(os.Stderr, "eval artifact uploaded: %s\n", res.URI)
 	}
+
+	if dsn := databaseDSNFromEnv(); dsn != "" {
+		persistCtx, persistCancel := context.WithTimeout(context.Background(), 20*time.Second)
+		runID := uuid.NewString()
+		err := store.Persist(persistCtx, dsn, store.Run{
+			ID:           runID,
+			PromptSource: promptSource,
+			ArtifactURI:  artifactURI,
+			StartedAt:    startedAt,
+			CompletedAt:  completedAt,
+			Results:      results,
+		})
+		persistCancel()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "persist eval run: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "eval run persisted: %s\n", runID)
+	}
+
 	if !allPassed(results) {
 		os.Exit(1)
 	}
@@ -121,6 +149,13 @@ func resolveGCSOutputURI(flagValue string) string {
 		return strings.TrimSpace(flagValue)
 	}
 	return strings.TrimSpace(os.Getenv("EVAL_OUTPUT_GCS_URI"))
+}
+
+func databaseDSNFromEnv() string {
+	if dsn := strings.TrimSpace(os.Getenv("EVAL_DATABASE_DSN")); dsn != "" {
+		return dsn
+	}
+	return strings.TrimSpace(os.Getenv("DATABASE_DSN"))
 }
 
 func allPassed(results []runner.Result) bool {

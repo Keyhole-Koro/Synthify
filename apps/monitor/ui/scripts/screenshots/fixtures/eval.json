@@ -1,0 +1,503 @@
+{
+  "totalRuns": 18,
+  "totalCases": 216,
+  "passRate": 0.9444,
+  "avgRunDurationMs": 48210,
+  "p95CaseDurationMs": 6810,
+  "inputTokens": 2841600,
+  "outputTokens": 412800,
+  "funnel": {
+    "totalCases": 216,
+    "executionCompleted": 213,
+    "schemaValid": 207,
+    "passed": 204,
+    "executionErrors": 3,
+    "schemaInvalid": 6,
+    "assertionFailures": 3
+  },
+  "trend": [
+    {
+      "date": "07-15",
+      "runs": 2,
+      "cases": 24,
+      "passed": 21,
+      "passRate": 0.875
+    },
+    {
+      "date": "07-16",
+      "runs": 3,
+      "cases": 36,
+      "passed": 34,
+      "passRate": 0.9444
+    },
+    {
+      "date": "07-17",
+      "runs": 2,
+      "cases": 24,
+      "passed": 23,
+      "passRate": 0.9583
+    },
+    {
+      "date": "07-18",
+      "runs": 3,
+      "cases": 36,
+      "passed": 35,
+      "passRate": 0.9722
+    },
+    {
+      "date": "07-19",
+      "runs": 2,
+      "cases": 24,
+      "passed": 22,
+      "passRate": 0.9167
+    },
+    {
+      "date": "07-20",
+      "runs": 3,
+      "cases": 36,
+      "passed": 35,
+      "passRate": 0.9722
+    },
+    {
+      "date": "07-21",
+      "runs": 3,
+      "cases": 36,
+      "passed": 34,
+      "passRate": 0.9444
+    }
+  ],
+  "byPromptSource": [
+    {
+      "promptSource": "production",
+      "runs": 9,
+      "cases": 108,
+      "passRate": 0.9259,
+      "avgDurationMs": 50120,
+      "inputTokens": 1478000,
+      "outputTokens": 224800
+    },
+    {
+      "promptSource": "variant:concise-v3",
+      "runs": 5,
+      "cases": 60,
+      "passRate": 0.9833,
+      "avgDurationMs": 43840,
+      "inputTokens": 741600,
+      "outputTokens": 101400
+    },
+    {
+      "promptSource": "variant:grounded-v2",
+      "runs": 4,
+      "cases": 48,
+      "passRate": 0.9583,
+      "avgDurationMs": 46770,
+      "inputTokens": 622000,
+      "outputTokens": 86600
+    }
+  ],
+  "byModel": [
+    {
+      "model": "gemini-2.5-pro",
+      "cases": 84,
+      "passRate": 0.9762,
+      "avgDurationMs": 4920,
+      "p95DurationMs": 7620,
+      "inputTokens": 1428000,
+      "outputTokens": 221000
+    },
+    {
+      "model": "gemini-2.5-flash",
+      "cases": 132,
+      "passRate": 0.9242,
+      "avgDurationMs": 2410,
+      "p95DurationMs": 4180,
+      "inputTokens": 1413600,
+      "outputTokens": 191800
+    }
+  ],
+  "recentRuns": [
+    {
+      "runId": "7d76f5f8-2b6d-49b6-a343-793ce8e75c20",
+      "promptSource": "variant:concise-v3",
+      "status": "succeeded",
+      "caseCount": 12,
+      "passedCount": 12,
+      "failedCount": 0,
+      "passRate": 1,
+      "durationMs": 42180,
+      "model": "gemini-2.5-pro",
+      "inputTokens": 164200,
+      "outputTokens": 21800,
+      "artifactUri": "gs://synthify-eval/variant-concise-v3/2026-07-21T03-00.json",
+      "startedAt": "2026-07-21T03:00:00Z",
+      "completedAt": "2026-07-21T03:00:42.180Z"
+    },
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "promptSource": "production",
+      "status": "failed",
+      "caseCount": 12,
+      "passedCount": 10,
+      "failedCount": 2,
+      "passRate": 0.8333,
+      "durationMs": 51220,
+      "model": "gemini-2.5-pro",
+      "inputTokens": 172900,
+      "outputTokens": 24600,
+      "artifactUri": "gs://synthify-eval/production/2026-07-21T02-00.json",
+      "startedAt": "2026-07-21T02:00:00Z",
+      "completedAt": "2026-07-21T02:00:51.220Z"
+    },
+    {
+      "runId": "db14f416-42d9-49d5-8c9c-96bb509dad52",
+      "promptSource": "variant:grounded-v2",
+      "status": "succeeded",
+      "caseCount": 12,
+      "passedCount": 12,
+      "failedCount": 0,
+      "passRate": 1,
+      "durationMs": 46110,
+      "model": "gemini-2.5-flash",
+      "inputTokens": 151300,
+      "outputTokens": 20800,
+      "artifactUri": "gs://synthify-eval/variant-grounded-v2/2026-07-20T03-00.json",
+      "startedAt": "2026-07-20T03:00:00Z",
+      "completedAt": "2026-07-20T03:00:46.110Z"
+    },
+    {
+      "runId": "a2e7118c-e682-43c0-b6ae-18a982b9fae9",
+      "promptSource": "production",
+      "status": "succeeded",
+      "caseCount": 12,
+      "passedCount": 12,
+      "failedCount": 0,
+      "passRate": 1,
+      "durationMs": 48730,
+      "model": "gemini-2.5-flash",
+      "inputTokens": 159700,
+      "outputTokens": 23200,
+      "artifactUri": "gs://synthify-eval/production/2026-07-20T02-00.json",
+      "startedAt": "2026-07-20T02:00:00Z",
+      "completedAt": "2026-07-20T02:00:48.730Z"
+    },
+    {
+      "runId": "4b4da15d-e6bb-42e8-9a70-22a39ce55a7e",
+      "promptSource": "variant:concise-v3",
+      "status": "succeeded",
+      "caseCount": 12,
+      "passedCount": 11,
+      "failedCount": 1,
+      "passRate": 0.9167,
+      "durationMs": 38640,
+      "model": "gemini-2.5-flash",
+      "inputTokens": 148900,
+      "outputTokens": 19900,
+      "artifactUri": "gs://synthify-eval/variant-concise-v3/2026-07-19T03-00.json",
+      "startedAt": "2026-07-19T03:00:00Z",
+      "completedAt": "2026-07-19T03:00:38.640Z"
+    }
+  ],
+  "recentFailures": [
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "caseName": "knowledge-tree-long-document",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": true,
+      "model": "gemini-2.5-pro",
+      "durationMs": 6810,
+      "inputTokens": 18620,
+      "outputTokens": 2050,
+      "error": "expected at least 4 root nodes; got 2",
+      "output": {
+        "root_nodes": 2,
+        "items": 18
+      },
+      "failedInput": {
+        "document_id": "eval-long-doc",
+        "instruction": "Build a balanced knowledge tree",
+        "chunks_path": "fixtures/long-document.json"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-21T02:00:44Z",
+      "caseIndex": 0
+    },
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "caseName": "knowledge-tree-japanese-finance",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": false,
+      "model": "gemini-2.5-pro",
+      "durationMs": 5940,
+      "inputTokens": 15120,
+      "outputTokens": 1730,
+      "error": "",
+      "output": {
+        "root_nodes": 4,
+        "items": 22,
+        "invalid_item_id": "market-risk"
+      },
+      "failedInput": {
+        "document_id": "eval-jp-finance",
+        "instruction": "金融レポートを構造化する"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-21T02:00:31Z",
+      "caseIndex": 1
+    },
+    {
+      "runId": "bb18ab91-645c-4b2a-92c4-e7852766cc37",
+      "caseName": "knowledge-tree-citations",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": true,
+      "model": "gemini-2.5-flash",
+      "durationMs": 3890,
+      "inputTokens": 10420,
+      "outputTokens": 1480,
+      "error": "",
+      "output": {
+        "root_nodes": 4,
+        "citation_coverage": 0.72
+      },
+      "failedInput": {
+        "document_id": "eval-citations",
+        "instruction": "Preserve source coverage"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-19T02:00:29Z",
+      "caseIndex": 2
+    }
+  ],
+  "slowestCases": [
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "caseName": "knowledge-tree-long-document",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": true,
+      "model": "gemini-2.5-pro",
+      "durationMs": 6810,
+      "inputTokens": 18620,
+      "outputTokens": 2050,
+      "error": "expected at least 4 root nodes; got 2",
+      "output": {
+        "root_nodes": 2,
+        "items": 18
+      },
+      "failedInput": {
+        "document_id": "eval-long-doc",
+        "instruction": "Build a balanced knowledge tree",
+        "chunks_path": "fixtures/long-document.json"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-21T02:00:44Z",
+      "caseIndex": 0
+    },
+    {
+      "runId": "7d76f5f8-2b6d-49b6-a343-793ce8e75c20",
+      "caseName": "knowledge-tree-multilingual",
+      "tool": "knowledge_tree",
+      "passed": true,
+      "schemaValid": true,
+      "model": "gemini-2.5-pro",
+      "durationMs": 6420,
+      "inputTokens": 14240,
+      "outputTokens": 2310,
+      "error": "",
+      "output": {
+        "root_nodes": 5,
+        "items": 31,
+        "languages": [
+          "ja",
+          "en"
+        ]
+      },
+      "failedInput": null,
+      "promptSource": "variant:concise-v3",
+      "createdAt": "2026-07-21T03:00:38Z",
+      "caseIndex": 1
+    },
+    {
+      "runId": "db14f416-42d9-49d5-8c9c-96bb509dad52",
+      "caseName": "knowledge-tree-scientific-paper",
+      "tool": "knowledge_tree",
+      "passed": true,
+      "schemaValid": true,
+      "model": "gemini-2.5-flash",
+      "durationMs": 6110,
+      "inputTokens": 13880,
+      "outputTokens": 1980,
+      "error": "",
+      "output": {
+        "root_nodes": 6,
+        "items": 36,
+        "citation_coverage": 0.94
+      },
+      "failedInput": null,
+      "promptSource": "variant:grounded-v2",
+      "createdAt": "2026-07-20T03:00:33Z",
+      "caseIndex": 2
+    },
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "caseName": "knowledge-tree-japanese-finance",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": false,
+      "model": "gemini-2.5-pro",
+      "durationMs": 5940,
+      "inputTokens": 15120,
+      "outputTokens": 1730,
+      "error": "",
+      "output": {
+        "root_nodes": 4,
+        "items": 22,
+        "invalid_item_id": "market-risk"
+      },
+      "failedInput": {
+        "document_id": "eval-jp-finance",
+        "instruction": "金融レポートを構造化する"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-21T02:00:31Z",
+      "caseIndex": 3
+    }
+  ],
+  "recentCases": [
+    {
+      "runId": "7d76f5f8-2b6d-49b6-a343-793ce8e75c20",
+      "caseName": "knowledge-tree-multilingual",
+      "tool": "knowledge_tree",
+      "passed": true,
+      "schemaValid": true,
+      "model": "gemini-2.5-pro",
+      "durationMs": 6420,
+      "inputTokens": 14240,
+      "outputTokens": 2310,
+      "error": "",
+      "output": {
+        "root_nodes": 5,
+        "items": 31,
+        "languages": [
+          "ja",
+          "en"
+        ]
+      },
+      "failedInput": null,
+      "promptSource": "variant:concise-v3",
+      "createdAt": "2026-07-21T03:00:38Z",
+      "caseIndex": 0
+    },
+    {
+      "runId": "7d76f5f8-2b6d-49b6-a343-793ce8e75c20",
+      "caseName": "knowledge-tree-citations",
+      "tool": "knowledge_tree",
+      "passed": true,
+      "schemaValid": true,
+      "model": "gemini-2.5-pro",
+      "durationMs": 4710,
+      "inputTokens": 11980,
+      "outputTokens": 1840,
+      "error": "",
+      "output": {
+        "root_nodes": 4,
+        "citation_coverage": 0.91
+      },
+      "failedInput": null,
+      "promptSource": "variant:concise-v3",
+      "createdAt": "2026-07-21T03:00:29Z",
+      "caseIndex": 1
+    },
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "caseName": "knowledge-tree-long-document",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": true,
+      "model": "gemini-2.5-pro",
+      "durationMs": 6810,
+      "inputTokens": 18620,
+      "outputTokens": 2050,
+      "error": "expected at least 4 root nodes; got 2",
+      "output": {
+        "root_nodes": 2,
+        "items": 18
+      },
+      "failedInput": {
+        "document_id": "eval-long-doc",
+        "instruction": "Build a balanced knowledge tree",
+        "chunks_path": "fixtures/long-document.json"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-21T02:00:44Z",
+      "caseIndex": 2
+    },
+    {
+      "runId": "5d230c51-cf06-4148-9f38-ec9702ba1ca1",
+      "caseName": "knowledge-tree-japanese-finance",
+      "tool": "knowledge_tree",
+      "passed": false,
+      "schemaValid": false,
+      "model": "gemini-2.5-pro",
+      "durationMs": 5940,
+      "inputTokens": 15120,
+      "outputTokens": 1730,
+      "error": "",
+      "output": {
+        "root_nodes": 4,
+        "items": 22,
+        "invalid_item_id": "market-risk"
+      },
+      "failedInput": {
+        "document_id": "eval-jp-finance",
+        "instruction": "金融レポートを構造化する"
+      },
+      "promptSource": "production",
+      "createdAt": "2026-07-21T02:00:31Z",
+      "caseIndex": 3
+    },
+    {
+      "runId": "db14f416-42d9-49d5-8c9c-96bb509dad52",
+      "caseName": "knowledge-tree-scientific-paper",
+      "tool": "knowledge_tree",
+      "passed": true,
+      "schemaValid": true,
+      "model": "gemini-2.5-flash",
+      "durationMs": 6110,
+      "inputTokens": 13880,
+      "outputTokens": 1980,
+      "error": "",
+      "output": {
+        "root_nodes": 6,
+        "items": 36,
+        "citation_coverage": 0.94
+      },
+      "failedInput": null,
+      "promptSource": "variant:grounded-v2",
+      "createdAt": "2026-07-20T03:00:33Z",
+      "caseIndex": 4
+    },
+    {
+      "runId": "a2e7118c-e682-43c0-b6ae-18a982b9fae9",
+      "caseName": "knowledge-tree-product-spec",
+      "tool": "knowledge_tree",
+      "passed": true,
+      "schemaValid": true,
+      "model": "gemini-2.5-flash",
+      "durationMs": 2890,
+      "inputTokens": 9270,
+      "outputTokens": 1320,
+      "error": "",
+      "output": {
+        "root_nodes": 4,
+        "items": 25
+      },
+      "failedInput": null,
+      "promptSource": "production",
+      "createdAt": "2026-07-20T02:00:18Z",
+      "caseIndex": 5
+    }
+  ]
+}

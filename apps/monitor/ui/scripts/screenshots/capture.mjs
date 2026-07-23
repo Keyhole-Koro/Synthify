@@ -19,7 +19,7 @@ const fixturesDir = join(__dirname, 'fixtures');
 const outDir = join(repoRoot, 'docs', 'monitor-screenshots');
 
 const BASE_URL = process.env.BASE_URL ?? 'http://127.0.0.1:5174';
-const EXECUTABLE_PATH = process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium';
+const EXECUTABLE_PATH = process.env.CHROMIUM_PATH ?? chromium.executablePath();
 
 function fixture(name) {
   return JSON.parse(readFileSync(join(fixturesDir, name), 'utf8'));
@@ -29,6 +29,8 @@ const JOB_HEALTH = fixture('job-health.json');
 const COST = fixture('cost.json');
 const WORKSPACE = fixture('workspace.json');
 const ERRORS = fixture('errors.json');
+const EVAL = fixture('eval.json');
+const EVAL_TRACE = fixture('eval-trace.json');
 const JOBS = fixture('jobs.json');
 const LOGS = fixture('logs.json');
 
@@ -42,6 +44,8 @@ async function installMocks(page) {
     if (path.endsWith('/api/dashboards/cost')) return json(COST);
     if (path.endsWith('/api/dashboards/workspace')) return json(WORKSPACE);
     if (path.endsWith('/api/dashboards/errors')) return json(ERRORS);
+    if (path.endsWith('/api/dashboards/eval/trace')) return json(EVAL_TRACE);
+    if (path.endsWith('/api/dashboards/eval')) return json(EVAL);
     if (path.endsWith('/api/jobs')) return json(JOBS);
     if (/\/api\/jobs\/[^/]+\/logs$/.test(path)) return json(LOGS);
     if (path.endsWith('/api/jobs/search')) return json(LOGS);
@@ -52,10 +56,12 @@ async function installMocks(page) {
   });
 }
 
-// mode 'clip': ダッシュボードタブ。背の高いビューポートで全セクションを描画し、
-//   最上位コンテンツの実高さに合わせてクリップ (余白なしのタイトな画像)。
-// mode 'viewport': Logs タブのような固定 master-detail レイアウト。ビューポート
-//   そのままを撮る。
+async function hideDevTools(page) {
+  await page.addStyleTag({
+    content: `nextjs-portal, [data-nextjs-dev-tools-button], #__next-dev-tools-indicator { display: none !important; }`,
+  });
+}
+
 async function shot(page, name, mode = 'clip') {
   mkdirSync(outDir, { recursive: true });
   const width = page.viewportSize()?.width ?? 1440;
@@ -66,16 +72,18 @@ async function shot(page, name, mode = 'clip') {
     return;
   }
 
-  // recharts の ResponsiveContainer の再計測とマウントアニメーションが終わるのを待つ。
-  // (待たずに撮ると line/bar が空で写ることがある)
   await page.waitForTimeout(1600);
 
   const clipHeight = await page.evaluate(() => {
+    // Clip to the LAST child's bottom, not the first: the eval page renders its
+    // sections as a fragment, so firstElementChild is only the first section
+    // (too short) while the container's flex-stretched scrollHeight is the full
+    // viewport (too tall, trailing whitespace). lastElementChild.bottom is the
+    // real content end for both the fragment page and the single-wrapper tabs.
     const el = document.querySelector('div.overflow-y-auto');
-    const inner = el?.firstElementChild;
-    if (!inner) return null;
-    const rect = inner.getBoundingClientRect();
-    return Math.ceil(rect.bottom + 24);
+    const last = el?.lastElementChild;
+    if (!last) return null;
+    return Math.ceil(last.getBoundingClientRect().bottom + 24);
   });
   if (clipHeight) {
     await page.screenshot({
@@ -94,20 +102,13 @@ async function clickTab(page, label) {
 
 async function main() {
   const browser = await chromium.launch({ executablePath: EXECUTABLE_PATH });
-  // ダッシュボードは h-screen + 内部スクロールなので、背の高いビューポートにして
-  // 各タブの全セクションが 1 枚に収まるようにする。
   const page = await browser.newPage({ viewport: { width: 1440, height: 2200 } });
   await installMocks(page);
 
   console.log(`→ ${BASE_URL}`);
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await hideDevTools(page);
 
-  // dev サーバーの Next.js インジケータ (隅の丸いバッジ) をスクショから隠す。
-  await page.addStyleTag({
-    content: `nextjs-portal, [data-nextjs-dev-tools-button], #__next-dev-tools-indicator { display: none !important; }`,
-  });
-
-  // 既定は Job Health タブ。
   await page.getByText('Overview').first().waitFor({ timeout: 15000 });
   await shot(page, 'job-health');
 
@@ -124,12 +125,17 @@ async function main() {
   await shot(page, 'errors');
 
   await clickTab(page, 'Logs');
-  // Logs は固定 master-detail レイアウトなのでビューポートを実サイズに戻して撮る。
   await page.setViewportSize({ width: 1440, height: 940 });
-  // 最初のジョブを選択してログビューを表示。
   await page.locator('button:has-text("job_")').first().click().catch(() => {});
   await page.waitForTimeout(1000);
   await shot(page, 'logs', 'viewport');
+
+  await page.setViewportSize({ width: 1440, height: 4200 });
+  await page.goto(`${BASE_URL}/dashboards/eval`, { waitUntil: 'networkidle' });
+  await hideDevTools(page);
+  await page.getByText('LLM Eval Execution Trace').waitFor({ timeout: 15000 });
+  await page.getByText('Execution trace', { exact: true }).waitFor({ timeout: 15000 });
+  await shot(page, 'eval');
 
   await browser.close();
   console.log(`\nSaved to ${outDir}`);

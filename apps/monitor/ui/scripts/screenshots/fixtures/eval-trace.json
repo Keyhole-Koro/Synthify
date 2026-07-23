@@ -1,0 +1,78 @@
+{
+  "events": [
+    {
+      "eventId": "a0000000-0000-4000-8000-000000000000",
+      "parentEventId": "",
+      "sequence": 1,
+      "kind": "tool",
+      "name": "knowledge_tree",
+      "startedAt": "2026-07-21T03:00:31.190Z",
+      "completedAt": "2026-07-21T03:00:37.630Z",
+      "durationMs": 6440,
+      "model": "",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "input": null,
+      "output": null,
+      "error": ""
+    },
+    {
+      "eventId": "b1c2d3e4-0000-4000-8000-000000000001",
+      "parentEventId": "a0000000-0000-4000-8000-000000000000",
+      "sequence": 2,
+      "kind": "llm",
+      "name": "GenerateStructured",
+      "startedAt": "2026-07-21T03:00:31.200Z",
+      "completedAt": "2026-07-21T03:00:37.620Z",
+      "durationMs": 6420,
+      "model": "gemini-2.5-pro",
+      "inputTokens": 14240,
+      "outputTokens": 2310,
+      "input": {
+        "system_prompt": "You organize document chunks into a knowledge tree. Return items as JSON matching the schema.",
+        "user_prompt": "document_id: eval-multilingual\nInstruction: Build a balanced knowledge tree\n\nChunks:\n[0] Overview\n多言語ドキュメントの概要...\n[1] Architecture\nThe system is composed of...\n[2] 認証 Authentication\nTokens expire after 60 minutes...",
+        "schema": { "type": "object", "properties": { "items": { "type": "array" } } }
+      },
+      "output": {
+        "items": [
+          { "local_id": "root", "title": "Overview 概要", "level": 1 },
+          { "local_id": "arch", "title": "Architecture", "level": 2, "parent_local_id": "root" },
+          { "local_id": "auth", "title": "認証 Authentication", "level": 2, "parent_local_id": "root" }
+        ]
+      },
+      "error": ""
+    },
+    {
+      "eventId": "b1c2d3e4-0000-4000-8000-000000000002",
+      "parentEventId": "",
+      "sequence": 3,
+      "kind": "validation",
+      "name": "schema_validation",
+      "startedAt": "2026-07-21T03:00:37.621Z",
+      "completedAt": "2026-07-21T03:00:37.621Z",
+      "durationMs": 0,
+      "model": "",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "input": null,
+      "output": null,
+      "error": ""
+    },
+    {
+      "eventId": "b1c2d3e4-0000-4000-8000-000000000003",
+      "parentEventId": "",
+      "sequence": 4,
+      "kind": "assertion",
+      "name": "semantic_assertions",
+      "startedAt": "2026-07-21T03:00:37.622Z",
+      "completedAt": "2026-07-21T03:00:37.622Z",
+      "durationMs": 0,
+      "model": "",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "input": null,
+      "output": null,
+      "error": ""
+    }
+  ]
+}
