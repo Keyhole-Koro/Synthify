@@ -41,6 +41,7 @@ locals {
     eval           = module.platform.eval_service_account_email
     eval_scheduler = module.platform.eval_scheduler_service_account_email
     api            = module.platform.api_service_account_email
+    monitor        = module.platform.monitor_service_account_email
   }
 }
 

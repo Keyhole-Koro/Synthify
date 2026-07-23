@@ -29,6 +29,18 @@ variable "eval_image" {
   default     = ""
 }
 
+variable "monitor_image" {
+  description = "Monitor dashboard container image. Passed by CD via -var after build&push; not stored in tfvars."
+  type        = string
+  default     = ""
+}
+
+variable "monitor_domain" {
+  description = "Custom domain (bare hostname, no scheme) for the monitor dashboard, set per-env in tfvars. Empty => no domain mapping (use the run.app URL)."
+  type        = string
+  default     = ""
+}
+
 # Public web origin (no trailing slash), e.g. https://stage.synthify.keyhole.work.
 # CORS + billing redirect URLs are derived from this in locals.tf.
 variable "web_base_url" {

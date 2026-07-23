@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import type { JobLog, ListJobLogsResponse } from '@/types';
 
 // GET /api/jobs/[jobId]/logs?page_token=&limit=500
@@ -7,6 +8,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> },
 ) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   const { jobId } = await params;
   if (!jobId) {
     return NextResponse.json({ error: 'job_id is required' }, { status: 400 });

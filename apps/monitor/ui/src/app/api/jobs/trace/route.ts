@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import { queryJobTrace } from '@/lib/trace-queries';
 
 export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   const jobId = req.nextUrl.searchParams.get('jobId');
   if (!jobId) {
     return NextResponse.json({ error: 'jobId required' }, { status: 400 });

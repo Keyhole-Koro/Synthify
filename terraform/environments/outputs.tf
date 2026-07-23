@@ -6,6 +6,19 @@ output "worker_uri" {
   value = module.worker.uri
 }
 
+output "monitor_uri" {
+  value = module.monitor.uri
+}
+
+output "monitor_domain" {
+  value = module.monitor.domain
+}
+
+# DNS records to add to the keyhole.work zone for the monitor custom domain.
+output "monitor_dns_records" {
+  value = module.monitor.dns_records
+}
+
 output "eval_job_name" {
   value = module.eval.name
 }

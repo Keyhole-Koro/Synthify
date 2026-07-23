@@ -60,6 +60,16 @@ module "eval_scheduler_service_account" {
   depends_on = [google_project_service.required]
 }
 
+module "monitor_service_account" {
+  source = "../../modules/service_account"
+
+  project_id   = var.project_id
+  account_id   = "synthify-monitor-${var.environment}"
+  display_name = "Synthify Monitor (${var.environment})"
+
+  depends_on = [google_project_service.required]
+}
+
 module "pipeline_queue" {
   source = "../../modules/cloud_tasks_queue"
 
@@ -107,7 +117,18 @@ locals {
     "gemini-api-key",
   ])
 
-  all_secrets = toset(concat(tolist(local.api_secrets), tolist(local.worker_secrets), tolist(local.eval_secrets)))
+  # monitor は read-only の monitor ロールを指す DSN のみ (api/worker とは別の
+  # 資格情報)。MONITOR_DATABASE_URL としてマウントする。
+  monitor_secrets = toset([
+    "monitor-database-dsn",
+  ])
+
+  all_secrets = toset(concat(
+    tolist(local.api_secrets),
+    tolist(local.worker_secrets),
+    tolist(local.eval_secrets),
+    tolist(local.monitor_secrets),
+  ))
 }
 
 resource "google_secret_manager_secret" "secrets" {
@@ -141,6 +162,13 @@ resource "google_secret_manager_secret_iam_member" "eval_accessor" {
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${module.eval_service_account.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "monitor_accessor" {
+  for_each  = local.monitor_secrets
+  secret_id = google_secret_manager_secret.secrets[each.value].id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${module.monitor_service_account.email}"
 }
 
 resource "google_storage_bucket_iam_member" "eval_artifact_writer" {

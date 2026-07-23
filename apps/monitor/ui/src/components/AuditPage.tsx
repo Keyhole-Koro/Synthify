@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createJobLogDataSource } from '@/lib/data-source';
-import { JobMonitor } from '../JobMonitor';
+import { JobMonitor } from '../JobLogViewer';
 import { JobTrace } from './JobTrace';
 import type { JobSummary, ListJobsResponse } from '../types';
+import { authFetch } from '@/lib/auth-client';
 
 interface AuditPageProps {
   embedded?: boolean;
@@ -21,7 +22,7 @@ export function AuditPage({ embedded = false, forcedJobId, onJobSelect }: AuditP
   const dataSource = useMemo(() => createJobLogDataSource(), []);
 
   useEffect(() => {
-    fetch('/api/jobs')
+    authFetch('/api/jobs')
       .then((r) => r.json())
       .then((data: Partial<ListJobsResponse>) => setJobs(Array.isArray(data.jobs) ? data.jobs : []))
       .catch(console.error)

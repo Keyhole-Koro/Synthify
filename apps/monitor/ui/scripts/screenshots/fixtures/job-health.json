@@ -1,0 +1,49 @@
+{
+  "totalJobs": 1284,
+  "successRate": 0.947,
+  "avgProcessingMs": 4210,
+  "p50ProcessingMs": 3120,
+  "p95ProcessingMs": 11800,
+  "byDay": [
+    { "date": "2026-07-15", "succeeded": 172, "failed": 9, "running": 2, "queued": 1 },
+    { "date": "2026-07-16", "succeeded": 188, "failed": 6, "running": 0, "queued": 0 },
+    { "date": "2026-07-17", "succeeded": 201, "failed": 14, "running": 1, "queued": 3 },
+    { "date": "2026-07-18", "succeeded": 164, "failed": 7, "running": 0, "queued": 0 },
+    { "date": "2026-07-19", "succeeded": 143, "failed": 5, "running": 0, "queued": 0 },
+    { "date": "2026-07-20", "succeeded": 176, "failed": 11, "running": 2, "queued": 0 },
+    { "date": "2026-07-21", "succeeded": 121, "failed": 8, "running": 4, "queued": 6 }
+  ],
+  "stageFailures": [
+    { "stage": "extract_text", "count": 21 },
+    { "stage": "llm_summarize", "count": 17 },
+    { "stage": "embed_chunks", "count": 12 },
+    { "stage": "ocr", "count": 8 },
+    { "stage": "persist", "count": 2 }
+  ],
+  "topRetryJobs": [
+    { "jobId": "job_7f3a9c21e8b0", "documentId": "doc_4b21aa90", "retryCount": 5 },
+    { "jobId": "job_1d92ff0ab3c7", "documentId": "doc_9c01de77", "retryCount": 4 },
+    { "jobId": "job_a03e77cd1200", "documentId": "doc_22ba18ef", "retryCount": 3 },
+    { "jobId": "job_bb1290ee45aa", "documentId": "doc_71ff0021", "retryCount": 3 },
+    { "jobId": "job_c7f0091aa2de", "documentId": "doc_0af3cc12", "retryCount": 2 }
+  ],
+  "errorMessages": [
+    { "message": "context deadline exceeded while calling gemini", "count": 19 },
+    { "message": "unsupported mime type: application/x-iwork-pages", "count": 11 },
+    { "message": "pdf: encrypted document without password", "count": 9 },
+    { "message": "embedding dimension mismatch (expected 768)", "count": 6 },
+    { "message": "rate limited by upstream (429)", "count": 4 }
+  ],
+  "byMimeType": [
+    { "mimeType": "application/pdf", "failed": 28, "total": 812 },
+    { "mimeType": "image/png", "failed": 12, "total": 190 },
+    { "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "failed": 9, "total": 143 },
+    { "mimeType": "text/markdown", "failed": 1, "total": 139 }
+  ],
+  "activeFailures": [
+    { "jobId": "job_7f3a9c21e8b0", "documentId": "doc_4b21aa90", "currentStage": "llm_summarize", "errorMessage": "context deadline exceeded while calling gemini", "updatedAt": "2026-07-21T09:41:22.000Z" },
+    { "jobId": "job_1d92ff0ab3c7", "documentId": "doc_9c01de77", "currentStage": "extract_text", "errorMessage": "pdf: encrypted document without password", "updatedAt": "2026-07-21T09:33:04.000Z" },
+    { "jobId": "job_a03e77cd1200", "documentId": "doc_22ba18ef", "currentStage": "embed_chunks", "errorMessage": "embedding dimension mismatch (expected 768)", "updatedAt": "2026-07-21T09:18:47.000Z" },
+    { "jobId": "job_e5510abc93f1", "documentId": "doc_88aa1290", "currentStage": "ocr", "errorMessage": "unsupported mime type: application/x-iwork-pages", "updatedAt": "2026-07-21T08:59:15.000Z" }
+  ]
+}

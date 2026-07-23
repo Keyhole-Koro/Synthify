@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
 import { queryJobHealth, type Period } from '@/lib/dashboard-queries';
 
 const EMPTY_JOB_HEALTH = {
   totalJobs: 0,
   successRate: 0,
   avgProcessingMs: 0,
+  p50ProcessingMs: 0,
   p95ProcessingMs: 0,
   byDay: [],
   stageFailures: [],
   topRetryJobs: [],
+  errorMessages: [],
+  byMimeType: [],
+  activeFailures: [],
 };
 
 function parsePeriod(value: string | null): Period {
@@ -17,6 +22,9 @@ function parsePeriod(value: string | null): Period {
 }
 
 export async function GET(req: NextRequest) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
   const period = parsePeriod(req.nextUrl.searchParams.get('period'));
   try {
     const data = await queryJobHealth(getPool(), period);

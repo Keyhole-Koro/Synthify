@@ -1,0 +1,10 @@
+{
+  "logs": [
+    { "timestamp": "2026-07-21T09:12:01.000Z", "level": "INFO", "event": "job.started", "message": "ingest job started", "detailJson": "{\"jobType\":\"ingest\"}", "source": "worker", "sourceId": "w-1-1", "jobId": "job_7f3a9c21e8b0", "documentId": "Q3-strategy-deck.pdf", "workspaceId": "ws_acme" },
+    { "timestamp": "2026-07-21T09:12:03.000Z", "level": "INFO", "event": "extract_text.ok", "message": "extracted 42 pages", "detailJson": "{\"pages\":42}", "source": "worker", "sourceId": "w-1-2", "jobId": "job_7f3a9c21e8b0", "documentId": "Q3-strategy-deck.pdf", "workspaceId": "ws_acme" },
+    { "timestamp": "2026-07-21T09:12:07.000Z", "level": "INFO", "event": "llm_summarize.start", "message": "calling gemini-2.5-pro", "detailJson": "{\"model\":\"gemini-2.5-pro\"}", "source": "worker", "sourceId": "w-1-3", "jobId": "job_7f3a9c21e8b0", "documentId": "Q3-strategy-deck.pdf", "workspaceId": "ws_acme" },
+    { "timestamp": "2026-07-21T09:12:37.000Z", "level": "WARN", "event": "llm_summarize.retry", "message": "timeout, retrying (attempt 2)", "detailJson": "{\"attempt\":2}", "source": "worker", "sourceId": "w-1-4", "jobId": "job_7f3a9c21e8b0", "documentId": "Q3-strategy-deck.pdf", "workspaceId": "ws_acme" },
+    { "timestamp": "2026-07-21T09:41:22.000Z", "level": "ERROR", "event": "llm.call.failed", "message": "context deadline exceeded while calling gemini", "detailJson": "{\"attempt\":5,\"timeoutMs\":30000}", "source": "worker", "sourceId": "w-1-5", "jobId": "job_7f3a9c21e8b0", "documentId": "Q3-strategy-deck.pdf", "workspaceId": "ws_acme" }
+  ],
+  "nextPageToken": ""
+}

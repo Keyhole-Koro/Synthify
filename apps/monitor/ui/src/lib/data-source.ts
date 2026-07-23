@@ -10,12 +10,13 @@ import type {
   ListRelatedJobLogsResponse,
   SearchJobLogsRequest,
 } from '../types';
+import { authFetch } from './auth-client';
 
 export function createJobLogDataSource(): JobLogDataSource {
   return {
     async listJobLogs(jobId, pageToken) {
       const qs = pageToken ? `?page_token=${encodeURIComponent(pageToken)}` : '';
-      const res = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/logs${qs}`);
+      const res = await authFetch(`/api/jobs/${encodeURIComponent(jobId)}/logs${qs}`);
       if (!res.ok) return { logs: [], nextPageToken: '' };
       const body = (await res.json()) as Partial<ListJobLogsResponse>;
       return {
@@ -35,7 +36,7 @@ export function createJobLogDataSource(): JobLogDataSource {
         toTimestamp: filters.toTimestamp ?? '',
         pageToken: pageToken ?? '',
       };
-      const res = await fetch('/api/jobs/search', {
+      const res = await authFetch('/api/jobs/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
@@ -55,7 +56,7 @@ export function createJobLogDataSource(): JobLogDataSource {
         workspaceId: scope === 'workspace' ? (ids.workspaceId ?? '') : '',
         pageToken: pageToken ?? '',
       };
-      const res = await fetch('/api/jobs/related', {
+      const res = await authFetch('/api/jobs/related', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),

@@ -10,10 +10,16 @@
 
 ## 実装計画
 
-### Phase 1: Dashboard API の保護
-- **認証の導入**: `monitor` の Next.js Route Handlers に Firebase Auth 等による認証チェックを追加。
-- **認可の導入**: `SYNTHIFY_ADMIN_USER_EMAILS` に含まれるユーザーのみが API を実行できるように制限。
-- **ミドルウェア化**: `src/middleware.ts` を活用し、Dashboard 全体へのアクセスを管理者限定にする。
+### Phase 1: Dashboard API の保護 ✅ 完了
+- **認証の導入**: `monitor` の全 Route Handlers (`/api/jobs/*`, `/api/dashboards/*`) に
+  Firebase ID トークン検証 (`src/lib/firebase-admin.ts` + `src/lib/auth-server.ts`) を追加。
+  クライアントは `authFetch` で `Authorization: Bearer <idToken>` を付与する。
+- **認可の導入**: `SYNTHIFY_ADMIN_USER_EMAILS` に含まれるメールのみ通過。admin メールが
+  未設定なら fail-closed で全アクセスを 403 にする (apps/api の認可モデルと共通)。
+- **ページ保護**: middleware ではなく `src/components/AuthGate.tsx` でクライアント側に
+  ログイン画面を出す方式にした。Bearer トークンは画面遷移では送られず edge middleware で
+  検証できないため、実質的なセキュリティ境界は各 API ルートの `requireAdmin` とし、
+  AuthGate は UX 上のゲート (サインイン + `/api/auth/me` による admin 判定) に留める。
 
 ### Phase 2: 管理者操作 UI の実装
 - **Credit Management UI**:

@@ -20,6 +20,7 @@ import type {
   Period,
 } from '@/lib/dashboard-queries';
 import { AuditPage } from './AuditPage';
+import { authFetch } from '@/lib/auth-client';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ function shortDate(iso: string): string {
 }
 
 async function fetchDashboardData<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+  const res = await authFetch(url);
   if (!res.ok) {
     const message = await res.text().catch(() => '');
     throw new Error(message || `Request failed: ${res.status}`);
@@ -49,6 +50,7 @@ const EMPTY_JOB_HEALTH: JobHealthData = {
   totalJobs: 0,
   successRate: 0,
   avgProcessingMs: 0,
+  p50ProcessingMs: 0,
   p95ProcessingMs: 0,
   byDay: [],
   stageFailures: [],
@@ -175,10 +177,11 @@ function JobHealthTab({ period, onDrillDown }: { period: Period; onDrillDown?: (
       {error && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
       <Section title="Overview">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <StatCard label="Total Jobs" value={String(data.totalJobs)} />
           <StatCard label="Success Rate" value={`${(data.successRate * 100).toFixed(1)}%`} />
           <StatCard label="Avg Time" value={fmtMs(data.avgProcessingMs)} />
+          <StatCard label="p50 Time" value={fmtMs(data.p50ProcessingMs)} />
           <StatCard label="p95 Time" value={fmtMs(data.p95ProcessingMs)} />
         </div>
       </Section>
@@ -291,30 +294,70 @@ function JobHealthTab({ period, onDrillDown }: { period: Period; onDrillDown?: (
         </Section>
       </div>
 
-      <Section title="Top Error Messages">
-        <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
-          {data.errorMessages.length === 0 ? (
-            <p className="text-sm text-stone-400 py-4 text-center">No errors</p>
-          ) : (
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="bg-stone-50 border-b border-stone-200">
-                  <th className="px-3 py-2 text-left font-semibold text-stone-500">Message</th>
-                  <th className="px-3 py-2 text-right font-semibold text-stone-500">Count</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.errorMessages.map((e, i) => (
-                  <tr key={i} className="border-b border-stone-50">
-                    <td className="px-3 py-2 text-stone-600 max-w-lg truncate font-mono text-[10px]">{e.message}</td>
-                    <td className="px-3 py-2 text-right font-bold text-red-600">{e.count}</td>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Section title="Top Error Messages">
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+            {data.errorMessages.length === 0 ? (
+              <p className="text-sm text-stone-400 py-4 text-center">No errors</p>
+            ) : (
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-stone-50 border-b border-stone-200">
+                    <th className="px-3 py-2 text-left font-semibold text-stone-500">Message</th>
+                    <th className="px-3 py-2 text-right font-semibold text-stone-500">Count</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      </Section>
+                </thead>
+                <tbody>
+                  {data.errorMessages.map((e, i) => (
+                    <tr key={i} className="border-b border-stone-50">
+                      <td className="px-3 py-2 text-stone-600 max-w-lg truncate font-mono text-[10px]">{e.message}</td>
+                      <td className="px-3 py-2 text-right font-bold text-red-600">{e.count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Top Retry Jobs">
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+            {data.topRetryJobs.length === 0 ? (
+              <p className="text-sm text-stone-400 py-4 text-center">No retries</p>
+            ) : (
+              <table className="w-full text-[11px]">
+                <thead>
+                  <tr className="bg-stone-50 border-b border-stone-200">
+                    <th className="px-3 py-2 text-left font-semibold text-stone-500">Job ID</th>
+                    <th className="px-3 py-2 text-left font-semibold text-stone-500">Document</th>
+                    <th className="px-3 py-2 text-right font-semibold text-stone-500">Retries</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.topRetryJobs.map((j) => (
+                    <tr key={j.jobId} className="border-b border-stone-50 hover:bg-stone-50">
+                      <td className="px-3 py-2 font-mono text-stone-600">{j.jobId.slice(0, 10)}…</td>
+                      <td className="px-3 py-2 font-mono text-stone-400 text-[10px]">{j.documentId.slice(0, 10)}…</td>
+                      <td className="px-3 py-2 text-right font-bold text-amber-600">{j.retryCount}</td>
+                      <td className="px-3 py-2 text-right">
+                        {onDrillDown && (
+                          <button
+                            onClick={() => onDrillDown(j.jobId)}
+                            className="text-[10px] px-2 py-0.5 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 font-medium transition-colors"
+                          >
+                            Logs →
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Section>
+      </div>
     </div>
   );
 }

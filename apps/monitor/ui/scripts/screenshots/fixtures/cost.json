@@ -1,0 +1,26 @@
+{
+  "totalCostMinor": 148230,
+  "creditCostMinor": 51200,
+  "stripeCostMinor": 97030,
+  "dailyTrend": [
+    { "date": "2026-07-15", "costMinor": 18240 },
+    { "date": "2026-07-16", "costMinor": 21050 },
+    { "date": "2026-07-17", "costMinor": 24310 },
+    { "date": "2026-07-18", "costMinor": 19870 },
+    { "date": "2026-07-19", "costMinor": 16640 },
+    { "date": "2026-07-20", "costMinor": 26120 },
+    { "date": "2026-07-21", "costMinor": 22000 }
+  ],
+  "byModel": [
+    { "model": "gemini-2.5-pro", "costMinor": 88410, "inputTokens": 41200000, "outputTokens": 6300000 },
+    { "model": "gemini-2.5-flash", "costMinor": 39820, "inputTokens": 98700000, "outputTokens": 12400000 },
+    { "model": "text-embedding-004", "costMinor": 20000, "inputTokens": 210000000, "outputTokens": 0 }
+  ],
+  "topJobs": [
+    { "jobId": "job_9adf1200bce4", "costMinor": 3120 },
+    { "jobId": "job_44aa9021ffcd", "costMinor": 2890 },
+    { "jobId": "job_1d92ff0ab3c7", "costMinor": 2410 },
+    { "jobId": "job_7f3a9c21e8b0", "costMinor": 2205 },
+    { "jobId": "job_c7f0091aa2de", "costMinor": 1980 }
+  ]
+}
