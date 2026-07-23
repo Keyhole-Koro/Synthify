@@ -2,13 +2,15 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/synthify/backend/apps/eval/runner"
+	"github.com/synthify/backend/apps/eval/store/sqlcgen"
 	"github.com/synthify/backend/internal/platform/database"
 )
 
@@ -68,8 +70,9 @@ func Persist(ctx context.Context, dsn string, run Run) error {
 	if strings.TrimSpace(dsn) == "" {
 		return fmt.Errorf("database DSN is empty")
 	}
-	if strings.TrimSpace(run.ID) == "" {
-		return fmt.Errorf("run ID is empty")
+	runID, err := uuid.Parse(strings.TrimSpace(run.ID))
+	if err != nil {
+		return fmt.Errorf("run ID: %w", err)
 	}
 
 	db, err := database.OpenDB(dsn, database.PoolConfig{MaxOpenConns: 2, MaxIdleConns: 2}, nil)
@@ -86,6 +89,7 @@ func Persist(ctx context.Context, dsn string, run Run) error {
 		return fmt.Errorf("begin eval transaction: %w", err)
 	}
 	defer tx.Rollback()
+	q := sqlcgen.New(tx)
 
 	summary := Summarize(run.Results)
 	durationMS := run.CompletedAt.Sub(run.StartedAt).Milliseconds()
@@ -93,18 +97,22 @@ func Persist(ctx context.Context, dsn string, run Run) error {
 		durationMS = 0
 	}
 
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO eval_runs (
-			run_id, prompt_source, artifact_uri, status,
-			case_count, passed_count, failed_count, pass_rate,
-			duration_ms, model, input_tokens, output_tokens,
-			started_at, completed_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-	`, run.ID, run.PromptSource, run.ArtifactURI, summary.Status,
-		summary.CaseCount, summary.PassedCount, summary.FailedCount, summary.PassRate,
-		durationMS, summary.Model, summary.InputTokens, summary.OutputTokens,
-		run.StartedAt, run.CompletedAt)
-	if err != nil {
+	if err := q.InsertEvalRun(ctx, sqlcgen.InsertEvalRunParams{
+		RunID:        runID,
+		PromptSource: run.PromptSource,
+		ArtifactUri:  run.ArtifactURI,
+		Status:       summary.Status,
+		CaseCount:    summary.CaseCount,
+		PassedCount:  summary.PassedCount,
+		FailedCount:  summary.FailedCount,
+		PassRate:     summary.PassRate,
+		DurationMs:   durationMS,
+		Model:        summary.Model,
+		InputTokens:  summary.InputTokens,
+		OutputTokens: summary.OutputTokens,
+		StartedAt:    run.StartedAt,
+		CompletedAt:  run.CompletedAt,
+	}); err != nil {
 		return fmt.Errorf("insert eval run: %w", err)
 	}
 
@@ -117,20 +125,26 @@ func Persist(ctx context.Context, dsn string, run Run) error {
 		if err != nil {
 			return fmt.Errorf("marshal failed input for case %q: %w", result.CaseName, err)
 		}
-		_, err = tx.ExecContext(ctx, `
-			INSERT INTO eval_case_results (
-				run_id, case_index, case_name, tool, passed, schema_valid,
-				duration_ms, model, input_tokens, output_tokens, error,
-				output_json, failed_input_json, prompt_source
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-		`, run.ID, index, result.CaseName, result.Tool, result.Passed, result.SchemaValid,
-			result.DurationMS, result.Model, result.InputTokens, result.OutputTokens, result.Error,
-			outputJSON, failedInputJSON, result.PromptSource)
-		if err != nil {
+		if err := q.InsertEvalCaseResult(ctx, sqlcgen.InsertEvalCaseResultParams{
+			RunID:           runID,
+			CaseIndex:       int64(index),
+			CaseName:        result.CaseName,
+			Tool:            result.Tool,
+			Passed:          result.Passed,
+			SchemaValid:     result.SchemaValid,
+			DurationMs:      result.DurationMS,
+			Model:           result.Model,
+			InputTokens:     result.InputTokens,
+			OutputTokens:    result.OutputTokens,
+			Error:           result.Error,
+			OutputJson:      outputJSON,
+			FailedInputJson: failedInputJSON,
+			PromptSource:    result.PromptSource,
+		}); err != nil {
 			return fmt.Errorf("insert eval case %q: %w", result.CaseName, err)
 		}
 
-		if err := insertTraceEvents(ctx, tx, run.ID, index, result.Trace); err != nil {
+		if err := insertTraceEvents(ctx, q, runID, index, result.Trace); err != nil {
 			return fmt.Errorf("insert trace for case %q: %w", result.CaseName, err)
 		}
 	}
@@ -144,11 +158,19 @@ func Persist(ctx context.Context, dsn string, run Run) error {
 // insertTraceEvents writes the per-case LLM/tool execution spans captured by
 // the runner's tracing client. case_index ties each event to its eval_case_results
 // row (the foreign key eval_trace_events_case_fk).
-func insertTraceEvents(ctx context.Context, tx *sql.Tx, runID string, caseIndex int, events []runner.TraceEvent) error {
+func insertTraceEvents(ctx context.Context, q *sqlcgen.Queries, runID uuid.UUID, caseIndex int, events []runner.TraceEvent) error {
 	for _, ev := range events {
-		var parent any
-		if strings.TrimSpace(ev.ParentEventID) != "" {
-			parent = ev.ParentEventID
+		eventID, err := uuid.Parse(strings.TrimSpace(ev.EventID))
+		if err != nil {
+			return fmt.Errorf("event ID (event %q): %w", ev.Name, err)
+		}
+		var parent uuid.NullUUID
+		if p := strings.TrimSpace(ev.ParentEventID); p != "" {
+			parsed, err := uuid.Parse(p)
+			if err != nil {
+				return fmt.Errorf("parent event ID (event %q): %w", ev.Name, err)
+			}
+			parent = uuid.NullUUID{UUID: parsed, Valid: true}
 		}
 		inputJSON, err := rawJSONOrNil(ev.Input)
 		if err != nil {
@@ -158,38 +180,47 @@ func insertTraceEvents(ctx context.Context, tx *sql.Tx, runID string, caseIndex 
 		if err != nil {
 			return fmt.Errorf("marshal trace output (event %q): %w", ev.Name, err)
 		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO eval_trace_events (
-				run_id, case_index, event_id, parent_event_id, sequence, kind, name,
-				started_at, completed_at, duration_ms, model, input_tokens, output_tokens,
-				input_json, output_json, error
-			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-		`, runID, caseIndex, ev.EventID, parent, ev.Sequence, ev.Kind, ev.Name,
-			ev.StartedAt, ev.CompletedAt, ev.DurationMS, ev.Model, ev.InputTokens, ev.OutputTokens,
-			inputJSON, outputJSON, ev.Error); err != nil {
+		if err := q.InsertEvalTraceEvent(ctx, sqlcgen.InsertEvalTraceEventParams{
+			RunID:         runID,
+			CaseIndex:     int64(caseIndex),
+			EventID:       eventID,
+			ParentEventID: parent,
+			Sequence:      int64(ev.Sequence),
+			Kind:          ev.Kind,
+			Name:          ev.Name,
+			StartedAt:     ev.StartedAt,
+			CompletedAt:   ev.CompletedAt,
+			DurationMs:    ev.DurationMS,
+			Model:         ev.Model,
+			InputTokens:   ev.InputTokens,
+			OutputTokens:  ev.OutputTokens,
+			InputJson:     inputJSON,
+			OutputJson:    outputJSON,
+			Error:         ev.Error,
+		}); err != nil {
 			return fmt.Errorf("insert trace event %q: %w", ev.Name, err)
 		}
 	}
 	return nil
 }
 
-func rawJSONOrNil(raw json.RawMessage) (any, error) {
+func rawJSONOrNil(raw json.RawMessage) (pqtype.NullRawMessage, error) {
 	if len(raw) == 0 {
-		return nil, nil
+		return pqtype.NullRawMessage{}, nil
 	}
 	if !json.Valid(raw) {
-		return nil, fmt.Errorf("invalid JSON")
+		return pqtype.NullRawMessage{}, fmt.Errorf("invalid JSON")
 	}
-	return string(raw), nil
+	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}, nil
 }
 
-func jsonOrNil(value any) (any, error) {
+func jsonOrNil(value any) (pqtype.NullRawMessage, error) {
 	if value == nil {
-		return nil, nil
+		return pqtype.NullRawMessage{}, nil
 	}
 	b, err := json.Marshal(value)
 	if err != nil {
-		return nil, err
+		return pqtype.NullRawMessage{}, err
 	}
-	return string(b), nil
+	return pqtype.NullRawMessage{RawMessage: b, Valid: true}, nil
 }
