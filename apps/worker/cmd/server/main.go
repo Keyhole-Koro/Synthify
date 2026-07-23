@@ -45,7 +45,7 @@ func main() {
 	notifier := appCtx.Notifier
 	jobLogger := postgres.NewDBLogger(store)
 
-	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger)
+	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger, nrApp)
 	// One reporter feeds both metering paths: the llm.Client wrapper (embedding
 	// + custom-client calls) and the agent's after-model callback (ADK
 	// generation calls, which never cross the llm.Client surface).

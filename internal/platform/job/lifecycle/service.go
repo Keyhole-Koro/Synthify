@@ -155,6 +155,7 @@ func (s *Service) TryFailWith(ctx context.Context, payload jobstatus.Payload, fa
 		Reason:       reason,
 	}); err != nil {
 		s.logger.Error("jobstatus.notify_failure_failed", "error", err.Error(), "job_id", payload.JobID)
+		s.reportNotificationFailure(payload, "failure", err)
 	}
 }
 
@@ -170,8 +171,33 @@ func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload, outco
 		StageSummary: outcome.StageSummary,
 	}); err != nil {
 		s.logger.Error("jobstatus.notify_completion_failed", "error", err.Error(), "job_id", payload.JobID)
+		s.reportNotificationFailure(payload, "completion", err)
 	}
 	return nil
+}
+
+// reportNotificationFailure surfaces a failed Firestore status write to New
+// Relic. The frontend learns of job completion/failure only via the Firestore
+// onSnapshot() subscription (see README), so a dropped notification leaves the
+// UI hanging on an otherwise-finished job — a silent, user-visible failure that
+// the slog line alone would never alert on. no-op when NR is disabled.
+func (s *Service) reportNotificationFailure(payload jobstatus.Payload, kind string, cause error) {
+	if s.nrApp == nil || cause == nil {
+		return
+	}
+	s.nrApp.RecordCustomEvent("NotificationFailed", map[string]any{
+		"job_id":       payload.JobID,
+		"job_type":     payload.JobType,
+		"workspace_id": payload.WorkspaceID,
+		"document_id":  payload.DocumentID,
+		"kind":         kind,
+		"error":        cause.Error(),
+	})
+	tx := s.nrApp.StartTransaction("job.notification_failed")
+	tx.AddAttribute("job_id", payload.JobID)
+	tx.AddAttribute("kind", kind)
+	tx.NoticeError(cause)
+	tx.End()
 }
 
 // --- internals ---------------------------------------------------------------

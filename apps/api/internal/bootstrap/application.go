@@ -103,6 +103,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		NRApp:            nrApp,
 	})
 	startAutoResume(documentSvc, logger)
+	startStuckJobMonitor(documentSvc, logger)
 
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
@@ -179,6 +180,35 @@ func startAutoResume(documentSvc *application.DocumentService, logger *slog.Logg
 		}
 		if resumed > 0 {
 			logger.Info("job.auto_resume_completed", "resumed", resumed)
+		}
+	}()
+}
+
+// stuckJobScanInterval is how often the stuck-job sweep runs. Re-emitting the
+// same job_id every interval is fine: the NR alert uses uniqueCount(job_id), so
+// repeats within the window collapse to one and running on several API
+// instances does not inflate the count.
+const stuckJobScanInterval = 5 * time.Minute
+
+// startStuckJobMonitor periodically sweeps for jobs wedged in QUEUED/RUNNING and
+// emits JobStuck events for New Relic to alert on. These never surface as
+// JobFailed, so this sweep is the only signal that a job silently stopped
+// progressing.
+func startStuckJobMonitor(documentSvc *application.DocumentService, logger *slog.Logger) {
+	go func() {
+		ticker := time.NewTicker(stuckJobScanInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			scanCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			stuck, err := documentSvc.ReportStuckJobs(scanCtx)
+			cancel()
+			if err != nil {
+				logger.Error("job.stuck_scan_failed", "error", err.Error())
+				continue
+			}
+			if stuck > 0 {
+				logger.Warn("job.stuck_scan_found", "count", stuck)
+			}
 		}
 	}()
 }
