@@ -1,6 +1,13 @@
 -- Persist LLM eval results for the monitor dashboard.
 --
 -- eval writes through the application DSN. monitor reads only through views.
+--
+-- Views and GRANT/REVOKE are intentionally NOT here — they live in
+-- 0024_eval_views_grants. CockroachDB rejects a migration that creates a table
+-- and, in the same transaction, creates a view depending on it or grants on it
+-- (golang-migrate runs each file as one transaction). This file therefore does
+-- DDL only (matching the working 0007_jobs pattern); 0024 does the dependent
+-- views + grants (matching the working 0014_monitor_role pattern).
 
 CREATE TABLE IF NOT EXISTS eval_runs (
   run_id UUID PRIMARY KEY,
@@ -51,49 +58,3 @@ CREATE INDEX IF NOT EXISTS eval_case_results_failed_idx
   ON eval_case_results (passed, created_at DESC);
 CREATE INDEX IF NOT EXISTS eval_case_results_model_idx
   ON eval_case_results (model, created_at DESC);
-
-CREATE OR REPLACE VIEW v_eval_runs AS
-  SELECT
-    run_id,
-    prompt_source,
-    artifact_uri,
-    status,
-    case_count,
-    passed_count,
-    failed_count,
-    pass_rate,
-    duration_ms,
-    model,
-    input_tokens,
-    output_tokens,
-    started_at,
-    completed_at,
-    created_at
-  FROM eval_runs;
-
-CREATE OR REPLACE VIEW v_eval_case_results AS
-  SELECT
-    run_id,
-    case_index,
-    case_name,
-    tool,
-    passed,
-    schema_valid,
-    duration_ms,
-    model,
-    input_tokens,
-    output_tokens,
-    error,
-    output_json,
-    failed_input_json,
-    prompt_source,
-    created_at
-  FROM eval_case_results;
-
-GRANT SELECT ON eval_runs TO monitor;
-GRANT SELECT ON eval_case_results TO monitor;
-GRANT SELECT ON v_eval_runs TO monitor;
-GRANT SELECT ON v_eval_case_results TO monitor;
-
-REVOKE INSERT, UPDATE, DELETE ON eval_runs FROM monitor;
-REVOKE INSERT, UPDATE, DELETE ON eval_case_results FROM monitor;
