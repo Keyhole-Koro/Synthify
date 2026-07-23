@@ -120,7 +120,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "eval artifact uploaded: %s\n", res.URI)
 	}
 
-	if dsn := resolveDatabaseDSN(); dsn != "" {
+	if dsn := databaseDSNFromEnv(); dsn != "" {
 		persistCtx, persistCancel := context.WithTimeout(context.Background(), 20*time.Second)
 		runID := uuid.NewString()
 		err := store.Persist(persistCtx, dsn, store.Run{
@@ -151,7 +151,7 @@ func resolveGCSOutputURI(flagValue string) string {
 	return strings.TrimSpace(os.Getenv("EVAL_OUTPUT_GCS_URI"))
 }
 
-func resolveDatabaseDSN() string {
+func databaseDSNFromEnv() string {
 	if dsn := strings.TrimSpace(os.Getenv("EVAL_DATABASE_DSN")); dsn != "" {
 		return dsn
 	}
