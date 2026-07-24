@@ -121,9 +121,9 @@ jobs:
   # Gated to stage for now; enable prod once baselines are proven stable.
   visual-qa:
     needs: deploy
-    if: ${{ success() && (github.event.inputs.environment || github.ref_name) == 'stage' }}
+    if: ${{ success() && github.ref_name == 'stage' }}
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || github.ref_name }}
+    environment: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -162,7 +162,7 @@ jobs:
         if: failure()
         env:
           DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
-          ENVIRONMENT: ${{ github.event.inputs.environment || github.ref_name }}
+          ENVIRONMENT: ${{ github.ref_name }}
           FRONTEND_URL: ${{ needs.deploy.outputs.frontend_url }}
         run: node scripts/notify-visual-diff.mjs
 
