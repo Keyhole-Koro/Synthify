@@ -20,7 +20,20 @@ const apiHealthURL = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhos
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
-  expect: { timeout: 10_000 },
+  expect: {
+    timeout: 10_000,
+    // Post-deploy visual QA defaults. Freeze animations/caret so the
+    // paper-in-paper frame transitions don't produce mid-flight diffs, and
+    // absorb sub-pixel anti-aliasing noise between runs.
+    toHaveScreenshot: {
+      animations: 'disabled',
+      caret: 'hide',
+      maxDiffPixelRatio: 0.01,
+    },
+  },
+  // Keep visual baselines in a stable, greppable location so CI can upload
+  // freshly-captured snapshots as an artifact for a human to commit.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{testFileName}/{arg}{ext}',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -38,11 +51,22 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
+      // Visual specs run in their own project against a live deploy — keep them
+      // out of the emulator-backed suite.
+      testIgnore: /\.visual\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: authFile,
       },
       dependencies: ['setup'],
+    },
+    {
+      // Post-deploy visual QA: runs against E2E_BASE_URL (a live stage/prod
+      // deploy), unauthenticated, with no emulator setup dependency. The fixed
+      // Desktop Chrome viewport keeps screenshots deterministic across runs.
+      name: 'visual',
+      testMatch: /\.visual\.ts/,
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
   webServer: process.env.E2E_REUSE_SERVER

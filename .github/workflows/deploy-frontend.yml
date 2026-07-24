@@ -30,6 +30,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    outputs:
+      frontend_url: ${{ steps.resolve.outputs.frontend_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -89,6 +91,7 @@ jobs:
             | tee /tmp/firebase-deploy.json
 
       - name: Resolve Firebase Hosting URL
+        id: resolve
         run: |
           FRONTEND_URL="$(
             jq -r '
@@ -106,10 +109,62 @@ jobs:
             FRONTEND_URL="https://${{ vars.GCP_PROJECT_ID }}.web.app"
           fi
           echo "FRONTEND_URL=${FRONTEND_URL}" >> "$GITHUB_ENV"
+          echo "frontend_url=${FRONTEND_URL}" >> "$GITHUB_OUTPUT"
           echo "Resolved Firebase Hosting URL: ${FRONTEND_URL}"
 
       - name: Smoke test Frontend
         run: scripts/smoke-test.sh frontend
+
+  # Post-deploy visual QA (Phase 1): unauthenticated liveness + landing visual
+  # regression against the just-deployed stage site. Reduces manual QA by
+  # catching blank pages, JS crashes, and unintended UI drift automatically.
+  # Gated to stage for now; enable prod once baselines are proven stable.
+  visual-qa:
+    needs: deploy
+    if: ${{ success() && github.ref_name == 'stage' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run visual QA against deployed stage
+        working-directory: apps/web
+        env:
+          E2E_BASE_URL: ${{ needs.deploy.outputs.frontend_url }}
+        run: bun run e2e:visual
+
+      # On failure, upload both the diff report and any freshly-captured
+      # baselines so a human can either triage the regression or commit new
+      # baselines (see docs/visual-qa.md).
+      - name: Upload visual QA report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+            apps/web/e2e/__screenshots__
+
+      - name: Notify Discord on visual regression
+        if: failure()
+        env:
+          DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
+          ENVIRONMENT: ${{ github.ref_name }}
+          FRONTEND_URL: ${{ needs.deploy.outputs.frontend_url }}
+        run: node scripts/notify-visual-diff.mjs
 
   notify:
     needs: deploy
