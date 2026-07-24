@@ -66,3 +66,15 @@ sql:
               package: "pgvector"
               type: "Vector"
             nullable: true
+  - engine: "postgresql"
+    schema:
+      - "db/migrations/0022_eval_monitoring.up.sql"
+      - "db/migrations/0023_eval_trace_events.up.sql"
+      - "db/migrations/0024_eval_views_grants.up.sql"
+    queries:
+      - "db/queries/eval"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "apps/eval/store/sqlcgen"
+        sql_package: "database/sql"

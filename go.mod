@@ -19,6 +19,7 @@ require (
 	github.com/newrelic/go-agent/v3/integrations/nrslog v1.0.0
 	github.com/oklog/ulid/v2 v2.1.1
 	github.com/pgvector/pgvector-go v0.4.0
+	github.com/sqlc-dev/pqtype v0.3.0
 	github.com/stretchr/testify v1.11.1
 	go.starlark.net v0.0.0-20260522144826-ec58d4b459e2
 	golang.org/x/oauth2 v0.36.0
