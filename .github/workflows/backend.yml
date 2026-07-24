@@ -5,6 +5,7 @@ on:
     paths:
       - apps/api/**
       - apps/worker/**
+      - apps/eval/**
       - internal/platform/**
       - go.mod
       - go.sum
@@ -16,6 +17,7 @@ on:
     paths:
       - apps/api/**
       - apps/worker/**
+      - apps/eval/**
       - internal/platform/**
       - go.mod
       - go.sum

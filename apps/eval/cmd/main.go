@@ -57,7 +57,7 @@ func main() {
 
 	cfg := config.LoadLLM()
 	if !cfg.Enabled() {
-		fmt.Fprintln(os.Stderr, "configure GCP_PROJECT/GOOGLE_CLOUD_PROJECT for Vertex AI, or run on Cloud Run with metadata available")
+		fmt.Fprintln(os.Stderr, "configure GCP_PROJECT/GOOGLE_CLOUD_PROJECT for Vertex AI, set GEMINI_API_KEY/GOOGLE_API_KEY for the Gemini API, or run on Cloud Run with metadata available")
 		os.Exit(2)
 	}
 
