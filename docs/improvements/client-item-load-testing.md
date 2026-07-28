@@ -38,8 +38,11 @@ workspace の item 数が増えたときに、クライアント側で何がど�
 | `depth` | subtree ロードの連鎖、paper のネスト段数 |
 | `branching` | 兄弟数（paper-in-paper の room 配分） |
 | `contentBytes` | ペイロードのバイト数と保持メモリ。**item 数より支配的**なことが多い |
-| `openDepth` | 実際に開く階層数 = DOM ノード数と iframe 数 |
 | `seed` | 決定性。再現できないベンチはベンチではない |
+
+「どれだけ開いているか」は生成時のノブではなく、L1 側で **paper を実際にクリックして開く**ことで振る。
+canvas の開閉状態は paper-in-paper が `OPEN_NODE` dispatch で持っており、canvas が mount した後に
+アプリ側の `ExpansionMap` を書いても paper は開かないため（実測で確認済み）。
 
 生成は `(workspaceId, spec)` に対して決定的。同じ id、同じタイトル、同じ content バイト数になる。
 
@@ -102,26 +105,54 @@ heap は読む前に CDP `HeapProfiler.collectGarbage` を打ってから取る�
 
 2 つの軸を振る:
 
-- **scale** — `openDepth` を 1 に固定して item 数を 100 → 5,000 まで
-- **open-depth** — item 数を 2,000 に固定して `openDepth` を 1 → 3
+- **scale** — paper を開かずに item 数を 100 → 5,000 まで
+- **open-count** — item 数を 2,000 に固定して、cover report 内のリンクをクリックして開く paper 数を 0 → 6
 
 後者が必要なのは、**item 数だけでは描画コストが決まらない**から。閉じた paper は安く、開いた paper は content iframe を 1 つ抱える。
+開く操作は実際のクリック（`OPEN_NODE` dispatch）で行う。アプリ側の `ExpansionMap` を書くだけでは canvas 上の paper は開かない。
 
 結果は `perf-samples.json` と `perf-table.md` として Playwright report に添付され、stdout にも表が出る。
 
-### L1 ベースライン
+### L1 ベースライン (2026-07 / Linux container, Chromium, 1280x720)
 
-**未取得。** L1 は compose（frontend + Firebase Auth emulator）が要るため、まだ実機で 1 度も通していない。
-harness 側（`__synthifyDebug` 経由の注入、`reprojectWorkspace`、CDP の heap / `ScriptDuration` 取得、long task observer）は
-`next dev` 単体に対して動作確認済みだが、**paper が実際に描画された状態での数字はこれから取る**。
-最初に `bun run e2e:perf` を通した人がこの節に表を貼ること。
+**item 数を振る（開いている paper は workspace の cover report のみ）**
+
+| items | inject ms | project ms | render ms | reproject ms | long task 数 / 合計 ms | heap MB | DOM ノード |
+|---|---|---|---|---|---|---|---|
+| 100 | 10.6 | 0.8 | 279 | 0.10 | 0 / 0 | +3.3 | +416 |
+| 500 | 42.4 | 1.8 | 309 | 0.40 | 0 / 0 | +5.8 | +516 |
+| 2,000 | 85.3 | 3.3 | 349 | 1.20 | 1 / 90 | +14.5 | +604 |
+| 5,000 | 168.4 | 6.5 | 422 | 3.10 | 2 / 244 | +26.7 | +263 |
+
+**開く paper 数を振る（item 数は 2,000 固定）**
+
+| 開いた paper | iframe 数 | content frame | long task 数 / 合計 ms | heap MB | DOM ノード |
+|---|---|---|---|---|---|
+| 0 | 1 | 0 | 2 / 141 | +12.3 | +348 |
+| 1 | 2 | 1 | 3 / 188 | +13.6 | +663 |
+| 3 | 4 | 3 | 3 / 198 | +14.6 | +969 |
+| 6 | 7 | 6 | 5 / 344 | +16.7 | +1430 |
+
+`render ms` は注入から cover report が可視になるまで。paper を開くクリック列は Playwright の
+往復待ちが支配的なので `render ms` には含めず、long task / DOM / heap 側に出している。
+
+### 読み取れること
+
+1. **heap は item 数に比例、DOM は開いた paper 数に比例。** 5,000 item を持つだけで +27 MB だが DOM は増えない
+   （閉じた paper は DOM を食わない）。逆に item 数を 2,000 に固定したまま paper を 6 枚開くと DOM は +348 → +1430、
+   iframe は 1 → 7 に増える。**item 数だけでは描画コストは決まらない。**
+2. **注入コストは item 数にほぼ線形**（100 → 5,000 で 10.6 ms → 168 ms）。これは mock 生成 + cache 構築で、
+   実負荷では GetTree の decode + cache 構築に相当する。L0 の decode 実測（5,000 item で 114 ms）と桁が合う。
+3. **再投影は 5,000 item でも 3.1 ms** で、L0 の 1.3 ms と同オーダー。やはりここは当面のボトルネックではない。
+4. long task は 5,000 item 注入時に合計 244 ms（最大 178 ms）出る。1 フレームを大きく超えるので、
+   この間 UI は止まる。減らすべきは注入そのものではなく、その入力サイズ（= ペイロード）。
 
 ### 閾値を置いていない理由
 
 L1 には wall-clock の閾値アサーションを入れていない。共有 CI ハードウェアでは flaky 製造機になるだけで、
 得られるのは「遅い」という既知の情報だけになる。**数字そのものが成果物**で、回帰ゲートは L0 側に置く。
-L1 のアサーションは「その scale が完走して item 数ぶんの paper ができたか」「`openDepth` を上げたら実際に DOM が増えたか」
-だけ — 後者は、ツリーが実は展開されていないのに軸を測ったつもりになる事故を防ぐためのもの。
+L1 のアサーションは「その scale が完走して item 数ぶんの paper ができたか」「開いた枚数ぶん content frame が増えたか」
+だけ — 後者は、paper が実は開いていないのに軸を測ったつもりになる事故を防ぐためのもの。実際に一度その事故を起こしている。
 
 ## L2: 実 API 込み
 
@@ -138,15 +169,44 @@ seed 後に workspace を開き、DevTools の Network で `GetTree` の転送�
 
 ここで初めて `populateChildIDs` の 1+N クエリが表に出る。
 
-**未実行。** この SQL は CockroachDB に対してまだ流していない（作成環境に docker daemon がなかった）。
-初回実行時は件数出力（`seeded_items`）が指定した `total_items` と一致するかを必ず確認すること。
-`depth` が浅すぎると `total_items` に届かないまま打ち切られる。
+### 実測 (PostgreSQL 16, 5,000 items x 2 KiB)
+
+seed した実データに対して `GetTreeByWorkspace` が実際に投げる 2 本のクエリを流したもの。
+
+| 処理 | 時間 |
+|---|---|
+| `ListItemsByWorkspace`（1 クエリ） | 7.4 ms |
+| `populateChildIDs`（`ListChildItems` を 5,000 回） | 43.3 ms |
+
+さらに `ListChildItems` は `content` を含む全カラムを SELECT する（[db/queries/tree.sql:141](../../db/queries/tree.sql)）ため、
+**同じ 11.32 MiB の content を 2 回読んでいる**。child_ids を組み立てるだけなら id と parent_id で足りる。
+
+この 43.3 ms はサーバ内ループでの計測なので、Go 側が 5,000 回ぶん払う round-trip は含まれていない。実際はさらに悪い。
+
+改善は単純で、`populateChildIDs` を 1 クエリに畳める:
+
+```sql
+SELECT parent_id, array_agg(id) FROM tree_items
+WHERE workspace_id = $1 AND parent_id IS NOT NULL GROUP BY parent_id;
+```
+
+### 検証状況
+
+seed SQL は **PostgreSQL 16 に対して実行済み**（5,000 件ちょうど、level 分布 1/6/36/216/1296/3445、
+orphan 0、content 11.87 MB、再実行で件数が二重にならないことを確認）。
+migration は Postgres 方言で書かれており CockroachDB もこれを受けるが、
+**`docker compose exec ... cockroach sql` 経由での実行はまだ通していない**（Docker Hub の blob CDN が
+このセッションの egress policy で拒否されたため、CockroachDB イメージを取得できなかった）。
+script のラッパ部分（compose exec、`--format=csv` の件数パース）も同じ理由で未実行。
+
+`depth` が浅すぎると `total_items` に届かないまま打ち切られる（実測: `total=5000 depth=3 branching=6` で 259 件）。
+実行時は件数出力 `seeded_items` が指定値と一致するか確認すること。
 
 ## 使い方（デバッグコンソール）
 
 ```js
-// 2000 item、深さ 4、分岐 6、1 item あたり 2 KiB、2 階層開いた状態で注入
-__synthifyDebug.createMockWorkspace({ totalItems: 2000, depth: 4, branching: 6, contentBytes: 2048, openDepth: 2 })
+// 2000 item、深さ 4、分岐 6、1 item あたり 2 KiB で注入
+__synthifyDebug.createMockWorkspace({ totalItems: 2000, depth: 4, branching: 6, contentBytes: 2048 })
 
 // 全再投影のコストを 10 回計測（中央値・最小・最大が返る）
 __synthifyDebug.reprojectWorkspace('debug_ws_xxxx', 10)
@@ -160,4 +220,6 @@ __synthifyDebug.reprojectWorkspace('debug_ws_xxxx', 10)
 
 - L0 をベースライン比の回帰ゲートとして CI に入れる（まずは数回分の実測ばらつきを見てから閾値を決める）
 - 上の「改善の効き順」a → b を実施し、同じベンチで前後比較する
+- `populateChildIDs` を 1 クエリに畳む（上記 SQL）
+- seed script を CockroachDB 実機で 1 度通す
 - L2 を nightly に載せるかは、compose 込みの実行時間を見てから判断する

@@ -36,11 +36,6 @@ export interface InjectMockWorkspaceTreeArgs extends MockTreeSpec {
   documentCount?: number;
   nodesPerDocument?: number;
   documentTitles?: string[];
-  // openDepth is how many levels of papers to leave open below the workspace.
-  // 1 (the default) opens the root node only; 2 also opens its children, and
-  // so on. This is the DOM/iframe knob: item count alone says nothing about
-  // render cost, because closed papers are cheap.
-  openDepth?: number;
 }
 
 // InjectMockWorkspaceTreeResult reports the tree that was actually built, so a

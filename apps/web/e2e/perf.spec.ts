@@ -29,24 +29,31 @@ interface Scenario {
   depth: number;
   branching: number;
   contentBytes: number;
-  openDepth: number;
 }
 
 // SCALES sweeps item count at a fixed, realistic content size and a single
 // open level. This is the "how far does it stretch" axis.
 const SCALES: Scenario[] = [
-  { label: 'scale', totalItems: 100, depth: 3, branching: 5, contentBytes: 2048, openDepth: 1 },
-  { label: 'scale', totalItems: 500, depth: 4, branching: 5, contentBytes: 2048, openDepth: 1 },
-  { label: 'scale', totalItems: 2_000, depth: 5, branching: 6, contentBytes: 2048, openDepth: 1 },
-  { label: 'scale', totalItems: 5_000, depth: 5, branching: 7, contentBytes: 2048, openDepth: 1 },
+  { label: 'scale', totalItems: 100, depth: 3, branching: 5, contentBytes: 2048 },
+  { label: 'scale', totalItems: 500, depth: 4, branching: 5, contentBytes: 2048 },
+  { label: 'scale', totalItems: 2_000, depth: 5, branching: 6, contentBytes: 2048 },
+  { label: 'scale', totalItems: 5_000, depth: 5, branching: 7, contentBytes: 2048 },
 ];
 
-// OPEN_DEPTHS holds the item count fixed and varies how much of the tree is
-// actually rendered. Item count alone does not predict render cost — closed
-// papers are cheap, open ones each carry a content iframe.
-const OPEN_DEPTHS: Scenario[] = [1, 2, 3].map((openDepth) => ({
-  label: 'open-depth', totalItems: 2_000, depth: 5, branching: 6, contentBytes: 2048, openDepth,
-}));
+// OPEN_COUNTS holds the item count fixed and varies how many papers are
+// actually opened. Item count alone does not predict render cost — a closed
+// paper is a header, an open one carries a content iframe.
+//
+// Papers are opened by clicking the child links in the workspace's cover
+// report, because that is the only thing that opens them: paper-in-paper owns
+// the canvas's open state and it changes through OPEN_NODE dispatches. Writing
+// the app's own ExpansionMap does not open anything after the canvas has
+// mounted, so an "openDepth" knob on the injection call would have measured
+// nothing.
+const OPEN_COUNTS = [0, 1, 3, 6];
+const OPEN_COUNT_SCENARIO: Scenario = {
+  label: 'open-count', totalItems: 2_000, depth: 5, branching: 6, contentBytes: 2048,
+};
 
 const REPROJECT_ITERATIONS = 7;
 
@@ -62,15 +69,53 @@ declare global {
   }
 }
 
-async function openApp(page: Page) {
-  await installPerfObservers(page);
-  await page.goto('/');
+async function waitForApp(page: Page) {
   // The debug API is registered by useLandingPageController's effect, so its
   // presence also means the landing page has hydrated.
   await page.waitForFunction(() => window.__synthifyDebug !== undefined, null, { timeout: 60_000 });
 }
 
-async function measure(page: Page, scenario: Scenario): Promise<PerfSample> {
+async function openApp(page: Page) {
+  // addInitScript accumulates, so the observers are installed once per page —
+  // not on every reload.
+  await installPerfObservers(page);
+  await page.goto('/');
+  await waitForApp(page);
+}
+
+// resetApp gives the next scenario a clean page. Without it each scenario would
+// stack another mock workspace onto the canvas: the heap and DOM deltas would
+// include every earlier scale, and the root-content locator would match one
+// iframe per workspace. Mock trees live only in memory, so a reload clears
+// them; localStorage is cleared too because the persisted expansion state
+// would otherwise carry over. Firebase Auth persists in IndexedDB, so the
+// session survives.
+async function resetApp(page: Page) {
+  await page.evaluate(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+  await page.reload();
+  await waitForApp(page);
+}
+
+// openPapers opens `count` child papers by clicking their links inside the
+// workspace cover report, and waits until each one's content frame exists.
+// This is the real expansion path: each click runs an OPEN_NODE dispatch and,
+// in the app, a loadSubtree + full re-projection.
+async function openPapers(page: Page, count: number): Promise<void> {
+  if (count === 0) return;
+  const links = page.frameLocator('iframe[title="workspace-root-content"]').locator('a[data-paper-id]');
+  const available = await links.count();
+  const target = Math.min(count, available);
+  for (let index = 0; index < target; index++) {
+    await links.nth(index).click();
+    await expect(page.locator('iframe[title^="paper-content-"]')).toHaveCount(index + 1, { timeout: 60_000 });
+  }
+}
+
+async function measure(page: Page, scenario: Scenario, openCount = 0): Promise<PerfSample> {
+  await resetApp(page);
   const cdp = await startCdp(page);
   const before = await readRuntimeStats(cdp);
   await resetLongTasks(page);
@@ -85,7 +130,6 @@ async function measure(page: Page, scenario: Scenario): Promise<PerfSample> {
     depth: scenario.depth,
     branching: scenario.branching,
     contentBytes: scenario.contentBytes,
-    openDepth: scenario.openDepth,
     seed: 7,
   });
 
@@ -95,9 +139,17 @@ async function measure(page: Page, scenario: Scenario): Promise<PerfSample> {
   await expect(page.locator('iframe[title="workspace-root-content"]')).toBeVisible({ timeout: 120_000 });
   const renderMs = Date.now() - startedAt;
 
+  // Opening happens after renderMs is taken: the click loop's wall clock is
+  // dominated by driver round-trips and locator polling, so folding it into
+  // renderMs would report Playwright's overhead as the app's. The cost of
+  // opening papers shows up in the long-task, DOM, and heap columns instead,
+  // which are measured after this returns.
+  await openPapers(page, openCount);
+
   const longTasks = await readLongTasks(page);
   const after = await readRuntimeStats(cdp);
   const openIframes = await page.locator('iframe').count();
+  const openPaperFrames = await page.locator('iframe[title^="paper-content-"]').count();
   const { medianMs } = await page.evaluate(
     ({ workspaceId, iterations }) => window.__synthifyDebug!.reprojectWorkspace(workspaceId, iterations),
     { workspaceId: injected.workspaceId, iterations: REPROJECT_ITERATIONS },
@@ -107,7 +159,7 @@ async function measure(page: Page, scenario: Scenario): Promise<PerfSample> {
   return {
     label: scenario.label,
     totalItems: scenario.totalItems,
-    openDepth: scenario.openDepth,
+    openedPapers: openCount,
     contentBytes: scenario.contentBytes,
     injectMs: injected.injectMs,
     projectMs: injected.projectMs,
@@ -115,6 +167,7 @@ async function measure(page: Page, scenario: Scenario): Promise<PerfSample> {
     reprojectMedianMs: medianMs,
     paperCount: injected.paperCount,
     openIframes,
+    openPaperFrames,
     longTasks,
     runtime: diffRuntimeStats(before, after),
   };
@@ -143,19 +196,20 @@ test.describe('@perf client load with many items', () => {
     }
   });
 
-  test('scales how much of the tree is open at a fixed item count', async ({ page }, testInfo) => {
+  test('scales how many papers are open at a fixed item count', async ({ page }, testInfo) => {
     await openApp(page);
     const samples: PerfSample[] = [];
-    for (const scenario of OPEN_DEPTHS) {
-      samples.push(await measure(page, scenario));
+    for (const openCount of OPEN_COUNTS) {
+      samples.push(await measure(page, OPEN_COUNT_SCENARIO, openCount));
     }
     console.info(`\n${formatPerfTable(samples)}\n`);
     await attachPerfReport(testInfo, samples);
 
-    // Opening more of the tree must cost more DOM than leaving it closed —
-    // if it does not, the mock tree is not actually being expanded and the
-    // whole open-depth axis is measuring nothing.
-    const [shallow, , deepest] = samples;
-    expect(deepest.runtime.domNodes).toBeGreaterThan(shallow.runtime.domNodes);
+    // Each opened paper must have produced a content frame. Without this the
+    // axis silently degrades to "the same measurement four times" — which is
+    // exactly what an earlier version of this test did.
+    for (const [index, sample] of samples.entries()) {
+      expect(sample.openPaperFrames).toBe(OPEN_COUNTS[index]);
+    }
   });
 });

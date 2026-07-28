@@ -27,7 +27,8 @@ export interface RuntimeStats {
 export interface PerfSample {
   label: string;
   totalItems: number;
-  openDepth: number;
+  // openedPapers is how many child papers were clicked open before measuring.
+  openedPapers: number;
   contentBytes: number;
   // injectMs / projectMs are reported by the app itself (useWorkspaceTree),
   // so they attribute the cost to cache build vs. paper projection.
@@ -38,7 +39,12 @@ export interface PerfSample {
   renderMs: number;
   reprojectMedianMs: number;
   paperCount: number;
+  // openIframes counts every iframe on the page; openPaperFrames counts only
+  // the content frames of opened child papers (`paper-content-*`). They are
+  // separate because the workspace's own cover-report iframe is always there,
+  // so the total alone cannot tell you whether the tree actually expanded.
   openIframes: number;
+  openPaperFrames: number;
   longTasks: LongTaskStats;
   runtime: RuntimeStats;
 }
@@ -113,16 +119,16 @@ export function diffRuntimeStats(before: RuntimeStats, after: RuntimeStats): Run
 }
 
 const HEADERS = [
-  'scenario', 'items', 'openDepth', 'content B', 'inject ms', 'project ms', 'render ms',
-  'reproject ms', 'papers', 'iframes', 'longtasks', 'longtask ms', 'max longtask ms',
+  'scenario', 'items', 'opened', 'content B', 'inject ms', 'project ms', 'render ms',
+  'reproject ms', 'papers', 'iframes', 'open frames', 'longtasks', 'longtask ms', 'max longtask ms',
   'heap MB', 'DOM nodes',
 ];
 
 function toRow(sample: PerfSample): (string | number)[] {
   return [
-    sample.label, sample.totalItems, sample.openDepth, sample.contentBytes,
+    sample.label, sample.totalItems, sample.openedPapers, sample.contentBytes,
     sample.injectMs.toFixed(1), sample.projectMs.toFixed(1), sample.renderMs.toFixed(0),
-    sample.reprojectMedianMs.toFixed(2), sample.paperCount, sample.openIframes,
+    sample.reprojectMedianMs.toFixed(2), sample.paperCount, sample.openIframes, sample.openPaperFrames,
     sample.longTasks.count, sample.longTasks.totalMs, sample.longTasks.maxMs,
     sample.runtime.jsHeapUsedMb, sample.runtime.domNodes,
   ];

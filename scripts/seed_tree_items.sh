@@ -71,16 +71,16 @@ INSERT INTO tree_items (
   cross_document, created_at, updated_at
 )
 SELECT
-  'loadtest_${WORKSPACE_ID}_' || idx::STRING,
+  'loadtest_${WORKSPACE_ID}_' || idx::TEXT,
   '${WORKSPACE_ID}',
   CASE WHEN idx = 0 THEN NULL
-       ELSE 'loadtest_${WORKSPACE_ID}_' || ((idx - 1) / ${BRANCHING}::INT8)::STRING END,
-  CASE WHEN idx = 0 THEN 'Load test root' ELSE 'Load test node ' || idx::STRING END,
+       ELSE 'loadtest_${WORKSPACE_ID}_' || ((idx - 1) / ${BRANCHING}::INT8)::TEXT END,
+  CASE WHEN idx = 0 THEN 'Load test root' ELSE 'Load test node ' || idx::TEXT END,
   lvl,
   'Seeded by scripts/seed_tree_items.sh',
-  '<h2>Load test node ' || idx::STRING || '</h2>'
+  '<h2>Load test node ' || idx::TEXT || '</h2>'
     || repeat('<p>knowledge node synthesis evidence projection expansion payload</p>',
-              GREATEST(1, ${CONTENT_BYTES}::INT8 / 60)),
+              GREATEST(1, ${CONTENT_BYTES} / 60)::INT),
   '', 'load-test', 'system_generated', '',
   false, now(), now()
 FROM nodes

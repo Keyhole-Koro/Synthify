@@ -5,7 +5,6 @@ import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
-import type { SubtreeItem } from '@/features/tree/api';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { createWorkspaceTreeCache } from './tree/workspaceTreeCache';
 import { createWorkspaceTreeCommands } from './tree/workspaceTreeCommands';
@@ -88,30 +87,6 @@ export function useWorkspaceTree(
     const current = base.get(parentId)?.openChildIds ?? [];
     if (current.includes(childId)) return base;
     return setOpenChildren(parentId, [...current, childId], base);
-  };
-
-  // openDescendants opens every paper from `rootIds` down to `openDepth`
-  // levels, in one pass over the tree. Used by the mock-tree injection path so
-  // a load test can control how much of a large tree is actually rendered.
-  const openDescendants = (
-    base: ExpansionMap,
-    rootIds: string[],
-    openDepth: number,
-    treeItems: Map<string, SubtreeItem>,
-  ): ExpansionMap => {
-    const next = new Map(base);
-    let frontier = rootIds;
-    for (let level = 1; level < openDepth && frontier.length > 0; level++) {
-      const nextFrontier: string[] = [];
-      for (const id of frontier) {
-        const childIds = treeItems.get(id)?.item?.childIds ?? [];
-        if (childIds.length === 0) continue;
-        next.set(id, { openChildIds: childIds });
-        nextFrontier.push(...childIds);
-      }
-      frontier = nextFrontier;
-    }
-    return next;
   };
 
   const updateWorkspaceExpansion = useCallback((
@@ -264,18 +239,14 @@ export function useWorkspaceTree(
     const projectMs = performance.now() - projectStartedAt;
     setWorkspacePapers(workspaceId, papers);
 
-    // Open the workspace, then its root node(s), then as many further levels as
-    // openDepth asks for. Both expansion writes are folded into one map so the
-    // second does not build on a stale expansionMapRef and drop the first.
+    // Open the workspace itself, and also its root node so the user sees some
+    // "knowledge tree" nodes immediately. Both expansion writes are folded into
+    // one map: the second used to rebuild from expansionMapRef, which this
+    // effect has not refreshed yet, so it dropped the first write's
+    // ROOT -> WORKSPACES -> workspace chain.
     const withWorkspaceOpen = updateWorkspaceExpansion(workspaceId, result.rootNodeIds, true);
-    const openDepth = Math.max(0, Math.floor(args.openDepth ?? 1));
-    if (openDepth > 1 && result.rootNodeIds.length > 0) {
-      onExpansionMapChange(openDescendants(
-        withWorkspaceOpen,
-        result.rootNodeIds,
-        openDepth,
-        store.getTreeItems(workspaceId),
-      ));
+    if (result.rootNodeIds.length > 0) {
+      onExpansionMapChange(openChild(workspaceId, result.rootNodeIds[0], withWorkspaceOpen));
     }
 
     return { ...result, paperCount: papers.length, injectMs, projectMs };
