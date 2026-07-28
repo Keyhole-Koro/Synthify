@@ -5,6 +5,7 @@ import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
+import type { SubtreeItem } from '@/features/tree/api';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { createWorkspaceTreeCache } from './tree/workspaceTreeCache';
 import { createWorkspaceTreeCommands } from './tree/workspaceTreeCommands';
@@ -89,11 +90,35 @@ export function useWorkspaceTree(
     return setOpenChildren(parentId, [...current, childId], base);
   };
 
+  // openDescendants opens every paper from `rootIds` down to `openDepth`
+  // levels, in one pass over the tree. Used by the mock-tree injection path so
+  // a load test can control how much of a large tree is actually rendered.
+  const openDescendants = (
+    base: ExpansionMap,
+    rootIds: string[],
+    openDepth: number,
+    treeItems: Map<string, SubtreeItem>,
+  ): ExpansionMap => {
+    const next = new Map(base);
+    let frontier = rootIds;
+    for (let level = 1; level < openDepth && frontier.length > 0; level++) {
+      const nextFrontier: string[] = [];
+      for (const id of frontier) {
+        const childIds = treeItems.get(id)?.item?.childIds ?? [];
+        if (childIds.length === 0) continue;
+        next.set(id, { openChildIds: childIds });
+        nextFrontier.push(...childIds);
+      }
+      frontier = nextFrontier;
+    }
+    return next;
+  };
+
   const updateWorkspaceExpansion = useCallback((
     workspaceId: string,
     newDocumentRootIds: string[] = [],
     revealNewDocumentRoots = false,
-  ) => {
+  ): ExpansionMap => {
     let map = expansionMapRef.current;
     map = openChild(ROOT_ID, WORKSPACES_ID, map);
     map = openChild(WORKSPACES_ID, workspaceId, map);
@@ -106,6 +131,7 @@ export function useWorkspaceTree(
 
     map = setOpenChildren(workspaceId, openChildIds, map);
     onExpansionMapChange(map);
+    return map;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onExpansionMapChange, store]);
 
@@ -212,30 +238,47 @@ export function useWorkspaceTree(
     return { rootNodeItemId: itemId, title };
   }, [canReadWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, store, updateWorkspaceExpansion]);
 
-  // injectMockWorkspaceTree builds a complete frontend-only tree (N root nodes
-  // sitting directly under the workspace, each with M child nodes) and projects
+  // injectMockWorkspaceTree builds a complete frontend-only tree and projects
   // it, without any backend call. Used by __synthifyDebug to preview
-  // WorkspacePaper UI states offline.
+  // WorkspacePaper UI states offline, and by the load-test harness to hand the
+  // client an arbitrary number of items.
+  //
+  // The two phases that scale with item count are timed separately so a slow
+  // result can be attributed rather than guessed at. injectMs covers mock
+  // generation plus the cache rebuild — in a real load it is GetTree's decode
+  // plus that same cache rebuild. projectMs is the paper projection, which is
+  // the part that also runs on every subsequent expansion.
   const injectMockWorkspaceTree = useCallback((
     workspace: Workspace,
     args: InjectMockWorkspaceTreeArgs = {},
   ) => {
     const workspaceId = workspace.workspaceId;
     store.rememberNewlyCreated(workspace);
-    const result = store.injectMockWorkspaceTree(workspaceId, args);
-    setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
 
-    // Open the workspace itself, and also the first root node if available so
-    // the user sees some "knowledge tree" nodes immediately.
-    const openIds = result.rootNodeIds.length > 0
-      ? [result.rootNodeIds[0]]
-      : [];
-    updateWorkspaceExpansion(workspaceId, result.rootNodeIds, true);
-    if (openIds.length > 0) {
-      onExpansionMapChange(openChild(workspaceId, openIds[0], expansionMapRef.current));
+    const injectStartedAt = performance.now();
+    const result = store.injectMockWorkspaceTree(workspaceId, args);
+    const injectMs = performance.now() - injectStartedAt;
+
+    const projectStartedAt = performance.now();
+    const papers = runProjectWorkspacePapers(workspaceId);
+    const projectMs = performance.now() - projectStartedAt;
+    setWorkspacePapers(workspaceId, papers);
+
+    // Open the workspace, then its root node(s), then as many further levels as
+    // openDepth asks for. Both expansion writes are folded into one map so the
+    // second does not build on a stale expansionMapRef and drop the first.
+    const withWorkspaceOpen = updateWorkspaceExpansion(workspaceId, result.rootNodeIds, true);
+    const openDepth = Math.max(0, Math.floor(args.openDepth ?? 1));
+    if (openDepth > 1 && result.rootNodeIds.length > 0) {
+      onExpansionMapChange(openDescendants(
+        withWorkspaceOpen,
+        result.rootNodeIds,
+        openDepth,
+        store.getTreeItems(workspaceId),
+      ));
     }
 
-    return result;
+    return { ...result, paperCount: papers.length, injectMs, projectMs };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion, onExpansionMapChange]);
 
@@ -247,6 +290,31 @@ export function useWorkspaceTree(
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildWsPaper, runProjectWorkspacePapers, setWorkspacePapers]);
+
+  // reprojectWorkspace re-runs the full projection the way every subtree
+  // expansion and every treeChanged refresh does, and reports how long it took.
+  // projectWorkspacePapers rebuilds *all* papers for the workspace, so this is
+  // the per-interaction cost that grows with item count — the load test measures
+  // it directly rather than inferring it from frame timings.
+  const reprojectWorkspace = useCallback((workspaceId: string, iterations = 1) => {
+    const samples: number[] = [];
+    let papers: Paper[] = [];
+    for (let i = 0; i < Math.max(1, iterations); i++) {
+      const startedAt = performance.now();
+      papers = runProjectWorkspacePapers(workspaceId);
+      samples.push(performance.now() - startedAt);
+    }
+    setWorkspacePapers(workspaceId, papers);
+    const sorted = [...samples].sort((a, b) => a - b);
+    return {
+      paperCount: papers.length,
+      iterations: samples.length,
+      medianMs: sorted[Math.floor(sorted.length / 2)],
+      minMs: sorted[0],
+      maxMs: sorted[sorted.length - 1],
+      samples,
+    };
+  }, [runProjectWorkspacePapers, setWorkspacePapers]);
 
   // loadSubtreeAndProject fetches a subtree, projects Papers, and then
   // recursively kicks loads for any children the user already has open.
@@ -327,6 +395,7 @@ export function useWorkspaceTree(
     refreshWorkspaceTree,
     injectMockNode,
     injectMockWorkspaceTree,
+    reprojectWorkspace,
     getDebugSnapshot: store.debugSnapshot,
     resetTree,
     buildWsPaper,

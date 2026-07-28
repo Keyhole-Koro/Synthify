@@ -1,5 +1,6 @@
 import type { ApiItem, SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
+import type { MockTreeSpec, ResolvedMockTreeSpec } from './mockTreeGenerator';
 
 export interface RefreshResult {
   // rootNodeIds are the workspace's top-level nodes (parent_id IS NULL). The
@@ -24,17 +25,28 @@ export interface InjectMockNodeArgs {
 }
 
 // InjectMockWorkspaceTreeArgs builds a complete, frontend-only workspace tree
-// (N root nodes, each with M child nodes) without touching the backend API.
-// Used by __synthifyDebug to preview WorkspacePaper UI states.
-export interface InjectMockWorkspaceTreeArgs {
+// without touching the backend API. Used by __synthifyDebug to preview
+// WorkspacePaper UI states and by the load-test harness to give the client an
+// arbitrary number of items. The shape knobs (totalItems / depth / branching /
+// contentBytes / seed) come from MockTreeSpec; see mockTreeGenerator.ts.
+export interface InjectMockWorkspaceTreeArgs extends MockTreeSpec {
+  // documentCount / nodesPerDocument are the original console-facing knobs.
+  // They still produce the old flat shape (one root, documentCount ×
+  // nodesPerDocument children) when no MockTreeSpec knob is given.
   documentCount?: number;
   nodesPerDocument?: number;
   documentTitles?: string[];
-  // rootContent / rootOverrideCss override the first root node's cover-report
-  // HTML and isolated CSS. When omitted, a rich sample report is used so the
-  // iframe rendering, CSS isolation, and child links are all exercised.
-  rootContent?: string;
-  rootOverrideCss?: string;
+  // openDepth is how many levels of papers to leave open below the workspace.
+  // 1 (the default) opens the root node only; 2 also opens its children, and
+  // so on. This is the DOM/iframe knob: item count alone says nothing about
+  // render cost, because closed papers are cheap.
+  openDepth?: number;
+}
+
+// InjectMockWorkspaceTreeResult reports the tree that was actually built, so a
+// measurement is never ambiguous about its input.
+export interface InjectMockWorkspaceTreeResult extends RefreshResult {
+  resolved: ResolvedMockTreeSpec;
 }
 
 export interface TreeStoreDebugSnapshot {
@@ -69,7 +81,7 @@ export interface WorkspaceTreeCache {
   markSubtreeLoadFinished: (itemId: string) => void;
   mergeSubtreeItems: (workspaceId: string, items: SubtreeItem[]) => void;
   injectMockNode: (workspaceId: string, args?: InjectMockNodeArgs) => string | null;
-  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => RefreshResult;
+  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => InjectMockWorkspaceTreeResult;
   debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;
 }
@@ -90,7 +102,7 @@ export interface TreeStore {
   refreshWorkspaceTree: (workspaceId: string) => Promise<RefreshResult>;
   loadSubtree: (workspaceId: string, itemId: string, maxDepth?: number) => Promise<SubtreeItem[]>;
   injectMockNode: (workspaceId: string, args?: InjectMockNodeArgs) => string | null;
-  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => RefreshResult;
+  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => InjectMockWorkspaceTreeResult;
   debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;
 }

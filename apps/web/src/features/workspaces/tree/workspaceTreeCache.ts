@@ -3,90 +3,26 @@ import { ItemSchema, SubtreeItemSchema } from '@/gen/proto/synthify/app/v1/tree_
 import { findRootNodeIds } from '@/features/tree/buildTree';
 import type { ApiItem, SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
-import type { InjectMockNodeArgs, InjectMockWorkspaceTreeArgs, RefreshResult, TreeStoreDebugSnapshot, WorkspaceTreeCache } from './workspaceTreeTypes';
+import { buildMockTree, type MockTreeSpec } from './mockTreeGenerator';
+import type { InjectMockNodeArgs, InjectMockWorkspaceTreeArgs, InjectMockWorkspaceTreeResult, RefreshResult, TreeStoreDebugSnapshot, WorkspaceTreeCache } from './workspaceTreeTypes';
 
 function makeDebugItemId() {
   return `debug_node_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// SAMPLE_ROOT_OVERRIDE_CSS is injected into the root content iframe so the CSS
-// isolation path is exercised: these selectors would clash with the host page
-// if they leaked, but stay contained inside the sandboxed iframe.
-const SAMPLE_ROOT_OVERRIDE_CSS = `
-.hero-block { background: linear-gradient(135deg, #eef2ff, #fdf2f8); border-radius: 16px; padding: 18px 20px; }
-h1 { color: #4338ca; }
-.metric { display: inline-block; margin-right: 16px; font-weight: 700; color: #be185d; }
-`.trim();
+// toMockTreeSpec maps the console-facing args onto the generator's spec. The
+// original documentCount / nodesPerDocument knobs described a flat one-root
+// tree, so they translate to depth 1 with that many children — preserving the
+// shape older console snippets expect. Any explicit MockTreeSpec knob wins.
+function toMockTreeSpec(args: InjectMockWorkspaceTreeArgs): MockTreeSpec {
+  const usesLegacyKnobs = args.documentCount != null || args.nodesPerDocument != null;
+  const usesShapeKnobs = args.totalItems != null || args.depth != null || args.branching != null;
 
-// buildSampleRootContent renders a rich cover report that embeds child node ids
-// as data-paper-id links directly in the content. WorkspaceRootContent forwards
-// in-iframe clicks on these links to the host, which opens the child paper — so
-// the embedded links are live navigation, exercising that path from the console.
-function buildSampleRootContent(childRefs: { id: string; title: string }[]): string {
-  const links = childRefs
-    .map((c) => `<a data-paper-id="${c.id}">${c.title}</a>`)
-    .join(' ');
-  return `
-<div class="hero-block">
-  <h1>統合知識レポート（モック）</h1>
-  <p class="lede">__synthifyDebug が生成したフロントエンド専用のダミー root content です。リッチ HTML + override_css が iframe で CSS 隔離描画されます。</p>
-  <p><span class="metric">出典 3</span><span class="metric">ノード ${childRefs.length}</span></p>
-</div>
-<h2>概要</h2>
-<p>このワークスペースの知識ツリーのトップ概要。下のリンクから配下のノードを開けます。</p>
-<table><thead><tr><th>項目</th><th>値</th></tr></thead><tbody>
-<tr><td>モデル</td><td>node 直属</td></tr><tr><td>root</td><td>単一</td></tr></tbody></table>
-<h2>子ノード（クリックで開く）</h2>
-<p>${links || '（子ノードなし）'}</p>
-`.trim();
-}
-
-// buildMockWorkspaceTreeItems assembles a complete ApiItem[] for a single-root
-// workspace tree entirely on the frontend, mirroring the worker's node-direct
-// model: one root node (parent_id = '') carrying the cover-report content, with
-// M child knowledge nodes hanging off it. The shape mirrors what the backend
-// returns so it can flow through replaceWorkspaceTree unchanged.
-function buildMockWorkspaceTreeItems(
-  workspaceId: string,
-  args: InjectMockWorkspaceTreeArgs,
-): ApiItem[] {
-  // documentCount is kept for backward compatibility but now controls how many
-  // child knowledge nodes hang under the single root (each "document" produced
-  // one root node group in the old model; now they are all children of one root).
-  const childCount = Math.max(0, (args.documentCount ?? 2) * (args.nodesPerDocument ?? 3));
-  const titles = args.documentTitles ?? [];
-
-  const rootId = `debug_root_${workspaceId}`;
-  const items: ApiItem[] = [];
-  const childRefs: { id: string; title: string }[] = [];
-
-  for (let n = 0; n < childCount; n++) {
-    const nodeId = `${rootId}_node_${n}`;
-    const title = titles[n]?.trim() || `知識ノード ${n + 1}`;
-    childRefs.push({ id: nodeId, title });
-    items.push(create(ItemSchema, {
-      id: nodeId,
-      parentId: rootId,
-      title,
-      description: `Mock child node ${n + 1}`,
-      content: `<p>${title} の本文。__synthifyDebug が生成したフロントエンド専用のダミーです。</p>`,
-      level: 1,
-      childIds: [],
-    }));
+  if (usesLegacyKnobs && !usesShapeKnobs) {
+    const childCount = Math.max(0, (args.documentCount ?? 2) * (args.nodesPerDocument ?? 3));
+    return { ...args, depth: childCount > 0 ? 1 : 0, branching: Math.max(1, childCount), totalItems: childCount + 1 };
   }
-
-  items.push(create(ItemSchema, {
-    id: rootId,
-    parentId: '',
-    title: titles[0]?.trim() || 'モック ワークスペース',
-    description: 'Mock single root node',
-    content: args.rootContent ?? buildSampleRootContent(childRefs),
-    overrideCss: args.rootOverrideCss ?? SAMPLE_ROOT_OVERRIDE_CSS,
-    level: 0,
-    childIds: childRefs.map((c) => c.id),
-  }));
-
-  return items;
+  return args;
 }
 
 export function createWorkspaceTreeCache(): WorkspaceTreeCache {
@@ -208,10 +144,10 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
     injectMockWorkspaceTree: (
       workspaceId: string,
       args: InjectMockWorkspaceTreeArgs = {},
-    ): RefreshResult => {
-      const items = buildMockWorkspaceTreeItems(workspaceId, args);
+    ): InjectMockWorkspaceTreeResult => {
+      const { items, resolved } = buildMockTree(workspaceId, toMockTreeSpec(args));
       initializedWorkspaces.add(workspaceId);
-      return replaceWorkspaceTree(workspaceId, items);
+      return { ...replaceWorkspaceTree(workspaceId, items), resolved };
     },
     debugSnapshot: (workspaceId: string): TreeStoreDebugSnapshot => {
       const treeItems = workspaceTreeItems.get(workspaceId) ?? new Map<string, SubtreeItem>();
