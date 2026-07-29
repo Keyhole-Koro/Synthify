@@ -1,8 +1,9 @@
 import { bench, describe } from 'vitest';
-import { create, toJson, fromJson } from '@bufbuild/protobuf';
+import { gzipSync } from 'node:zlib';
+import { create, toJson, fromJson, toBinary, fromBinary } from '@bufbuild/protobuf';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { GetTreeResponseSchema } from '@/gen/proto/synthify/app/v1/tree_pb';
-import { TreeSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
+import { ItemSchema, TreeSchema } from '@/gen/proto/synthify/app/v1/tree_types_pb';
 import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
 import { buildMockTree } from './mockTreeGenerator';
 import { createWorkspaceTreeCache } from './workspaceTreeCache';
@@ -45,7 +46,14 @@ for (const scale of SCALES) {
 
   const treeMessage = create(TreeSchema, { workspaceId: WORKSPACE_ID, items });
   const responseJson = toJson(GetTreeResponseSchema, create(GetTreeResponseSchema, { tree: treeMessage }));
-  const wireBytes = JSON.stringify(responseJson).length;
+  // Byte length, not string length: content is largely Japanese, and
+  // String.prototype.length counts UTF-16 code units — it under-reports a
+  // 3-byte character as 1. Gzip is reported too because that is what actually
+  // crosses the network; the uncompressed size is what the JSON parser walks.
+  const jsonText = JSON.stringify(responseJson);
+  const wireBytes = Buffer.byteLength(jsonText, 'utf8');
+  const gzipBytes = gzipSync(Buffer.from(jsonText, 'utf8')).length;
+  const mib = (bytes: number) => (bytes / 1_048_576).toFixed(2);
 
   // Projection is pure over an already-built cache, so build the cache once —
   // otherwise the row would silently measure replaceWorkspaceTree as well.
@@ -53,7 +61,7 @@ for (const scale of SCALES) {
   const { rootNodeIds } = projectionCache.replaceWorkspaceTree(WORKSPACE_ID, items);
   const projectionItems = projectionCache.getTreeItems(WORKSPACE_ID);
 
-  describe(`${label} (~${(wireBytes / 1_048_576).toFixed(2)} MiB on the wire)`, () => {
+  describe(`${label} (${mib(wireBytes)} MiB JSON, ${mib(gzipBytes)} MiB gzipped)`, () => {
     bench('decode GetTree response (JSON codec)', () => {
       fromJson(GetTreeResponseSchema, responseJson);
     });
@@ -86,4 +94,42 @@ describe('one expansion in a large workspace', () => {
     cache.mergeSubtreeItems(WORKSPACE_ID, subtreeBatch);
     projectWorkspacePapers(WORKSPACE_ID, treeItems, rootNodeIds, stubWorkspacePaper);
   });
+});
+
+// What the two candidate fixes would actually buy, measured rather than
+// assumed. Both are compared against the same 5,000-item tree:
+//
+//   codec        — connect-web on the binary codec instead of JSON
+//                  (`useBinaryFormat: true` in lib/connect.ts)
+//   content lazy — GetTree returning content only for root nodes, with each
+//                  node's body fetched when its paper opens
+//
+// Sizes are UTF-8 bytes and gzip, because the transfer is compressed but the
+// parser walks the uncompressed form.
+describe('candidate fixes (5000 items x 2048B)', () => {
+  const { items } = buildMockTree(WORKSPACE_ID, { totalItems: 5_000, depth: 5, branching: 7, contentBytes: 2048, seed: 7 });
+  const lean = items.map((item) => create(ItemSchema, {
+    ...item,
+    content: item.parentId === '' ? item.content : '',
+    overrideCss: item.parentId === '' ? item.overrideCss : '',
+  }));
+
+  for (const [label, list] of [['full', items], ['content lazy', lean]] as const) {
+    const response = create(GetTreeResponseSchema, {
+      tree: create(TreeSchema, { workspaceId: WORKSPACE_ID, items: list }),
+    });
+    const json = toJson(GetTreeResponseSchema, response);
+    const jsonText = JSON.stringify(json);
+    const binary = toBinary(GetTreeResponseSchema, response);
+    const size = (bytes: number) => `${(bytes / 1_048_576).toFixed(2)} MiB`;
+    console.info(`[${label}] json ${size(Buffer.byteLength(jsonText, 'utf8'))} (gzip ${size(gzipSync(Buffer.from(jsonText, 'utf8')).length)})`
+      + ` | binary ${size(binary.length)} (gzip ${size(gzipSync(Buffer.from(binary)).length)})`);
+
+    bench(`${label}: decode JSON`, () => {
+      fromJson(GetTreeResponseSchema, json);
+    });
+    bench(`${label}: decode binary`, () => {
+      fromBinary(GetTreeResponseSchema, binary);
+    });
+  }
 });

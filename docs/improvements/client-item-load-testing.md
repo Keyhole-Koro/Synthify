@@ -9,7 +9,7 @@ workspace の item 数が増えたときに、クライアント側で何がど�
 | 箇所 | 何が起きるか |
 |---|---|
 | [`contracts/connectrpc/synthify/app/v1/tree_types.proto`](../../contracts/connectrpc/synthify/app/v1/tree_types.proto) `Item.content` | `GetTree` は workspace の**全 item を content(HTML) 込みで一括返却**する。ペイロードは N × content サイズ |
-| [`apps/web/src/lib/connect.ts`](../../apps/web/src/lib/connect.ts) | `createConnectTransport` に `useBinaryFormat` を渡していないため connect-web は **JSON codec**。GetTree のデコードは `JSON.parse` + 全 item の `fromJson` になる |
+| [`apps/web/src/lib/connect.ts`](../../apps/web/src/lib/connect.ts) | `createConnectTransport` に `useBinaryFormat` を渡していないため connect-web は **JSON codec**。GetTree のデコードは `JSON.parse` + 全 item の `fromJson` になる（ただし実測では binary に変えても改善しない。下記参照） |
 | [`workspaceTreeCache.ts`](../../apps/web/src/features/workspaces/tree/workspaceTreeCache.ts) `replaceWorkspaceTree` | 全 item を Map に展開し、item ごとに `SubtreeItem` message を確保してメモリ常駐 |
 | [`useWorkspaceProjection.ts`](../../apps/web/src/features/workspaces/useWorkspaceProjection.ts) `projectWorkspacePapers` | **毎回全 item を再投影して新しい `Paper[]` を作る**。subtree 展開ごと・`treeChanged` refresh ごとに O(N) |
 | [`useWorkspaceTree.ts`](../../apps/web/src/features/workspaces/useWorkspaceTree.ts) `loadSubtreeAndProject` | 展開 1 回 = subtree fetch + 全再投影 + `setWorkspacePapers` |
@@ -56,28 +56,45 @@ cd apps/web && bun run bench
 
 ### ベースライン (2026-07 / Linux container, content 2048B/item)
 
-各行は mean。`wire` は connect-web が実際に運ぶ JSON のバイト数。
+各行は mean。サイズは connect-web が運ぶ JSON の **UTF-8 バイト数**と、その gzip 後。
+転送されるのは gzip 後だが、`JSON.parse` が舐めるのは展開後なので両方載せている。
 
-| items | wire (JSON) | GetTree decode | replaceWorkspaceTree | projectWorkspacePapers |
-|---|---|---|---|---|
-| 100 | 0.22 MiB | 2.3 ms | 0.13 ms | 0.017 ms |
-| 1,000 | 2.18 MiB | 23 ms | 0.87 ms | 0.23 ms |
-| 5,000 | 10.93 MiB | 114 ms | 7.6 ms | 1.3 ms |
-| 20,000 | 43.77 MiB | 469 ms | 56 ms | 30 ms |
+| items | JSON | gzip | GetTree decode | replaceWorkspaceTree | projectWorkspacePapers |
+|---|---|---|---|---|---|
+| 100 | 0.28 MiB | 0.04 MiB | 2.1 ms | 0.06 ms | 0.011 ms |
+| 1,000 | 2.80 MiB | 0.34 MiB | 21 ms | 1.1 ms | 0.28 ms |
+| 5,000 | 14.01 MiB | 1.72 MiB | 110 ms | 4.8 ms | 1.0 ms |
+| 20,000 | 56.08 MiB | 6.85 MiB | 535 ms | 30 ms | 17 ms |
 
-参考: 5,000 item の workspace で paper を 1 つ開くコスト（subtree merge + 全再投影）は **1.3 ms**。
+参考: 5,000 item の workspace で paper を 1 つ開くコスト（subtree merge + 全再投影）は **1.6 ms**。
 
 ### 読み取れること
 
-1. **支配的なのは decode で、再投影ではない。** 5,000 item で decode 114 ms に対し再投影 1.3 ms。約 90 倍の開き。
+1. **支配的なのは decode で、再投影ではない。** 5,000 item で decode 110 ms に対し再投影 1.0 ms。約 110 倍の開き。
    「展開のたびに全 item を再投影している」のは事実だが、実測では当面のボトルネックではない。
-2. **本当の問題はペイロード。** content を全 item 分積んで JSON で運ぶため、5,000 item で **約 11 MiB**、
-   20,000 item で **約 44 MiB**。デコード時間はこのバイト数にほぼ比例する。効くのは item 数そのものより
-   `content` を全件返している設計。
-3. **改善の効き順**はこの数字から決まる。
-   - a. `GetTree` から `content` を外す（一覧は title/description/child_ids まで、本文は開いた item だけ `GetSubtree` / `GetTreeEntityDetail` で取る）
-   - b. connect-web を binary codec にする（`useBinaryFormat: true`）
-   - c. 再投影の差分化（(a)(b) の後で初めて意味を持つ）
+2. **本当の問題はペイロード。** content を全 item 分積んで運ぶため、5,000 item で **14 MiB**（gzip 1.7 MiB）、
+   20,000 item で **56 MiB**（gzip 6.9 MiB）。デコード時間はこの展開後バイト数にほぼ比例する。
+   効くのは item 数そのものより `content` を全件返している設計。
+
+### 候補となる改善の効果（実測）
+
+bench の `candidate fixes` セクションが 5,000 item / content 2048B で直接比較する。
+
+| 版 | JSON | gzip | binary | binary gzip | decode JSON | decode binary |
+|---|---|---|---|---|---|---|
+| 現状（content 全件） | 14.01 MiB | 1.72 MiB | 13.71 MiB | 1.74 MiB | 110 ms | 98 ms |
+| content を遅延取得 | 0.78 MiB | 0.06 MiB | 0.53 MiB | 0.06 MiB | **14 ms** | 17 ms |
+
+- **binary codec はほぼ効かない。** gzip 後はむしろ JSON より大きく（1.74 vs 1.72 MiB）、
+  decode も JS ランタイム上では速くならない（`fromBinary` は byte 列から文字列を作り直すため）。
+  1 行で切り替えられるが、この payload では投資対効果がない。
+- **効くのは content を運ばないことだけ。** decode 110 ms → 14 ms（**7.5 倍**）、gzip 1.72 MiB → 0.06 MiB（**28 倍**）。
+
+したがって改善の順序は:
+   - a. `GetTree` から `content` を外す（一覧は title/description/child_ids まで、本文は開いた item だけ取る）
+   - b. `populateChildIDs` の 1+N を 1 クエリに畳む（L2 の節を参照）
+   - c. 再投影の差分化。5,000 item で 1.0 ms なので、(a)(b) の後でも優先度は低い
+   - binary codec は上表のとおり効果がないので、やらない
 
 ## L1: ブラウザ実測
 
@@ -142,8 +159,8 @@ heap は読む前に CDP `HeapProfiler.collectGarbage` を打ってから取る�
    （閉じた paper は DOM を食わない）。逆に item 数を 2,000 に固定したまま paper を 6 枚開くと DOM は +348 → +1430、
    iframe は 1 → 7 に増える。**item 数だけでは描画コストは決まらない。**
 2. **注入コストは item 数にほぼ線形**（100 → 5,000 で 10.6 ms → 168 ms）。これは mock 生成 + cache 構築で、
-   実負荷では GetTree の decode + cache 構築に相当する。L0 の decode 実測（5,000 item で 114 ms）と桁が合う。
-3. **再投影は 5,000 item でも 3.1 ms** で、L0 の 1.3 ms と同オーダー。やはりここは当面のボトルネックではない。
+   実負荷では GetTree の decode + cache 構築に相当する。L0 の decode 実測（5,000 item で 110 ms）と桁が合う。
+3. **再投影は 5,000 item でも 3.1 ms** で、L0 の 1.0 ms と同オーダー。やはりここは当面のボトルネックではない。
 4. long task は 5,000 item 注入時に合計 244 ms（最大 178 ms）出る。1 フレームを大きく超えるので、
    この間 UI は止まる。減らすべきは注入そのものではなく、その入力サイズ（= ペイロード）。
 
@@ -219,7 +236,7 @@ __synthifyDebug.reprojectWorkspace('debug_ws_xxxx', 10)
 ## 今後
 
 - L0 をベースライン比の回帰ゲートとして CI に入れる（まずは数回分の実測ばらつきを見てから閾値を決める）
-- 上の「改善の効き順」a → b を実施し、同じベンチで前後比較する
+- 上の改善順序 a → b を実施し、bench の `candidate fixes` セクションで前後比較する
 - `populateChildIDs` を 1 クエリに畳む（上記 SQL）
 - seed script を CockroachDB 実機で 1 度通す
 - L2 を nightly に載せるかは、compose 込みの実行時間を見てから判断する
