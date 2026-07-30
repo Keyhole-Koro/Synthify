@@ -174,3 +174,25 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "maintenance_scheduler_service_account_email" {
+  description = "Identity Cloud Scheduler uses for the maintenance sweep; the API only accepts OIDC tokens from this address."
+  type        = string
+}
+
+variable "maintenance_schedule" {
+  description = "Cron expression for the job auto-resume / stuck-job sweep. Matches the 5-minute cadence the in-process ticker used, which the New Relic JobStuck alert window assumes."
+  type        = string
+  default     = "*/5 * * * *"
+}
+
+variable "maintenance_time_zone" {
+  type    = string
+  default = "Asia/Tokyo"
+}
+
+variable "request_timeout_seconds" {
+  description = "Cloud Run request timeout. Also the maintenance scheduler's attempt deadline, so the two cannot drift."
+  type        = number
+  default     = 300
+}
