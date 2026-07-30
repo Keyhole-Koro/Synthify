@@ -57,6 +57,25 @@ variable "min_instance_count" {
   default = 0
 }
 
+# CPU allocation / billing mode. true = CPU is only allocated while a request is
+# in flight (request-based billing); false = CPU is always allocated for the
+# whole instance lifetime (instance-based billing).
+#
+# This MUST stay explicit. google_cloud_run_v2_service only defaults cpu_idle to
+# true when the `resources` block is absent entirely; because this module always
+# sets resources.limits, leaving cpu_idle unset makes the provider send false and
+# the service is billed for every second an instance is alive, even idle ones —
+# min_instance_count=0 saves nothing once anything (a health probe, a scheduler)
+# keeps an instance warm. See hashicorp/terraform-provider-google#17246.
+#
+# Consequence of true: goroutines/timers that run outside a request are throttled
+# and must not be relied on. Periodic work belongs in Cloud Scheduler (see the
+# maintenance sweep in services/api) or a Cloud Run Job.
+variable "cpu_idle" {
+  type    = bool
+  default = true
+}
+
 variable "max_instance_count" {
   type    = number
   default = 2

@@ -11,6 +11,11 @@ on:
       - go.mod
       - go.sum
       - sqlc.yaml
+      # The terraform job below is the only fmt/validate gate there is, so a
+      # change under terraform/ has to be able to trigger it. Without this a
+      # terraform-only PR merged with no validation at all, and the first thing
+      # to parse it was `terraform apply` against a real environment.
+      - terraform/**
       - .github/workflows/backend.yml
   push:
     branches:
@@ -24,6 +29,7 @@ on:
       - go.mod
       - go.sum
       - sqlc.yaml
+      - terraform/**
       - .github/workflows/backend.yml
 
 jobs:
