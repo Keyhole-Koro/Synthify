@@ -45,7 +45,7 @@ export function useWorkspaceTree(
 
   useEffect(() => {
     if (workspaces.length === 0) return;
-    treeCache.pruneNewlyCreated(workspaces.filter((workspace) => treeCache.isFullyLoaded(workspace.workspaceId)));
+    treeCache.pruneNewlyCreated(workspaces.filter((workspace) => treeCache.isOutlineLoaded(workspace.workspaceId)));
   }, [treeCache, workspaces]);
 
   const store = useMemo<TreeStore>(() => ({
@@ -56,7 +56,7 @@ export function useWorkspaceTree(
     isLoaded: treeCache.isLoaded,
     isLoading: treeCache.isLoading,
     hasChildren: treeCache.hasChildren,
-    isFullyLoaded: treeCache.isFullyLoaded,
+    isOutlineLoaded: treeCache.isOutlineLoaded,
     getNewlyCreated: treeCache.getNewlyCreated,
     listNewlyCreatedIds: treeCache.listNewlyCreatedIds,
     markInitialized: treeCache.markInitialized,
@@ -254,7 +254,7 @@ export function useWorkspaceTree(
   }, [runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion, onExpansionMapChange]);
 
   const rebuildWorkspacePaper = useCallback((workspaceId: string) => {
-    if (store.isFullyLoaded(workspaceId)) {
+    if (store.isOutlineLoaded(workspaceId)) {
       setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
     } else {
       setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
@@ -324,7 +324,7 @@ export function useWorkspaceTree(
       store.rememberNewlyCreated(overrideWorkspace);
     }
     // Already fetched: re-project from cache and reveal, no network.
-    if (store.isFullyLoaded(workspaceId)) {
+    if (store.isOutlineLoaded(workspaceId)) {
       setWorkspacePapers(workspaceId, runProjectWorkspacePapers(workspaceId));
       updateWorkspaceExpansion(workspaceId);
       onFocusedNodeIdChange(workspaceId);

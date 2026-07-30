@@ -275,6 +275,77 @@ func (q *Queries) ListChildItems(ctx context.Context, parentID sql.NullString) (
 	return items, nil
 }
 
+const listItemOutlinesByWorkspace = `-- name: ListItemOutlinesByWorkspace :many
+SELECT id, workspace_id, parent_id, title, level, description,
+       CASE WHEN parent_id IS NULL THEN content ELSE '' END::TEXT AS content,
+       CASE WHEN parent_id IS NULL THEN override_css ELSE '' END::TEXT AS override_css,
+       created_by, governance_state, cross_document, created_at
+FROM tree_items
+WHERE workspace_id = $1
+ORDER BY created_at ASC
+`
+
+type ListItemOutlinesByWorkspaceRow struct {
+	ID              string
+	WorkspaceID     string
+	ParentID        sql.NullString
+	Title           string
+	Level           int32
+	Description     string
+	Content         string
+	OverrideCss     string
+	CreatedBy       string
+	GovernanceState string
+	CrossDocument   bool
+	CreatedAt       time.Time
+}
+
+// The workspace tree without node bodies. `content` / `override_css` are
+// returned only for root nodes, whose content is the workspace cover report and
+// is rendered immediately; every other node's body is fetched by GetSubtree when
+// its paper opens.
+//
+// Bodies are LLM-authored HTML of a few KiB each, so carrying them for every
+// node made GetTree grow without bound in the node count: 5,000 nodes came to
+// 14 MiB of JSON and ~110 ms of client-side decode, against 0.8 MiB and ~14 ms
+// without the bodies. Measurements and method in
+// docs/improvements/client-item-load-testing.md.
+func (q *Queries) ListItemOutlinesByWorkspace(ctx context.Context, workspaceID string) ([]ListItemOutlinesByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listItemOutlinesByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListItemOutlinesByWorkspaceRow
+	for rows.Next() {
+		var i ListItemOutlinesByWorkspaceRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ParentID,
+			&i.Title,
+			&i.Level,
+			&i.Description,
+			&i.Content,
+			&i.OverrideCss,
+			&i.CreatedBy,
+			&i.GovernanceState,
+			&i.CrossDocument,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listItemSourceRefs = `-- name: ListItemSourceRefs :many
 SELECT source_ref_id, item_id, source_type, url, repo, ref, path, line_start, line_end,
        kind, external_id, title, COALESCE(confidence, 0) AS confidence,

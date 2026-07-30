@@ -8,7 +8,7 @@ workspace の item 数が増えたときに、クライアント側で何がど�
 
 | 箇所 | 何が起きるか |
 |---|---|
-| [`contracts/connectrpc/synthify/app/v1/tree_types.proto`](../../contracts/connectrpc/synthify/app/v1/tree_types.proto) `Item.content` | `GetTree` は workspace の**全 item を content(HTML) 込みで一括返却**する。ペイロードは N × content サイズ |
+| [`contracts/connectrpc/synthify/app/v1/tree_types.proto`](../../contracts/connectrpc/synthify/app/v1/tree_types.proto) `Item.content` | かつて `GetTree` が workspace の**全 item を content(HTML) 込みで一括返却**しており、ペイロードは N × content サイズだった。**現在は root node のぶんだけ返す**（下記「outline 化」）。この表の他の行は現在も有効 |
 | [`apps/web/src/lib/connect.ts`](../../apps/web/src/lib/connect.ts) | `createConnectTransport` に `useBinaryFormat` を渡していないため connect-web は **JSON codec**。GetTree のデコードは `JSON.parse` + 全 item の `fromJson` になる（ただし実測では binary に変えても改善しない。下記参照） |
 | [`workspaceTreeCache.ts`](../../apps/web/src/features/workspaces/tree/workspaceTreeCache.ts) `replaceWorkspaceTree` | 全 item を Map に展開し、item ごとに `SubtreeItem` message を確保してメモリ常駐 |
 | [`useWorkspaceProjection.ts`](../../apps/web/src/features/workspaces/useWorkspaceProjection.ts) `projectWorkspacePapers` | **毎回全 item を再投影して新しい `Paper[]` を作る**。subtree 展開ごと・`treeChanged` refresh ごとに O(N) |
@@ -92,9 +92,28 @@ bench の `candidate fixes` セクションが 5,000 item / content 2048B で直
 
 したがって改善の順序は:
    - a. `GetTree` から `content` を外す（一覧は title/description/child_ids まで、本文は開いた item だけ取る）
-   - b. `populateChildIDs` の 1+N を 1 クエリに畳む（L2 の節を参照）
+     → **実装済み**。下記「outline 化」を参照
+   - b. `populateChildIDs` の 1+N を 1 クエリに畳む（L2 の節を参照）— 未実装
    - c. 再投影の差分化。5,000 item で 1.0 ms なので、(a)(b) の後でも優先度は低い
    - binary codec は上表のとおり効果がないので、やらない
+
+### GetTree の outline 化（実装済み）
+
+`GetTree` は root node の本文だけを返し、それ以外の node の本文は paper を開いたときに
+`GetSubtree` で取る。
+
+- クエリ: `ListItemOutlinesByWorkspace`（[db/queries/tree.sql](../../db/queries/tree.sql)）が
+  非 root の `content` / `override_css` を空にして返す。DB から本文バイトを読む段階で落とすので、
+  API のメモリと DB IO にも効く。PostgreSQL 16 実測で 5,000 node の本文 **11,868,890 バイト → 2,371 バイト**。
+- repository: `GetTreeOutlineByWorkspace`。`GetTreeByWorkspace`（本文込み）は worker と `FindPaths` が
+  引き続き使う。
+- frontend: `replaceWorkspaceTree` は root だけを本文取得済みとして扱い、`shouldSkipSubtreeLoad` から
+  「workspace の outline がある」条件を外した。`useExpansionWatcher` は子を持たない item でも
+  subtree を取りに行く（leaf にも自分の本文があるため）。
+- 本文が未取得の paper は `buildProjectedPaper` の既存フォールバックで description を表示し、
+  `GetSubtree` が返り次第 本文に差し替わる。
+
+共有リンクビューア（`ShareLinkTree`）は title / description しか描画していないので影響を受けない。
 
 ## L1: ブラウザ実測
 

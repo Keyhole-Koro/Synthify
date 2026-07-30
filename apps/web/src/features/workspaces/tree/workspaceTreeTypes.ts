@@ -48,7 +48,9 @@ export interface TreeStoreDebugSnapshot {
   workspaceId: string;
   rootNodeIds: string[];
   initialized: boolean;
-  fullyLoaded: boolean;
+  // outlineLoaded: the workspace tree structure has been fetched. Node
+  // bodies are separate — see loadedItemIds.
+  outlineLoaded: boolean;
   itemCount: number;
   treeItems: SubtreeItem[];
   loadedItemIds: string[];
@@ -63,7 +65,7 @@ export interface WorkspaceTreeCache {
   isLoaded: (itemId: string) => boolean;
   isLoading: (itemId: string) => boolean;
   hasChildren: (itemId: string) => boolean;
-  isFullyLoaded: (workspaceId: string) => boolean;
+  isOutlineLoaded: (workspaceId: string) => boolean;
   getNewlyCreated: (workspaceId: string) => Workspace | undefined;
   listNewlyCreatedIds: () => string[];
   markInitialized: (workspaceId: string) => void;
@@ -89,7 +91,7 @@ export interface TreeStore {
   isLoaded: (itemId: string) => boolean;
   isLoading: (itemId: string) => boolean;
   hasChildren: (itemId: string) => boolean;
-  isFullyLoaded: (workspaceId: string) => boolean;
+  isOutlineLoaded: (workspaceId: string) => boolean;
   getNewlyCreated: (workspaceId: string) => Workspace | undefined;
   listNewlyCreatedIds: () => string[];
   markInitialized: (workspaceId: string) => void;

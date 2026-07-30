@@ -32,7 +32,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
   const workspaceTreeItems = new Map<string, Map<string, SubtreeItem>>();
   const loadedSubtreeItems = new Set<string>();
   const loadingSubtreeItems = new Set<string>();
-  const fullyLoadedWorkspaces = new Set<string>();
+  const outlineLoadedWorkspaces = new Set<string>();
   const initializedWorkspaces = new Set<string>();
   const newlyCreatedWorkspaces = new Map<string, Workspace>();
 
@@ -49,6 +49,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
 
   const replaceWorkspaceTree = (workspaceId: string, items: ApiItem[]): RefreshResult => {
     const previousRootNodeIds = workspaceRootNodeIds.get(workspaceId) ?? [];
+    const previousItemIds = Array.from(workspaceTreeItems.get(workspaceId)?.keys() ?? []);
     const rootNodeIds = findRootNodeIds(items);
     const newRootNodeIds = rootNodeIds.filter((id) => !previousRootNodeIds.includes(id));
 
@@ -63,9 +64,23 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
       treeItems.set(item.id, create(SubtreeItemSchema, { item, hasChildren }));
     }
 
-    fullyLoadedWorkspaces.add(workspaceId);
-    for (const item of items) {
-      loadedSubtreeItems.add(item.id);
+    outlineLoadedWorkspaces.add(workspaceId);
+
+    // GetTree returns an outline: bodies arrive only for root nodes. So only
+    // the roots count as body-loaded — every other item still needs a
+    // GetSubtree when its paper opens. Marking them all loaded (as this did
+    // while GetTree carried every body) would suppress those fetches and leave
+    // the papers showing the description fallback forever.
+    //
+    // Previously-loaded bodies are dropped along with the items they belonged
+    // to: this replaces the workspace's item map, so a stale "loaded" mark
+    // would claim a body that is no longer in the cache.
+    for (const id of previousItemIds) {
+      loadedSubtreeItems.delete(id);
+      loadingSubtreeItems.delete(id);
+    }
+    for (const id of rootNodeIds) {
+      loadedSubtreeItems.add(id);
     }
 
     return { rootNodeIds, newRootNodeIds };
@@ -79,7 +94,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
     isLoaded: (itemId) => loadedSubtreeItems.has(itemId),
     isLoading: (itemId) => loadingSubtreeItems.has(itemId),
     hasChildren: (itemId) => itemHasChildren.get(itemId) === true,
-    isFullyLoaded: (workspaceId) => fullyLoadedWorkspaces.has(workspaceId),
+    isOutlineLoaded: (workspaceId) => outlineLoadedWorkspaces.has(workspaceId),
     getNewlyCreated: (workspaceId) => newlyCreatedWorkspaces.get(workspaceId),
     listNewlyCreatedIds: () => Array.from(newlyCreatedWorkspaces.keys()),
     markInitialized: (workspaceId) => initializedWorkspaces.add(workspaceId),
@@ -92,8 +107,11 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
       }
     },
     replaceWorkspaceTree,
-    shouldSkipSubtreeLoad: (workspaceId, itemId) =>
-      fullyLoadedWorkspaces.has(workspaceId) || loadingSubtreeItems.has(itemId) || loadedSubtreeItems.has(itemId),
+    // The workspace having its outline is no longer a reason to skip: the
+    // outline carries no bodies. Only an in-flight or completed fetch for this
+    // specific item is.
+    shouldSkipSubtreeLoad: (_workspaceId, itemId) =>
+      loadingSubtreeItems.has(itemId) || loadedSubtreeItems.has(itemId),
     markSubtreeLoading: (itemId) => loadingSubtreeItems.add(itemId),
     markSubtreeLoaded: (itemId) => loadedSubtreeItems.add(itemId),
     markSubtreeLoadFinished: (itemId) => loadingSubtreeItems.delete(itemId),
@@ -147,7 +165,14 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
     ): InjectMockWorkspaceTreeResult => {
       const { items, resolved } = buildMockTree(workspaceId, toMockTreeSpec(args));
       initializedWorkspaces.add(workspaceId);
-      return { ...replaceWorkspaceTree(workspaceId, items), resolved };
+      const result = replaceWorkspaceTree(workspaceId, items);
+      // A mock tree is complete: every node already carries its body, unlike a
+      // GetTree outline. Mark them all body-loaded so opening a paper does not
+      // fire a GetSubtree for a workspace the backend has never heard of.
+      for (const item of items) {
+        loadedSubtreeItems.add(item.id);
+      }
+      return { ...result, resolved };
     },
     debugSnapshot: (workspaceId: string): TreeStoreDebugSnapshot => {
       const treeItems = workspaceTreeItems.get(workspaceId) ?? new Map<string, SubtreeItem>();
@@ -156,7 +181,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
         workspaceId,
         rootNodeIds: workspaceRootNodeIds.get(workspaceId) ?? [],
         initialized: initializedWorkspaces.has(workspaceId),
-        fullyLoaded: fullyLoadedWorkspaces.has(workspaceId),
+        outlineLoaded: outlineLoadedWorkspaces.has(workspaceId),
         itemCount: treeItems.size,
         treeItems: Array.from(treeItems.values()),
         loadedItemIds: Array.from(loadedSubtreeItems).filter((id) => workspaceItemIds.has(id)),
@@ -170,7 +195,7 @@ export function createWorkspaceTreeCache(): WorkspaceTreeCache {
       workspaceTreeItems.clear();
       loadedSubtreeItems.clear();
       loadingSubtreeItems.clear();
-      fullyLoadedWorkspaces.clear();
+      outlineLoadedWorkspaces.clear();
       initializedWorkspaces.clear();
       newlyCreatedWorkspaces.clear();
     },

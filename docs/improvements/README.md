@@ -58,7 +58,7 @@
 
 - [frontend-observability-newrelic.md](frontend-observability-newrelic.md) — フロントエンド (Next.js) のエラー捕捉・パフォーマンスモニタリングのための New Relic Browser 導入計画
 - [frontend-performance-tuning.md](frontend-performance-tuning.md) — 初期化ウォーターフォールの解消やバンドルサイズ最適化など、表示速度向上のためのチューニング計画
-- [client-item-load-testing.md](client-item-load-testing.md) — **実装済み**: item 数を増やしたときのクライアント負荷を測る 3 レイヤ計測（L0 `bun run bench` / L1 `bun run e2e:perf` / L2 `scripts/seed_tree_items.sh`）。実測ベースライン付き。判明: 支配的コストは再投影ではなく **GetTree が全 item の content を返すこと**（5,000 item で 14 MiB・decode 110 ms、再投影は 1.0 ms）。content を遅延取得すれば decode は 14 ms に落ちるが、binary codec への切替は実測で効果なし
+- [client-item-load-testing.md](client-item-load-testing.md) — **実装済み**: item 数を増やしたときのクライアント負荷を測る 3 レイヤ計測（L0 `bun run bench` / L1 `bun run e2e:perf` / L2 `scripts/seed_tree_items.sh`）。実測ベースライン付き。判明: 支配的コストは再投影ではなく **GetTree が全 item の content を返すこと**（5,000 item で 14 MiB・decode 110 ms、再投影は 1.0 ms）。content の遅延取得（GetTree の outline 化）は実装済みで decode は 14 ms に落ちる。binary codec への切替は実測で効果がないため見送り。残: `populateChildIDs` の 1+N
 - [logging.md](logging.md) — 追加すべきログ一覧（P1〜P3）
 - [monitor.md](monitor.md) — monitor サブモジュール設計（Logger + JobMonitor コンポーネント）
 
