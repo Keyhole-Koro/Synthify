@@ -36,6 +36,10 @@ resource "google_cloud_run_v2_service" "this" {
           cpu    = var.cpu
           memory = var.memory
         }
+        # Always set explicitly: the provider only infers true when `resources`
+        # is omitted altogether. See the cpu_idle variable for the billing
+        # consequences of getting this wrong.
+        cpu_idle = var.cpu_idle
       }
 
       ports {
