@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start --hostname 0.0.0.0 --port 5174",
     "test": "bun test src",
-    "screenshots": "node scripts/screenshots/run.mjs"
+    "screenshots": "node scripts/screenshots/run.mjs",
+    "playwright:install": "playwright-core install --with-deps chromium"
   },
   "dependencies": {
     "firebase": "^12.12.0",

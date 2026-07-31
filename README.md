@@ -10,7 +10,7 @@ Synthify は、アップロードしたドキュメントから知識ツリー�
 
 ```bash
 cd apps/web
-bunx playwright install chromium
+bun run playwright:install
 bun run e2e
 ```
 

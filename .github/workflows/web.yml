@@ -134,8 +134,16 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Installed from apps/web, not the repo root: the root package.json is a
+      # bun workspace root with no Playwright dependency, so `bunx playwright`
+      # there resolves nothing locally and silently downloads an unpinned
+      # version from the registry. That installs a browser build for a
+      # different Playwright than the one the tests run, and the tests then
+      # fail with "Executable doesn't exist". `bun run` uses the workspace's
+      # own node_modules/.bin, so the browser always matches the test runner.
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        working-directory: apps/web
+        run: bun run playwright:install
 
       # Prebuilt API/worker binaries (see the binaries job) that the compose
       # backend/worker exec instead of running `go build` at boot.
@@ -207,8 +215,11 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # As in the e2e job: install with the workspace's own Playwright. This one
+      # uses playwright-core, which is what the screenshot script imports.
       - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
+        working-directory: apps/monitor/ui
+        run: bun run playwright:install
 
       - name: Capture monitor screenshots
         working-directory: apps/monitor/ui
