@@ -17,7 +17,10 @@ jobs:
         with:
           bun-version: 1.3.13
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium
+      # From apps/web so the browser matches the test runner's Playwright; see
+      # the note in web.yml.
+      - working-directory: apps/web
+        run: bun run playwright:install
       - name: Run explicitly tagged external checks
         working-directory: apps/web
         env:
