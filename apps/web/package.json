@@ -20,6 +20,7 @@
     "e2e:repeat5": "playwright test --project=chromium --repeat-each=5",
     "e2e:nightly": "playwright test --project=chromium --grep @nightly",
     "e2e:report": "playwright show-report",
+    "playwright:install": "playwright install --with-deps chromium",
     "generate:firestore-types": "node ../../scripts/generate-firestore-types.mjs",
     "seed:jobs": "node ./scripts/seed-firestore-jobs.mjs"
   },
