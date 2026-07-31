@@ -86,6 +86,14 @@ jobs:
       # --- Pass 1: create just the platform layer (Artifact Registry,
       # APIs, service accounts, secrets) so we have a repo to push to.
       # Cloud Run services are NOT created here — they need the image.
+      #
+      # All three passes go through scripts/terraform-guarded-apply.sh instead
+      # of `terraform apply -auto-approve`: it plans first, refuses to apply a
+      # plan that destroys anything, and then applies that same plan. Pass 2 is
+      # untargeted, so deploying a branch whose config is older than the state
+      # would otherwise silently delete everything the branch does not know
+      # about. Replacements are still allowed; see the script for the escape
+      # hatch when a destroy is what you actually want.
       - name: Terraform apply (platform only)
         working-directory: ${{ env.TF_DIR }}
         run: |
@@ -94,7 +102,7 @@ jobs:
           # deployer IAM grant. All of it lives in module.bootstrap, so this
           # is a single -target. Adding an IAM binding to the module never
           # requires editing this workflow again.
-          terraform apply -auto-approve \
+          ../../scripts/terraform-guarded-apply.sh \
             -var-file=../tfvars/${ENVIRONMENT}.tfvars \
             -target=module.bootstrap
 
@@ -241,7 +249,6 @@ jobs:
           READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
         run: |
           args=(
-            -auto-approve
             -var-file=../tfvars/${ENVIRONMENT}.tfvars
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
@@ -259,7 +266,7 @@ jobs:
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
           fi
-          terraform apply "${args[@]}"
+          ../../scripts/terraform-guarded-apply.sh "${args[@]}"
 
       # --- Pass 3: feed the API URL back so the worker can call it.
       - name: Terraform apply (wire api_base_url)
@@ -276,7 +283,6 @@ jobs:
         run: |
           API_URI="$(terraform output -raw api_uri)"
           args=(
-            -auto-approve
             -var-file=../tfvars/${ENVIRONMENT}.tfvars
             -var="api_image=${{ steps.registry.outputs.api_image }}"
             -var="worker_image=${{ steps.registry.outputs.worker_image }}"
@@ -295,7 +301,7 @@ jobs:
           if [ -n "${ALLOWED_USER_EMAILS}" ]; then
             args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
           fi
-          terraform apply "${args[@]}"
+          ../../scripts/terraform-guarded-apply.sh "${args[@]}"
 
       - name: Outputs
         working-directory: ${{ env.TF_DIR }}
