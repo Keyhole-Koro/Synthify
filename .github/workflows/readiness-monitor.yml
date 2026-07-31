@@ -2,8 +2,14 @@ name: Readiness Monitor
 
 on:
   schedule:
-    # Every 5 minutes.
-    - cron: "*/5 * * * *"
+    # Every 15 minutes, across stage and prod. At 5 minutes this probe was
+    # effectively a keep-alive: Cloud Run holds an idle instance for roughly 15
+    # minutes, so it kept one running around the clock in both environments.
+    # This is a liveness signal for a sustained outage, not a latency SLO, and
+    # it does not need to pay cold-start CPU 288 times a day per environment to
+    # be one. Two consecutive misses (the retry below) still surface an outage
+    # inside half an hour.
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 jobs:
