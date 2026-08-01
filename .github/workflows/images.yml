@@ -1,0 +1,115 @@
+name: Images
+
+# Build every container image on pull requests and on main.
+#
+# Nothing else builds these Dockerfiles except deploy-backend.yml, so a broken
+# image was first found by a deploy against a real environment. That happened
+# on 2026-11-22: `next build` in the monitor image stopped on a Bun bug after
+# Next.js was updated, and the stage deploy failed half way. This check finds
+# that kind of break on the pull request instead.
+#
+# Nothing here pushes or needs cloud credentials: each image is built and
+# thrown away, and whether it builds is the whole signal.
+
+on:
+  pull_request:
+    paths:
+      - apps/**
+      - internal/**
+      - go.mod
+      - go.sum
+      - bun.lock
+      - package.json
+      - .dockerignore
+      - .gitmodules
+      - .github/workflows/images.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps/**
+      - internal/**
+      - go.mod
+      - go.sum
+      - bun.lock
+      - package.json
+      - .dockerignore
+      - .gitmodules
+      - .github/workflows/images.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # One image failing should not hide the state of the others.
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: apps/api/Dockerfile
+          - image: worker
+            dockerfile: apps/worker/Dockerfile
+          - image: eval
+            dockerfile: apps/eval/Dockerfile
+          - image: monitor
+            dockerfile: apps/monitor/ui/Dockerfile
+
+    steps:
+      # The monitor image copies apps/web/vender/paper-in-paper, a submodule,
+      # so it has to be in the build context.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the ${{ matrix.image }} image
+        env:
+          IMAGE: ${{ matrix.image }}
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: |
+          set -euo pipefail
+          build_args=()
+          if [ "$IMAGE" = monitor ]; then
+            # NEXT_PUBLIC_* are baked into the client bundle at build time, so
+            # the build needs them. These are placeholders: the image is
+            # thrown away. deploy-backend.yml passes the same six names.
+            build_args=(
+              --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=ci-placeholder
+              --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=ci-placeholder
+              --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=ci-placeholder.firebaseapp.com
+              --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=ci-placeholder.appspot.com
+              --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=0
+              --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=ci-placeholder
+            )
+          fi
+          # No --push and no --load: the image is thrown away, so the build
+          # needs no registry credentials and skips loading it into the
+          # runner's daemon. The cache scopes are apart from deploy-backend.yml's
+          # <image>-<env> scopes, so pull requests never evict a deploy's cache.
+          docker buildx build \
+            --cache-from "type=gha,scope=ci-${IMAGE}" \
+            --cache-to "type=gha,scope=ci-${IMAGE},mode=max" \
+            "${build_args[@]}" \
+            -f "$DOCKERFILE" .
+
+  notify:
+    needs: [build]
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Images
+      job_name: build
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
