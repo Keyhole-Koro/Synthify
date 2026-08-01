@@ -9,6 +9,12 @@ WORKDIR /repo
 COPY package.json bun.lock ./
 COPY apps/web/package.json apps/web/package.json
 COPY apps/monitor/ui/package.json apps/monitor/ui/package.json
+# apps/web declares "@keyhole-koro/paper-in-paper": "file:./vender/paper-in-paper"
+# (a submodule). monitor does not use it, but it shares the workspace lockfile,
+# so bun still has to link it — and a file: dependency cannot be linked from a
+# package.json alone. Without the directory here, the install fails with
+# "ENOENT: ... failed to link package: @keyhole-koro/paper-in-paper".
+COPY apps/web/vender/paper-in-paper apps/web/vender/paper-in-paper
 RUN bun install --frozen-lockfile
 
 # ---- builder: ソースを載せて monitor を standalone ビルド ----
