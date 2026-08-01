@@ -21,6 +21,11 @@ RUN bun install --frozen-lockfile
 FROM oven/bun:1.3.13-alpine AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
+# bun installs a workspace member's own dependencies under that member, not at
+# the root: `next` and its bin symlink live in apps/monitor/ui/node_modules/.bin,
+# and the root node_modules/.bin does not carry them. Copying only the root tree
+# leaves `bun run build` with "next: not found" (exit 127).
+COPY --from=deps /repo/apps/monitor/ui/node_modules ./apps/monitor/ui/node_modules
 COPY . .
 
 # NEXT_PUBLIC_* はクライアントバンドルへビルド時に焼き込まれるので build-arg で渡す。
