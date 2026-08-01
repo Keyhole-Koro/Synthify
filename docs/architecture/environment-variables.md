@@ -1,103 +1,169 @@
 # 環境変数・機密情報の管理方針
 
-本プロジェクトでは、情報の機密性と管理の容易さを両立するため、情報の種類に応じて 3 つの場所に分けて管理します。
+設定値がどこで決まり、誰が所有し、欠けたときに何が起きるかを定義します。
 
-## 1. 管理の 3 層構造
+このプロジェクトでは同じ値が複数箇所に書かれて静かにずれる事故が繰り返し起きています
+（CI とローカルで Firebase エミュレータ設定がずれてバンドルが実 Firebase を向いた、
+monitor の DSN 未投入がアプリではなくデプロイゲートで偶然止まった、など）。
+本ドキュメントはその再発を防ぐための取り決めです。
+
+---
+
+## 1. 環境は 4 つ、それぞれに所有者がいる
+
+| 環境 | 実体 | 設定の所有者 |
+| :--- | :--- | :--- |
+| **local** | `docker compose up` | `compose.yaml`（既定値）+ `.env`（個人の上書き） |
+| **e2e / CI** | GitHub Actions + 同じ compose | `compose.yaml` から**導出**する。CI は再記述しない |
+| **stage** | GCP `synthify-stage-491705` | Terraform（`tfvars` / `locals.tf`）+ Secret Manager |
+| **prod** | GCP `synthify-491705` | 同上 |
+
+**原則 1: 値の所有者は 1 箇所。** 他所は所有者から導出するか、参照するだけ。
+
+e2e が compose から導出する具体例が `scripts/compose-browser-env.sh` です。
+`NEXT_PUBLIC_API_BASE_URL` などはポート変数を合成しているため、
+そもそも静的にコピーしても正しくなり得ません。
+
+**原則 2: 秘密情報は git に入らない。**
+local は `.env`（gitignore 済み）、CI は**偽物とわかるダミー**、
+stage/prod は Secret Manager。
+
+**原則 3: 非秘密の stage/prod 設定は `tfvars` に置く。**
+GitHub Environment の Variables は「git に置けない・置きたくない」値だけに使います。
+同じ事実が `tfvars` と GitHub Variables の両方にあると、
+リポジトリを読んでも実際の値が分からなくなります。
+
+---
+
+## 2. ビルド時に焼き込まれる値と、実行時に読む値
+
+**この区別を間違えると、症状が原因からかけ離れます。**
+
+| 種別 | 例 | 供給する責任を負うのは |
+| :--- | :--- | :--- |
+| **ビルド時** | `NEXT_PUBLIC_*`（クライアントバンドルへ焼き込み） | **成果物をビルドした主体** |
+| **実行時** | それ以外すべて | コンテナ / プロセスを起動した主体 |
+
+`NEXT_PUBLIC_*` は `next build` の時点で文字列としてバンドルに埋め込まれます。
+実行時に環境変数を与えても**後から変わりません**。
+
+したがってビルドを行う主体ごとに供給元が決まります。
+
+| ビルドする主体 | 供給元 |
+| :--- | :--- |
+| compose の frontend（`next dev`） | `compose.yaml` の `environment` |
+| CI（e2e 用のビルド） | `scripts/compose-browser-env.sh frontend` |
+| `deploy-frontend.yml`（stage/prod） | GitHub Environment Variables |
+
+**原則 4: ビルド成果物に、その環境に属さないものを入れない。**
+テスト専用のフックや開発用の分岐は、出荷される成果物に含まれてはいけません。
+これはコメントではなく、成果物に対する検査で担保します。
+
+---
+
+## 3. 値が欠けたときの振る舞い（3 階層）
+
+**原則 5: 必須が欠けたら、静かに動かず、落ちる。**
+
+| 階層 | 定義 | 欠けたときの振る舞い | 例 |
+| :--- | :--- | :--- | :--- |
+| **T1** | 全環境で必須 | **起動時に落とす**（例外なし） | DB DSN、`INTERNAL_WORKER_TOKEN`、Firebase project ID |
+| **T2** | 特定環境で必須 | **その環境でのみ落とす** | Stripe キー（prod では必須、local では不要） |
+| **T3** | 任意・機能縮退 | **落とさない**。当該機能を無効化して起動する | New Relic 一式、`DEBUG_LOGS` |
+
+### 既定値についての制約
+
+> **既定値を持ってよいのは、その既定値が正しい環境にしか届かないときだけ。**
+
+`postgres://monitor@127.0.0.1:5432/...` のような local 前提の既定値を T1 の変数に置くと、
+prod に届いたときに**起動には成功して機能だけが壊れます**。
+これは最も発見が遅れる壊れ方です。
+
+local 用の既定値が必要なら、その環境でしか到達できないことをコードで保証してください
+（例: `ENV=local` のときだけ既定値を使い、それ以外では欠落を致命とする）。
+
+---
+
+## 4. 格納場所の一覧
 
 | 分類 | 格納場所 | 内容の例 | 管理方法 |
 | :--- | :--- | :--- | :--- |
-| **デプロイ用機密情報** | **GitHub Actions Secrets** | WIF プロバイダー ID、サービスアカウント、GCP プロジェクト ID | GitHub リポジトリの設定画面で管理 |
-| **アプリ用機密情報** | **Google Secret Manager** | DB 接続文字列、Webhook シークレット | Terraform で器を作成し、値は `gcloud` コマンド等で手動投入 |
-| **アプリ用一般設定** | **Terraform (`.tfvars`)** | モデル名、CORS 許可ドメイン、各種 ID | `terraform/tfvars/` 配下のファイルでコード管理 |
+| **デプロイ用機密情報** | GitHub Actions Secrets | WIF プロバイダー ID、サービスアカウント | GitHub の設定画面 |
+| **アプリ用機密情報** | Google Secret Manager | DB 接続文字列、Webhook シークレット | Terraform が器を作成し、値は手動投入 |
+| **アプリ用一般設定** | Terraform `tfvars` | モデル名、CORS 許可ドメイン、各種 ID | `terraform/tfvars/` でコード管理 |
+| **local / e2e の構成** | `compose.yaml` | ポート、エミュレータ endpoint | コード管理。CI はここから導出 |
+
+Secret Manager に投入する値の一覧と、`monitor-database-dsn` の作り方は
+[`terraform/README.md`](../../terraform/README.md) にあります。
+**本ドキュメントでは再掲しません**（一覧が 2 箇所にあると必ずずれるため）。
 
 ---
 
-## 2. 必要な環境変数一覧
-
-### A. アプリケーション機密情報 (Secret Manager)
-これらの値は Cloud Run 起動時に Secret Manager から自動的にマウントされます。
-
-| 変数名 | 説明 | 備考 |
-| :--- | :--- | :--- |
-| `DATABASE_DSN` | CockroachDB/Postgres の接続文字列 | CockroachDB Serverless の DSN。例: `postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full` |
-| `STRIPE_SECRET_KEY` | Stripe のシークレットキー | `sk_test_...` 等 |
-| `STRIPE_WEBHOOK_SECRET` | Stripe Webhook の署名検証用 | |
-| `INTERNAL_WORKER_TOKEN` | API と Worker 間の認証トークン | 任意の共有文字列 |
-| `NEW_RELIC_LICENSE_KEY` | New Relic のライセンスキー | (利用する場合) |
-| `GCS_SIGNING_PRIVATE_KEY` | GCS Signed URL 署名用サービスアカウント秘密鍵 | IAM Credentials `signBlob` を使う場合は不要 |
-
-### B. 一般設定 (Terraform / tfvars)
-機密ではないが、環境ごとに異なる可能性のある設定です。
-
-| 変数名 | 説明 | デフォルト値の例 |
-| :--- | :--- | :--- |
-| `GEMINI_MODEL` | 使用する AI モデル | `gemini-1.5-flash` |
-| `eval_image` | LLM eval Cloud Run Job の container image | CD が `-var` で SHA tag image を渡す |
-| `eval_schedule` | LLM eval Cloud Run Job を起動する cron | `0 4 * * *` |
-| `eval_time_zone` | eval Scheduler の timezone | `Asia/Tokyo` |
-| `CORS_ALLOWED_ORIGINS` | フロントエンドの URL | `https://synthify.keyhole.work` |
-| `STRIPE_PRO_PRICE_ID_JPY` | JPY 建て Stripe 価格 ID（カンマ区切りで複数可） | `price_...` |
-| `STRIPE_PRO_PRICE_ID_USD` | USD 建て Stripe 価格 ID（カンマ区切りで複数可） | `price_...` |
-| `BILLING_SUCCESS_URL` | 決済成功後のリダイレクト先 | `/billing/success` |
-| `NEW_RELIC_APP_NAME` | New Relic 上のアプリケーション名 | `synthify-api` |
-| `GCS_UPLOAD_ISSUER` | Upload URL 発行方式。`fake` または `signed` | ローカルは未設定/`fake`、本番 GCS は `signed` |
-| `GCS_BUCKET` | アップロード先 GCS バケット | `synthify-uploads` |
-| `GCS_SIGNING_SERVICE_ACCOUNT_EMAIL` | Signed URL の署名主体 | `signBlob` 利用時はこの SA に `iam.serviceAccounts.signBlob` 権限が必要 |
-| `GCS_SIGNED_URL_TTL_MINUTES` | Signed URL の有効期限 | `15` |
-| `SYNTHIFY_ADMIN_USER_EMAILS` | 管理者の email (カンマ区切り) | 追加権限。空で admin なし |
-| `SYNTHIFY_ALLOWED_USER_EMAILS` | アクセス許可 email (カンマ区切り) | **非空なら API は許可 email のみ**。空で無制限。stage を 1 アカウントに絞る用途。CD は GitHub Environment 変数 `ALLOWED_USER_EMAILS` から `-var` で注入し、未設定なら tfvars のフォールバックを使う |
-| `NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY` | New Relic Browser の browser license key | frontend から参照される公開値 |
-| `NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID` | New Relic Browser application ID | frontend から参照される公開値 |
-| `NEXT_PUBLIC_NEW_RELIC_BROWSER_ACCOUNT_ID` | New Relic account ID | New Relic Browser snippet の `loader_config` から転記 |
-| `NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY` | New Relic trust key | New Relic Browser snippet の `loader_config` から転記 |
-| `NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID` | New Relic Browser agent ID | 未設定なら application ID を使う |
-
----
-
-## 3. 環境ごとの設定手順
+## 5. 環境ごとの設定手順
 
 ### ローカル開発環境
-ルートディレクトリの `.env` ファイルで一括管理します。
-1. `.env.example` を `.env` にコピー
-2. 必要なキー（Stripe 等）を記入
-3. `docker compose up` で起動
+
+`compose.yaml` が非秘密の既定値をすべて持っているので、**何も設定しなくても起動します**。
+秘密情報や個人的な上書きが必要なときだけ `.env` を用意します。
+
+1. （必要なら）`.env.example` を `.env` にコピーし、Stripe キー等を記入
+2. `docker compose up`
+
+`.env` は `compose.yaml` の `${VAR:-default}` を上書きするためのもので、
+**それ自体が source of truth ではありません**。
 
 ### ステージング・本番環境 (GCP)
-#### ① Secret Manager への値の投入
-Terraform でリソースを作成した後、以下のコマンドで値を設定します。
-```bash
-# CockroachDB Serverless の DSN を設定する場合
-echo -n "postgresql://<user>:<password>@<cluster>.cockroachlabs.cloud:26257/<db>?sslmode=verify-full" \
-  | gcloud secrets versions add synthify-database-dsn --data-file=-
 
-# New Relic のライセンスキーを設定する場合
-echo -n "YOUR_NEW_RELIC_LICENSE_KEY" \
-  | gcloud secrets versions add synthify-new-relic-license-key --data-file=-
-```
+#### ① Secret Manager への値の投入
+
+Terraform が器を作った後、値を投入します。詳細な一覧とコマンドは
+[`terraform/README.md`](../../terraform/README.md) を参照してください。
 
 #### ② Terraform への設定
-`terraform/tfvars/prod.tfvars` (または `stage.tfvars`) に一般設定を記述し、`terraform apply` を実行します。
-```hcl
-cors_allowed_origins = "https://synthify.keyhole.work"
-new_relic_app_name   = "synthify-api"
-```
+
+`terraform/tfvars/<env>.tfvars` に一般設定を記述して `terraform apply`。
 
 #### ③ GitHub Actions の設定
-GitHub の `Settings > Secrets and variables > Actions` から、デプロイに必要な情報を登録します。
-- `GCP_WIF_PROVIDER`
-- `GCP_WIF_SA_EMAIL`
-- `GCP_PROJECT_ID` (Variables)
-- `GCP_REGION` (Variables)
+
+`Settings > Secrets and variables > Actions` で、デプロイに必要なものだけ登録します。
+
+- Secrets: `GCP_WIF_PROVIDER`、`GCP_WIF_SA_EMAIL`
+- Variables: フロントエンドのビルド時に焼き込む `NEXT_PUBLIC_*`
 
 ---
 
-## 4. 新しい変数を追加する場合のルール
+## 6. 新しい変数を追加するときの手順
 
-1. **機密情報（パスワード、キー）の場合:**
-   - `terraform/services/platform/main.tf` の `local.api_secrets` または `local.worker_secrets` に名前を追加。
-   - `terraform/services/api/main.tf` などの `secret_env_vars` に定義を追加。
-2. **一般設定の場合:**
-   - `terraform/environments/variables.tf` に変数を定義 (stage/prod 共通の単一 root)。
-   - `terraform/services/api/main.tf` などの `env_vars` に渡し、`tfvars/<env>.tfvars` に値を記述。
-3. **ドキュメントの更新:**
-   - 本ファイル (docs/architecture/environment-variables.md) を更新。
+触る箇所は**その変数がどの環境に属し、ビルド時か実行時か**で決まります。
+
+### local / e2e で使う非秘密の値
+
+1. `compose.yaml` の該当サービスの `environment` に追加（**ここが所有者**）
+2. アプリ側の設定モジュールに、T1 / T2 / T3 のどれかを明示して追加
+   - `apps/web/src/config/env.ts`
+   - `apps/monitor/ui/src/config.ts`
+   - `apps/api/internal/config/config.go`
+   - `apps/worker/pkg/worker/config/config.go`
+3. `.env.example` に追記（開発者向けの説明として）
+
+CI のワークフローに書き足す必要は**ありません**。`compose.yaml` から導出されます。
+
+### stage / prod の非秘密の値
+
+1. `terraform/environments/variables.tf` に変数を定義
+2. `terraform/services/*/main.tf` の `env_vars` で渡す
+3. `terraform/tfvars/<env>.tfvars` に値を記述
+4. アプリ側の設定モジュールに階層を明示して追加
+
+### 機密情報
+
+1. `terraform/services/platform/main.tf` の secret 一覧に名前を追加
+2. `terraform/services/*/main.tf` の `secret_env_vars` に定義を追加
+3. `deploy-backend.yml` の secret ゲートの一覧に追加
+4. Secret Manager に値を投入（Terraform は器しか作りません）
+5. `terraform/README.md` の一覧を更新
+
+### ブラウザに露出する値（`NEXT_PUBLIC_*`）
+
+上記に加えて、**ビルドする主体すべて**に供給されているか確認してください（§2 の表）。
+一箇所でも欠けると、その主体が作ったバンドルだけが壊れます。
