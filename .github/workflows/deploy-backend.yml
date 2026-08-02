@@ -24,8 +24,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     # Resolve env from manual input, else from the pushed branch name.
-    # The GitHub Environment scopes secrets/vars so the same names resolve
-    # to per-env values (GCP_WIF_*, GCP_PROJECT_ID, GCP_REGION, ...).
+    # The GitHub Environment scopes the deploy credentials (GCP_WIF_*) and the
+    # values that cannot live in the repository. Where the target is — project
+    # id, region — comes from tfvars instead; see the resolve step below.
     environment: ${{ github.event.inputs.environment || github.ref_name }}
     permissions:
       contents: read
@@ -56,10 +57,21 @@ jobs:
         with:
           terraform_version: 1.6.6
 
+      # project id / region は tfvars が持つ。GitHub Variables に同じ事実を置くと、
+      # リポジトリを読んでも実効値が分からず、compose と web.yml が離れたのと同じ
+      # ずれ方をする。docs/architecture/environment-variables.md の原則3。
+      - name: Resolve GCP target from tfvars
+        run: |
+          set -euo pipefail
+          {
+            echo "GCP_PROJECT_ID=$(bash scripts/tfvar.sh "${ENVIRONMENT}" project_id)"
+            echo "GCP_REGION=$(bash scripts/tfvar.sh "${ENVIRONMENT}" region)"
+          } >> "$GITHUB_ENV"
+
       - name: Resolve image registry
         id: registry
         run: |
-          REGISTRY="${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/synthify-${ENVIRONMENT}"
+          REGISTRY="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/synthify-${ENVIRONMENT}"
           echo "registry=${REGISTRY}" >> "$GITHUB_OUTPUT"
           echo "sha_tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           echo "api_image=${REGISTRY}/api:${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
@@ -77,7 +89,7 @@ jobs:
       # otherwise just re-asserts versioning/lifecycle. Also (re)writes
       # terraform/backend/<env>.hcl that the init step below consumes.
       - name: Ensure Terraform state bucket
-        run: bash scripts/bootstrap-tfstate.sh "${ENVIRONMENT}" "${{ vars.GCP_PROJECT_ID }}" "${{ vars.GCP_REGION }}"
+        run: bash scripts/bootstrap-tfstate.sh "${ENVIRONMENT}" "${GCP_PROJECT_ID}" "${GCP_REGION}"
 
       - name: Terraform init
         working-directory: ${{ env.TF_DIR }}
@@ -114,7 +126,7 @@ jobs:
                    stripe-webhook-secret new-relic-license-key internal-worker-token \
                    gemini-api-key; do
             name="synthify-${s}"
-            existing=$(gcloud secrets versions list "$name" --project "${{ vars.GCP_PROJECT_ID }}" --format="value(name)" --limit=1 2>/dev/null || echo "")
+            existing=$(gcloud secrets versions list "$name" --project "${GCP_PROJECT_ID}" --format="value(name)" --limit=1 2>/dev/null || echo "")
             if [ -z "$existing" ]; then
               echo "::error::secret $name has no version — populate it before deploying"
               missing+=("$name")
@@ -157,11 +169,11 @@ jobs:
 
       - name: Apply DB migrations
         env:
-          PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
         run: bash scripts/apply-db-migrations.sh
 
       - name: Configure Docker
-        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -225,13 +237,9 @@ jobs:
       # are created/updated with the exact SHA-tagged images. api_base_url
       # stays empty here; it is reconciled in Pass 3.
       #
-      # allowed_user_emails: only override when the GitHub Environment var
-      # is set. If unset we omit the -var so the tfvars fallback wins
-      # (an empty -var would blank out the stage lockdown).
       - name: Terraform apply (full)
         working-directory: ${{ env.TF_DIR }}
         env:
-          ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
           NEW_RELIC_ACCOUNT_ID: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
@@ -256,16 +264,12 @@ jobs:
             -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
           )
-          if [ -n "${ALLOWED_USER_EMAILS}" ]; then
-            args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
-          fi
           terraform apply "${args[@]}"
 
       # --- Pass 3: feed the API URL back so the worker can call it.
       - name: Terraform apply (wire api_base_url)
         working-directory: ${{ env.TF_DIR }}
         env:
-          ALLOWED_USER_EMAILS: ${{ vars.ALLOWED_USER_EMAILS }}
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
           NEW_RELIC_ACCOUNT_ID: ${{ secrets.NEW_RELIC_ACCOUNT_ID }}
@@ -292,9 +296,6 @@ jobs:
             -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
           )
-          if [ -n "${ALLOWED_USER_EMAILS}" ]; then
-            args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
-          fi
           terraform apply "${args[@]}"
 
       - name: Outputs
@@ -312,8 +313,8 @@ jobs:
           set -euo pipefail
           service_json="$(mktemp)"
           gcloud run services describe "synthify-worker-${ENVIRONMENT}" \
-            --project "${{ vars.GCP_PROJECT_ID }}" \
-            --region "${{ vars.GCP_REGION }}" \
+            --project "${GCP_PROJECT_ID}" \
+            --region "${GCP_REGION}" \
             --format=json \
             > "$service_json"
 

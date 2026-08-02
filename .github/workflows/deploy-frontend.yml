@@ -76,16 +76,27 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
 
+      # project id / region は tfvars が持つ。GitHub Variables に同じ事実を置くと、
+      # リポジトリを読んでも実効値が分からず、compose と web.yml が離れたのと同じ
+      # ずれ方をする。docs/architecture/environment-variables.md の原則3。
+      - name: Resolve GCP target from tfvars
+        run: |
+          set -euo pipefail
+          {
+            echo "GCP_PROJECT_ID=$(bash scripts/tfvar.sh "${ENVIRONMENT}" project_id)"
+            echo "GCP_REGION=$(bash scripts/tfvar.sh "${ENVIRONMENT}" region)"
+          } >> "$GITHUB_ENV"
+
       - name: Deploy Firestore rules
         run: |
           bunx firebase-tools@13 deploy --only firestore:rules --non-interactive \
-            --project ${{ vars.GCP_PROJECT_ID }}
+            --project ${GCP_PROJECT_ID}
 
       - name: Deploy to Firebase Hosting
         run: |
           set -o pipefail
           bunx firebase-tools@13 deploy --only hosting --non-interactive --json \
-            --project ${{ vars.GCP_PROJECT_ID }} \
+            --project ${GCP_PROJECT_ID} \
             | tee /tmp/firebase-deploy.json
 
       - name: Resolve Firebase Hosting URL
@@ -103,7 +114,7 @@ jobs:
             ' /tmp/firebase-deploy.json
           )"
           if [ -z "$FRONTEND_URL" ]; then
-            FRONTEND_URL="https://${{ vars.GCP_PROJECT_ID }}.web.app"
+            FRONTEND_URL="https://${GCP_PROJECT_ID}.web.app"
           fi
           echo "FRONTEND_URL=${FRONTEND_URL}" >> "$GITHUB_ENV"
           echo "Resolved Firebase Hosting URL: ${FRONTEND_URL}"
