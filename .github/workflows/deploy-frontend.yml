@@ -79,6 +79,17 @@ jobs:
       # project id / region は tfvars が持つ。GitHub Variables に同じ事実を置くと、
       # リポジトリを読んでも実効値が分からず、compose と web.yml が離れたのと同じ
       # ずれ方をする。docs/architecture/environment-variables.md の原則3。
+      # apps/web は Playwright が実セッションを作るために window.__synthifyE2E を
+      # 生やす。アプリ唯一のログイン導線は Google OAuth でテストランナーには踏めず、
+      # このフックがエミュレータの email/password 経路への唯一の橋渡しになっている。
+      # 開発中は妥当だが、出荷されるバンドルに入ってはいけない。
+      #
+      # firebase.ts は NODE_ENV === 'development' で囲い、コメントで「本番バンドルに
+      # 入ることはない」と宣言しているが、これまで誰も確認していなかった。意図では
+      # なく成果物の性質にする。docs/architecture/environment-variables.md の原則4。
+      - name: Assert no test hooks in the bundle
+        run: bash scripts/assert-no-test-hooks.sh apps/web/out
+
       - name: Resolve GCP target from tfvars
         run: |
           set -euo pipefail
