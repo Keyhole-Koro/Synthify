@@ -14,7 +14,6 @@ on:
 # they drifted: three emulator variables only ever existed in compose. Jobs that
 # need them derive them with scripts/compose-browser-env.sh.
 env:
-  SKIP_ENV_VALIDATION: true
   STRIPE_SECRET_KEY: sk_test_e2e_dummy
   STRIPE_PRO_PRICE_ID_JPY: price_e2e_dummy_jpy
 
@@ -196,8 +195,6 @@ jobs:
   monitor-screenshots:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      SKIP_ENV_VALIDATION: true
     steps:
       - uses: actions/checkout@v4
         with:
