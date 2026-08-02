@@ -63,9 +63,15 @@ jobs:
       - name: Resolve GCP target from tfvars
         run: |
           set -euo pipefail
+          # Assign first, write second. Inside `echo "K=$(...)"` a failing
+          # substitution still leaves echo returning 0, so the step succeeds and
+          # writes an empty value — which is how a broken ENVIRONMENT surfaced
+          # three steps later as "--project argument missing" instead of here.
+          project_id="$(bash scripts/tfvar.sh "${ENVIRONMENT}" project_id)"
+          region="$(bash scripts/tfvar.sh "${ENVIRONMENT}" region)"
           {
-            echo "GCP_PROJECT_ID=$(bash scripts/tfvar.sh "${ENVIRONMENT}" project_id)"
-            echo "GCP_REGION=$(bash scripts/tfvar.sh "${ENVIRONMENT}" region)"
+            echo "GCP_PROJECT_ID=${project_id}"
+            echo "GCP_REGION=${region}"
           } >> "$GITHUB_ENV"
 
       - name: Resolve image registry
