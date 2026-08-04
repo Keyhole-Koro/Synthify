@@ -29,7 +29,13 @@ bun run e2e:last
 bun run e2e:report
 bun run e2e:pr       # Chromiumの通常suite（外部サービス非依存）
 bun run e2e:repeat5  # flaky確認用に同じsuiteを5回反復
-bun run e2e:nightly  # @nightly の外部統合確認だけ
+bun run e2e:nightly  # デプロイ済み環境への外部統合確認だけ
+```
+
+`e2e:nightly` はデプロイ済み環境を対象にするので、`E2E_BASE_URL` の指定が必須です。指定するとローカルのCompose環境は起動せず、Auth emulatorに依存する認証setupも実行しません。
+
+```bash
+E2E_BASE_URL=https://example.invalid bun run e2e:nightly
 ```
 
 失敗時のHTML reportにはtrace、screenshot、videoに加えて、browser console、page error、失敗した通信、4xx/5xx response、テスト開始後のComposeログが添付されます。認証tokenや共有tokenは診断出力でマスクされます。

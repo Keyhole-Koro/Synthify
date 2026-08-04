@@ -10,7 +10,11 @@ function localFrontendPort(): string {
   }
 }
 
-const baseURL = process.env.E2E_BASE_URL ?? `http://localhost:${localFrontendPort()}`;
+// Set only by the nightly job, which points at a deployed environment. Its
+// presence is what switches the run from "boot the local stack" to "test what
+// is already running out there".
+const externalBaseURL = process.env.E2E_BASE_URL;
+const baseURL = externalBaseURL ?? `http://localhost:${localFrontendPort()}`;
 const authFile = fileURLToPath(new URL('./e2e/.auth/user.json', import.meta.url));
 // Gate webServer readiness on the API, not the frontend: Next dev answers
 // within seconds while the Go backend builds for minutes on a cold cache,
@@ -38,14 +42,27 @@ export default defineConfig({
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {
       name: 'chromium',
+      testIgnore: /nightly\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: authFile,
       },
       dependencies: ['setup'],
     },
+    // The nightly checks hit a deployed environment, where there is no Auth
+    // emulator: they get their own project so they skip the auth setup, which
+    // mints its test user against 127.0.0.1:9099 and dies on a refused
+    // connection. Selecting only the nightly specs does not avoid it — a
+    // dependency project runs whatever --grep leaves in the projects it feeds.
+    {
+      name: 'nightly',
+      testMatch: /nightly\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
   ],
-  webServer: process.env.E2E_REUSE_SERVER
+  // A deployed target needs no local stack, and booting one only burns five
+  // minutes waiting for a health endpoint the tests never call.
+  webServer: externalBaseURL || process.env.E2E_REUSE_SERVER
     ? undefined
     : {
         // Build the only local image explicitly: Compose v5's bake path is

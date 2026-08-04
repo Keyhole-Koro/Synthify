@@ -21,6 +21,16 @@ jobs:
       # the note in web.yml.
       - working-directory: apps/web
         run: bun run playwright:install
+      # Without a target the run silently degrades into a localhost check that
+      # boots the whole compose stack and then times out, so stop here instead.
+      - name: Require a deployed target
+        env:
+          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+        run: |
+          if [ -z "$E2E_BASE_URL" ]; then
+            echo "::error::E2E_BASE_URL is not set; the nightly external checks have no deployed environment to run against."
+            exit 1
+          fi
       - name: Run explicitly tagged external checks
         working-directory: apps/web
         env:
