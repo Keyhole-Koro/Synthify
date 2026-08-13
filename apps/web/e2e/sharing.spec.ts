@@ -30,7 +30,11 @@ test('creates a public read-only link and revokes access', async ({ browser, pag
   const shareURL = (await linkCode.textContent())?.trim();
   expect(shareURL).toBeTruthy();
 
-  const anonymous = await browser.newContext();
+  // Genuinely signed out: browser.newContext() inherits the project's `use`
+  // options inside a test, so without this the "anonymous" viewer would carry
+  // the owner's session and none of the assertions below would be testing what
+  // a link recipient actually sees.
+  const anonymous = await browser.newContext({ storageState: undefined });
   const viewer = await anonymous.newPage();
   await viewer.goto(shareURL!);
   await expect(viewer.getByText('共有リンク · Read-only')).toBeVisible();
@@ -53,7 +57,7 @@ test('creates a public read-only link and revokes access', async ({ browser, pag
 });
 
 test('shows a terminal error for an invalid share token', async ({ browser }) => {
-  const anonymous = await browser.newContext();
+  const anonymous = await browser.newContext({ storageState: undefined });
   const page = await anonymous.newPage();
   await page.goto('/view?token=not-a-valid-share-token');
   await expect(page.getByRole('heading', { name: 'リンクを開けません' })).toBeVisible();

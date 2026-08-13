@@ -38,6 +38,8 @@ bun run e2e:nightly  # デプロイ済み環境への外部統合確認だけ
 E2E_BASE_URL=https://example.invalid bun run e2e:nightly
 ```
 
+CI (`.github/workflows/e2e-nightly.yml`) は対象URLを `terraform/tfvars/<env>.tfvars` の `web_base_url` から解決します（既定は stage）。手動実行時は環境の選択と、任意のURLでの上書きができます。
+
 失敗時のHTML reportにはtrace、screenshot、videoに加えて、browser console、page error、失敗した通信、4xx/5xx response、テスト開始後のComposeログが添付されます。認証tokenや共有tokenは診断出力でマスクされます。
 
 

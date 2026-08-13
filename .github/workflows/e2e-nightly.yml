@@ -2,6 +2,19 @@ name: E2E External Integration
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployed environment to check
+        type: choice
+        required: true
+        default: stage
+        options:
+          - stage
+          - prod
+      base_url:
+        description: Ad-hoc target URL (overrides the environment's tfvars value)
+        type: string
+        required: false
   schedule:
     - cron: "17 18 * * *"
 
@@ -21,20 +34,34 @@ jobs:
       # the note in web.yml.
       - working-directory: apps/web
         run: bun run playwright:install
+      # The deployed frontend URL is already a fact the repository owns:
+      # tfvars' web_base_url is what Terraform hands the API as the CORS origin
+      # and billing redirect base. Reading it here keeps the nightly target
+      # discoverable by reading the repository — the same reason deploy-*.yml
+      # takes project id / region from tfvars instead of GitHub Variables (see
+      # docs/architecture/environment-variables.md). It also removes the
+      # repository secret this job used to require, which was never set: every
+      # scheduled run since the check landed failed on the missing value.
+      #
       # Without a target the run silently degrades into a localhost check that
-      # boots the whole compose stack and then times out, so stop here instead.
-      - name: Require a deployed target
+      # boots the whole compose stack and then times out, so a failed lookup
+      # must stop the job. Assign first, write second: inside
+      # `echo "K=$(...)"` a failing substitution still leaves echo returning 0,
+      # so the step would succeed and export an empty value.
+      - name: Resolve the deployed target
         env:
-          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
+          ENVIRONMENT: ${{ inputs.environment || 'stage' }}
+          BASE_URL_INPUT: ${{ inputs.base_url }}
         run: |
-          if [ -z "$E2E_BASE_URL" ]; then
-            echo "::error::E2E_BASE_URL is not set; the nightly external checks have no deployed environment to run against."
-            exit 1
+          set -euo pipefail
+          base_url="${BASE_URL_INPUT:-}"
+          if [ -z "$base_url" ]; then
+            base_url="$(bash scripts/tfvar.sh "${ENVIRONMENT}" web_base_url)"
           fi
+          echo "E2E_BASE_URL=${base_url}" >> "$GITHUB_ENV"
+          echo "Nightly target: ${base_url}"
       - name: Run explicitly tagged external checks
         working-directory: apps/web
-        env:
-          E2E_BASE_URL: ${{ secrets.E2E_BASE_URL }}
         run: bun run e2e:nightly
       - if: failure()
         uses: actions/upload-artifact@v4
