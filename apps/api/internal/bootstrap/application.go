@@ -109,6 +109,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
 	userSvc := application.NewUserService(application.UserServiceDeps{Users: store, Accounts: store, Billing: billingSvc, Logger: logger})
 	treeSvc := application.NewTreeService(application.TreeServiceDeps{Tree: store, Workspaces: store, Logger: logger})
+	treeImportSvc := application.NewTreeImportService(application.TreeImportServiceDeps{Items: store, Workspaces: store, Transactor: store, Logger: logger})
 	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{Accounts: store, Workspaces: store, Tree: store, Items: store})
 
 	authenticator, err := apiauth.NewFirebaseAuthenticator(apiauth.FirebaseAuthenticatorConfig{
@@ -130,6 +131,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	mux.Handle(appv1connect.NewDocumentServiceHandler(handler.NewDocumentHandler(documentSvc, store), connectOptions...))
 	mux.Handle(appv1connect.NewTreeServiceHandler(handler.NewTreeHandler(treeSvc), connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(handler.NewItemHandler(itemSvc), connectOptions...))
+	mux.Handle(appv1connect.NewTreeImportServiceHandler(handler.NewTreeImportHandler(treeImportSvc), connectOptions...))
 	mux.Handle(appv1connect.NewWorkspaceServiceHandler(handler.NewWorkspaceHandler(workspaceSvc), connectOptions...))
 	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc), connectOptions...))
 	mux.Handle(appv1connect.NewJobServiceHandler(handler.NewJobHandler(store, store, store, store, store, logger), connectOptions...))

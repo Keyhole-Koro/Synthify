@@ -1474,6 +1474,24 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 	return s.CreateItem(ctx, workspaceID, label, description, parentID, createdBy)
 }
 
+func (s *Store) CreateImportedItem(ctx context.Context, item *domain.Item) (*domain.Item, error) {
+	if item == nil {
+		return nil, fmt.Errorf("item is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.items[item.WorkspaceID]; !ok {
+		s.items[item.WorkspaceID] = make(map[string]*domain.Item)
+	}
+	created := *item
+	// Ids are sequential so tests can assert the order items were written in,
+	// which is what carries STIF's sibling ordering.
+	created.ItemID = fmt.Sprintf("imported-item-%d", len(s.items[item.WorkspaceID])+1)
+	created.CreatedAt = time.Now().Format(time.RFC3339)
+	s.items[item.WorkspaceID][created.ItemID] = &created
+	return &created, nil
+}
+
 func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

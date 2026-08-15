@@ -141,6 +141,13 @@ export function useWorkspaceTree(
     await refreshWorkspaceTreeRef.current(workspaceId);
   }, [onWorkspaceRuntimeStateComplete]);
 
+  // onTreeChanged refreshes the tree after a mutation that was not a job — a
+  // STIF import writes items directly, so there is no job runtime state to
+  // clear the way onProcessingComplete does.
+  const onTreeChanged = useCallback(async (workspaceId: string) => {
+    await refreshWorkspaceTreeRef.current(workspaceId);
+  }, []);
+
   // The factory reads getWorkspace / onProcessingComplete at render time
   // only as closures — the actual ref dereference happens later, inside the
   // returned buildWsPaper invocation. react-hooks/refs cannot tell the
@@ -159,9 +166,10 @@ export function useWorkspaceTree(
       onSuggestedWorkspaceName,
       onDeleteWorkspace,
       onProcessingComplete,
+      onTreeChanged,
     }),
     [getWorkspace, isLoading, getWorkspaceName, getWorkspacePaperRuntimeState, handleUploadWorkspaceFile,
-      onRenameWorkspace, onSuggestedWorkspaceName, onDeleteWorkspace, onProcessingComplete],
+      onRenameWorkspace, onSuggestedWorkspaceName, onDeleteWorkspace, onProcessingComplete, onTreeChanged],
   );
 
   const runProjectWorkspacePapers = useCallback((workspaceId: string): Paper[] => {

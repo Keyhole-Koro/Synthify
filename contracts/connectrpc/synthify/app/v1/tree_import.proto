@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package synthify.app.v1;
+
+option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
+
+import "synthify/app/v1/item.proto";
+import "synthify/app/v1/tree_types.proto";
+
+// TreeImportService ingests externally authored knowledge into a workspace
+// tree. Phase 1 speaks exactly one dialect — STIF (Synthify Tree Item Format),
+// see docs/improvements/stif-tree-item-import-format.md.
+//
+// This is a separate service rather than extra ItemService RPCs because the
+// import surface is expected to grow its own vocabulary (replace / merge modes,
+// export back to STIF) that has nothing to do with single-item CRUD.
+service TreeImportService {
+  // ImportStif parses a .stif document and appends its items to the workspace
+  // tree. With dry_run set it parses, validates and sanitizes without writing
+  // anything — that is what the import preview UI calls. The parser lives on
+  // the server so preview and commit can never disagree.
+  rpc ImportStif(ImportStifRequest) returns (ImportStifResponse);
+}
+
+message ImportStifRequest {
+  string workspace_id = 1;
+  // source is the raw .stif document text (UTF-8).
+  string source = 2;
+  // filename is optional and only used to label diagnostics.
+  string filename = 3;
+  // dry_run parses and validates without writing. Preview uses this.
+  bool dry_run = 4;
+}
+
+enum StifDiagnosticSeverity {
+  STIF_DIAGNOSTIC_SEVERITY_UNSPECIFIED = 0;
+  // WARNING does not block the import. Sanitizer removals report as warnings.
+  STIF_DIAGNOSTIC_SEVERITY_WARNING = 1;
+  // ERROR blocks the import; no items are written.
+  STIF_DIAGNOSTIC_SEVERITY_ERROR = 2;
+}
+
+message StifDiagnostic {
+  StifDiagnosticSeverity severity = 1;
+  // line is 1-indexed into the source document; 0 when not line-anchored.
+  int32 line = 2;
+  // code is a stable machine-readable identifier, e.g. "duplicate_local_path".
+  string code = 3;
+  string message = 4;
+  // local_path is the item block the diagnostic belongs to, when applicable.
+  string local_path = 5;
+}
+
+// StifParsedItem is one parsed item block, after validation and sanitizing.
+// It is what the preview renders and what a committed import wrote.
+message StifParsedItem {
+  string local_path = 1;
+  string parent_local_path = 2;
+  string title = 3;
+  string description = 4;
+  string content = 5;
+  string override_css = 6;
+  ItemGovernanceState governance_state = 7;
+  // scope is parsed and validated but not persisted: tree_items has no scope
+  // column in the current schema.
+  TreeProjectionScope scope = 8;
+  bool cross_document = 9;
+  // order sorts siblings. Persisted implicitly: sibling order is created_at
+  // ASC, so the importer inserts siblings in order.
+  int32 order = 10;
+  repeated ItemSourceRef sources = 11;
+  // item_id is the id assigned by a committed import; empty on a dry run.
+  string item_id = 12;
+  // depth is the item's depth in the imported tree, 0 for a root item.
+  int32 depth = 13;
+}
+
+message ImportStifResponse {
+  // committed is false for a dry run and for any run that produced errors.
+  bool committed = 1;
+  // mode is the @tree mode the document declared. Phase 1 accepts "append".
+  string mode = 2;
+  repeated StifParsedItem items = 3;
+  repeated StifDiagnostic diagnostics = 4;
+  // imported_count is the number of items actually written; 0 on a dry run.
+  int32 imported_count = 5;
+}
