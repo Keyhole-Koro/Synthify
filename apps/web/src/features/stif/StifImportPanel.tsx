@@ -227,7 +227,10 @@ function StifItemPreview({ items }: { items: StifParsedItem[] }) {
       <h4 className="mb-1.5 text-[11px] font-semibold text-stone-600">
         追加されるアイテム ({items.length})
       </h4>
-      <ul className="max-h-56 overflow-y-auto rounded-md border border-stone-100 bg-stone-50/60 py-1">
+      <ul
+        data-testid="stif-preview-items"
+        className="max-h-56 overflow-y-auto rounded-md border border-stone-100 bg-stone-50/60 py-1"
+      >
         {items.map((item) => (
           <li
             key={item.localPath}
