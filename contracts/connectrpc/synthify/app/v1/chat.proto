@@ -1,0 +1,65 @@
+syntax = "proto3";
+
+package synthify.app.v1;
+
+option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
+
+// ChatService triggers one dialogue turn. It is deliberately unary: the answer
+// is delivered out of band through the Firestore turn document that the browser
+// already subscribes to for job progress, so no server-streaming RPC is needed
+// and the API never holds a long-lived connection open.
+//
+// The API does not call the LLM. It authenticates, authorizes the workspace,
+// allocates ids and dispatches to the worker, which keeps Vertex AI credentials
+// out of the API service entirely.
+service ChatService {
+  rpc PostChatTurn(PostChatTurnRequest) returns (PostChatTurnResponse);
+}
+
+enum ChatRole {
+  CHAT_ROLE_UNSPECIFIED = 0;
+  CHAT_ROLE_USER        = 1;
+  CHAT_ROLE_ASSISTANT   = 2;
+}
+
+message ChatMessage {
+  ChatRole role = 1;
+  string   text = 2;
+}
+
+// ContextPaper is one candidate paper the model may draw on. The browser
+// collects these from the canvas because it is the only side that knows what
+// the user currently has open; the worker does not re-derive them.
+message ContextPaper {
+  string paper_id    = 1;
+  string title       = 2;
+  string description = 3;
+  // Plain text. Paper content may be rich HTML, a ContentNode tree or live
+  // JSX, so the browser flattens it before sending.
+  string content     = 4;
+}
+
+message PostChatTurnRequest {
+  string workspace_id = 1;
+  // Empty starts a new chat. When set, the chat must belong to this workspace:
+  // otherwise a caller could graft a turn onto someone else's conversation.
+  string chat_id      = 2;
+  // The paper the dialogue is anchored to.
+  string paper_id     = 3;
+  // Ordered oldest to newest; the last entry is the new user message. History
+  // is resent every turn rather than persisted server-side.
+  repeated ChatMessage  history            = 4;
+  repeated ContextPaper candidates         = 5;
+  // Always included in the prompt, regardless of auto_select_context.
+  repeated string       pinned_context_ids = 6;
+  // Let the model pick additional context from candidates beyond the pinned set.
+  bool                  auto_select_context = 7;
+}
+
+// Returned as soon as the turn is registered, not when generation finishes.
+// The caller subscribes to users/{uid}/chats/{chat_id}/turns/{turn_id} to
+// watch the answer arrive.
+message PostChatTurnResponse {
+  string chat_id = 1;
+  string turn_id = 2;
+}

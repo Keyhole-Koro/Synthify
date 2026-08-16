@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { EvaluateJobArtifactRequest, EvaluateJobArtifactResponse, ExecuteApprovedPlanRequest, ExecuteApprovedPlanResponse, GenerateExecutionPlanRequest, GenerateExecutionPlanResponse } from "./worker_pb.js";
+import { EvaluateJobArtifactRequest, EvaluateJobArtifactResponse, ExecuteApprovedPlanRequest, ExecuteApprovedPlanResponse, GenerateExecutionPlanRequest, GenerateExecutionPlanResponse, RunChatTurnRequest, RunChatTurnResponse } from "./worker_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -37,6 +37,18 @@ export declare const WorkerService: {
       readonly name: "EvaluateJobArtifact",
       readonly I: typeof EvaluateJobArtifactRequest,
       readonly O: typeof EvaluateJobArtifactResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * Runs one dialogue turn. Returns as soon as the turn is accepted; the answer
+     * is written to the Firestore turn document the browser subscribes to.
+     *
+     * @generated from rpc synthify.worker.v1.WorkerService.RunChatTurn
+     */
+    readonly runChatTurn: {
+      readonly name: "RunChatTurn",
+      readonly I: typeof RunChatTurnRequest,
+      readonly O: typeof RunChatTurnResponse,
       readonly kind: MethodKind.Unary,
     },
   }

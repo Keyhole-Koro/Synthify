@@ -133,6 +133,18 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	mux.Handle(appv1connect.NewWorkspaceServiceHandler(handler.NewWorkspaceHandler(workspaceSvc), connectOptions...))
 	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc), connectOptions...))
 	mux.Handle(appv1connect.NewJobServiceHandler(handler.NewJobHandler(store, store, store, store, store, logger), connectOptions...))
+	// Chat always dispatches straight to the worker, even where document jobs go
+	// through Cloud Tasks: the enqueue delay is invisible on a multi-minute job
+	// but reads as dead air before the first token of an answer. So it gets its
+	// own HTTP dispatcher rather than sharing the one above.
+	mux.Handle(appv1connect.NewChatServiceHandler(
+		handler.NewChatHandler(
+			store,
+			apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, logger, observability.ConnectClientOptions(nrApp)...),
+			logger,
+		),
+		connectOptions...,
+	))
 	mux.Handle(appv1connect.NewBillingServiceHandler(handler.NewBillingHandler(billingSvc), connectOptions...))
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, logger))
 	if devSeedEnabled(cfg.Env) {

@@ -117,6 +117,73 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.Exe
 	return nil
 }
 
+// RunChatTurn dispatches one dialogue turn. Unlike document processing this is
+// always a direct call rather than a Cloud Tasks enqueue: the queueing delay is
+// invisible on a multi-minute job but reads as dead air before the first token
+// of an answer.
+func (d *HTTPDispatcher) RunChatTurn(ctx context.Context, req domain.ChatTurnRequest) error {
+	audience := strings.TrimRight(d.baseURL, "/")
+	httpClient, err := d.httpClient(ctx)
+	if err != nil {
+		d.logger.Error("worker.dispatcher_http_client_failed",
+			"audience", audience,
+			"rpc", "RunChatTurn",
+			"error", err.Error(),
+		)
+		return fmt.Errorf("http client: %w", err)
+	}
+	client := workerv1connect.NewWorkerServiceClient(httpClient, audience, d.opts...)
+
+	history := make([]*workerv1.ChatMessage, 0, len(req.History))
+	for _, m := range req.History {
+		history = append(history, &workerv1.ChatMessage{
+			Role: chatRoleToProto(m.Role),
+			Text: m.Text,
+		})
+	}
+	candidates := make([]*workerv1.ContextPaper, 0, len(req.Candidates))
+	for _, c := range req.Candidates {
+		candidates = append(candidates, &workerv1.ContextPaper{
+			PaperId:     c.PaperID,
+			Title:       c.Title,
+			Description: c.Description,
+			Content:     c.Content,
+		})
+	}
+
+	rpcReq := connect.NewRequest(&workerv1.RunChatTurnRequest{
+		UserId:            req.UserID,
+		WorkspaceId:       req.WorkspaceID,
+		ChatId:            req.ChatID,
+		TurnId:            req.TurnID,
+		PaperId:           req.PaperID,
+		History:           history,
+		Candidates:        candidates,
+		PinnedContextIds:  req.PinnedContextIDs,
+		AutoSelectContext: req.AutoSelectContext,
+	})
+	if _, err = client.RunChatTurn(ctx, rpcReq); err != nil {
+		d.logger.Error("worker.dispatcher_rpc_failed",
+			"rpc", "RunChatTurn",
+			"audience", audience,
+			"request_url", audience+workerv1connect.WorkerServiceRunChatTurnProcedure,
+			"connect_code", connect.CodeOf(err).String(),
+			"error", err.Error(),
+			"chat_id", req.ChatID,
+			"turn_id", req.TurnID,
+		)
+		return err
+	}
+	return nil
+}
+
+func chatRoleToProto(r domain.ChatRole) workerv1.ChatRole {
+	if r == domain.ChatRoleAssistant {
+		return workerv1.ChatRole_CHAT_ROLE_ASSISTANT
+	}
+	return workerv1.ChatRole_CHAT_ROLE_USER
+}
+
 // httpClient returns an ID-token authenticated client for Cloud Run
 // (https targets), or the default client for local/plain-http targets.
 //

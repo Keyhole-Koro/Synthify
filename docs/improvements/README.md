@@ -34,6 +34,7 @@
 
 ## P3 — 仕様ドラフト（実装前に設計が必要）
 
+- [local-llm-provider.md](local-llm-provider.md) — Geminiを本番デフォルトのまま維持し、ユーザー本人のLLMサブスク枠(Google AI Pro / ChatGPT Plus)を個人/ローカルPoCとして段階導入する設計。Firebase認証との分離、ファイル隔離、課金境界、ADK置換判断までを定義(旧 `codex-provider-migration.md` を一般化・統合)。運営者1アカウントの共有は**Prohibited design**。配備は**ブラウザ + ローカルAIサーバー**を推奨(Synthify本体はほぼ無変更)。provider は Antigravity SDK が第一候補
 - [usage-based-billing.md](usage-based-billing.md) — LLM 従量課金への移行設計（usage metering、予算アラート、Worker 緊急停止、Stripe Meters 連携）
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
 - [workspace-sharing.md](workspace-sharing.md) — ワークスペース共有（メンバー招待 + 公開リンク、role 別権限）。認可ゲート `IsWorkspaceAccessible` 1 点を拡張すれば全リソースに波及。proto は招待 RPC 定義済み・handler は未実装。Phase 1（招待）から
@@ -45,6 +46,10 @@
 - [workspace-paper-root-content.md](workspace-paper-root-content.md) — **Done**: 唯一 root node の content(リッチHTML+override_css)を iframe(CSS隔離)で表示(d4ce46b)。card 一覧(WorkspaceDocumentList)は撤去済み。残: iframe 高さ/スクロール、root content 改稿タイミングの詰め
 - [stif-tree-item-import-format.md](stif-tree-item-import-format.md) — STIF(Synthify Tree Item Format) のドラフト。Codex / Claude / Gemini などの情報を tree item import 用 `.stif` に変換する形式とプロンプト
 - [paper-llm-dialogue-child.md](paper-llm-dialogue-child.md) — paper ヘッダ「+」を LLM 対話 child 生成に転用。周辺 paper を手動/LLM 自走でコンテクスト化し、回答内 paper 参照をクリック可能リンクにする。応答は worker→Firestore→onSnapshot（既存ジョブ進捗経路を再利用）、トリガは unary `PostChatTurn`、vendored lib 変更不要
+  - 契約の正本: [../contracts/chat-turn-contract.md](../contracts/chat-turn-contract.md) — `ChatService.PostChatTurn` と Firestore turn doc の形・throttle・rules・TTL・型生成の前提作業
+- [contextual-paper-llm-collaboration.md](contextual-paper-llm-collaboration.md) — 上位構想。クリック位置 / 選択範囲を anchor に、LLM が `answer` / `search` / `revise_node` / `create_child` / `pin_note` / `needs_decision` を判断する。anchor selector の耐久性が未解決のため、対話の往復（上記）が動いてから載せる
+- [paper-native-llm-interaction.md](paper-native-llm-interaction.md) — LLM 応答を HTML テキストではなく paper-in-paper の `ContentNode[]`(LLM-friendly と型に明記済み・リンク/card はレンダラ実装済み) と `Command` として扱う構想。回答が paper として空間に配置され、LLM が `OPEN_NODE`/`FOCUS_NODE`/`PIN_NODE` で視界を操作し、既存の attention 減衰モデルがコンテキスト選択になる。破壊的 Command は Apply 必須・`DELETE_NODE` は tool schema から除外。**turn doc を `content: ContentNode[]` にするかは後戻りコストが高いので先に決める**
+  - サブスク枠でこれを動かす経路は [local-llm-provider.md](local-llm-provider.md) を参照
 - [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md) — sibling 内 room 配分、focus のシーソー挙動、初期 open state / persisted state 優先の設計メモ
 - [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md) — subtree 加算型 importance をやめ、current attention に room を追従させる設計比較と推奨方針
 - [monitor-bi-dashboards.md](monitor-bi-dashboards.md) — 旧 monitor を BI として扱う設計。Job Health / Cost / Workspace Activity / Errors の固定ダッシュボードを内製しつつ ad-hoc は Metabase 等に逃がす方針

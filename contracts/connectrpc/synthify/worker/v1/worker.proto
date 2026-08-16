@@ -8,6 +8,9 @@ service WorkerService {
   rpc GenerateExecutionPlan(GenerateExecutionPlanRequest) returns (GenerateExecutionPlanResponse);
   rpc ExecuteApprovedPlan(ExecuteApprovedPlanRequest) returns (ExecuteApprovedPlanResponse);
   rpc EvaluateJobArtifact(EvaluateJobArtifactRequest) returns (EvaluateJobArtifactResponse);
+  // Runs one dialogue turn. Returns as soon as the turn is accepted; the answer
+  // is written to the Firestore turn document the browser subscribes to.
+  rpc RunChatTurn(RunChatTurnRequest) returns (RunChatTurnResponse);
 }
 
 message GenerateExecutionPlanRequest {
@@ -54,4 +57,44 @@ message EvaluateJobArtifactResponse {
   int32 score = 4;
   repeated string findings = 5;
   int32 mutation_count = 6;
+}
+
+enum ChatRole {
+  CHAT_ROLE_UNSPECIFIED = 0;
+  CHAT_ROLE_USER        = 1;
+  CHAT_ROLE_ASSISTANT   = 2;
+}
+
+message ChatMessage {
+  ChatRole role = 1;
+  string   text = 2;
+}
+
+message ContextPaper {
+  string paper_id    = 1;
+  string title       = 2;
+  string description = 3;
+  string content     = 4;
+}
+
+message RunChatTurnRequest {
+  // The turn document lives at users/{user_id}/chats/{chat_id}/turns/{turn_id},
+  // so the worker needs the owner to address the write. Workspace authorization
+  // already happened in the API; the worker does not repeat it.
+  string user_id      = 1;
+  string workspace_id = 2;
+  string chat_id      = 3;
+  string turn_id      = 4;
+  string paper_id     = 5;
+
+  // Already normalized by the API: trimmed to the size caps, oldest history
+  // dropped, and the last entry guaranteed to be the user message.
+  repeated ChatMessage  history            = 6;
+  repeated ContextPaper candidates         = 7;
+  repeated string       pinned_context_ids = 8;
+  bool                  auto_select_context = 9;
+}
+
+message RunChatTurnResponse {
+  string status = 1;
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { create } from '@bufbuild/protobuf';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
@@ -309,11 +309,21 @@ export function useLandingPageController() {
     };
   }, [handleCreateWorkspace, paperMap, tree, workspacePaperGroups, setWorkspaces, user, expansionMap]);
 
+  // Exposed so a paper can resolve which workspace owns it by walking up to
+  // the nearest ancestor that is a workspace paper. The landing canvas shows
+  // several workspaces at once, so there is no single "active" one to thread
+  // through instead.
+  const workspaceIds = useMemo(
+    () => new Set(workspaces.map((w) => w.workspaceId)),
+    [workspaces],
+  );
+
   return {
     isReady: hasMounted && hasDefaultOpenState,
     isFullscreen,
     winSize,
     paperMap,
+    workspaceIds,
     canvasKey,
     defaultOpenState,
     expansionMap,

@@ -42,6 +42,9 @@ const (
 	// WorkerServiceEvaluateJobArtifactProcedure is the fully-qualified name of the WorkerService's
 	// EvaluateJobArtifact RPC.
 	WorkerServiceEvaluateJobArtifactProcedure = "/synthify.worker.v1.WorkerService/EvaluateJobArtifact"
+	// WorkerServiceRunChatTurnProcedure is the fully-qualified name of the WorkerService's RunChatTurn
+	// RPC.
+	WorkerServiceRunChatTurnProcedure = "/synthify.worker.v1.WorkerService/RunChatTurn"
 )
 
 // WorkerServiceClient is a client for the synthify.worker.v1.WorkerService service.
@@ -49,6 +52,9 @@ type WorkerServiceClient interface {
 	GenerateExecutionPlan(context.Context, *connect.Request[v1.GenerateExecutionPlanRequest]) (*connect.Response[v1.GenerateExecutionPlanResponse], error)
 	ExecuteApprovedPlan(context.Context, *connect.Request[v1.ExecuteApprovedPlanRequest]) (*connect.Response[v1.ExecuteApprovedPlanResponse], error)
 	EvaluateJobArtifact(context.Context, *connect.Request[v1.EvaluateJobArtifactRequest]) (*connect.Response[v1.EvaluateJobArtifactResponse], error)
+	// Runs one dialogue turn. Returns as soon as the turn is accepted; the answer
+	// is written to the Firestore turn document the browser subscribes to.
+	RunChatTurn(context.Context, *connect.Request[v1.RunChatTurnRequest]) (*connect.Response[v1.RunChatTurnResponse], error)
 }
 
 // NewWorkerServiceClient constructs a client for the synthify.worker.v1.WorkerService service. By
@@ -80,6 +86,12 @@ func NewWorkerServiceClient(httpClient connect.HTTPClient, baseURL string, opts 
 			connect.WithSchema(workerServiceMethods.ByName("EvaluateJobArtifact")),
 			connect.WithClientOptions(opts...),
 		),
+		runChatTurn: connect.NewClient[v1.RunChatTurnRequest, v1.RunChatTurnResponse](
+			httpClient,
+			baseURL+WorkerServiceRunChatTurnProcedure,
+			connect.WithSchema(workerServiceMethods.ByName("RunChatTurn")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -88,6 +100,7 @@ type workerServiceClient struct {
 	generateExecutionPlan *connect.Client[v1.GenerateExecutionPlanRequest, v1.GenerateExecutionPlanResponse]
 	executeApprovedPlan   *connect.Client[v1.ExecuteApprovedPlanRequest, v1.ExecuteApprovedPlanResponse]
 	evaluateJobArtifact   *connect.Client[v1.EvaluateJobArtifactRequest, v1.EvaluateJobArtifactResponse]
+	runChatTurn           *connect.Client[v1.RunChatTurnRequest, v1.RunChatTurnResponse]
 }
 
 // GenerateExecutionPlan calls synthify.worker.v1.WorkerService.GenerateExecutionPlan.
@@ -105,11 +118,19 @@ func (c *workerServiceClient) EvaluateJobArtifact(ctx context.Context, req *conn
 	return c.evaluateJobArtifact.CallUnary(ctx, req)
 }
 
+// RunChatTurn calls synthify.worker.v1.WorkerService.RunChatTurn.
+func (c *workerServiceClient) RunChatTurn(ctx context.Context, req *connect.Request[v1.RunChatTurnRequest]) (*connect.Response[v1.RunChatTurnResponse], error) {
+	return c.runChatTurn.CallUnary(ctx, req)
+}
+
 // WorkerServiceHandler is an implementation of the synthify.worker.v1.WorkerService service.
 type WorkerServiceHandler interface {
 	GenerateExecutionPlan(context.Context, *connect.Request[v1.GenerateExecutionPlanRequest]) (*connect.Response[v1.GenerateExecutionPlanResponse], error)
 	ExecuteApprovedPlan(context.Context, *connect.Request[v1.ExecuteApprovedPlanRequest]) (*connect.Response[v1.ExecuteApprovedPlanResponse], error)
 	EvaluateJobArtifact(context.Context, *connect.Request[v1.EvaluateJobArtifactRequest]) (*connect.Response[v1.EvaluateJobArtifactResponse], error)
+	// Runs one dialogue turn. Returns as soon as the turn is accepted; the answer
+	// is written to the Firestore turn document the browser subscribes to.
+	RunChatTurn(context.Context, *connect.Request[v1.RunChatTurnRequest]) (*connect.Response[v1.RunChatTurnResponse], error)
 }
 
 // NewWorkerServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -137,6 +158,12 @@ func NewWorkerServiceHandler(svc WorkerServiceHandler, opts ...connect.HandlerOp
 		connect.WithSchema(workerServiceMethods.ByName("EvaluateJobArtifact")),
 		connect.WithHandlerOptions(opts...),
 	)
+	workerServiceRunChatTurnHandler := connect.NewUnaryHandler(
+		WorkerServiceRunChatTurnProcedure,
+		svc.RunChatTurn,
+		connect.WithSchema(workerServiceMethods.ByName("RunChatTurn")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.worker.v1.WorkerService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case WorkerServiceGenerateExecutionPlanProcedure:
@@ -145,6 +172,8 @@ func NewWorkerServiceHandler(svc WorkerServiceHandler, opts ...connect.HandlerOp
 			workerServiceExecuteApprovedPlanHandler.ServeHTTP(w, r)
 		case WorkerServiceEvaluateJobArtifactProcedure:
 			workerServiceEvaluateJobArtifactHandler.ServeHTTP(w, r)
+		case WorkerServiceRunChatTurnProcedure:
+			workerServiceRunChatTurnHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -164,4 +193,8 @@ func (UnimplementedWorkerServiceHandler) ExecuteApprovedPlan(context.Context, *c
 
 func (UnimplementedWorkerServiceHandler) EvaluateJobArtifact(context.Context, *connect.Request[v1.EvaluateJobArtifactRequest]) (*connect.Response[v1.EvaluateJobArtifactResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.worker.v1.WorkerService.EvaluateJobArtifact is not implemented"))
+}
+
+func (UnimplementedWorkerServiceHandler) RunChatTurn(context.Context, *connect.Request[v1.RunChatTurnRequest]) (*connect.Response[v1.RunChatTurnResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.worker.v1.WorkerService.RunChatTurn is not implemented"))
 }

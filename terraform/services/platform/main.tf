@@ -294,3 +294,27 @@ resource "google_firestore_field" "jobs_expires_at_ttl" {
   # is enough to enable the TTL policy.
   index_config {}
 }
+
+# The same policy for chat turns, which live at
+# users/{uid}/chats/{chat}/turns/{turn}. A TTL policy is scoped to a collection
+# group, and the resource above pins collection="jobs", so this cannot be folded
+# into it: "turns" needs its own.
+#
+# Turns are kept longer than jobs (30d vs 7d). A finished job is of no further
+# use once the user has seen the outcome, but a conversation is something they
+# come back and re-read. The worker writes expiresAt only on terminal states, so
+# a running turn has no expiry.
+#
+# The parent chats/{chat} documents are a different collection group again and
+# get no TTL here: they hold only small metadata, so leaving them behind costs
+# little compared with a third policy to maintain.
+resource "google_firestore_field" "chat_turns_expires_at_ttl" {
+  project    = var.project_id
+  database   = "(default)"
+  collection = "turns"
+  field      = "expiresAt"
+
+  ttl_config {}
+
+  index_config {}
+}
