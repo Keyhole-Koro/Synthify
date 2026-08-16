@@ -14,12 +14,14 @@ import (
 
 	"github.com/synthify/backend/apps/worker/pkg/worker"
 	"github.com/synthify/backend/apps/worker/pkg/worker/bootstrap"
+	"github.com/synthify/backend/apps/worker/pkg/worker/chat"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
+	chatstatus "github.com/synthify/backend/internal/platform/chat/status"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/observability"
@@ -82,8 +84,18 @@ func main() {
 		observability.ConnectHandlerOptions(nrApp),
 		observability.MaskInternalErrorsHandlerOptions(appLogger)...,
 	)
+	// Chat writes turns under users/{uid}/... rather than under a workspace,
+	// so it gets its own Firestore writer instead of the job-status notifier.
+	// llmClient (not embedder) so chat generation is metered like every other
+	// LLM call.
+	chatGenerator := chat.NewGenerator(
+		llmClient,
+		chatstatus.NewWriter(ctx, cfg.FirebaseProjectID, appLogger),
+		appLogger,
+	)
+
 	mux.Handle(workerv1connect.NewWorkerServiceHandler(
-		worker.NewConnectHandler(processor, store, planner, evaluator, appLogger),
+		worker.NewConnectHandler(processor, store, planner, evaluator, chatGenerator, appLogger),
 		handlerOpts...,
 	))
 	// Cloud Tasks delivers job dispatches here as plain JSON POSTs. The
