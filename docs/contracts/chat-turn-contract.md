@@ -238,38 +238,57 @@ LLM が発行する `Command` は、**自動実行してよいものと Apply �
 worker は分類を**信頼せず検証する**。`commands` に構造変更系が混入していた場合は
 `proposals` に移すか破棄する。web 側も dispatch 前に同じ検証を行う（多層防御）。
 
-## 3. 書き込み回数
+## 3. 生成と配信の粒度
 
-`content` を `ContentNode[]` にしたことで、**トークン単位のストリーミングは成立しなくなる**。
-structured output は JSON 全体が揃うまで parse できず、部分的な JSON は不正なため、
-チャンクごとに `ContentNode[]` を組み立てられない。
+### トークン単位のストリーミングは採らない
 
-したがって初期実装では**ストリーミングを行わない**。
+`content` を `ContentNode[]` にした以上、structured output は JSON 全体が揃うまで parse できず、
+部分的な JSON は不正なため、**チャンクごとに `ContentNode[]` を組み立てられない**。これは
+配信路の性質ではなく生成方式の帰結であり、ローカル経路（配信が自由な場合）でも変わらない。
+
+### 生成単位は section
+
+**1 回の generate で 1 section を返させ、section ごとに `content` 配列へ追記する。**
+これを両経路の共通形とする。
+
+- `content` は常に**その時点までの配列全体**を上書きする（差分追記にしない。理由は
+  「差分ではなく全体を上書き」と同じ）。
+- 生成単位は section。トークン単位にはしない。
+- 完了時に `status="succeeded"` と `finishReason` を確定させる。
+
+粒度は粗い（1 section ＝ 数秒）が、生成完了まで何も出ない状態は避けられる。
+
+### 配信粒度は経路に委ねる
+
+**契約が約束するのは「`content` は常に `ContentNode[]` の全体である」ことだけで、
+それが何回に分けて届くかは経路の自由とする。**
+
+| | サーバー経路 | ローカル経路 |
+|---|---|---|
+| 配信 | Firestore `onSnapshot` | SSE / WebSocket 等 |
+| 書き込み/送信の回数 | section 数 + 1 | 経路の裁量（制約なし） |
+| コスト | Firestore write 課金 | ゼロ |
+
+サーバー経路は Firestore の sustained write 上限（およそ 1 write/sec）があるため、
+**section より細かい単位で書いてはならない**。ローカル経路にはこの制約がないので、
+より細かく流してもよい。
+
+いずれの場合も **web 側の描画コードは共通**になる（「最新の `content` 全体を描く」だけ）。
+差分連結を採らなかった判断がここで効く。
+
+### 書き込みの流れ（サーバー経路）
 
 | 段階 | 書き込み |
 |---|---|
 | turn 開始 | `status="running"`（API が初期化） |
-| 生成完了 | `content` + `commands` + `status="succeeded"` を 1 回 |
-| 失敗 | `status="failed"` + `errorMessage` を 1 回 |
+| section ごと | `content`（その時点までの全体）を上書き |
+| 生成完了 | `content` + `commands` + `status="succeeded"` |
+| 失敗 | `status="failed"` + `errorMessage` |
 
-**1 turn あたり 2 writes**。同一ドキュメントへの sustained write 上限（およそ 1 write/sec）を
-気にする必要がなく、throttle 機構そのものが不要になる。課金上も有利。
+throttle 機構は不要。section 単位なら sustained write 上限に達しない。
 
-代わりに**初回表示までの体感が遅くなる**。生成が終わるまで何も出ない。UI 側は
-`status="running"` を受けて「考え中」の paper を表示することで埋める。
-
-### 段階的生成に進む場合（将来）
-
-体感が問題になったら、**section 単位の複数回生成**に進む。1 回の generate で 1 section を
-返させ、section ごとに `content` 配列へ追記する。この場合の契約:
-
-- 書き込みは section 単位。トークン単位にはしない。
-- `content` は常に**その時点までの配列全体**を上書きする（差分追記にしない。理由は
-  「差分ではなく全体を上書き」と同じ）。
-- 1 turn あたり write 数 = section 数 + 1。
-
-この段階に進むまで、`GenerateTextStream`（section 7）の実装は**不要**。構造化を採ることで
-worker 側の stream 対応を先送りできる。
+`GenerateTextStream`（section 7）の実装は**不要**。section 単位の生成は
+`GenerateStructured` の複数回呼び出しで実現できる。
 
 ## 4. Firestore rules
 
@@ -399,24 +418,33 @@ generator の再帰型対応が必要になる。その時点で判断する。
 paper-in-paper の型定義に対応する JSON Schema を渡す。型の正本は
 [core/types.ts](../../apps/web/vender/paper-in-paper/src/lib/core/types.ts) の TypeScript 定義。
 
+section 単位の生成（section 3）は、**`GenerateStructured` を section ごとに呼ぶ**ことで実現する。
+新しい LLM API は要らない。
+
 ### 契約上の注意
 
-- **retry がそのまま使える**。ストリーミングしないため、[llm/retry.go](../../apps/worker/pkg/worker/llm/retry.go)
+- **retry が section 単位でそのまま使える**。[llm/retry.go](../../apps/worker/pkg/worker/llm/retry.go)
   と [llm/ratelimiter.go](../../apps/worker/pkg/worker/llm/ratelimiter.go) を通常通り適用できる。
-  「部分出力が二重になる」問題が発生しない — これが非ストリーミングの実務上の利点である。
-- **usage は 1 回の呼び出しで確定する**。metering の扱いが単純になる。
+  1 回の呼び出しが 1 section を完結させるので、**失敗した section だけをやり直せる**。
+  トークン単位のストリーミングにつきまとう「部分出力が二重になる」問題が発生しない —
+  これが本方式の実務上の利点である。
+- **usage は呼び出しごとに確定する**。turn 全体の usage は section 分の合計になる。
+  metering は section ごとに加算する。
 - `maxOutputTokens` を明示する。Firestore の 1 MiB / document 上限と、全体上書き方式の
-  write サイズを抑えるため。初期値 4096 tokens。
+  write サイズを抑えるため。**section あたり** 4096 tokens を初期値とする。
+- **section 数の上限を決める**。モデルが section を無限に増やして turn が終わらない事態を
+  防ぐ。初期値 8 sections。上限に達したら打ち切り、`finishReason` に反映する。
 - **生成された JSON の検証は worker の責任**。`ContentNode` の判別子が未知の値だったり、
   `paper-link` / `card` の `paperId` が候補に無い id を指していた場合は、その node を落とすか
-  `text` node に降格する。web に不正な構造を渡さない。
+  `text` node に降格する。web に不正な構造を渡さない。検証は **section ごとに**行い、
+  不正な section は落として次に進む。
 - 同様に `commands` / `proposals` の分類も worker が検証する（section 2 参照）。
+  これらは **turn 完了時に 1 回だけ**確定させる（section ごとに視界操作を発行しない）。
 
-### 段階的生成に進む場合（将来）
+### トークン単位が必要になったら
 
-section 単位の複数回生成に進む場合も `GenerateStructured` の複数回呼び出しで実現でき、
-`GenerateTextStream` は依然として不要。トークン単位のストリーミングが本当に必要になった
-時点で初めて検討する。
+本当に必要になった時点で初めて検討する。その場合もサーバー経路は Firestore の write 上限が
+効くため、**ローカル経路限定の最適化**になる可能性が高い。
 
 ## 8. 履歴の持ち方
 
@@ -449,7 +477,10 @@ section 単位の複数回生成に進む場合も `GenerateStructured` の複�
 - 他人の `chat_id` を渡した turn 注入が `PermissionDenied` になる。
 - `candidates` が件数・サイズ上限を超えると `InvalidArgument`。
 - turn doc が `status="running"` で初期化され、`{chat_id, turn_id}` が即返る。
-- 1 turn の書き込みが 2 回（初期化 + 完了/失敗）に収まる。
+- 書き込みが section 単位であり、section より細かい単位で書かれない。
+- 1 turn の書き込み回数が section 数 + 1 に収まる。
+- section 数が上限（初期値 8）を超えると打ち切られ、`finishReason` に反映される。
+- 1 つの section の生成が失敗しても、その section だけが retry される。
 - `content` が parse 可能な `ContentNode[]` であり、常に全体が書かれている。
 - 生成完了で `status="succeeded"` + `finishReason`、失敗で `status="failed"` + `errorMessage`。
 - 未知の判別子を持つ node が落とされるか `text` node に降格される。
