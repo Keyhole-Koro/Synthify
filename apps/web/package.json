@@ -16,6 +16,7 @@
     "e2e:debug": "playwright test --debug",
     "e2e:headed": "playwright test --headed --workers=1",
     "e2e:last": "playwright test --last-failed --workers=1",
+    "e2e:record": "E2E_RECORD=1 playwright test --project=chromium --workers=1",
     "e2e:pr": "playwright test --project=chromium --grep-invert @nightly",
     "e2e:repeat5": "playwright test --project=chromium --repeat-each=5",
     "e2e:nightly": "playwright test --project=nightly",

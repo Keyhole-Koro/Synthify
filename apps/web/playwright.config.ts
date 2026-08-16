@@ -34,9 +34,12 @@ export default defineConfig({
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'html',
   use: {
     baseURL,
-    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    // E2E_RECORD keeps the video and trace for passing runs too, so a UI change
+    // can be watched rather than inferred from assertions. Off by default: on
+    // every green CI run this would be pure storage.
+    trace: process.env.E2E_RECORD ? 'on' : 'retain-on-failure',
+    video: process.env.E2E_RECORD ? 'on' : 'retain-on-failure',
   },
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
