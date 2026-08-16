@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type ChatRole int32
+
+const (
+	ChatRole_CHAT_ROLE_UNSPECIFIED ChatRole = 0
+	ChatRole_CHAT_ROLE_USER        ChatRole = 1
+	ChatRole_CHAT_ROLE_ASSISTANT   ChatRole = 2
+)
+
+// Enum value maps for ChatRole.
+var (
+	ChatRole_name = map[int32]string{
+		0: "CHAT_ROLE_UNSPECIFIED",
+		1: "CHAT_ROLE_USER",
+		2: "CHAT_ROLE_ASSISTANT",
+	}
+	ChatRole_value = map[string]int32{
+		"CHAT_ROLE_UNSPECIFIED": 0,
+		"CHAT_ROLE_USER":        1,
+		"CHAT_ROLE_ASSISTANT":   2,
+	}
+)
+
+func (x ChatRole) Enum() *ChatRole {
+	p := new(ChatRole)
+	*p = x
+	return p
+}
+
+func (x ChatRole) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ChatRole) Descriptor() protoreflect.EnumDescriptor {
+	return file_synthify_worker_v1_worker_proto_enumTypes[0].Descriptor()
+}
+
+func (ChatRole) Type() protoreflect.EnumType {
+	return &file_synthify_worker_v1_worker_proto_enumTypes[0]
+}
+
+func (x ChatRole) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ChatRole.Descriptor instead.
+func (ChatRole) EnumDescriptor() ([]byte, []int) {
+	return file_synthify_worker_v1_worker_proto_rawDescGZIP(), []int{0}
+}
+
 type GenerateExecutionPlanRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
@@ -461,6 +510,283 @@ func (x *EvaluateJobArtifactResponse) GetMutationCount() int32 {
 	return 0
 }
 
+type ChatMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Role          ChatRole               `protobuf:"varint,1,opt,name=role,proto3,enum=synthify.worker.v1.ChatRole" json:"role,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatMessage) Reset() {
+	*x = ChatMessage{}
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatMessage) ProtoMessage() {}
+
+func (x *ChatMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
+func (*ChatMessage) Descriptor() ([]byte, []int) {
+	return file_synthify_worker_v1_worker_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ChatMessage) GetRole() ChatRole {
+	if x != nil {
+		return x.Role
+	}
+	return ChatRole_CHAT_ROLE_UNSPECIFIED
+}
+
+func (x *ChatMessage) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+type ContextPaper struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PaperId       string                 `protobuf:"bytes,1,opt,name=paper_id,json=paperId,proto3" json:"paper_id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description   string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Content       string                 `protobuf:"bytes,4,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContextPaper) Reset() {
+	*x = ContextPaper{}
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContextPaper) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContextPaper) ProtoMessage() {}
+
+func (x *ContextPaper) ProtoReflect() protoreflect.Message {
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContextPaper.ProtoReflect.Descriptor instead.
+func (*ContextPaper) Descriptor() ([]byte, []int) {
+	return file_synthify_worker_v1_worker_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ContextPaper) GetPaperId() string {
+	if x != nil {
+		return x.PaperId
+	}
+	return ""
+}
+
+func (x *ContextPaper) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ContextPaper) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ContextPaper) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type RunChatTurnRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The turn document lives at users/{user_id}/chats/{chat_id}/turns/{turn_id},
+	// so the worker needs the owner to address the write. Workspace authorization
+	// already happened in the API; the worker does not repeat it.
+	UserId      string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	WorkspaceId string `protobuf:"bytes,2,opt,name=workspace_id,json=workspaceId,proto3" json:"workspace_id,omitempty"`
+	ChatId      string `protobuf:"bytes,3,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	TurnId      string `protobuf:"bytes,4,opt,name=turn_id,json=turnId,proto3" json:"turn_id,omitempty"`
+	PaperId     string `protobuf:"bytes,5,opt,name=paper_id,json=paperId,proto3" json:"paper_id,omitempty"`
+	// Already normalized by the API: trimmed to the size caps, oldest history
+	// dropped, and the last entry guaranteed to be the user message.
+	History           []*ChatMessage  `protobuf:"bytes,6,rep,name=history,proto3" json:"history,omitempty"`
+	Candidates        []*ContextPaper `protobuf:"bytes,7,rep,name=candidates,proto3" json:"candidates,omitempty"`
+	PinnedContextIds  []string        `protobuf:"bytes,8,rep,name=pinned_context_ids,json=pinnedContextIds,proto3" json:"pinned_context_ids,omitempty"`
+	AutoSelectContext bool            `protobuf:"varint,9,opt,name=auto_select_context,json=autoSelectContext,proto3" json:"auto_select_context,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *RunChatTurnRequest) Reset() {
+	*x = RunChatTurnRequest{}
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunChatTurnRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunChatTurnRequest) ProtoMessage() {}
+
+func (x *RunChatTurnRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunChatTurnRequest.ProtoReflect.Descriptor instead.
+func (*RunChatTurnRequest) Descriptor() ([]byte, []int) {
+	return file_synthify_worker_v1_worker_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RunChatTurnRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *RunChatTurnRequest) GetWorkspaceId() string {
+	if x != nil {
+		return x.WorkspaceId
+	}
+	return ""
+}
+
+func (x *RunChatTurnRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *RunChatTurnRequest) GetTurnId() string {
+	if x != nil {
+		return x.TurnId
+	}
+	return ""
+}
+
+func (x *RunChatTurnRequest) GetPaperId() string {
+	if x != nil {
+		return x.PaperId
+	}
+	return ""
+}
+
+func (x *RunChatTurnRequest) GetHistory() []*ChatMessage {
+	if x != nil {
+		return x.History
+	}
+	return nil
+}
+
+func (x *RunChatTurnRequest) GetCandidates() []*ContextPaper {
+	if x != nil {
+		return x.Candidates
+	}
+	return nil
+}
+
+func (x *RunChatTurnRequest) GetPinnedContextIds() []string {
+	if x != nil {
+		return x.PinnedContextIds
+	}
+	return nil
+}
+
+func (x *RunChatTurnRequest) GetAutoSelectContext() bool {
+	if x != nil {
+		return x.AutoSelectContext
+	}
+	return false
+}
+
+type RunChatTurnResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RunChatTurnResponse) Reset() {
+	*x = RunChatTurnResponse{}
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RunChatTurnResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RunChatTurnResponse) ProtoMessage() {}
+
+func (x *RunChatTurnResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_synthify_worker_v1_worker_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RunChatTurnResponse.ProtoReflect.Descriptor instead.
+func (*RunChatTurnResponse) Descriptor() ([]byte, []int) {
+	return file_synthify_worker_v1_worker_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *RunChatTurnResponse) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
 var File_synthify_worker_v1_worker_proto protoreflect.FileDescriptor
 
 var file_synthify_worker_v1_worker_proto_rawDesc = string([]byte{
@@ -527,7 +853,52 @@ var file_synthify_worker_v1_worker_proto_rawDesc = string([]byte{
 	0x08, 0x66, 0x69, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x73, 0x12, 0x25, 0x0a, 0x0e, 0x6d, 0x75, 0x74,
 	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28,
 	0x05, 0x52, 0x0d, 0x6d, 0x75, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x43, 0x6f, 0x75, 0x6e, 0x74,
-	0x32, 0xfd, 0x02, 0x0a, 0x0d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69,
+	0x22, 0x53, 0x0a, 0x0b, 0x43, 0x68, 0x61, 0x74, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x12,
+	0x30, 0x0a, 0x04, 0x72, 0x6f, 0x6c, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1c, 0x2e,
+	0x73, 0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e,
+	0x76, 0x31, 0x2e, 0x43, 0x68, 0x61, 0x74, 0x52, 0x6f, 0x6c, 0x65, 0x52, 0x04, 0x72, 0x6f, 0x6c,
+	0x65, 0x12, 0x12, 0x0a, 0x04, 0x74, 0x65, 0x78, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x74, 0x65, 0x78, 0x74, 0x22, 0x7b, 0x0a, 0x0c, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74,
+	0x50, 0x61, 0x70, 0x65, 0x72, 0x12, 0x19, 0x0a, 0x08, 0x70, 0x61, 0x70, 0x65, 0x72, 0x5f, 0x69,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x61, 0x70, 0x65, 0x72, 0x49, 0x64,
+	0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69,
+	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64, 0x65, 0x73,
+	0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x18, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74,
+	0x65, 0x6e, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65,
+	0x6e, 0x74, 0x22, 0xf8, 0x02, 0x0a, 0x12, 0x52, 0x75, 0x6e, 0x43, 0x68, 0x61, 0x74, 0x54, 0x75,
+	0x72, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x17, 0x0a, 0x07, 0x75, 0x73, 0x65,
+	0x72, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x75, 0x73, 0x65, 0x72,
+	0x49, 0x64, 0x12, 0x21, 0x0a, 0x0c, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70, 0x61, 0x63, 0x65, 0x5f,
+	0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x77, 0x6f, 0x72, 0x6b, 0x73, 0x70,
+	0x61, 0x63, 0x65, 0x49, 0x64, 0x12, 0x17, 0x0a, 0x07, 0x63, 0x68, 0x61, 0x74, 0x5f, 0x69, 0x64,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x63, 0x68, 0x61, 0x74, 0x49, 0x64, 0x12, 0x17,
+	0x0a, 0x07, 0x74, 0x75, 0x72, 0x6e, 0x5f, 0x69, 0x64, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x74, 0x75, 0x72, 0x6e, 0x49, 0x64, 0x12, 0x19, 0x0a, 0x08, 0x70, 0x61, 0x70, 0x65, 0x72,
+	0x5f, 0x69, 0x64, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x70, 0x61, 0x70, 0x65, 0x72,
+	0x49, 0x64, 0x12, 0x39, 0x0a, 0x07, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x18, 0x06, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x73, 0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x77,
+	0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x68, 0x61, 0x74, 0x4d, 0x65, 0x73,
+	0x73, 0x61, 0x67, 0x65, 0x52, 0x07, 0x68, 0x69, 0x73, 0x74, 0x6f, 0x72, 0x79, 0x12, 0x40, 0x0a,
+	0x0a, 0x63, 0x61, 0x6e, 0x64, 0x69, 0x64, 0x61, 0x74, 0x65, 0x73, 0x18, 0x07, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x20, 0x2e, 0x73, 0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x77, 0x6f, 0x72,
+	0x6b, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x50, 0x61,
+	0x70, 0x65, 0x72, 0x52, 0x0a, 0x63, 0x61, 0x6e, 0x64, 0x69, 0x64, 0x61, 0x74, 0x65, 0x73, 0x12,
+	0x2c, 0x0a, 0x12, 0x70, 0x69, 0x6e, 0x6e, 0x65, 0x64, 0x5f, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x78,
+	0x74, 0x5f, 0x69, 0x64, 0x73, 0x18, 0x08, 0x20, 0x03, 0x28, 0x09, 0x52, 0x10, 0x70, 0x69, 0x6e,
+	0x6e, 0x65, 0x64, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x49, 0x64, 0x73, 0x12, 0x2e, 0x0a,
+	0x13, 0x61, 0x75, 0x74, 0x6f, 0x5f, 0x73, 0x65, 0x6c, 0x65, 0x63, 0x74, 0x5f, 0x63, 0x6f, 0x6e,
+	0x74, 0x65, 0x78, 0x74, 0x18, 0x09, 0x20, 0x01, 0x28, 0x08, 0x52, 0x11, 0x61, 0x75, 0x74, 0x6f,
+	0x53, 0x65, 0x6c, 0x65, 0x63, 0x74, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x78, 0x74, 0x22, 0x2d, 0x0a,
+	0x13, 0x52, 0x75, 0x6e, 0x43, 0x68, 0x61, 0x74, 0x54, 0x75, 0x72, 0x6e, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x2a, 0x52, 0x0a, 0x08,
+	0x43, 0x68, 0x61, 0x74, 0x52, 0x6f, 0x6c, 0x65, 0x12, 0x19, 0x0a, 0x15, 0x43, 0x48, 0x41, 0x54,
+	0x5f, 0x52, 0x4f, 0x4c, 0x45, 0x5f, 0x55, 0x4e, 0x53, 0x50, 0x45, 0x43, 0x49, 0x46, 0x49, 0x45,
+	0x44, 0x10, 0x00, 0x12, 0x12, 0x0a, 0x0e, 0x43, 0x48, 0x41, 0x54, 0x5f, 0x52, 0x4f, 0x4c, 0x45,
+	0x5f, 0x55, 0x53, 0x45, 0x52, 0x10, 0x01, 0x12, 0x17, 0x0a, 0x13, 0x43, 0x48, 0x41, 0x54, 0x5f,
+	0x52, 0x4f, 0x4c, 0x45, 0x5f, 0x41, 0x53, 0x53, 0x49, 0x53, 0x54, 0x41, 0x4e, 0x54, 0x10, 0x02,
+	0x32, 0xdd, 0x03, 0x0a, 0x0d, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69,
 	0x63, 0x65, 0x12, 0x7c, 0x0a, 0x15, 0x47, 0x65, 0x6e, 0x65, 0x72, 0x61, 0x74, 0x65, 0x45, 0x78,
 	0x65, 0x63, 0x75, 0x74, 0x69, 0x6f, 0x6e, 0x50, 0x6c, 0x61, 0x6e, 0x12, 0x30, 0x2e, 0x73, 0x79,
 	0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e, 0x76, 0x31,
@@ -551,6 +922,12 @@ var file_synthify_worker_v1_worker_proto_rawDesc = string([]byte{
 	0x2f, 0x2e, 0x73, 0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x65,
 	0x72, 0x2e, 0x76, 0x31, 0x2e, 0x45, 0x76, 0x61, 0x6c, 0x75, 0x61, 0x74, 0x65, 0x4a, 0x6f, 0x62,
 	0x41, 0x72, 0x74, 0x69, 0x66, 0x61, 0x63, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x5e, 0x0a, 0x0b, 0x52, 0x75, 0x6e, 0x43, 0x68, 0x61, 0x74, 0x54, 0x75, 0x72, 0x6e, 0x12,
+	0x26, 0x2e, 0x73, 0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x65,
+	0x72, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x75, 0x6e, 0x43, 0x68, 0x61, 0x74, 0x54, 0x75, 0x72, 0x6e,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x73, 0x79, 0x6e, 0x74, 0x68, 0x69,
+	0x66, 0x79, 0x2e, 0x77, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x52, 0x75, 0x6e,
+	0x43, 0x68, 0x61, 0x74, 0x54, 0x75, 0x72, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
 	0x42, 0x46, 0x5a, 0x44, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x73,
 	0x79, 0x6e, 0x74, 0x68, 0x69, 0x66, 0x79, 0x2f, 0x62, 0x61, 0x63, 0x6b, 0x65, 0x6e, 0x64, 0x2f,
 	0x69, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x73, 0x79, 0x6e,
@@ -570,27 +947,38 @@ func file_synthify_worker_v1_worker_proto_rawDescGZIP() []byte {
 	return file_synthify_worker_v1_worker_proto_rawDescData
 }
 
-var file_synthify_worker_v1_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_synthify_worker_v1_worker_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_synthify_worker_v1_worker_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_synthify_worker_v1_worker_proto_goTypes = []any{
-	(*GenerateExecutionPlanRequest)(nil),  // 0: synthify.worker.v1.GenerateExecutionPlanRequest
-	(*GenerateExecutionPlanResponse)(nil), // 1: synthify.worker.v1.GenerateExecutionPlanResponse
-	(*ExecuteApprovedPlanRequest)(nil),    // 2: synthify.worker.v1.ExecuteApprovedPlanRequest
-	(*ExecuteApprovedPlanResponse)(nil),   // 3: synthify.worker.v1.ExecuteApprovedPlanResponse
-	(*EvaluateJobArtifactRequest)(nil),    // 4: synthify.worker.v1.EvaluateJobArtifactRequest
-	(*EvaluateJobArtifactResponse)(nil),   // 5: synthify.worker.v1.EvaluateJobArtifactResponse
+	(ChatRole)(0),                         // 0: synthify.worker.v1.ChatRole
+	(*GenerateExecutionPlanRequest)(nil),  // 1: synthify.worker.v1.GenerateExecutionPlanRequest
+	(*GenerateExecutionPlanResponse)(nil), // 2: synthify.worker.v1.GenerateExecutionPlanResponse
+	(*ExecuteApprovedPlanRequest)(nil),    // 3: synthify.worker.v1.ExecuteApprovedPlanRequest
+	(*ExecuteApprovedPlanResponse)(nil),   // 4: synthify.worker.v1.ExecuteApprovedPlanResponse
+	(*EvaluateJobArtifactRequest)(nil),    // 5: synthify.worker.v1.EvaluateJobArtifactRequest
+	(*EvaluateJobArtifactResponse)(nil),   // 6: synthify.worker.v1.EvaluateJobArtifactResponse
+	(*ChatMessage)(nil),                   // 7: synthify.worker.v1.ChatMessage
+	(*ContextPaper)(nil),                  // 8: synthify.worker.v1.ContextPaper
+	(*RunChatTurnRequest)(nil),            // 9: synthify.worker.v1.RunChatTurnRequest
+	(*RunChatTurnResponse)(nil),           // 10: synthify.worker.v1.RunChatTurnResponse
 }
 var file_synthify_worker_v1_worker_proto_depIdxs = []int32{
-	0, // 0: synthify.worker.v1.WorkerService.GenerateExecutionPlan:input_type -> synthify.worker.v1.GenerateExecutionPlanRequest
-	2, // 1: synthify.worker.v1.WorkerService.ExecuteApprovedPlan:input_type -> synthify.worker.v1.ExecuteApprovedPlanRequest
-	4, // 2: synthify.worker.v1.WorkerService.EvaluateJobArtifact:input_type -> synthify.worker.v1.EvaluateJobArtifactRequest
-	1, // 3: synthify.worker.v1.WorkerService.GenerateExecutionPlan:output_type -> synthify.worker.v1.GenerateExecutionPlanResponse
-	3, // 4: synthify.worker.v1.WorkerService.ExecuteApprovedPlan:output_type -> synthify.worker.v1.ExecuteApprovedPlanResponse
-	5, // 5: synthify.worker.v1.WorkerService.EvaluateJobArtifact:output_type -> synthify.worker.v1.EvaluateJobArtifactResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: synthify.worker.v1.ChatMessage.role:type_name -> synthify.worker.v1.ChatRole
+	7,  // 1: synthify.worker.v1.RunChatTurnRequest.history:type_name -> synthify.worker.v1.ChatMessage
+	8,  // 2: synthify.worker.v1.RunChatTurnRequest.candidates:type_name -> synthify.worker.v1.ContextPaper
+	1,  // 3: synthify.worker.v1.WorkerService.GenerateExecutionPlan:input_type -> synthify.worker.v1.GenerateExecutionPlanRequest
+	3,  // 4: synthify.worker.v1.WorkerService.ExecuteApprovedPlan:input_type -> synthify.worker.v1.ExecuteApprovedPlanRequest
+	5,  // 5: synthify.worker.v1.WorkerService.EvaluateJobArtifact:input_type -> synthify.worker.v1.EvaluateJobArtifactRequest
+	9,  // 6: synthify.worker.v1.WorkerService.RunChatTurn:input_type -> synthify.worker.v1.RunChatTurnRequest
+	2,  // 7: synthify.worker.v1.WorkerService.GenerateExecutionPlan:output_type -> synthify.worker.v1.GenerateExecutionPlanResponse
+	4,  // 8: synthify.worker.v1.WorkerService.ExecuteApprovedPlan:output_type -> synthify.worker.v1.ExecuteApprovedPlanResponse
+	6,  // 9: synthify.worker.v1.WorkerService.EvaluateJobArtifact:output_type -> synthify.worker.v1.EvaluateJobArtifactResponse
+	10, // 10: synthify.worker.v1.WorkerService.RunChatTurn:output_type -> synthify.worker.v1.RunChatTurnResponse
+	7,  // [7:11] is the sub-list for method output_type
+	3,  // [3:7] is the sub-list for method input_type
+	3,  // [3:3] is the sub-list for extension type_name
+	3,  // [3:3] is the sub-list for extension extendee
+	0,  // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_synthify_worker_v1_worker_proto_init() }
@@ -603,13 +991,14 @@ func file_synthify_worker_v1_worker_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_synthify_worker_v1_worker_proto_rawDesc), len(file_synthify_worker_v1_worker_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   6,
+			NumEnums:      1,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_synthify_worker_v1_worker_proto_goTypes,
 		DependencyIndexes: file_synthify_worker_v1_worker_proto_depIdxs,
+		EnumInfos:         file_synthify_worker_v1_worker_proto_enumTypes,
 		MessageInfos:      file_synthify_worker_v1_worker_proto_msgTypes,
 	}.Build()
 	File_synthify_worker_v1_worker_proto = out.File

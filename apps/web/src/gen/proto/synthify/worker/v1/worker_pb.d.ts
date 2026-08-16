@@ -2,7 +2,7 @@
 // @generated from file synthify/worker/v1/worker.proto (package synthify.worker.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage, GenService } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
@@ -217,6 +217,162 @@ export declare type EvaluateJobArtifactResponse = Message<"synthify.worker.v1.Ev
 export declare const EvaluateJobArtifactResponseSchema: GenMessage<EvaluateJobArtifactResponse>;
 
 /**
+ * @generated from message synthify.worker.v1.ChatMessage
+ */
+export declare type ChatMessage = Message<"synthify.worker.v1.ChatMessage"> & {
+  /**
+   * @generated from field: synthify.worker.v1.ChatRole role = 1;
+   */
+  role: ChatRole;
+
+  /**
+   * @generated from field: string text = 2;
+   */
+  text: string;
+};
+
+/**
+ * Describes the message synthify.worker.v1.ChatMessage.
+ * Use `create(ChatMessageSchema)` to create a new message.
+ */
+export declare const ChatMessageSchema: GenMessage<ChatMessage>;
+
+/**
+ * @generated from message synthify.worker.v1.ContextPaper
+ */
+export declare type ContextPaper = Message<"synthify.worker.v1.ContextPaper"> & {
+  /**
+   * @generated from field: string paper_id = 1;
+   */
+  paperId: string;
+
+  /**
+   * @generated from field: string title = 2;
+   */
+  title: string;
+
+  /**
+   * @generated from field: string description = 3;
+   */
+  description: string;
+
+  /**
+   * @generated from field: string content = 4;
+   */
+  content: string;
+};
+
+/**
+ * Describes the message synthify.worker.v1.ContextPaper.
+ * Use `create(ContextPaperSchema)` to create a new message.
+ */
+export declare const ContextPaperSchema: GenMessage<ContextPaper>;
+
+/**
+ * @generated from message synthify.worker.v1.RunChatTurnRequest
+ */
+export declare type RunChatTurnRequest = Message<"synthify.worker.v1.RunChatTurnRequest"> & {
+  /**
+   * The turn document lives at users/{user_id}/chats/{chat_id}/turns/{turn_id},
+   * so the worker needs the owner to address the write. Workspace authorization
+   * already happened in the API; the worker does not repeat it.
+   *
+   * @generated from field: string user_id = 1;
+   */
+  userId: string;
+
+  /**
+   * @generated from field: string workspace_id = 2;
+   */
+  workspaceId: string;
+
+  /**
+   * @generated from field: string chat_id = 3;
+   */
+  chatId: string;
+
+  /**
+   * @generated from field: string turn_id = 4;
+   */
+  turnId: string;
+
+  /**
+   * @generated from field: string paper_id = 5;
+   */
+  paperId: string;
+
+  /**
+   * Already normalized by the API: trimmed to the size caps, oldest history
+   * dropped, and the last entry guaranteed to be the user message.
+   *
+   * @generated from field: repeated synthify.worker.v1.ChatMessage history = 6;
+   */
+  history: ChatMessage[];
+
+  /**
+   * @generated from field: repeated synthify.worker.v1.ContextPaper candidates = 7;
+   */
+  candidates: ContextPaper[];
+
+  /**
+   * @generated from field: repeated string pinned_context_ids = 8;
+   */
+  pinnedContextIds: string[];
+
+  /**
+   * @generated from field: bool auto_select_context = 9;
+   */
+  autoSelectContext: boolean;
+};
+
+/**
+ * Describes the message synthify.worker.v1.RunChatTurnRequest.
+ * Use `create(RunChatTurnRequestSchema)` to create a new message.
+ */
+export declare const RunChatTurnRequestSchema: GenMessage<RunChatTurnRequest>;
+
+/**
+ * @generated from message synthify.worker.v1.RunChatTurnResponse
+ */
+export declare type RunChatTurnResponse = Message<"synthify.worker.v1.RunChatTurnResponse"> & {
+  /**
+   * @generated from field: string status = 1;
+   */
+  status: string;
+};
+
+/**
+ * Describes the message synthify.worker.v1.RunChatTurnResponse.
+ * Use `create(RunChatTurnResponseSchema)` to create a new message.
+ */
+export declare const RunChatTurnResponseSchema: GenMessage<RunChatTurnResponse>;
+
+/**
+ * @generated from enum synthify.worker.v1.ChatRole
+ */
+export enum ChatRole {
+  /**
+   * @generated from enum value: CHAT_ROLE_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: CHAT_ROLE_USER = 1;
+   */
+  USER = 1,
+
+  /**
+   * @generated from enum value: CHAT_ROLE_ASSISTANT = 2;
+   */
+  ASSISTANT = 2,
+}
+
+/**
+ * Describes the enum synthify.worker.v1.ChatRole.
+ */
+export declare const ChatRoleSchema: GenEnum<ChatRole>;
+
+/**
  * @generated from service synthify.worker.v1.WorkerService
  */
 export declare const WorkerService: GenService<{
@@ -243,6 +399,17 @@ export declare const WorkerService: GenService<{
     methodKind: "unary";
     input: typeof EvaluateJobArtifactRequestSchema;
     output: typeof EvaluateJobArtifactResponseSchema;
+  },
+  /**
+   * Runs one dialogue turn. Returns as soon as the turn is accepted; the answer
+   * is written to the Firestore turn document the browser subscribes to.
+   *
+   * @generated from rpc synthify.worker.v1.WorkerService.RunChatTurn
+   */
+  runChatTurn: {
+    methodKind: "unary";
+    input: typeof RunChatTurnRequestSchema;
+    output: typeof RunChatTurnResponseSchema;
   },
 }>;
 
