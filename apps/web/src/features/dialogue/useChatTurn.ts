@@ -2,10 +2,11 @@
 
 import { useMemo } from 'react';
 import { doc } from 'firebase/firestore';
-import type { ContentNode } from '@keyhole-koro/paper-in-paper';
+import type { Command, ContentNode } from '@keyhole-koro/paper-in-paper';
 import { db } from '@/lib/firebase';
 import { useAuthedDoc } from '@/lib/firestore';
 import { auth } from '@/lib/firebase';
+import { AUTO_COMMAND_TYPES, PROPOSAL_COMMAND_TYPES, parseCommands } from './commands';
 import type { FirestoreChatTurn } from './firestore/firestoreChatTurn.generated';
 
 export type { FirestoreChatTurn } from './firestore/firestoreChatTurn.generated';
@@ -14,6 +15,10 @@ export interface ChatTurnView {
   status: FirestoreChatTurn['status'] | null;
   /** Parsed content. Empty until the first section lands. */
   nodes: ContentNode[];
+  /** View operations safe to dispatch without asking. */
+  commands: Command[];
+  /** Structural changes that need the reader's Apply. */
+  proposals: Command[];
   sectionCount: number;
   selectedContextIds: string[];
   errorMessage: string;
@@ -23,6 +28,8 @@ export interface ChatTurnView {
 const EMPTY: ChatTurnView = {
   status: null,
   nodes: [],
+  commands: [],
+  proposals: [],
   sectionCount: 0,
   selectedContextIds: [],
   errorMessage: '',
@@ -50,6 +57,8 @@ export function useChatTurn(chatId: string | null, turnId: string | null): ChatT
     return {
       status: data.status,
       nodes: parseContent(data.content),
+      commands: parseCommands(data.commands, AUTO_COMMAND_TYPES),
+      proposals: parseCommands(data.proposals, PROPOSAL_COMMAND_TYPES),
       sectionCount: data.sectionCount ?? 0,
       selectedContextIds: data.selectedContextIds ?? [],
       errorMessage: data.errorMessage ?? '',
@@ -57,6 +66,7 @@ export function useChatTurn(chatId: string | null, turnId: string | null): ChatT
     };
   }, [data]);
 }
+
 
 /**
  * content is an opaque JSON string on the wire: ContentNode is a recursive

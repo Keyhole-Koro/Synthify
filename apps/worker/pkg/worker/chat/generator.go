@@ -83,6 +83,7 @@ func (g *Generator) Run(ctx context.Context, req Request) error {
 
 	var (
 		nodes        []ContentNode
+		commands     []Command
 		usage        chatstatus.Usage
 		selectedIDs  []string
 		finishReason = chatstatus.FirestoreChatTurnFinishReasonStop
@@ -114,6 +115,7 @@ func (g *Generator) Run(ctx context.Context, req Request) error {
 		}
 
 		nodes = append(nodes, Sanitize(section.Nodes, allowed)...)
+		commands = append(commands, section.Commands...)
 		sections++
 
 		if sections == 1 {
@@ -146,8 +148,31 @@ func (g *Generator) Run(ctx context.Context, req Request) error {
 		return g.fail(ctx, ref, nodes, sections, usage, err)
 	}
 
+	// Classified once at the end rather than per section: view commands issued
+	// mid-generation would move the canvas while the reader is still reading
+	// the part that is already there.
+	auto, proposals := ClassifyCommands(commands, allowed)
+	if dropped := len(commands) - len(auto) - len(proposals); dropped > 0 {
+		// Worth a line: a model proposing commands outside what it was offered
+		// is either a prompt problem or an attempt at something it should not
+		// be doing, and both are invisible otherwise.
+		g.logger.Warn("chat.commands_dropped",
+			"chat_id", req.ChatID, "turn_id", req.TurnID,
+			"proposed", len(commands), "dropped", dropped)
+	}
+	commandsJSON, err := marshalCommands(auto)
+	if err != nil {
+		return g.fail(ctx, ref, nodes, sections, usage, err)
+	}
+	proposalsJSON, err := marshalCommands(proposals)
+	if err != nil {
+		return g.fail(ctx, ref, nodes, sections, usage, err)
+	}
+
 	return g.writer.Succeed(ctx, ref, chatstatus.Success{
 		ContentJSON:        contentJSON,
+		CommandsJSON:       commandsJSON,
+		ProposalsJSON:      proposalsJSON,
 		SelectedContextIDs: selectedIDs,
 		SectionCount:       sections,
 		FinishReason:       finishReason,
@@ -243,6 +268,18 @@ card {"type":"card","paperId":"...","title":"...","description":"..."}.
 
 Reference a paper ONLY by an id listed in the context below. Never invent an
 id: a link to a paper that does not exist is worse than no link.
+
+You may also return "commands" to act on the canvas, using only ids from the
+context:
+  OPEN_NODE {"type":"OPEN_NODE","parentId":"...","childId":"..."}
+  FOCUS_NODE / PIN_NODE / UNPIN_NODE / CLOSE_NODE with "nodeId"
+Use these to show the reader the paper you are talking about instead of only
+naming it. Prefer none over a guess — an unnecessary command moves their view
+for no reason.
+
+You may propose CREATE_CHILD_NODE, PATCH_NODE or MOVE_NODE. These are shown to
+the reader for approval and are never applied automatically, so propose them
+only when the change is clearly worth making.
 `)
 	if req.AutoSelectContext {
 		b.WriteString(`

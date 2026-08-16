@@ -59,4 +59,39 @@ test('opens a dialogue from a paper and renders the answer that arrives over Fir
   // that paper on the canvas.
   const chip = page.getByRole('button', { name: 'E2E Fixture Overview' }).last();
   await expect(chip).toBeVisible();
+
+  // Two different ways the answer can end up unreadable, so both are checked.
+  //
+  // The first recording of this flow showed text cut off mid-sentence. The
+  // cause was not wrapping — the answer wraps inside its own box — but the
+  // dialogue paper being laid out partly past the canvas edge, so the viewport
+  // clipped it.
+  const long = page.getByText('長い文章が折り返されることを確認するための行です', { exact: false });
+
+  const wrap = await long.evaluate((el) => {
+    const box = el.closest('div');
+    if (!box) return null;
+    return { scrollOverflow: box.scrollWidth - box.clientWidth };
+  });
+  expect(wrap, 'answer container should be measurable').not.toBeNull();
+  expect(wrap!.scrollOverflow, 'answer must wrap rather than overflow its container').toBeLessThanOrEqual(1);
+
+  const onScreen = await long.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right), viewport: window.innerWidth };
+  });
+  expect(onScreen.left, 'answer must not be clipped by the left edge').toBeGreaterThanOrEqual(0);
+  expect(onScreen.right, 'answer must not be clipped by the right edge').toBeLessThanOrEqual(onScreen.viewport);
+
+  // A structural change is offered, not performed. It must be described in
+  // words — an Apply button over raw JSON would be a blind click — and the
+  // paper it would create must not exist until the reader asks for it.
+  await expect(page.getByText('提案された変更')).toBeVisible();
+  await expect(page.getByText('フィクスチャが提案する子 paper', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'フィクスチャが提案する子 paper' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: '適用', exact: true }).click();
+
+  await expect(page.getByRole('button', { name: 'フィクスチャが提案する子 paper' })).toBeVisible();
+  await expect(page.getByText('適用済み')).toBeVisible();
 });

@@ -67,6 +67,19 @@ func (g *FixtureGenerator) Run(ctx context.Context, req Request) error {
 		},
 	})
 
+	// A long run with no spaces. Japanese does not break on whitespace and a
+	// model can return a long identifier, so this is the case that exposes a
+	// container which grows instead of wrapping.
+	all = append(all, ContentNode{
+		"type": "paragraph",
+		"children": []any{
+			map[string]any{
+				"type":  "text",
+				"value": "長い文章が折り返されることを確認するための行です。空白を含まない日本語の文章はコンテナ幅を超えても改行されないことがあるため、ここで実際に折り返しを検証します。",
+			},
+		},
+	})
+
 	// A reference to a real candidate proves the link path renders and is
 	// clickable; the sanitizer would demote an invented id to plain text.
 	selected := []string{}
@@ -84,8 +97,31 @@ func (g *FixtureGenerator) Run(ctx context.Context, req Request) error {
 	if err != nil {
 		return err
 	}
+
+	// Run the proposal through the real classifier rather than hand-writing the
+	// two fields, so the fixture cannot drift from the rule it is demonstrating.
+	var proposed []Command
+	if len(req.Candidates) > 0 {
+		proposed = append(proposed, Command{
+			"type":     "CREATE_CHILD_NODE",
+			"parentId": req.Candidates[0].PaperID,
+			"title":    "フィクスチャが提案する子 paper",
+		})
+	}
+	auto, proposals := ClassifyCommands(proposed, allowedPaperIDs(req.Candidates))
+	commandsJSON, err := marshalCommands(auto)
+	if err != nil {
+		return err
+	}
+	proposalsJSON, err := marshalCommands(proposals)
+	if err != nil {
+		return err
+	}
+
 	return g.writer.Succeed(ctx, ref, chatstatus.Success{
 		ContentJSON:        allJSON,
+		CommandsJSON:       commandsJSON,
+		ProposalsJSON:      proposalsJSON,
 		SelectedContextIDs: selected,
 		SectionCount:       2,
 		FinishReason:       chatstatus.FirestoreChatTurnFinishReasonStop,

@@ -1,11 +1,13 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   usePaperDispatch,
   usePaperStoreSelector,
+  type Command,
   type ContentNode,
   type PaperId,
+  type PaperMap,
 } from '@keyhole-koro/paper-in-paper';
 import { postChatTurn, type ChatHistoryEntry } from './api';
 import { collectCandidates } from './contextText';
@@ -78,6 +80,40 @@ export function DialoguePaper({ paperId, workspaceId }: Props) {
     [dispatch, paperMap],
   );
 
+  // View commands are dispatched once, when the turn finishes. Applying them
+  // per snapshot would re-run them on every Firestore update, and doing it
+  // mid-generation would move the canvas while the reader is still reading.
+  const appliedCommandsFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (turn.status !== 'succeeded' || !turnId) return;
+    if (appliedCommandsFor.current === turnId) return;
+    appliedCommandsFor.current = turnId;
+    for (const command of turn.commands) {
+      dispatch(command);
+    }
+  }, [dispatch, turn.status, turn.commands, turnId]);
+
+  // Keyed by turn id rather than reset in an effect: a new turn brings its own
+  // proposals, and storing the key alongside the set makes that a derived fact
+  // instead of a state update chasing another state update.
+  const [applied, setApplied] = useState<{ turnId: string | null; indices: Set<number> }>({
+    turnId: null,
+    indices: new Set(),
+  });
+  const appliedProposals = applied.turnId === turnId ? applied.indices : EMPTY_APPLIED;
+
+  const applyProposal = useCallback(
+    (index: number, command: Command) => {
+      dispatch(command);
+      setApplied((prev) => {
+        const indices = prev.turnId === turnId ? new Set(prev.indices) : new Set<number>();
+        indices.add(index);
+        return { turnId, indices };
+      });
+    },
+    [dispatch, turnId],
+  );
+
   const busy = sending || turn.isRunning;
 
   return (
@@ -117,6 +153,28 @@ export function DialoguePaper({ paperId, workspaceId }: Props) {
             ))}
           </div>
         )}
+
+        {turn.proposals.length > 0 && (
+          <div style={styles.proposals}>
+            <p style={styles.proposalsTitle}>提案された変更</p>
+            {turn.proposals.map((command, i) => (
+              <div key={i} style={styles.proposal}>
+                <span style={styles.proposalText}>{describeProposal(command, paperMap)}</span>
+                {appliedProposals.has(i) ? (
+                  <span style={styles.applied}>適用済み</span>
+                ) : (
+                  <button
+                    type="button"
+                    style={styles.apply}
+                    onClick={() => applyProposal(i, command)}
+                  >
+                    適用
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <form
@@ -140,6 +198,33 @@ export function DialoguePaper({ paperId, workspaceId }: Props) {
       </form>
     </div>
   );
+}
+
+/**
+ * Describes a proposed change in the reader's terms.
+ *
+ * A proposal is only meaningful if its effect is legible before it is applied —
+ * showing raw JSON would make Apply a blind click, which defeats the point of
+ * gating these behind approval.
+ */
+function describeProposal(command: Command, paperMap: PaperMap): string {
+  const titleOf = (id: unknown) =>
+    typeof id === 'string' ? (paperMap.get(id)?.title ?? id) : '不明な paper';
+
+  switch (command.type) {
+    case 'CREATE_CHILD_NODE':
+      return `「${titleOf(command.parentId)}」の下に「${command.title}」を作る`;
+    case 'PATCH_NODE':
+      return `「${titleOf(command.nodeId)}」を書き換える`;
+    case 'MOVE_NODE':
+      return `「${titleOf(command.nodeId)}」を「${titleOf(command.targetParentId)}」の下に移す`;
+    case 'MERGE_PAPERS':
+      return 'paper をまとめる';
+    case 'UPSERT_PAPERS':
+      return 'paper を追加・更新する';
+    default:
+      return command.type;
+  }
 }
 
 /**
@@ -245,9 +330,35 @@ function Node({ node, onOpen }: { node: ContentNode; onOpen: (id: PaperId) => vo
   }
 }
 
+// Stable empty set so a turn with no applied proposals does not hand the
+// render a fresh object each time.
+const EMPTY_APPLIED: ReadonlySet<number> = new Set<number>();
+
 const styles: Record<string, React.CSSProperties> = {
-  root: { display: 'flex', flexDirection: 'column', height: '100%', gap: 8, fontSize: '0.85rem' },
-  log: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 },
+  // minWidth: 0 on both the column and the log is what makes long text wrap.
+  // A flex item defaults to min-width: auto, so without it an unbroken run of
+  // characters widens the container past the paper instead of wrapping, and
+  // the overflow is then clipped rather than scrolled.
+  root: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+    minWidth: 0,
+    gap: 8,
+    fontSize: '0.85rem',
+  },
+  log: {
+    flex: 1,
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    minHeight: 0,
+    minWidth: 0,
+    // Japanese has no spaces to break on, and a model can emit a long
+    // identifier in any language, so allow a break mid-word as a last resort.
+    overflowWrap: 'anywhere',
+  },
   userMsg: {
     alignSelf: 'flex-end',
     background: 'rgba(0,0,0,0.06)',
@@ -307,9 +418,32 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     font: 'inherit',
   },
+  proposals: {
+    border: '1px solid rgba(0,0,0,0.15)',
+    borderRadius: 8,
+    padding: '6px 8px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+    minWidth: 0,
+  },
+  proposalsTitle: { margin: 0, fontSize: '0.72rem', fontWeight: 700, opacity: 0.7 },
+  proposal: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 },
+  proposalText: { flex: 1, minWidth: 0, fontSize: '0.78rem' },
+  apply: {
+    border: '1px solid rgba(0,0,0,0.2)',
+    borderRadius: 6,
+    background: 'rgba(255,255,255,0.85)',
+    padding: '2px 10px',
+    cursor: 'pointer',
+    font: 'inherit',
+    fontSize: '0.75rem',
+    flexShrink: 0,
+  },
+  applied: { fontSize: '0.72rem', opacity: 0.6, flexShrink: 0 },
   hint: { margin: 0, opacity: 0.65, fontStyle: 'italic' },
   error: { margin: 0, color: '#b3261e' },
-  form: { display: 'flex', gap: 6 },
+  form: { display: 'flex', gap: 6, minWidth: 0 },
   input: {
     flex: 1,
     border: '1px solid rgba(0,0,0,0.2)',

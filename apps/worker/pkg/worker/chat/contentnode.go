@@ -142,6 +142,10 @@ type sectionResponse struct {
 	// SelectedContextIds is only meaningful on the first section, where the
 	// model picks which candidates it actually used.
 	SelectedContextIDs []string `json:"selectedContextIds"`
+	// Commands is a flat list; the worker splits it into auto-dispatchable
+	// and Apply-gated halves rather than letting the model decide which is
+	// which.
+	Commands []Command `json:"commands"`
 }
 
 func parseSection(raw json.RawMessage) (sectionResponse, error) {
@@ -179,6 +183,7 @@ func sectionSchema() map[string]any {
 			"nodes":              map[string]any{"type": "array", "items": node},
 			"done":               map[string]any{"type": "boolean"},
 			"selectedContextIds": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"commands":           commandSchema(),
 		},
 		"required": []string{"nodes", "done"},
 	}
