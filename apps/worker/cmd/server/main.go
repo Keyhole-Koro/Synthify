@@ -88,11 +88,13 @@ func main() {
 	// so it gets its own Firestore writer instead of the job-status notifier.
 	// llmClient (not embedder) so chat generation is metered like every other
 	// LLM call.
-	chatGenerator := chat.NewGenerator(
-		llmClient,
-		chatstatus.NewWriter(ctx, cfg.FirebaseProjectID, appLogger),
-		appLogger,
-	)
+	chatWriter := chatstatus.NewWriter(ctx, cfg.FirebaseProjectID, appLogger)
+	var chatGenerator worker.ChatTurnRunner = chat.NewGenerator(llmClient, chatWriter, appLogger)
+	if cfg.FixtureMode {
+		// Same gate as the document processor: local/test/dev only. Lets the
+		// dialogue UI be exercised where there is no Vertex credential.
+		chatGenerator = chat.NewFixtureGenerator(chatWriter, appLogger)
+	}
 
 	mux.Handle(workerv1connect.NewWorkerServiceHandler(
 		worker.NewConnectHandler(processor, store, planner, evaluator, chatGenerator, appLogger),
