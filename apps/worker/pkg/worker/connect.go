@@ -112,3 +112,18 @@ func (h *ConnectHandler) EvaluateJobArtifact(ctx context.Context, req *connect.R
 		MutationCount: result.MutationCount,
 	}), nil
 }
+
+// RunChatTurn is not implemented yet. The contract, the Firestore schema and
+// the API-side trigger are in place; section-by-section generation and the
+// turn-document writes are the next piece of work.
+//
+// It returns Unimplemented rather than silently succeeding: the API dispatches
+// synchronously and surfaces the failure, so a caller learns the turn will
+// never arrive instead of watching a document that nothing is going to write.
+func (h *ConnectHandler) RunChatTurn(ctx context.Context, req *connect.Request[workerv1.RunChatTurnRequest]) (*connect.Response[workerv1.RunChatTurnResponse], error) {
+	h.logger.Warn("worker.run_chat_turn_unimplemented",
+		"chat_id", req.Msg.GetChatId(),
+		"turn_id", req.Msg.GetTurnId(),
+	)
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("RunChatTurn is not implemented yet"))
+}
