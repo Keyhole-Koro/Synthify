@@ -6,6 +6,8 @@ import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
 import type { PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
 import { getImageURL } from '@/features/documents/api';
+import { DialoguePaper } from '@/features/dialogue/DialoguePaper';
+import { findOwningWorkspaceId } from '@/features/dialogue/createDialogueChild';
 
 const PaperCanvas = dynamic(
   () => import('@keyhole-koro/paper-in-paper').then((mod) => mod.PaperCanvas),
@@ -132,6 +134,22 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
           onExpansionMapChange={controller.handleExpansionMapChange}
           onFocusedNodeIdChange={controller.handleFocusedNodeIdChange}
           onFullscreenChange={controller.setCanvasFullscreen}
+          onCreateChild={(parentId, create) => {
+            // Only papers inside a workspace can host a dialogue: the turn is
+            // scoped to one, and the product papers on the landing canvas have
+            // no workspace to attach to.
+            const workspaceId = findOwningWorkspaceId(
+              controller.paperMap,
+              parentId,
+              controller.workspaceIds,
+            );
+            if (!workspaceId) return;
+            create({
+              title: 'AI に聞く',
+              description: '周辺の paper を文脈にして質問する',
+              content: <DialoguePaper paperId={parentId} workspaceId={workspaceId} />,
+            });
+          }}
         />
       </div>
     </div>
