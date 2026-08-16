@@ -20,6 +20,7 @@ ones worth keeping here.
 |---|---|---|
 | `paper-nested-open-close.webm` | `apps/web/e2e/paper.spec.ts` | Uploading a document, then opening nested papers, following in-content links, and restoring the open set across a reload |
 | `dialogue-turn.webm` / `.gif` | `apps/web/e2e/dialogue.spec.ts` | Opening a dialogue from a paper's "+", asking a question, and the answer arriving over the Firestore turn subscription |
+| `dialogue-proposal.webm` / `.gif` | `apps/web/e2e/dialogue.spec.ts` | The same flow through to a proposed structural change: described in words, and applied only when the reader clicks 適用 |
 
 The `.gif` is a cropped excerpt of the `.webm` beside it, kept because GitHub
 renders a GIF inline in a comment while a raw `.webm` link only downloads. The
@@ -46,3 +47,16 @@ above came from such a second run.
 Vertex credential locally, so the worker answers from its fixture generator
 instead of a model; the point of the test is that the trigger, the Firestore
 subscription and the ContentNode rendering line up.
+
+## Known issue: the dialogue paper is clipped in these recordings
+
+The dialogue paper runs off the right edge in both dialogue recordings. That is
+a real layout problem, not a recording artifact — but it is **not** a text
+wrapping bug: measuring the DOM shows the answer wraps inside its own box
+(`scrollWidth === clientWidth`).
+
+What happens is that the canvas places a newly created child partly outside the
+viewport. It reproduces at the 800x450 the recorder uses and not at Playwright's
+default 1280 wide, which is why the spec's clipping assertion passes. Fixing it
+likely means changing placement in the vendored paper-in-paper layout, so it is
+tracked separately rather than patched here.
