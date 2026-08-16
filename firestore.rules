@@ -10,6 +10,26 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // 対話 turn。job とは条件が異なるので、意図的に別 match として書く。
+    // path が user 配下なので、認可は「path の所有者 == 認証ユーザー」だけで
+    // 完結する。workspace 認可は PostChatTurn 側 (IsWorkspaceAccessible) が担う。
+    //
+    // workspace 配下に置くと、rules が「この user はこの workspace を読めるか」に
+    // 答える必要が生じる。その答えは account_users OR workspace_members と
+    // deleted_at を見る SQL にしかなく、Firestore にはそのデータが無いため、
+    // SQL の意味論を別言語で再実装した mirror が要る。ここではそれを避けている。
+    match /users/{uid}/chats/{chatId} {
+      allow get, list: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+
+      // job と同じく、list は document ワイルドカードの match 内で宣言しないと
+      // list クエリに適用されない。
+      match /turns/{turnId} {
+        allow get, list: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

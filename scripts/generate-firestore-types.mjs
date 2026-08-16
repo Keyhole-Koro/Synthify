@@ -36,6 +36,29 @@ const targets = [
       affectedWorkspaceRootItemId: 'AffectedWorkspaceRootItemID',
     },
   },
+  {
+    schema: 'contracts/firestore/chat-turn.schema.json',
+    tsOut: 'apps/web/src/features/dialogue/firestore/firestoreChatTurn.generated.ts',
+    goOut: 'internal/platform/chat/status/firestore_chat_turn.generated.go',
+    goPackage: 'chatstatus',
+    typeName: 'FirestoreChatTurn',
+    goNameOverrides: {
+      chatId: 'ChatID',
+      turnId: 'TurnID',
+      workspaceId: 'WorkspaceID',
+      paperId: 'PaperID',
+      selectedContextIds: 'SelectedContextIDs',
+      sectionCount: 'SectionCount',
+      finishReason: 'FinishReason',
+      errorMessage: 'ErrorMessage',
+      promptTokens: 'PromptTokens',
+      completionTokens: 'CompletionTokens',
+      createdAt: 'CreatedAt',
+      updatedAt: 'UpdatedAt',
+      completedAt: 'CompletedAt',
+      expiresAt: 'ExpiresAt',
+    },
+  },
 ];
 
 // The status enum gets a shorter Go type name than the other enums
