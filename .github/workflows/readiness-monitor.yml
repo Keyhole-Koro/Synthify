@@ -29,19 +29,41 @@ jobs:
         run: |
           set -uo pipefail
 
+          # Every probe pays a cold start: min_instance_count is 0, and at a
+          # 15-minute cadence this workflow is close to the only traffic stage
+          # sees, so Cloud Run has almost always scaled to zero by the time we
+          # knock. The readiness path then also opens the first DB connection
+          # (the pool is lazy) against a CockroachDB Serverless cluster that may
+          # itself be resuming from idle. Warm the instance on the shallow
+          # /health route first — it starts the container without touching the
+          # database — so the timed check below measures readiness rather than
+          # start-up. Failures here are expected and ignored; the check decides.
+          warm() {
+            curl -s --max-time 30 "${API_BASE_URL}/health" > /dev/null 2>&1 || true
+          }
+
+          # 25s, not 10s: the budget has to cover the whole cold path (container
+          # start, TLS to CockroachDB, first connection, SELECT 1). A warm probe
+          # answers in well under a second, so a slow-but-alive service is not
+          # what we are trying to catch here — a sustained outage is.
           check() {
-            curl -sf --max-time 10 \
+            curl -sf --max-time 25 \
               --header "X-Synthify-Readiness-Key: ${READINESS_MONITOR_KEY}" \
               "${API_BASE_URL}/health?ready=1" > /dev/null
           }
+
+          warm
 
           if check; then
             echo "readiness OK"
             exit 0
           fi
 
-          echo "first readiness check failed, retrying in 30s..."
-          sleep 30
+          # 60s rather than 30s: a failed first check usually means something is
+          # still coming up, and the retry is only worth anything once that has
+          # had time to finish.
+          echo "first readiness check failed, retrying in 60s..."
+          sleep 60
 
           if check; then
             echo "readiness OK on retry"
@@ -63,7 +85,7 @@ jobs:
 
           PAYLOAD=$(jq -n \
             --arg title "🔴 Readiness check failed: ${ENVIRONMENT}" \
-            --arg description "${API_BASE_URL}/health?ready=1 failed twice (30s apart)." \
+            --arg description "${API_BASE_URL}/health?ready=1 failed twice (60s apart, 25s timeout each, after a warm-up request)." \
             --arg url "${RUN_URL}" \
             '{
               embeds: [
