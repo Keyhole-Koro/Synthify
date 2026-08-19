@@ -1,0 +1,64 @@
+name: CodeQL
+
+# Static analysis for the Go backend and the TypeScript frontends. Free here
+# because the repository is public — on a private repo this would need GitHub
+# Advanced Security, which is the one case where a hosted SAST product would be
+# worth pricing against.
+#
+# Findings land in the Security tab, not in the PR status, so this never blocks
+# a merge on its own.
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  # Query packs are updated continuously, so a weekly sweep finds things the
+  # diff-triggered runs did not know to look for.
+  schedule:
+    - cron: "0 19 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: go
+            build-mode: autobuild
+          - language: javascript-typescript
+            build-mode: none
+    steps:
+      # No `submodules: recursive` here, unlike the other workflows: the
+      # vendored paper-in-paper checkout would otherwise be analysed as if it
+      # were our source.
+      - uses: actions/checkout@v4
+
+      # autobuild would otherwise compile against whatever Go the runner image
+      # happens to ship, which is not the toolchain go.mod pins.
+      - uses: actions/setup-go@v5
+        if: matrix.language == 'go'
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}

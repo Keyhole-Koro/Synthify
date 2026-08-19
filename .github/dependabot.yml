@@ -1,0 +1,83 @@
+version: 2
+
+updates:
+  # api / worker / eval all live in the single root Go module, so one entry
+  # covers every Go dependency in the repo.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      go:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  # bun workspace root. apps/web and apps/monitor/ui resolve through the single
+  # top-level bun.lock, so pointing at "/" covers both workspaces; pointing at
+  # the workspace directories instead leaves Dependabot without a lockfile to
+  # update. Note that Dependabot's bun support is *version* updates only —
+  # security updates are not implemented for the bun ecosystem, which is why
+  # the Security workflow runs `bun audit` separately.
+  - package-ecosystem: bun
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      js:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: docker
+    directories:
+      - /apps/api
+      - /apps/worker
+      - /apps/eval
+      - /apps/monitor/ui
+      - /docker/firebase-emulator
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+
+  # Provider pins live in versions.tf under environments/ and services/*; the
+  # module directories are listed too so a provider added there is not missed.
+  - package-ecosystem: terraform
+    directories:
+      - /terraform/environments
+      - /terraform/services/*
+      - /terraform/modules/*
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(terraform)
