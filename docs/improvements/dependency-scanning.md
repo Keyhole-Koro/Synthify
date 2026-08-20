@@ -33,7 +33,18 @@ CI に脆弱性スキャンが一切無い状態（`dependabot.yml` なし、Cod
 
 実害の観点で読み直した結果:
 
-- **GO-2026-6089（h2c チェック時に `ReadHeaderTimeout` が効かない）** — 20 件中これだけが具体的なデータ経路として成立する。worker が `http.ListenAndServe` を素で呼んでいて（`apps/worker/cmd/server/main.go:101`）`http.Server` を組んでいないため、`ReadHeaderTimeout` がそもそも未設定。リッスンしているソケットに直接効く
+- **GO-2026-6089（h2c チェック時に `ReadHeaderTimeout` が効かない）** — 20 件中これだけが具体的なデータ経路として成立する。worker も api も `http.ListenAndServe` を素で呼んでいて `http.Server` を組んでいなかったため、`ReadHeaderTimeout` がそもそも未設定だった。**toolchain を上げても根本は直らない**（net/http 側の fallback が復活するだけ）ので、両方を `http.Server` に置き換えて明示的に設定した:
+
+  ```go
+  srv := &http.Server{
+      Addr:              addr,
+      Handler:           h,
+      ReadHeaderTimeout: 20 * time.Second,
+      IdleTimeout:       120 * time.Second,
+  }
+  ```
+
+  `ReadTimeout` / `WriteTimeout` は意図的に未設定のまま。worker の `/internal/dispatch-job` は `InternalDispatchHandler.ServeHTTP` の中でジョブ本体（LLM パイプライン、数分）を同期実行しているので、どちらを入れても進行中の処理を切ってしまう。その時間予算は `cfg.RequestTimeout` / `AgentBudget`（Cloud Run の request timeout を写したもの）が受け持つ。api 側も Firestore / GCS / Stripe へのファンアウトがあるため同様。文書の実体は署名付き URL で GCS に直接上がるので、大きな body が api を通ることはない
 - **crypto/tls 系 3 件**（GO-2026-6090 / 5856 / 4870）— Cloud Run が前段で TLS 終端するのでコンテナ内の Go サーバは平文 HTTP を話す。トレースは外向きクライアント接続由来で、露出は低い
 - **grpc GO-2026-6061** — xDS RBAC と HTTP/2 *サーバ*実装の脆弱性。こちらは gRPC をクライアント（New Relic / Cloud Tasks）としてしか使っていない
 - **html/template 系 4 件** — 到達トレースが `http.ListenAndServe` や `fmt.Fprintf` 経由の間接的なもので、テンプレートに攻撃者入力を流している箇所は無い
