@@ -23,6 +23,23 @@ CI に脆弱性スキャンが一切無い状態（`dependabot.yml` なし、Cod
 
 再検討する価値があるのは、ライセンスコンプライアンスが要件化したとき、リポジトリが複数に増えて横断ダッシュボードが欲しくなったとき、あるいは private 化して CodeQL が使えなくなったとき。
 
+## `govulncheck` の初回結果（解消済み）
+
+導入直後の初回実行で **到達可能な脆弱性 20 件** を検出した。内訳:
+
+- **17 件が Go 標準ライブラリ** — `go.mod` が `go 1.25.8` を固定していたため。修正版は 1.25.9〜1.25.13 に分散していたので、`go 1.25.13` への引き上げで全部消える
+- `google.golang.org/grpc` v1.81.1 → v1.82.1（GO-2026-6061）
+- `golang.org/x/text` v0.37.0 → v0.39.0（GO-2026-5970）
+
+実害の観点で目立ったもの:
+
+- **GO-2026-5970（x/text の無限ループ）** — `apps/worker/pkg/worker/tools/builtin/io/encoding.go` の `repairEncoding` が、ユーザーがアップロードした文書のテキストを 9 種類のデコーダに順に通している。外部入力が `transform.Bytes` に直接届く経路なので、この 20 件で最も現実的
+- **GO-2026-6089（h2c チェック時に `ReadHeaderTimeout` が効かない）** — worker が `http.ListenAndServe` を素で呼んでいる（`apps/worker/cmd/server/main.go:101`）ため直撃する
+- **crypto/tls 系 3 件**（GO-2026-6090 / 5856 / 4870）— post-handshake の DoS・プライバシーリーク。Cloud Run で公開している以上は該当する
+- html/template の XSS 系 4 件は、到達トレースが `http.ListenAndServe` や `fmt.Fprintf` 経由の間接的なもので、テンプレートに攻撃者入力を流している箇所は無い。露出は低いが toolchain 引き上げで同時に消える
+
+なお `go.mod` の go directive を patch version まで固定しているので、Go の patch release が出るたびにここが遅れると govulncheck が赤くなる。Dockerfile 側は `golang:1.25-bookworm` で patch は追随するため、追従が必要なのは `go.mod` の 1 行だけ。
+
 ## `bun audit` を blocking にしていない理由
 
 導入時点で 77 件（critical 2 / high 41 / moderate 27 / low 7）の advisory がある。このうち以下はこのリポジトリの変更では解消できない:
