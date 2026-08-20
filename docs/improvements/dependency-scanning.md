@@ -31,14 +31,32 @@ CI に脆弱性スキャンが一切無い状態（`dependabot.yml` なし、Cod
 - `google.golang.org/grpc` v1.81.1 → v1.82.1（GO-2026-6061）
 - `golang.org/x/text` v0.37.0 → v0.39.0（GO-2026-5970）
 
-実害の観点で目立ったもの:
+実害の観点で読み直した結果:
 
-- **GO-2026-5970（x/text の無限ループ）** — `apps/worker/pkg/worker/tools/builtin/io/encoding.go` の `repairEncoding` が、ユーザーがアップロードした文書のテキストを 9 種類のデコーダに順に通している。外部入力が `transform.Bytes` に直接届く経路なので、この 20 件で最も現実的
-- **GO-2026-6089（h2c チェック時に `ReadHeaderTimeout` が効かない）** — worker が `http.ListenAndServe` を素で呼んでいる（`apps/worker/cmd/server/main.go:101`）ため直撃する
-- **crypto/tls 系 3 件**（GO-2026-6090 / 5856 / 4870）— post-handshake の DoS・プライバシーリーク。Cloud Run で公開している以上は該当する
-- html/template の XSS 系 4 件は、到達トレースが `http.ListenAndServe` や `fmt.Fprintf` 経由の間接的なもので、テンプレートに攻撃者入力を流している箇所は無い。露出は低いが toolchain 引き上げで同時に消える
+- **GO-2026-6089（h2c チェック時に `ReadHeaderTimeout` が効かない）** — 20 件中これだけが具体的なデータ経路として成立する。worker が `http.ListenAndServe` を素で呼んでいて（`apps/worker/cmd/server/main.go:101`）`http.Server` を組んでいないため、`ReadHeaderTimeout` がそもそも未設定。リッスンしているソケットに直接効く
+- **crypto/tls 系 3 件**（GO-2026-6090 / 5856 / 4870）— Cloud Run が前段で TLS 終端するのでコンテナ内の Go サーバは平文 HTTP を話す。トレースは外向きクライアント接続由来で、露出は低い
+- **grpc GO-2026-6061** — xDS RBAC と HTTP/2 *サーバ*実装の脆弱性。こちらは gRPC をクライアント（New Relic / Cloud Tasks）としてしか使っていない
+- **html/template 系 4 件** — 到達トレースが `http.ListenAndServe` や `fmt.Fprintf` 経由の間接的なもので、テンプレートに攻撃者入力を流している箇所は無い
 
-なお `go.mod` の go directive を patch version まで固定しているので、Go の patch release が出るたびにここが遅れると govulncheck が赤くなる。Dockerfile 側は `golang:1.25-bookworm` で patch は追随するため、追従が必要なのは `go.mod` の 1 行だけ。
+### 「到達可能」の読み方（重要）
+
+govulncheck の到達性判定は**静的呼び出しグラフ**であって、データフロー解析ではない。インターフェース越しのメソッド呼び出しは、**バイナリ中に存在する全実装**に解決される。そのため実際には繋がっていない辺が生える。
+
+このリポジトリで実際に踏んだ例が GO-2026-5970（x/text の `norm.Iter` 無限ループ）。レポートは
+
+```
+io.repairEncoding calls transform.Bytes, which eventually calls norm.Form.Transform
+```
+
+というトレースを出すが、`transform.Bytes(t Transformer, b []byte)` の第 1 引数はインターフェースで、`repairEncoding` が実際に渡しているのは `japanese.ShiftJIS` 等のデコーダである。`x/text/encoding/**` は `unicode/norm` を import していない（テストを除く）ので、この経路で発火することはない。`norm.Form` がバイナリに居るのは `x/net/idna`（`net/http` のホスト名正規化）が使っているからで、グラフはそちらと繋がっただけ。
+
+`encoding/xml` の GO-2026-6088（`sql.Rows.Next` → `xml.Unmarshal`）も同種で、XML カラムは使っていない。
+
+manifest マッチングのスキャナよりはるかに精度が高いのは確かだが、**トレースを実際のデータ経路として読むと過大評価する**。修正するかどうかの判断には使えるが、深刻度の見積もりには読み解きが要る。
+
+### 運用上の注意
+
+`go.mod` の go directive を patch version まで固定しているので、Go の patch release が出るたびにここが遅れると govulncheck が赤くなる。Dockerfile 側は `golang:1.25-bookworm` で patch に追随するため、手で追従が必要なのは `go.mod` の 1 行だけ。Dependabot の `gomod` エントリは go directive までは面倒を見ない。
 
 ## `bun audit` を blocking にしていない理由
 
