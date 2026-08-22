@@ -265,9 +265,12 @@ documents.model_selection TEXT NULL
   -- NULL は LLM_PROVIDER の既定値にフォールバック
 ```
 
-- 選択肢は **接続済み provider が申告したモデル一覧** から動的に組み立てる。Gemini は常に選択可能。
-  Antigravity / Codex 系のモデルは Phase 4 の provider 接続が確立しているときのみ選択肢に現れる
-  (未接続なら選択肢自体を出さない。fail closed の考え方を UI にも適用する)。
+- **訂正**: 「Phase 4 の provider 接続があれば選択肢に出す」だけでは不十分。Cloud Run 上の
+  worker はユーザー端末の `http://127.0.0.1:PORT` に到達できないため、SaaS 本番では
+  provider 接続があっても非 Gemini モデルは選べてはならない。実際のゲート条件・UI の出し分け・
+  API 側の拒否ロジックは
+  [model-and-style-selection-design.md §2](../architecture/model-and-style-selection-design.md#2-デプロイ形態と有効化されるモデルの対応重要な訂正)
+  に集約した(self-hosted 配備であること AND provider 接続があること、の両方が必要)。
 - production / staging で Gemini 以外を選んでも、Phase 1 の fail-closed ガード
   (`gemini` 以外はローカル/個人 runtime として明示された場合のみ有効)はサーバー側で維持する。
   UI の選択肢を絞ることはこのガードの代替にならない。
