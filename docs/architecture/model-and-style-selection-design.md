@@ -305,8 +305,6 @@ Phase 構成をそのまま PR 粒度の目安にする)
 - 各 Phase の PR 本文には、そのフェーズの「PoC の受け入れ条件」(doc 末尾)のうち該当する項目を
   検証結果として書く。
 
-PR 本文に Co-Authored-By トレーラーは付けない(このリポジトリでの合意事項)。
-
 ## 8. 未解決 / 要検証
 
 本ドキュメントでは解決していない、[local-llm-provider.md の「要検証」](../improvements/local-llm-provider.md#要検証実装時に確認設計変更のトリガーになりうる)節を参照:
