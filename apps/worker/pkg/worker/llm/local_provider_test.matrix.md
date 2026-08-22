@@ -1,7 +1,8 @@
 # テストマトリクス: `local_provider_test.go`
 
 このマトリクスは Worker の `LocalProviderClient` seam に対する決定論的な Go contract test と、
-後続の cross-language / live-provider gate を分離する。カバレッジ数値は未計測 (2026-08-22)。
+generated Go client ↔ Python fake server の実 TCP gate、後続の live-provider gate を分離する。
+カバレッジ数値は未計測 (2026-08-22)。
 
 ## インターフェース網羅チェック
 
@@ -39,17 +40,18 @@
 | `TestValidateLocalProviderCapabilitiesFailsClosed` | default/model prefix/duplicate/structured support の semantic gate | invalid capabilities をcacheしない | OK |
 | `TestInitProcessClientGeminiKeepsExistingClient` | default Gemini path の identity を維持 | 新RPCなし | OK |
 | `TestInitProcessClientLocalFailsClosedInProduction` | production local-provider 設定を startup 前に拒否 | token file / networkへ到達しない | OK |
+| `TestLocalProviderCrossLanguageContract` | generated Go client と generated Python WSGI server の全 unary RPC、typed detail、Protovalidate wire 互換 | bearer auth、同一 generation ID の explicit cancel、no live credentials | OK |
 
 ## 未テスト分岐 (GAP)
 
 | GAP | 必要な次のテスト | Gate |
 | --- | --- | --- |
-| generated Go client ↔ generated Python server の実TCP互換 | deterministic Python fake daemon を subprocess 起動し全RPC/code/detail を確認 | local-provider PR gate |
-| Python bearer interceptor / Protovalidate handler | missing/wrong token が SDK invocation 前に `unauthenticated` | local-provider PR gate |
 | daemon timeout / orphan watchdog | Worker crash を模擬して provider turn が最大期限で停止 | release gate |
 | explicit pre-turn rate-limit retry | `turn_started=false` のみ bounded retry、その他は1回 | retry実装時のPR gate |
 | Windows token ACL | supported Windows runner で owner-only ACL を確認 | Windows配布 gate |
 | source-file shared volume | traversal/symlink escape、cleanup、job isolation | Phase 3 gate |
 
-`go test -race ./apps/worker/cmd/server ./apps/worker/pkg/worker/config ./apps/worker/pkg/worker/llm`
-をこの seam の affected-PR gate とする。live Antigravity/Codex session は通常PR gateに含めない。
+Python runtime を install した上で `SYNTHIFY_LOCAL_PROVIDER_PYTHON=python go test ./...` を CI の
+cross-language PR gate とする。`go test -race ./apps/worker/cmd/server ./apps/worker/pkg/worker/config
+./apps/worker/pkg/worker/llm` もこの seam の affected-PR gate とする。live Antigravity/Codex session は
+通常PR gateに含めない。
