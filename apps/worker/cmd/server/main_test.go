@@ -2,10 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/synthify/backend/apps/worker/pkg/worker/config"
+	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/apps/worker/pkg/worker/metering"
 )
 
 type healthChecker struct {
@@ -87,5 +95,54 @@ func TestHealthHandler_ReadinessFailsOnDependencyError(t *testing.T) {
 
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+}
+
+type processClientBillingTestClient struct{}
+
+func (processClientBillingTestClient) GenerateStructured(context.Context, llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {
+	return json.RawMessage(`{}`), llm.Usage{Model: "test", InputTokens: 2, OutputTokens: 1}, nil
+}
+
+func (processClientBillingTestClient) GenerateText(context.Context, llm.TextRequest) (string, llm.Usage, error) {
+	return "text", llm.Usage{Model: "test", InputTokens: 2, OutputTokens: 1}, nil
+}
+
+type processClientBillingTestReporter struct {
+	calls int
+}
+
+func (r *processClientBillingTestReporter) RecordUsage(context.Context, domain.UsageEvent) error {
+	r.calls++
+	return nil
+}
+
+func TestProcessClientForBillingSkipsLocalProviderUsage(t *testing.T) {
+	reporter := &processClientBillingTestReporter{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	client := processClientForBilling(config.LLM{Provider: config.LLMProviderAntigravity}, processClientBillingTestClient{}, reporter, logger)
+	ctx := metering.WithTag(context.Background(), metering.Tag{AccountID: "account", WorkspaceID: "workspace", JobID: "job"})
+
+	_, _, err := client.GenerateText(ctx, llm.TextRequest{})
+	if err != nil {
+		t.Fatalf("GenerateText() error = %v", err)
+	}
+	if reporter.calls != 0 {
+		t.Fatalf("local provider billing calls = %d, want 0", reporter.calls)
+	}
+}
+
+func TestProcessClientForBillingReportsGeminiUsage(t *testing.T) {
+	reporter := &processClientBillingTestReporter{}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	client := processClientForBilling(config.LLM{Provider: config.LLMProviderGemini}, processClientBillingTestClient{}, reporter, logger)
+	ctx := metering.WithTag(context.Background(), metering.Tag{AccountID: "account", WorkspaceID: "workspace", JobID: "job"})
+
+	_, _, err := client.GenerateText(ctx, llm.TextRequest{})
+	if err != nil {
+		t.Fatalf("GenerateText() error = %v", err)
+	}
+	if reporter.calls != 1 {
+		t.Fatalf("Gemini billing calls = %d, want 1", reporter.calls)
 	}
 }

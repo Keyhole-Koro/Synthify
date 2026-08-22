@@ -3,8 +3,11 @@ package config
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -71,12 +74,32 @@ type Store struct {
 }
 
 type LLM struct {
-	GeminiModel    string
-	APIKey         string
-	LogPayload     bool
-	GCPProject     string
-	VertexLocation string
+	GeminiModel                 string
+	APIKey                      string
+	LogPayload                  bool
+	GCPProject                  string
+	VertexLocation              string
+	Provider                    LLMProvider
+	RuntimeEnv                  string
+	DeploymentMode              string
+	LocalProviderEndpoint       string
+	LocalProviderTokenFile      string
+	LocalProviderRequestTimeout time.Duration
+	LocalProviderCancelTimeout  time.Duration
+	LocalProviderHealthTimeout  time.Duration
 }
+
+type LLMProvider string
+
+const (
+	LLMProviderGemini      LLMProvider = "gemini"
+	LLMProviderAntigravity LLMProvider = "antigravity"
+	LLMProviderCodex       LLMProvider = "codex"
+
+	defaultLocalProviderRequestTimeout = 120 * time.Second
+	defaultLocalProviderCancelTimeout  = 2 * time.Second
+	defaultLocalProviderHealthTimeout  = 2 * time.Second
+)
 
 // defaultVertexLocation targets Vertex AI's global Gemini endpoint. Preview
 // Gemini models can be unavailable in regional endpoints even when Cloud Run is
@@ -146,11 +169,19 @@ func LoadLLM() LLM {
 		}
 	}
 	return LLM{
-		GeminiModel:    get("GEMINI_MODEL", "gemini-3.5-flash"),
-		APIKey:         util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
-		LogPayload:     os.Getenv("LOG_LLM_PAYLOAD") == "true",
-		GCPProject:     project,
-		VertexLocation: location,
+		GeminiModel:                 get("GEMINI_MODEL", "gemini-3.5-flash"),
+		APIKey:                      util.FirstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+		LogPayload:                  os.Getenv("LOG_LLM_PAYLOAD") == "true",
+		GCPProject:                  project,
+		VertexLocation:              location,
+		Provider:                    LLMProvider(get("LLM_PROVIDER", string(LLMProviderGemini))),
+		RuntimeEnv:                  os.Getenv("ENV"),
+		DeploymentMode:              os.Getenv("DEPLOYMENT_MODE"),
+		LocalProviderEndpoint:       os.Getenv("LOCAL_PROVIDER_ENDPOINT"),
+		LocalProviderTokenFile:      os.Getenv("LOCAL_PROVIDER_TOKEN_FILE"),
+		LocalProviderRequestTimeout: getDurationSeconds("LOCAL_PROVIDER_REQUEST_TIMEOUT_SECONDS", defaultLocalProviderRequestTimeout),
+		LocalProviderCancelTimeout:  getDurationSeconds("LOCAL_PROVIDER_CANCEL_TIMEOUT_SECONDS", defaultLocalProviderCancelTimeout),
+		LocalProviderHealthTimeout:  getDurationSeconds("LOCAL_PROVIDER_HEALTH_TIMEOUT_SECONDS", defaultLocalProviderHealthTimeout),
 	}
 }
 
@@ -159,6 +190,62 @@ func LoadLLM() LLM {
 // location falls back to a constant so it is never the blocker.
 func (c LLM) Enabled() bool {
 	return c.GCPProject != "" || c.APIKey != ""
+}
+
+func (c LLM) UsesLocalProvider() bool {
+	return c.Provider == LLMProviderAntigravity || c.Provider == LLMProviderCodex
+}
+
+// ValidateProcessProvider enforces the local-provider deployment boundary.
+// ADK and embeddings remain Gemini-backed; this selector affects only direct
+// process-tool generation through llm.Client.
+func (c LLM) ValidateProcessProvider() error {
+	switch c.Provider {
+	case LLMProviderGemini:
+		return nil
+	case LLMProviderAntigravity, LLMProviderCodex:
+	default:
+		return fmt.Errorf("unsupported LLM_PROVIDER %q", c.Provider)
+	}
+
+	switch c.RuntimeEnv {
+	case "prod", "production", "stage", "staging":
+		return fmt.Errorf("LLM_PROVIDER %q is disabled in %s", c.Provider, c.RuntimeEnv)
+	}
+	if c.DeploymentMode != "self-hosted" {
+		return fmt.Errorf("LLM_PROVIDER %q requires DEPLOYMENT_MODE=self-hosted", c.Provider)
+	}
+	if strings.TrimSpace(c.LocalProviderTokenFile) == "" {
+		return fmt.Errorf("LOCAL_PROVIDER_TOKEN_FILE is required")
+	}
+	if err := validateLoopbackEndpoint(c.LocalProviderEndpoint); err != nil {
+		return fmt.Errorf("LOCAL_PROVIDER_ENDPOINT is invalid: %w", err)
+	}
+	if c.LocalProviderRequestTimeout <= 0 || c.LocalProviderCancelTimeout <= 0 || c.LocalProviderHealthTimeout <= 0 {
+		return fmt.Errorf("local provider timeouts must be positive")
+	}
+	return nil
+}
+
+func validateLoopbackEndpoint(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("must be an absolute URL")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("scheme must be http or https")
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") {
+		return fmt.Errorf("credentials, query, fragment, and path are not allowed")
+	}
+	host := u.Hostname()
+	if !strings.EqualFold(host, "localhost") {
+		ip := net.ParseIP(host)
+		if ip == nil || !ip.IsLoopback() {
+			return fmt.Errorf("host must be loopback")
+		}
+	}
+	return nil
 }
 
 // detectProjectFromMetadata reads project from the Cloud Run metadata server

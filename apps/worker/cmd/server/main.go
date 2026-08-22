@@ -45,10 +45,22 @@ func main() {
 	notifier := appCtx.Notifier
 	jobLogger := postgres.NewDBLogger(store)
 
-	adkModel, embedder := llm.Init(ctx, config.LoadLLM(), fs, appLogger, nrApp)
-	// One reporter feeds both metering paths: the llm.Client wrapper (embedding
-	// + custom-client calls) and the agent's after-model callback (ADK
-	// generation calls, which never cross the llm.Client surface).
+	llmCfg := config.LoadLLM()
+	adkModel, embedder := llm.Init(ctx, llmCfg, fs, appLogger, nrApp)
+	processClient, err := llm.InitProcessClient(
+		ctx,
+		llmCfg,
+		embedder,
+		nil,
+		appLogger,
+		observability.ConnectClientOptions(nrApp)...,
+	)
+	if err != nil {
+		log.Fatalf("worker.process_llm_provider_init_failed: %v", err)
+	}
+	// One reporter feeds Gemini process-tool calls and the agent's after-model
+	// callback (ADK generation never crosses the llm.Client surface). Local
+	// subscription-provider usage deliberately bypasses this billing reporter.
 	// In production/staging a missing API base URL or service token would
 	// silently drop every usage event and bill nothing, so fail fast instead.
 	// dev/local keep the lenient no-op path so they run without the billing API.
@@ -61,14 +73,14 @@ func main() {
 	} else {
 		reporter = metering.NewConnectReporter(cfg.APIBaseURL, cfg.InternalServiceToken, observability.ConnectClientOptions(nrApp)...)
 	}
-	llmClient := metering.NewLLMClient(embedder, reporter, appLogger)
+	llmClient := processClientForBilling(llmCfg, processClient, reporter, appLogger)
 
 	workerService, err := worker.NewWorkerWithNotifier(store, store, notifier, adkModel, embedder, llmClient, reporter, fs, appLogger, nrApp, cfg.AgentBudget())
 	if err != nil {
 		log.Fatal(err)
 	}
 	planner := worker.NewPlanner(store, adkModel, appLogger)
-	evaluator := worker.NewJobEvaluator(store, embedder, appLogger)
+	evaluator := worker.NewJobEvaluator(store, processClient, appLogger)
 	var processor interface {
 		Process(context.Context, worker.ExecutePlanRequest) error
 	} = workerService
@@ -101,6 +113,14 @@ func main() {
 	if err := http.ListenAndServe(addr, h); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func processClientForBilling(cfg config.LLM, client llm.Client, reporter llm.UsageReporter, logger *slog.Logger) llm.Client {
+	if cfg.UsesLocalProvider() {
+		logger.Info("worker.local_provider_billing_disabled", "provider", cfg.Provider)
+		return client
+	}
+	return metering.NewLLMClient(client, reporter, logger)
 }
 
 type readinessChecker interface {

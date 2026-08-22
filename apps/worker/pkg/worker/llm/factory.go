@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	connect "connectrpc.com/connect"
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
@@ -41,6 +42,26 @@ func Init(ctx context.Context, cfg config.LLM, fs *storage.FileSystem, logger *s
 	}
 
 	return adkModel, embedder
+}
+
+// InitProcessClient selects the direct process-tool generation client. ADK and
+// embeddings remain on the Gemini clients initialized by Init.
+func InitProcessClient(ctx context.Context, cfg config.LLM, geminiClient *GeminiClient, httpClient connect.HTTPClient, logger *slog.Logger, opts ...connect.ClientOption) (Client, error) {
+	if err := cfg.ValidateProcessProvider(); err != nil {
+		return nil, err
+	}
+	if !cfg.UsesLocalProvider() {
+		return geminiClient, nil
+	}
+	client, err := NewLocalProviderClient(ctx, cfg, httpClient, opts...)
+	if err != nil {
+		return nil, err
+	}
+	logger.Info("worker.process_llm_provider_initialized",
+		"provider", cfg.Provider,
+		"model", client.Capabilities().DefaultModelID,
+	)
+	return client, nil
 }
 
 // buildClientConfig selects the Vertex AI backend. Project and location may be
