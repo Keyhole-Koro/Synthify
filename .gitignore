@@ -2,6 +2,8 @@
 .codex
 .claude
 node_modules/
+__pycache__/
+*.py[cod]
 
 firebase-debug.log
 firestore-debug.log

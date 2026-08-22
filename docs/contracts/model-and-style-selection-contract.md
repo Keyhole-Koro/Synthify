@@ -182,7 +182,8 @@ LLM の遵守ではなく既存の `JobCapability` / tool schema / workspace aut
 Worker ↔ local provider は handwritten REST/JSON ではなく **Protobuf + Buf + ConnectRPC** を使う。
 source of truth は `contracts/connectrpc/synthify/localprovider/v1/provider.proto` とし、同じ proto から
 Go client と Python server stub を生成する。field 制約は Protovalidate annotation に置き、Go/Python で
-別々の validator を保守しない。
+別々の validator を保守しない。Python は Connect generator の `protobuf=google` mode を使い、
+Protovalidate Python と同じ Google protobuf message を検証対象にする。
 
 API は provider endpoint/token を持たず、既存の `WorkerService` に additive に追加する
 `GetLocalProviderCapabilities` RPC を通して Worker へ問い合わせる。これにより provider の到達性・
@@ -284,6 +285,8 @@ message LocalProviderErrorDetail {
     REASON_INTERNAL = 5;
   }
   Reason reason = 1;
+  bool turn_started = 2;
+  int64 retry_after_ms = 3;
 }
 ```
 
@@ -316,8 +319,8 @@ Protovalidate の length、item count、byte-size 制約を追加する。
   最大 request/response size、capabilities cache TTL、各 RPC deadline は設定上限を持つ。
 - generation RPC は非 idempotent とする。connection reset / `deadline_exceeded` / `unavailable` は provider が
   turn を開始済みか判定できないため、transport や `RetryingClient` が自動再送してはならない。
-  `rate_limited` の明示 detail を受け、provider が turn 未開始を保証できる場合だけ bounded backoff retry を
-  許す。quota/auth/invalid-output は retry しない。
+  `rate_limited` の明示 detail で `turn_started=false` の場合だけ、`retry_after_ms` を 60 秒以下に clamp した
+  bounded backoff retry を許す。quota/auth/invalid-output は retry しない。
 - `SourceFile.relative_path` は absolute path、`..`、symlink escape を拒否し、provider が許可された job
   root 配下の canonical path に限定する。Phase 3 で Worker と daemon の両方から同じ relative path が
   見える明示的な shared job-directory volume/bind mount を追加するまでは、`source_files` を拒否する。
