@@ -23,7 +23,7 @@ type API struct {
 	WorkerBaseURL            string
 	WorkerDispatch           WorkerDispatch
 	Auth                     Auth
-	Stripe                   Stripe
+	Stripe                   *Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
 	Chat                     Chat
@@ -95,11 +95,31 @@ type Store struct {
 	DBMaxIdleConns int
 }
 
+func loadStripeConfig(env string) *Stripe {
+	secret := os.Getenv("STRIPE_SECRET_KEY")
+	if env == "local" && secret == "" {
+		return nil
+	}
+	return &Stripe{
+		SecretKey:        secret,
+		WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
+		ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
+		DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
+		MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
+		MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
+		APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
+		APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
+	}
+}
+
 func LoadAPI() API {
 	uploadBase := mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443"))
+	env := get("ENV", "production")
+
 	return API{
 		Port:                     get("PORT", "8080"),
-		Env:                      get("ENV", "production"),
+		Env:                      env,
 		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
 		ReadinessMonitorKey:      os.Getenv("SYNTHIFY_READINESS_MONITOR_KEY"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000"),
@@ -121,17 +141,7 @@ func LoadAPI() API {
 			AdminEmailsCSV:   os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"),
 			AllowedEmailsCSV: os.Getenv("SYNTHIFY_ALLOWED_USER_EMAILS"),
 		},
-		Stripe: Stripe{
-			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
-			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
-			ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
-			ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
-			DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
-			MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
-			MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
-			APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
-			APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
-		},
+		Stripe: loadStripeConfig(env),
 		Billing: Billing{
 			SuccessURL:      get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
 			CancelURL:       get("BILLING_CANCEL_URL", "http://localhost:3000/workspaces?billing=cancel"),

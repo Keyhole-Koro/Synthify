@@ -55,23 +55,27 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	sourceURLBuilder := NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 	imageURLIssuer := NewDocumentImageURLIssuer(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
-	stripeProvider, err := stripe.NewProvider(stripe.Config{
-		SecretKey:        cfg.Stripe.SecretKey,
-		WebhookSecret:    cfg.Stripe.WebhookSecret,
-		ProPriceIDJPY:    cfg.Stripe.ProPriceIDJPY,
-		ProPriceIDUSD:    cfg.Stripe.ProPriceIDUSD,
-		DefaultCurrency:  cfg.Stripe.DefaultCurrency,
-		SuccessURL:       cfg.Billing.SuccessURL,
-		CancelURL:        cfg.Billing.CancelURL,
-		PortalReturnURL:  cfg.Billing.PortalReturnURL,
-		APIBase:          cfg.Stripe.APIBase,
-		APIVersion:       cfg.Stripe.APIVersion,
-		MeterInputEvent:  cfg.Stripe.MeterInputEvent,
-		MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
-	})
-	if err != nil {
-		_ = closeDispatcher()
-		return nil, fmt.Errorf("stripe provider init: %w", err)
+	var stripeProvider application.BillingProvider
+	if cfg.Stripe != nil {
+		sp, err := stripe.NewProvider(stripe.Config{
+			SecretKey:        cfg.Stripe.SecretKey,
+			WebhookSecret:    cfg.Stripe.WebhookSecret,
+			ProPriceIDJPY:    cfg.Stripe.ProPriceIDJPY,
+			ProPriceIDUSD:    cfg.Stripe.ProPriceIDUSD,
+			DefaultCurrency:  cfg.Stripe.DefaultCurrency,
+			SuccessURL:       cfg.Billing.SuccessURL,
+			CancelURL:        cfg.Billing.CancelURL,
+			PortalReturnURL:  cfg.Billing.PortalReturnURL,
+			APIBase:          cfg.Stripe.APIBase,
+			APIVersion:       cfg.Stripe.APIVersion,
+			MeterInputEvent:  cfg.Stripe.MeterInputEvent,
+			MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
+		})
+		if err != nil {
+			_ = closeDispatcher()
+			return nil, fmt.Errorf("stripe provider init: %w", err)
+		}
+		stripeProvider = sp
 	}
 
 	billingSvc, err := application.NewBillingService(application.BillingServiceDeps{
