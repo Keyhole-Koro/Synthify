@@ -52,6 +52,7 @@ type Store interface {
 	repository.CheckpointRepository
 	repository.JobLogWriter
 	repository.DynamicToolRepository
+	repository.WorkspaceChatRepository
 	repository.Transactor
 }
 

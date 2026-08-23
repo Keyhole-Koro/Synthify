@@ -26,6 +26,17 @@ type API struct {
 	Stripe                   Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+	Chat                     Chat
+}
+
+// Chat configures the grounded-answer client for workspace chat. When no key
+// and no Vertex project are set, bootstrap falls back to a non-model extractive
+// answerer outside production and fails startup inside it.
+type Chat struct {
+	GeminiAPIKey   string
+	GeminiModel    string
+	VertexProject  string
+	VertexLocation string
 }
 
 // WorkerDispatch controls how the API hands jobs to the worker. When
@@ -130,7 +141,28 @@ func LoadAPI() API {
 			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-api")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
+		Chat: Chat{
+			// Same env vars the worker reads, so a deployment configures the
+			// model once rather than separately per service.
+			GeminiAPIKey: firstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+			GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
+			VertexProject: firstNonEmpty(
+				os.Getenv("GCP_PROJECT"),
+				os.Getenv("GOOGLE_CLOUD_PROJECT"),
+				os.Getenv("GCP_PROJECT_ID"),
+			),
+			VertexLocation: get("VERTEX_LOCATION", "global"),
+		},
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func LoadStore() Store {
