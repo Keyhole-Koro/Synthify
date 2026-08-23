@@ -374,6 +374,36 @@ type Workspace struct {
 	DeletedAt   sql.NullTime
 }
 
+type WorkspaceChatConversation struct {
+	ConversationID string
+	WorkspaceID    string
+	CreatedBy      string
+	Title          string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type WorkspaceChatMessage struct {
+	MessageID             string
+	ConversationID        string
+	Role                  string
+	Content               string
+	ModelSelection        string
+	Status                string
+	ErrorCode             string
+	RetrievalSnapshotJson json.RawMessage
+	CreatedAt             time.Time
+}
+
+type WorkspaceChatMessageSource struct {
+	MessageID  string
+	Ordinal    int32
+	DocumentID string
+	ChunkID    string
+	ItemID     string
+	Label      string
+}
+
 type WorkspaceMember struct {
 	WorkspaceID string
 	UserID      string
