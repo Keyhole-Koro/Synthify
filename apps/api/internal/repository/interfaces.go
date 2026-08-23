@@ -62,6 +62,7 @@ type Repositories interface {
 	UsageRepository
 	CheckpointRepository
 	DynamicToolRepository
+	WorkspaceChatRepository
 }
 
 // Transactor は service 層から tx 境界を制御するためのインターフェース。
@@ -210,6 +211,30 @@ type ItemRepository interface {
 	UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error
 	ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
+}
+
+// WorkspaceChatRepository は workspace chat の永続化と、引用候補の取得を担う。
+// 意図的に read + chat 行の write しか持たない: chat が tree / document を
+// 変更する経路を型レベルで塞ぐため、mutation 系メソッドをここに足さないこと
+// (設計 docs/architecture/workspace-chat-design.md §2, §7)。
+type WorkspaceChatRepository interface {
+	CreateChatConversation(ctx context.Context, workspaceID, createdBy, title string) (*domain.ChatConversation, error)
+	GetChatConversation(ctx context.Context, conversationID string) (*domain.ChatConversation, error)
+	ListChatConversations(ctx context.Context, workspaceID string, limit int) ([]*domain.ChatConversation, error)
+	TouchChatConversation(ctx context.Context, conversationID string) error
+
+	// CreateChatMessage は message 行と、その sources を書き込む。sources は
+	// サーバーが検証済みの候補のみを渡すこと。atomic 性が必要なら呼び出し側を
+	// Transactor.WithTx で包む。
+	CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, retrievalSnapshot []byte) (*domain.ChatMessage, error)
+	ListChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error)
+	// ListRecentChatMessages は prompt 履歴用に最新 N 件を時系列順で返す。
+	ListRecentChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error)
+
+	// SearchChatSourceCandidates は引用候補を返す。必ず workspace_id で
+	// スコープし、処理が succeeded した document のみを対象にする。
+	SearchChatSourceCandidates(ctx context.Context, workspaceID, queryText string, limit int) ([]domain.ChatSourceCandidate, error)
+	CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error)
 }
 
 type UsageRepository interface {

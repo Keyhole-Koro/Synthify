@@ -52,6 +52,11 @@ type Store struct {
 	uploadURLIssuer repository.DocumentUploadURLIssuer
 	dynamicTools    []*domain.DynamicTool // insertion-ordered; ToolID is the identity
 	dynamicToolSeq  int
+
+	chatConversations map[string]*domain.ChatConversation
+	chatMessages      map[string][]*domain.ChatMessage // conversationID -> messages (insertion order)
+	chatSeq           int
+	chatClock         int
 }
 
 type mockInvoice struct {
@@ -100,6 +105,9 @@ func NewStore() *Store {
 		pricing:         make(map[string]domain.ModelPricing),
 		dailyCosts:      make(map[string]int64),
 		uploadURLIssuer: mockUploadURLIssuer{},
+
+		chatConversations: make(map[string]*domain.ChatConversation),
+		chatMessages:      make(map[string][]*domain.ChatMessage),
 	}
 }
 
