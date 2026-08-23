@@ -18,25 +18,28 @@ OAuth session is the supported path to an individual's Antigravity entitlement.
 The daemon cannot inspect the overage preference, so it fails closed on reported
 quota errors but cannot prove that the account-level setting is `Never`.
 
-## Run
+## Configure and run
 
 ```bash
 python -m pip install ./apps/local-provider
-chmod 600 /path/to/provider-token
 synthify-local-provider \
-  --token-file /path/to/provider-token \
+  --configure-worker-env .env \
   --default-model gemini-3.7-flash-medium
 ```
 
-The service binds to `127.0.0.1:7777` by default and rejects non-loopback bind
-addresses. Configure the Worker with the same token file and endpoint:
+This command creates or reuses an owner-only token under the current user's local
+state directory, updates only the local-provider keys in `.env`, then starts the
+daemon. Compose mounts that directory read-only into the Worker, so the token is
+not exposed through the repository bind mount or to the other services. Restart
+the Worker after setup:
 
-```dotenv
-DEPLOYMENT_MODE=self-hosted
-LLM_PROVIDER=antigravity
-LOCAL_PROVIDER_ENDPOINT=http://127.0.0.1:7777
-LOCAL_PROVIDER_TOKEN_FILE=/path/to/provider-token
+```bash
+docker compose up -d --force-recreate worker
 ```
+
+The service binds to `127.0.0.1:7777` by default and rejects non-loopback bind
+addresses. Use `--token-file` and `--worker-token-file` to choose non-default
+host and container token paths.
 
 Each generation runs in a new empty temporary directory. Prompts travel to
 `agy` through its NDJSON stdin protocol and are never placed in process

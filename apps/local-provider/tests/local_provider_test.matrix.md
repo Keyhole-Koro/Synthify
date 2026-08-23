@@ -15,6 +15,7 @@ quota を消費しない。
 | Lifecycle | explicit cancel、timeout、malformed stream cleanup、process group stop | OK (POSIX) | Windows process-tree cleanup |
 | Resource bound | 最大同時 generation、stdout/request size、bounded timeout | PARTIAL | 境界値、stderr 無限出力 |
 | Token file | regular file、symlink 拒否、owner-only mode、長さ/ASCII、path/token 非公開 | OK (POSIX) | Windows ACL |
+| Self-hosted bootstrap | token 作成/reuse、`.env` の local-provider keys のみ upsert、container path 検証 | OK | 実 Compose restart smoke |
 | ConnectRPC application | bearer auth、Protovalidate、全 unary RPC、typed detail、request task cancel、watchdog | PARTIAL | disconnect 後の実 TCP watchdog |
 | Packaging | pinned runtime dependencies、console entry point | PARTIAL | supported OS ごとの wheel/entrypoint smoke |
 

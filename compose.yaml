@@ -150,6 +150,13 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       GEMINI_CACHE_ENABLED: "true"
       GEMINI_CACHE_DIR: /workspace/.gemini-cache
+      DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LOCAL_PROVIDER_ENDPOINT: ${LOCAL_PROVIDER_ENDPOINT:-}
+      LOCAL_PROVIDER_TOKEN_FILE: ${LOCAL_PROVIDER_TOKEN_FILE:-}
+      LOCAL_PROVIDER_REQUEST_TIMEOUT_SECONDS: ${LOCAL_PROVIDER_REQUEST_TIMEOUT_SECONDS:-120}
+      LOCAL_PROVIDER_CANCEL_TIMEOUT_SECONDS: ${LOCAL_PROVIDER_CANCEL_TIMEOUT_SECONDS:-2}
+      LOCAL_PROVIDER_HEALTH_TIMEOUT_SECONDS: ${LOCAL_PROVIDER_HEALTH_TIMEOUT_SECONDS:-2}
       NEW_RELIC_LICENSE_KEY: ${NEW_RELIC_LICENSE_KEY:-}
       NEW_RELIC_APP_NAME: ${NEW_RELIC_WORKER_APP_NAME:-synthify-worker-local}
       GCS_FUSE_MOUNT_PATH: /mnt/gcs/synthify-uploads
@@ -166,6 +173,7 @@ services:
       - go-pkg-cache:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
       - gemini-cache:/workspace/.gemini-cache
+      - ${LOCAL_PROVIDER_TOKEN_HOST_DIR:-./.synthify/local-provider}:/run/synthify-local-provider:ro,Z
     depends_on:
       postgres:
         condition: service_healthy

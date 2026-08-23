@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import os
+import stat
 import tempfile
 import unittest
 from pathlib import Path
 
-from synthify.localprovider.cli import _read_token
+from synthify.localprovider.cli import _configure_worker_environment, _read_token
 
 
 class ReadTokenTest(unittest.TestCase):
@@ -61,6 +62,50 @@ class ReadTokenTest(unittest.TestCase):
         message = str(raised.exception)
         self.assertNotIn(secret, message)
         self.assertNotIn(str(self.directory), message)
+
+    def test_configure_worker_environment_creates_token_and_upserts_keys(self) -> None:
+        environment_file = self.directory / ".env"
+        environment_file.write_text("GEMINI_MODEL=keep\nLLM_PROVIDER=gemini\n")
+        environment_file.chmod(0o600)
+        token_file = self.directory / "state" / "local-provider" / "token"
+
+        _configure_worker_environment(
+            environment_file,
+            token_file,
+            endpoint="http://127.0.0.1:7777",
+            worker_token_file="/run/synthify-local-provider/token",
+        )
+
+        contents = environment_file.read_text()
+        self.assertIn("GEMINI_MODEL=keep\n", contents)
+        self.assertEqual(contents.count("LLM_PROVIDER="), 1)
+        self.assertIn("DEPLOYMENT_MODE=self-hosted\n", contents)
+        self.assertIn("LLM_PROVIDER=antigravity\n", contents)
+        self.assertIn("LOCAL_PROVIDER_ENDPOINT=http://127.0.0.1:7777\n", contents)
+        self.assertIn(
+            "LOCAL_PROVIDER_TOKEN_FILE=/run/synthify-local-provider/token\n",
+            contents,
+        )
+        self.assertIn(f"LOCAL_PROVIDER_TOKEN_HOST_DIR={token_file.parent}\n", contents)
+        self.assertEqual(len(_read_token(str(token_file))), 43)
+        self.assertEqual(stat.S_IMODE(token_file.stat().st_mode), 0o600)
+
+        _configure_worker_environment(
+            environment_file,
+            token_file,
+            endpoint="http://127.0.0.1:7777",
+            worker_token_file="/run/synthify-local-provider/token",
+        )
+        self.assertEqual(contents, environment_file.read_text())
+
+    def test_configure_worker_environment_rejects_unsafe_container_path(self) -> None:
+        with self.assertRaisesRegex(ValueError, "absolute path"):
+            _configure_worker_environment(
+                self.directory / ".env",
+                self.directory / "state" / "token",
+                endpoint="http://127.0.0.1:7777",
+                worker_token_file="relative token",
+            )
 
 
 if __name__ == "__main__":
