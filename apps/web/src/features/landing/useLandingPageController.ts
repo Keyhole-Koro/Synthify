@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { create } from '@bufbuild/protobuf';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
-import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { WorkspaceSchema } from '@/gen/proto/synthify/app/v1/workspace_pb';
 import { useAuthState } from '@/features/auth/useAuthState';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
@@ -15,7 +14,6 @@ import { useViewportSize } from '@/features/landing/useViewportSize';
 import { useWorkspaceRuntimeState } from './useWorkspaceRuntimeState';
 import { useWorkspaceCRUD } from './useWorkspaceCRUD';
 import { useRootUpload } from './useRootUpload';
-import { db } from '@/lib/firebase';
 
 declare global {
   interface Window {
@@ -206,6 +204,8 @@ export function useLandingPageController() {
         // it abort the (more useful) paperMap / projection report.
         let latestJobs: FirestoreJobStatus[] = [];
         try {
+          const { collection, getDocs, limit, orderBy, query } = await import('firebase/firestore');
+          const { db } = await import('@/lib/firebase');
           const latestJobsSnap = await getDocs(query(
             collection(db, 'workspaces', workspaceId, 'jobs'),
             orderBy('updatedAt', 'desc'),
