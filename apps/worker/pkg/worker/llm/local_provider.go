@@ -288,11 +288,22 @@ func readLocalProviderToken(path string) (string, error) {
 		return "", fmt.Errorf("read local provider token file: unavailable")
 	}
 	defer file.Close()
+	openedInfo, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("read local provider token file: unavailable")
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		return "", fmt.Errorf("read local provider token file: changed while being opened")
+	}
+	if openedInfo.Mode().Perm()&0o077 != 0 {
+		return "", fmt.Errorf("read local provider token file: permissions must be owner-only")
+	}
 	contents, err := io.ReadAll(io.LimitReader(file, localProviderMaxTokenBytes+1))
 	if err != nil {
 		return "", fmt.Errorf("read local provider token file: unavailable")
 	}
-	token := strings.TrimSpace(string(contents))
+	token := strings.TrimSuffix(string(contents), "\n")
+	token = strings.TrimSuffix(token, "\r")
 	if len(token) < 32 || len(token) > localProviderMaxTokenBytes {
 		return "", fmt.Errorf("read local provider token file: token must contain 32 to %d bytes", localProviderMaxTokenBytes)
 	}

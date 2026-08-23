@@ -37,12 +37,16 @@ def _read_token(path: str) -> str:
             raise ValueError("token file permissions must be owner-only")
         with os.fdopen(descriptor, "rb") as token_file:
             descriptor = -1
-            token = token_file.read(4097).decode("ascii").strip()
+            token = token_file.read(4097).decode("ascii")
     except (OSError, UnicodeError) as error:
         raise ValueError("token file is unavailable") from error
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+    if token.endswith("\n"):
+        token = token[:-1]
+        if token.endswith("\r"):
+            token = token[:-1]
     if (
         len(token) < 32
         or len(token) > 4096

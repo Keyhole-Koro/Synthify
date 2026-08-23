@@ -349,7 +349,8 @@ func TestLocalProviderClientValidatesTextBeforeRPC(t *testing.T) {
 }
 
 func TestReadLocalProviderTokenRequiresOwnerOnlyFile(t *testing.T) {
-	path := t.TempDir() + "/provider-token"
+	directory := t.TempDir()
+	path := directory + "/provider-token"
 	require.NoError(t, os.WriteFile(path, []byte(strings.Repeat("a", 32)), 0o644))
 	_, err := readLocalProviderToken(path)
 	require.ErrorContains(t, err, "owner-only")
@@ -359,6 +360,35 @@ func TestReadLocalProviderTokenRequiresOwnerOnlyFile(t *testing.T) {
 	token, err := readLocalProviderToken(path)
 	require.NoError(t, err)
 	require.Equal(t, strings.Repeat("a", 32), token)
+
+	link := directory + "/provider-token-link"
+	require.NoError(t, os.Symlink(path, link))
+	_, err = readLocalProviderToken(link)
+	require.ErrorContains(t, err, "non-symlink")
+	require.NotContains(t, err.Error(), link)
+}
+
+func TestReadLocalProviderTokenRejectsInvalidContents(t *testing.T) {
+	tests := []struct {
+		name     string
+		contents string
+	}{
+		{name: "short", contents: "short"},
+		{name: "too large", contents: strings.Repeat("a", localProviderMaxTokenBytes+1)},
+		{name: "non ASCII", contents: strings.Repeat("a", 32) + "é"},
+		{name: "leading space", contents: " " + strings.Repeat("a", 32)},
+		{name: "multiple newlines", contents: strings.Repeat("a", 32) + "\n\n"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			path := t.TempDir() + "/provider-token"
+			require.NoError(t, os.WriteFile(path, []byte(test.contents), 0o600))
+			_, err := readLocalProviderToken(path)
+			require.Error(t, err)
+			require.NotContains(t, err.Error(), path)
+			require.NotContains(t, err.Error(), test.contents)
+		})
+	}
 }
 
 func TestValidateLocalProviderCapabilitiesFailsClosed(t *testing.T) {

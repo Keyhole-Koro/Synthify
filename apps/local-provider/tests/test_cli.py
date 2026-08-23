@@ -38,7 +38,14 @@ class ReadTokenTest(unittest.TestCase):
             _read_token(str(link))
 
     def test_rejects_invalid_lengths_and_non_ascii(self) -> None:
-        for index, content in enumerate((b"short", b"a" * 4097, "é".encode())):
+        invalid_contents = (
+            b"short",
+            b"a" * 4097,
+            "é".encode(),
+            b" " + b"a" * 32,
+            b"a" * 32 + b"\n\n",
+        )
+        for index, content in enumerate(invalid_contents):
             with self.subTest(content_length=len(content)):
                 path = self.directory / f"invalid-{index}"
                 path.write_bytes(content)

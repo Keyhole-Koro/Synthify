@@ -14,7 +14,7 @@ generated Go client ↔ Python fake server の実 TCP gate、後続の live-prov
 | `Capabilities` | ◐ generation test setup と semantic helper test | PARTIAL | defensive copy の変更耐性、refresh |
 | `LocalProviderError.RetryablePreTurnRateLimit` | ✅ typed rate-limit detail | PARTIAL | `turn_started=true`、別code/reason の全組み合わせ |
 | `InitProcessClient` | ✅ Gemini identity、production fail-closed | PARTIAL | local success は constructor tests で間接確認 |
-| token file reader | ✅ `0600` / `0644` | PARTIAL | symlink、短いtoken、巨大file、Windows ACL |
+| token file reader | ✅ `0600` / `0644`、symlink、短いtoken、巨大file、文字制約 | OK (POSIX) | Windows ACL |
 
 ## 依存エラー軸
 
@@ -36,7 +36,7 @@ generated Go client ↔ Python fake server の実 TCP gate、後続の live-prov
 | `TestLocalProviderClientDoesNotRetryGeneration` | typed rate-limit detail をdecodeし raw provider message を隠す | generation call は1回のみ | OK |
 | `TestLocalProviderClientRejectsSourceFilesBeforeRPC` | shared job volume 前は source files を拒否 | generation call 0回 | OK |
 | `TestLocalProviderClientValidatesTextBeforeRPC` | Protovalidate 境界違反を client 側で拒否 | generation call 0回 | OK |
-| `TestReadLocalProviderTokenRequiresOwnerOnlyFile` | token file の owner-only permission | token/path をerrorへ出さない | PARTIAL |
+| `TestReadLocalProviderTokenRequiresOwnerOnlyFile` / `RejectsInvalidContents` | regular non-symlink、open 前後の同一file、owner-only permission、bounded token | token/path をerrorへ出さない | OK (POSIX) |
 | `TestValidateLocalProviderCapabilitiesFailsClosed` | default/model prefix/duplicate/structured support の semantic gate | invalid capabilities をcacheしない | OK |
 | `TestInitProcessClientGeminiKeepsExistingClient` | default Gemini path の identity を維持 | 新RPCなし | OK |
 | `TestInitProcessClientLocalFailsClosedInProduction` | production local-provider 設定を startup 前に拒否 | token file / networkへ到達しない | OK |
