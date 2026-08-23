@@ -23,7 +23,8 @@ quota を消費しない。
 - Every PR: Python unit suite、Ruff、generated Go client ↔ production Python ASGI application の実 TCP test。
 - Affected PR / pre-release: Go race suite、`buf lint/build/generate/breaking`、clean generated diff。
 - Local-provider release: supported OS ごとの package install/start/check/cancel/cleanup smoke。
-- Manual only: authenticated `agy` text/structured generation、overage `Never`、auth expiry、rate limit、
-  CLI internal retry trace。個人 credential と subscription quota を PR CI に持ち込まない。
+- Manual only: opt-in `test_live_antigravity.py` による authenticated `agy` text/structured generation、
+  overage `Never`、auth expiry、rate limit、CLI internal retry trace。個人 credential と subscription quota を
+  PR CI に持ち込まない。
 - Windows 対応を宣言するまでは Windows ACL と process-tree cleanup の GAP を許容するが、Windows artifact
   を配布しない。実 CLI error mapping と internal retry の GAP が残る間は local PoC flag の外へ出さない。

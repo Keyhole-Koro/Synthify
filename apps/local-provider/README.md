@@ -56,4 +56,13 @@ SYNTHIFY_LOCAL_PROVIDER_PYTHON=python go test ./apps/worker/pkg/worker/llm
 ```
 
 An authenticated live smoke test is intentionally a separate manual release
-gate.
+gate. It performs two real generation turns and therefore must be enabled
+explicitly after confirming that AI Credit Overages is `Never`:
+
+```bash
+SYNTHIFY_LOCAL_PROVIDER_LIVE=1 \
+SYNTHIFY_LOCAL_PROVIDER_LIVE_MODEL=gemini-3.7-flash-medium \
+python -m unittest apps/local-provider/tests/test_live_antigravity.py -v
+```
+
+Set `SYNTHIFY_LOCAL_PROVIDER_AGY_PATH` as well when `agy` is not on `PATH`.
