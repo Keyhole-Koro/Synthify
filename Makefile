@@ -1,4 +1,4 @@
-.PHONY: proto-lint proto-build proto-generate proto-generate-local-provider proto-format \
+.PHONY: proto-lint proto-build proto-generate proto-generate-local-provider proto-check proto-format \
 	infra-stage-up infra-stage-down infra-stage-plan db-stage-reset \
 	infra-prod-up infra-prod-down infra-prod-plan db-prod-reset \
 	tfstate-stage tfstate-prod \
@@ -16,6 +16,9 @@ proto-generate:
 
 proto-generate-local-provider:
 	buf generate --template buf.gen.local-provider.yaml
+
+proto-check: proto-lint proto-build proto-generate proto-generate-local-provider
+	git diff --exit-code -- internal/gen apps/web/src/gen apps/local-provider/src
 
 proto-format:
 	buf format -w

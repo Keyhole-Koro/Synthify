@@ -47,6 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -57,6 +59,22 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+
+      - uses: bufbuild/buf-action@v1
+        with:
+          version: "1.72.0"
+          setup_only: true
+
+      - name: Protobuf contract checks
+        run: |
+          buf lint
+          buf build
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            buf breaking --against ".git#commit=${{ github.event.pull_request.base.sha }}"
+          fi
+          buf generate
+          buf generate --template buf.gen.local-provider.yaml
+          git diff --exit-code -- internal/gen apps/web/src/gen apps/local-provider/src
 
       - name: install local provider contract runtime
         run: python -m pip install ./apps/local-provider
