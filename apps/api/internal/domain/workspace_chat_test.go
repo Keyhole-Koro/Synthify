@@ -79,3 +79,65 @@ func TestChatSourceCandidateLabel(t *testing.T) {
 		})
 	}
 }
+
+func TestChatSearchTerms(t *testing.T) {
+	tests := []struct {
+		name        string
+		question    string
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			// 本来の狙い: 空白の無い日本語の質問から意味のある語を取り出す。
+			name:        "japanese question yields substrings",
+			question:    "ワークスペースの権限について教えて",
+			wantContain: []string{"権限"},
+		},
+		{
+			name:        "ascii words survive whole",
+			question:    "what is the knowledge tree",
+			wantContain: []string{"what", "knowledge", "tree"},
+		},
+		{
+			name:       "single characters are dropped",
+			question:   "a b c",
+			wantAbsent: []string{"a", "b", "c"},
+		},
+		{
+			name:        "punctuation splits terms",
+			question:    "結論は？",
+			wantContain: []string{"結論"},
+			wantAbsent:  []string{"結論は？"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			terms := ChatSearchTerms(tt.question)
+			for _, want := range tt.wantContain {
+				assert.Contains(t, terms, want)
+			}
+			for _, absent := range tt.wantAbsent {
+				assert.NotContains(t, terms, absent)
+			}
+		})
+	}
+}
+
+func TestChatSearchTerms_IsBounded(t *testing.T) {
+	terms := ChatSearchTerms(strings.Repeat("あいうえお", 100))
+	assert.LessOrEqual(t, len(terms), chatSearchMaxTerms, "term count must stay bounded")
+}
+
+// 区切り文字を含む語を作ってしまうと SQL 側で誤って分割される。
+func TestChatSearchTerms_NeverEmitsTheSeparator(t *testing.T) {
+	terms := ChatSearchTerms("結論" + ChatSearchTermSeparator + "です")
+	for _, term := range terms {
+		assert.NotContains(t, term, ChatSearchTermSeparator)
+	}
+}
+
+func TestChatSearchTerms_EmptyQuestion(t *testing.T) {
+	assert.Empty(t, ChatSearchTerms(""))
+	assert.Empty(t, ChatSearchTerms("   "))
+}

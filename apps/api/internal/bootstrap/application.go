@@ -114,7 +114,15 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
 	userSvc := application.NewUserService(application.UserServiceDeps{Users: store, Accounts: store, Billing: billingSvc, Logger: logger})
 	treeSvc := application.NewTreeService(application.TreeServiceDeps{Tree: store, Workspaces: store, Logger: logger})
-	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{Accounts: store, Workspaces: store, Tree: store, Items: store})
+	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Tree:       store,
+		Items:      store,
+		Documents:  store,
+		Chunks:     store,
+		Jobs:       store,
+	})
 
 	chatAnswerer, err := newChatAnswerer(ctx, cfg, logger)
 	if err != nil {
@@ -290,27 +298,40 @@ func requiresBilling(env string) bool {
 func newChatAnswerer(ctx context.Context, cfg config.API, logger *slog.Logger) (application.ChatAnswerer, error) {
 	modelConfigured := cfg.Chat.GeminiAPIKey != "" || cfg.Chat.VertexProject != ""
 
-	if !modelConfigured {
+	if modelConfigured {
+		answerer, err := apichat.NewGeminiAnswerer(ctx, apichat.GeminiAnswererConfig{
+			APIKey:   cfg.Chat.GeminiAPIKey,
+			Project:  cfg.Chat.VertexProject,
+			Location: cfg.Chat.VertexLocation,
+			Model:    cfg.Chat.GeminiModel,
+		})
+		if err == nil {
+			logger.Info("chat.answerer_gemini", "model", cfg.Chat.GeminiModel)
+			return answerer, nil
+		}
+		// A configured project is not the same as usable credentials. The local
+		// compose stack sets GCP_PROJECT_ID=synthify-local as a placeholder, so
+		// the Vertex backend gets picked and then fails looking up ADC. Outside
+		// production that must not stop the API from booting.
 		if requiresBilling(cfg.Env) {
-			return nil, fmt.Errorf("workspace chat needs GEMINI_API_KEY (or GOOGLE_API_KEY / GCP_PROJECT) in %s", cfg.Env)
+			return nil, err
 		}
 		logger.Warn("chat.answerer_extractive",
 			"env", cfg.Env,
-			"reason", "no GEMINI_API_KEY / GOOGLE_API_KEY / GCP_PROJECT configured",
+			"reason", "gemini client init failed",
+			"error", err.Error(),
 			"effect", "chat quotes retrieved chunks instead of generating an answer",
 		)
 		return apichat.NewExtractiveAnswerer(), nil
 	}
 
-	answerer, err := apichat.NewGeminiAnswerer(ctx, apichat.GeminiAnswererConfig{
-		APIKey:   cfg.Chat.GeminiAPIKey,
-		Project:  cfg.Chat.VertexProject,
-		Location: cfg.Chat.VertexLocation,
-		Model:    cfg.Chat.GeminiModel,
-	})
-	if err != nil {
-		return nil, err
+	if requiresBilling(cfg.Env) {
+		return nil, fmt.Errorf("workspace chat needs GEMINI_API_KEY (or GOOGLE_API_KEY / GCP_PROJECT) in %s", cfg.Env)
 	}
-	logger.Info("chat.answerer_gemini", "model", cfg.Chat.GeminiModel)
-	return answerer, nil
+	logger.Warn("chat.answerer_extractive",
+		"env", cfg.Env,
+		"reason", "no GEMINI_API_KEY / GOOGLE_API_KEY / GCP_PROJECT configured",
+		"effect", "chat quotes retrieved chunks instead of generating an answer",
+	)
+	return apichat.NewExtractiveAnswerer(), nil
 }

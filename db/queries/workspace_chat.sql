@@ -85,10 +85,27 @@ WHERE d.workspace_id = sqlc.arg(workspace_id)
 ORDER BY vector_cosine_distance(c.embedding, sqlc.arg(query_embedding))
 LIMIT sqlc.arg(result_limit);
 
--- ListWorkspaceChatSourceChunksLexical is the deterministic fallback used when the
--- query has no embedding (embedding provider down, or an empty-vector query).
+-- ListWorkspaceChatSourceChunksLexical is the deterministic retrieval path used
+-- while the vector query above is unusable.
+--
+-- It takes a set of terms rather than one string because a single ILIKE of the
+-- whole question never matches: Japanese questions carry no spaces, so the
+-- "longest token" is the entire sentence. Scoring by how many terms a chunk
+-- contains puts the on-topic chunk first and still returns something when no
+-- term matches, so a miss degrades to a weaker answer rather than no answer.
+--
+-- Terms arrive as one chr(31)-delimited string rather than a text[] because the
+-- API talks to Postgres through pgx; sqlc renders a []string param as pq.Array,
+-- which would drag in lib/pq alongside the driver actually in use. The
+-- delimiter must be chr(31), not '\x1f': with standard_conforming_strings the
+-- latter is four literal characters, so nothing ever splits and every term
+-- collapses into one string that matches nothing.
 -- name: ListWorkspaceChatSourceChunksLexical :many
-SELECT c.chunk_id, c.document_id, d.filename, f.path AS sub_path, c.heading, c.text, c.source_page
+SELECT c.chunk_id, c.document_id, d.filename, f.path AS sub_path, c.heading, c.text, c.source_page,
+       (
+         SELECT count(*) FROM unnest(string_to_array(sqlc.arg(terms)::text, chr(31))) AS t
+         WHERE t <> '' AND (c.text ILIKE '%' || t || '%' OR c.heading ILIKE '%' || t || '%')
+       )::int AS match_count
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
 LEFT JOIN document_files f ON f.file_id = c.file_id
@@ -97,12 +114,7 @@ WHERE d.workspace_id = sqlc.arg(workspace_id)
     SELECT 1 FROM document_processing_jobs j
     WHERE j.document_id = d.document_id AND j.status = 'succeeded'
   )
-  AND (
-    sqlc.arg(query_text)::text = ''
-    OR c.text ILIKE '%' || sqlc.arg(query_text)::text || '%'
-    OR c.heading ILIKE '%' || sqlc.arg(query_text)::text || '%'
-  )
-ORDER BY c.document_id, c.chunk_id
+ORDER BY match_count DESC, c.document_id, c.chunk_id
 LIMIT sqlc.arg(result_limit);
 
 -- CountWorkspaceChatSourceDocuments reports whether the workspace has anything

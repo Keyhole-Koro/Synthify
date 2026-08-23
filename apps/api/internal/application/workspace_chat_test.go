@@ -22,6 +22,14 @@ type fakeAnswerer struct {
 	lastReq    ChatAnswerRequest
 	callCount  int
 	claimedIDs []string
+	modelID    string
+}
+
+func (f *fakeAnswerer) ModelID() string {
+	if f.modelID == "" {
+		return "fake-model"
+	}
+	return f.modelID
 }
 
 func (f *fakeAnswerer) Answer(ctx context.Context, req ChatAnswerRequest) (ChatAnswer, error) {
@@ -90,7 +98,8 @@ func TestSendMessage_PersistsBothTurnsAndCreatesConversation(t *testing.T) {
 	assert.Equal(t, "結論は？", userMsg.Content)
 	assert.Equal(t, domain.ChatRoleAssistant, assistantMsg.Role)
 	assert.Equal(t, "結論はXです。", assistantMsg.Content)
-	assert.Equal(t, "gemini", assistantMsg.ModelSelection)
+	assert.Equal(t, "fake-model", assistantMsg.ModelSelection,
+		"the stored model must be the one that actually answered")
 	assert.Equal(t, domain.ChatMessageStatusComplete, assistantMsg.Status)
 
 	convs, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
@@ -393,4 +402,29 @@ func TestConversationTitle_TruncatesLongQuestions(t *testing.T) {
 	title := conversationTitle(long)
 	assert.Equal(t, 41, len([]rune(title)), "40 runes plus the ellipsis")
 	assert.True(t, strings.HasSuffix(title, "…"))
+}
+
+// message 行の model_selection は「実際に答えた主体」でなければならない。
+// 固定値 "gemini" を書くと、モデルを増やしたときに監査が成立しなくなる。
+func TestSendMessage_RecordsTheAnswererThatActuallyAnswered(t *testing.T) {
+	ctx := context.Background()
+	f := newChatFixture(t)
+	f.answerer.modelID = "extractive-dev"
+
+	_, assistantMsg, err := f.svc.SendMessage(ctx, f.wsID, "", "結論は？", f.userID)
+	require.NoError(t, err)
+	assert.Equal(t, "extractive-dev", assistantMsg.ModelSelection)
+}
+
+// 生成が失敗した行にも、試みた主体を記録する。
+func TestSendMessage_FailedTurnRecordsTheAnswerer(t *testing.T) {
+	ctx := context.Background()
+	f := newChatFixture(t)
+	f.answerer.modelID = "gemini-3-flash-preview"
+	f.answerer.err = errors.New("boom")
+
+	_, assistantMsg, err := f.svc.SendMessage(ctx, f.wsID, "", "結論は？", f.userID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.ChatMessageStatusFailed, assistantMsg.Status)
+	assert.Equal(t, "gemini-3-flash-preview", assistantMsg.ModelSelection)
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
@@ -178,16 +179,17 @@ func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID strin
 	return out, nil
 }
 
-// SearchChatSourceCandidates は引用候補を返す。
+// SearchChatSourceCandidates は引用候補を返す。terms に一致した数が多い chunk
+// を先に返し、どれにも一致しなくても候補は返す (回答不能にしないため)。
 //
 // 現状は lexical 経路のみを使う。vector 経路 (SearchWorkspaceChatSourceChunks)
 // は pgvector が必要で、ローカル開発スタックの CockroachDB v24.2 には
 // vector_cosine_distance が無いため呼ばない。API 側に embedding client が
 // 無いことも併せて、embedding が実際に使えるようになった時点で切り替える。
-func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID, queryText string, limit int) ([]domain.ChatSourceCandidate, error) {
+func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error) {
 	rows, err := s.q().ListWorkspaceChatSourceChunksLexical(ctx, sqlcgen.ListWorkspaceChatSourceChunksLexicalParams{
 		WorkspaceID: workspaceID,
-		QueryText:   queryText,
+		Terms:       strings.Join(terms, domain.ChatSearchTermSeparator),
 		ResultLimit: int32(limit),
 	})
 	if err != nil {

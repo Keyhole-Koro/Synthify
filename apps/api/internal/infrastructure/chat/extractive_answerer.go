@@ -29,21 +29,15 @@ func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAns
 		}, nil
 	}
 
-	// 質問語を含む chunk を優先し、無ければ先頭から使う。
-	query := strings.ToLower(req.Question)
-	matched := make([]int, 0, len(req.Candidates))
-	for i, c := range req.Candidates {
-		if containsAnyToken(strings.ToLower(c.Text)+" "+strings.ToLower(c.Heading), query) {
-			matched = append(matched, i)
+	// 候補は retrieval が一致数の多い順に並べて渡してくるので、ここでは
+	// 並べ替えず先頭から採る。独自にトークン化し直すと、空白の無い日本語で
+	// 質問文全体が1トークンになり一致ゼロになる (retrieval 側と同じ罠)。
+	matched := make([]int, 0, 3)
+	for i := range req.Candidates {
+		matched = append(matched, i)
+		if len(matched) == 3 {
+			break
 		}
-	}
-	if len(matched) == 0 {
-		for i := range req.Candidates {
-			matched = append(matched, i)
-		}
-	}
-	if len(matched) > 3 {
-		matched = matched[:3]
 	}
 
 	var b strings.Builder
@@ -67,20 +61,6 @@ func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAns
 	return application.ChatAnswer{Text: b.String(), SourceChunkIDs: chunkIDs}, nil
 }
 
-// containsAnyToken reports whether text contains any whitespace-separated token
-// of query that is at least two characters long.
-func containsAnyToken(text, query string) bool {
-	for _, token := range strings.Fields(query) {
-		if len([]rune(token)) < 2 {
-			continue
-		}
-		if strings.Contains(text, token) {
-			return true
-		}
-	}
-	return false
-}
-
 func truncateRunes(s string, max int) string {
 	runes := []rune(strings.TrimSpace(s))
 	if len(runes) <= max {
@@ -88,3 +68,7 @@ func truncateRunes(s string, max int) string {
 	}
 	return string(runes[:max]) + "…"
 }
+
+// ModelID reports that no model was involved, so a stored message can never
+// claim Gemini answered when it did not.
+func (a *ExtractiveAnswerer) ModelID() string { return "extractive-dev" }

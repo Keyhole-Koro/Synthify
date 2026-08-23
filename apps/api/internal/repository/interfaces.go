@@ -233,7 +233,8 @@ type WorkspaceChatRepository interface {
 
 	// SearchChatSourceCandidates は引用候補を返す。必ず workspace_id で
 	// スコープし、処理が succeeded した document のみを対象にする。
-	SearchChatSourceCandidates(ctx context.Context, workspaceID, queryText string, limit int) ([]domain.ChatSourceCandidate, error)
+	// terms に一致した数の多い順で返す。terms が空でも候補は返す。
+	SearchChatSourceCandidates(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error)
 	CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error)
 }
 

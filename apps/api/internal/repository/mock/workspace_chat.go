@@ -130,39 +130,59 @@ func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID strin
 	return out, nil
 }
 
-func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID, queryText string, limit int) ([]domain.ChatSourceCandidate, error) {
+// SearchChatSourceCandidates は postgres 実装と同じ順序規則を再現する:
+// 一致した term 数の降順、同数なら (document_id, chunk_id) 昇順。一致ゼロでも
+// 候補は落とさない。
+func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	docIDs := s.succeededDocumentIDsLocked(workspaceID)
 	sort.Strings(docIDs)
 
-	out := make([]domain.ChatSourceCandidate, 0)
+	type scored struct {
+		candidate domain.ChatSourceCandidate
+		matches   int
+	}
+
+	rows := make([]scored, 0)
 	for _, docID := range docIDs {
 		doc := s.documents[docID]
 		chunks := append([]*domain.DocumentChunk(nil), s.chunks[docID]...)
 		sort.Slice(chunks, func(i, j int) bool { return chunks[i].ChunkID < chunks[j].ChunkID })
 		for _, chunk := range chunks {
-			if queryText != "" &&
-				!strings.Contains(strings.ToLower(chunk.Text), strings.ToLower(queryText)) &&
-				!strings.Contains(strings.ToLower(chunk.Heading), strings.ToLower(queryText)) {
-				continue
+			haystack := strings.ToLower(chunk.Text + " " + chunk.Heading)
+			matches := 0
+			for _, term := range terms {
+				if term != "" && strings.Contains(haystack, strings.ToLower(term)) {
+					matches++
+				}
 			}
 			filename := ""
 			if doc != nil {
 				filename = doc.Filename
 			}
-			out = append(out, domain.ChatSourceCandidate{
-				ChunkID:    chunk.ChunkID,
-				DocumentID: chunk.DocumentID,
-				Filename:   filename,
-				Heading:    chunk.Heading,
-				Text:       chunk.Text,
-				SourcePage: chunk.SourcePage,
+			rows = append(rows, scored{
+				candidate: domain.ChatSourceCandidate{
+					ChunkID:    chunk.ChunkID,
+					DocumentID: chunk.DocumentID,
+					Filename:   filename,
+					Heading:    chunk.Heading,
+					Text:       chunk.Text,
+					SourcePage: chunk.SourcePage,
+				},
+				matches: matches,
 			})
-			if limit > 0 && len(out) >= limit {
-				return out, nil
-			}
+		}
+	}
+
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].matches > rows[j].matches })
+
+	out := make([]domain.ChatSourceCandidate, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.candidate)
+		if limit > 0 && len(out) >= limit {
+			break
 		}
 	}
 	return out, nil

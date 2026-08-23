@@ -41,6 +41,28 @@ func TestNewChatAnswerer_NonProductionWithoutModel_UsesExtractive(t *testing.T) 
 	}
 }
 
+// GCP project が設定されていても credentials が無ければ Vertex client の生成は
+// 失敗する。ローカル compose は GCP_PROJECT_ID=synthify-local をプレースホルダ
+// として渡すので、この経路で API が起動不能になってはいけない。
+func TestNewChatAnswerer_ProjectWithoutCredentials_FallsBackOutsideProduction(t *testing.T) {
+	cfg := config.API{
+		Env: "local",
+		Chat: config.Chat{
+			VertexProject:  "synthify-local",
+			VertexLocation: "global",
+			GeminiModel:    "gemini-3-flash-preview",
+		},
+	}
+
+	answerer, err := newChatAnswerer(context.Background(), cfg, quietLogger())
+	if err != nil {
+		t.Fatalf("local startup must survive missing credentials, got: %v", err)
+	}
+	if _, ok := answerer.(*apichat.ExtractiveAnswerer); !ok {
+		t.Fatalf("expected extractive fallback, got %T", answerer)
+	}
+}
+
 // key があれば本番でも Gemini クライアントを選ぶ (この時点では API 呼び出しはしない)。
 func TestNewChatAnswerer_WithAPIKey_UsesGemini(t *testing.T) {
 	cfg := config.API{

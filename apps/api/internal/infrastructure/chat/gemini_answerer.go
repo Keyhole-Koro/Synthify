@@ -154,3 +154,6 @@ func buildPrompt(req application.ChatAnswerRequest) string {
 	b.WriteString(req.Question)
 	return b.String()
 }
+
+// ModelID reports the Gemini model that actually served the request.
+func (a *GeminiAnswerer) ModelID() string { return a.model }

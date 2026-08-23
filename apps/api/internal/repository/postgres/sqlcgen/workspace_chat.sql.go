@@ -383,27 +383,26 @@ func (q *Queries) ListWorkspaceChatMessages(ctx context.Context, arg ListWorkspa
 }
 
 const listWorkspaceChatSourceChunksLexical = `-- name: ListWorkspaceChatSourceChunksLexical :many
-SELECT c.chunk_id, c.document_id, d.filename, f.path AS sub_path, c.heading, c.text, c.source_page
+SELECT c.chunk_id, c.document_id, d.filename, f.path AS sub_path, c.heading, c.text, c.source_page,
+       (
+         SELECT count(*) FROM unnest(string_to_array($1::text, chr(31))) AS t
+         WHERE t <> '' AND (c.text ILIKE '%' || t || '%' OR c.heading ILIKE '%' || t || '%')
+       )::int AS match_count
 FROM document_chunks c
 INNER JOIN documents d ON d.document_id = c.document_id
 LEFT JOIN document_files f ON f.file_id = c.file_id
-WHERE d.workspace_id = $1
+WHERE d.workspace_id = $2
   AND EXISTS (
     SELECT 1 FROM document_processing_jobs j
     WHERE j.document_id = d.document_id AND j.status = 'succeeded'
   )
-  AND (
-    $2::text = ''
-    OR c.text ILIKE '%' || $2::text || '%'
-    OR c.heading ILIKE '%' || $2::text || '%'
-  )
-ORDER BY c.document_id, c.chunk_id
+ORDER BY match_count DESC, c.document_id, c.chunk_id
 LIMIT $3
 `
 
 type ListWorkspaceChatSourceChunksLexicalParams struct {
+	Terms       string
 	WorkspaceID string
-	QueryText   string
 	ResultLimit int32
 }
 
@@ -415,12 +414,26 @@ type ListWorkspaceChatSourceChunksLexicalRow struct {
 	Heading    string
 	Text       string
 	SourcePage sql.NullInt32
+	MatchCount int32
 }
 
-// ListWorkspaceChatSourceChunksLexical is the deterministic fallback used when the
-// query has no embedding (embedding provider down, or an empty-vector query).
+// ListWorkspaceChatSourceChunksLexical is the deterministic retrieval path used
+// while the vector query above is unusable.
+//
+// It takes a set of terms rather than one string because a single ILIKE of the
+// whole question never matches: Japanese questions carry no spaces, so the
+// "longest token" is the entire sentence. Scoring by how many terms a chunk
+// contains puts the on-topic chunk first and still returns something when no
+// term matches, so a miss degrades to a weaker answer rather than no answer.
+//
+// Terms arrive as one chr(31)-delimited string rather than a text[] because the
+// API talks to Postgres through pgx; sqlc renders a []string param as pq.Array,
+// which would drag in lib/pq alongside the driver actually in use. The
+// delimiter must be chr(31), not '\x1f': with standard_conforming_strings the
+// latter is four literal characters, so nothing ever splits and every term
+// collapses into one string that matches nothing.
 func (q *Queries) ListWorkspaceChatSourceChunksLexical(ctx context.Context, arg ListWorkspaceChatSourceChunksLexicalParams) ([]ListWorkspaceChatSourceChunksLexicalRow, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkspaceChatSourceChunksLexical, arg.WorkspaceID, arg.QueryText, arg.ResultLimit)
+	rows, err := q.db.QueryContext(ctx, listWorkspaceChatSourceChunksLexical, arg.Terms, arg.WorkspaceID, arg.ResultLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -436,6 +449,7 @@ func (q *Queries) ListWorkspaceChatSourceChunksLexical(ctx context.Context, arg 
 			&i.Heading,
 			&i.Text,
 			&i.SourcePage,
+			&i.MatchCount,
 		); err != nil {
 			return nil, err
 		}

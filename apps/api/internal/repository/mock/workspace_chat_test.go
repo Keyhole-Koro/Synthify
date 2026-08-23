@@ -211,7 +211,7 @@ func TestSearchChatSourceCandidates_OnlyReturnsSucceededDocuments(t *testing.T) 
 	_, err = store.CreateProcessingJob(ctx, inflight.DocumentID, wsID, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	require.NoError(t, err)
 
-	got, err := store.SearchChatSourceCandidates(ctx, wsID, "", 10)
+	got, err := store.SearchChatSourceCandidates(ctx, wsID, nil, 10)
 	require.NoError(t, err)
 	require.Len(t, got, 1, "in-flight documents must not be citable")
 	assert.Equal(t, "c1", got[0].ChunkID)
@@ -230,7 +230,7 @@ func TestSearchChatSourceCandidates_ScopedToWorkspace(t *testing.T) {
 		{ChunkID: "c2", Text: "他人の資料"},
 	})
 
-	got, err := store.SearchChatSourceCandidates(ctx, mine.Workspace.WorkspaceID, "", 10)
+	got, err := store.SearchChatSourceCandidates(ctx, mine.Workspace.WorkspaceID, nil, 10)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "c1", got[0].ChunkID, "another workspace's chunks must never surface")
@@ -248,19 +248,29 @@ func TestSearchChatSourceCandidates_FiltersByQueryAndRespectsLimit(t *testing.T)
 		{ChunkID: "c3", Heading: "付録", Text: "結論の補足"},
 	})
 
-	matched, err := store.SearchChatSourceCandidates(ctx, wsID, "結論", 10)
+	// 一致した chunk が先頭に来る。一致しない chunk も候補としては残す
+	// (「該当語が無い」だけで回答不能にしないため)。
+	matched, err := store.SearchChatSourceCandidates(ctx, wsID, []string{"結論"}, 10)
 	require.NoError(t, err)
-	require.Len(t, matched, 2)
+	require.Len(t, matched, 3)
 	assert.Equal(t, "c2", matched[0].ChunkID)
 	assert.Equal(t, "c3", matched[1].ChunkID)
+	assert.Equal(t, "c1", matched[2].ChunkID, "non-matching chunks rank last, not dropped")
 
-	limited, err := store.SearchChatSourceCandidates(ctx, wsID, "", 2)
+	limited, err := store.SearchChatSourceCandidates(ctx, wsID, nil, 2)
 	require.NoError(t, err)
 	assert.Len(t, limited, 2, "limit bounds the candidate set")
 
-	none, err := store.SearchChatSourceCandidates(ctx, wsID, "存在しない語", 10)
+	// 一致数が多い chunk ほど先に来る。
+	ranked, err := store.SearchChatSourceCandidates(ctx, wsID, []string{"結論", "補足"}, 10)
 	require.NoError(t, err)
-	assert.Empty(t, none)
+	require.NotEmpty(t, ranked)
+	assert.Equal(t, "c3", ranked[0].ChunkID, "two term hits outrank one")
+
+	// どの語も一致しなくても候補は返る。
+	none, err := store.SearchChatSourceCandidates(ctx, wsID, []string{"存在しない語"}, 10)
+	require.NoError(t, err)
+	assert.Len(t, none, 3, "a total miss still yields grounding context")
 }
 
 func TestCountChatSourceDocuments(t *testing.T) {

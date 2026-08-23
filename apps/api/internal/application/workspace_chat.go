@@ -26,10 +26,10 @@ const (
 	chatGenerationTimeout   = 60 * time.Second
 	chatMaxConversations    = 50
 	chatMaxMessagesPerFetch = 200
-	// chatModelGemini は v1 の唯一のモデル。message 行に記録して、後から
-	// local provider を足したときに遡って監査できるようにする。
-	chatModelGemini = "gemini"
 )
+
+// chatModelUnknown は answerer が自身のモデル ID を返さなかった場合の値。
+const chatModelUnknown = "unknown"
 
 // ChatAnswerRequest は grounded answer 1 回分の入力。
 type ChatAnswerRequest struct {
@@ -51,6 +51,12 @@ type ChatAnswer struct {
 // (infrastructure/worker/dispatcher.go と同じ方針)。実装は infrastructure 側に置く。
 type ChatAnswerer interface {
 	Answer(ctx context.Context, req ChatAnswerRequest) (ChatAnswer, error)
+	// ModelID は実際に回答を生成した主体の識別子を返す。message 行と
+	// retrieval snapshot にそのまま記録するので、"gemini" のような固定値では
+	// なく、実装が本当に使ったものを返すこと。後からモデルを増やしたときに
+	// 「どれが答えたか」を遡れることがこのフィールドの唯一の存在理由なので、
+	// 嘘をつくと監査価値が消える。
+	ModelID() string
 }
 
 type WorkspaceChatService struct {
@@ -180,22 +186,21 @@ func (s *WorkspaceChatService) generateAnswer(
 	workspaceID, conversationID, question string,
 	history []*domain.ChatMessage,
 ) (*domain.ChatMessage, error) {
-	candidates, err := s.repo.SearchChatSourceCandidates(ctx, workspaceID, retrievalQuery(question), chatMaxRetrievedChunks)
+	// SQL 側が一致数で順位付けし、一致ゼロでも候補を返すので、空振り用の
+	// 二度目の問い合わせは要らない。
+	candidates, err := s.repo.SearchChatSourceCandidates(ctx, workspaceID, domain.ChatSearchTerms(question), chatMaxRetrievedChunks)
 	if err != nil {
 		return nil, err
-	}
-	// lexical 検索が空振りしたら、workspace 全体から先頭 N 件を候補にする。
-	// 「該当語が無い」だけで回答不能にしないため。
-	if len(candidates) == 0 {
-		candidates, err = s.repo.SearchChatSourceCandidates(ctx, workspaceID, "", chatMaxRetrievedChunks)
-		if err != nil {
-			return nil, err
-		}
 	}
 	candidates = boundContext(candidates, chatMaxContextChars)
 
 	genCtx, cancel := context.WithTimeout(ctx, chatGenerationTimeout)
 	defer cancel()
+
+	model := s.answerer.ModelID()
+	if model == "" {
+		model = chatModelUnknown
+	}
 
 	answer, genErr := s.answerer.Answer(genCtx, ChatAnswerRequest{
 		Question:   question,
@@ -215,10 +220,10 @@ func (s *WorkspaceChatService) generateAnswer(
 			ConversationID: conversationID,
 			Role:           domain.ChatRoleAssistant,
 			Content:        "",
-			ModelSelection: chatModelGemini,
+			ModelSelection: model,
 			Status:         domain.ChatMessageStatusFailed,
 			ErrorCode:      domain.ChatErrGenerationFailed,
-		}, snapshotJSON(candidates, chatModelGemini))
+		}, snapshotJSON(candidates, model))
 		if err != nil {
 			return nil, err
 		}
@@ -232,9 +237,9 @@ func (s *WorkspaceChatService) generateAnswer(
 		Role:           domain.ChatRoleAssistant,
 		Content:        answer.Text,
 		Sources:        sources,
-		ModelSelection: chatModelGemini,
+		ModelSelection: model,
 		Status:         domain.ChatMessageStatusComplete,
-	}, snapshotJSON(candidates, chatModelGemini))
+	}, snapshotJSON(candidates, model))
 }
 
 func (s *WorkspaceChatService) ensureConversation(ctx context.Context, workspaceID, conversationID, firstText, userID string) (*domain.ChatConversation, error) {
@@ -280,27 +285,6 @@ func boundContext(candidates []domain.ChatSourceCandidate, maxChars int) []domai
 		}
 	}
 	return candidates
-}
-
-// retrievalQuery は質問文から lexical 検索語を作る。
-//
-// クエリ全体を ILIKE に渡すと文らしい質問はまず一致しないので、最も長い語を
-// 使う。vector 検索が使えるようになったらこの関数ごと不要になる。
-func retrievalQuery(question string) string {
-	fields := strings.FieldsFunc(question, func(r rune) bool {
-		switch r {
-		case ' ', '\t', '\n', '\r', '　', '?', '？', '。', '、', '.', ',', '!', '！':
-			return true
-		}
-		return false
-	})
-	longest := ""
-	for _, f := range fields {
-		if len(f) > len(longest) {
-			longest = f
-		}
-	}
-	return longest
 }
 
 // conversationTitle は最初の質問から会話タイトルを作る。v1 では LLM による
