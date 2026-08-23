@@ -37,7 +37,7 @@ graph TD
 
     subgraph LocalHost["ユーザー端末(self-hosted 限定)"]
         LocalServer["ローカル AI サーバー"]
-        SDK["Antigravity SDK /<br/>codex app-server"]
+        SDK["Antigravity CLI /<br/>codex app-server"]
     end
     Sub["ユーザーのサブスク<br/>(Google AI Pro / ChatGPT Plus)"]
 
@@ -189,7 +189,7 @@ sequenceDiagram
     participant Orchestrator
     participant Gemini as Vertex/Gemini
     participant LocalServer as ローカル AI サーバー
-    participant SDK as Antigravity SDK
+    participant SDK as Antigravity CLI
 
     User->>Browser: モデル選択(例: antigravity:claude-sonnet-4.6)
     Browser->>API: CreateDocument(model_selection)
@@ -226,7 +226,7 @@ agent runtime 判断より前には提供しない。
 sequenceDiagram
     participant Orchestrator
     participant LocalServer as ローカル AI サーバー
-    participant SDK as Antigravity SDK
+    participant SDK as Antigravity CLI
 
     Orchestrator->>LocalServer: GenerateStructured(...)
     LocalServer->>SDK: 呼び出し
@@ -398,8 +398,8 @@ eval は release evidence、ユーザーの認証済み local provider integrati
 
 本ドキュメントでは解決していない、[local-llm-provider.md の「要検証」](../improvements/local-llm-provider.md#要検証実装時に確認設計変更のトリガーになりうる)節を参照:
 
-- `conversation_id` が実際に Google サーバー側で resume できるか
-- overage `Never` 設定時に SDK が返すエラーの実際の形
+- overage `Never` 設定時に CLI が返す status/error の実際の形
+- `agy` 内部 retry の実挙動と抑止可否
 
 [knowledge-tree-generation-spec.md の「未決事項」](../core-domain/knowledge-tree-generation-spec.md)も参照
 (多言語対応・プリセット一覧の運用)。

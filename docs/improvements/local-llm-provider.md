@@ -4,7 +4,7 @@
 LLM 呼び出しを動かすための設計。**本番デフォルトは Gemini/Vertex のまま変更しない。**
 
 `codex-provider-migration.md`（Codex 前提の RFC）を一般化し、2026-08 の調査で判明した
-Antigravity SDK と配備形態の整理を統合したもの。旧 RFC の Phase 構成・セキュリティ要件・
+Antigravity CLI と配備形態の整理を統合したもの。旧 RFC の Phase 構成・セキュリティ要件・
 評価ゲートはそのまま引き継ぐ。
 
 ## Status
@@ -48,8 +48,8 @@ Google 側も個人アカウント OAuth に紐づく。
 ### 2. 常駐プロセス
 
 - `codex app-server` は常駐する JSON-RPC サーバー。
-- `google-antigravity` SDK は **Go 製ハーネスバイナリを同梱**し、`LocalConnection` が
-  WebSocket でそれと通信する。実装されている接続戦略は `LocalConnection` のみ。
+- `agy` は cached OAuth session とローカルの agent runtime を使う CLI。daemon は generation
+  ごとに headless process を起動し、NDJSON stdin/stdout で通信する。
 
 Cloud Run はリクエスト単位でスケールし、**どのリクエストがどのインスタンスに着地するか
 制御できない**。ユーザーごとの常駐プロセスとは噛み合わず、GKE 移行 + プロセスライフサイクル
@@ -98,7 +98,7 @@ worker が provider を起動し、`llm.Client` として使う。旧 RFC の Ph
 ブラウザ（既存の Synthify web、変更なし）
    ↓ fetch → http://localhost:PORT
 ローカル AI サーバー（ユーザーが起動）
-   ↓ Antigravity SDK / Codex app-server
+   ↓ Antigravity CLI / Codex app-server
 サブスク枠
 ```
 
@@ -127,10 +127,10 @@ Synthify 一式をローカルで動かす。(a) の前提。個人利用とし�
 | | Antigravity | Codex |
 |---|---|---|
 | モデル | Gemini + **Claude Sonnet 4.6 / Opus 4.6** + GPT-OSS-120b | GPT 系のみ |
-| SDK | Python 公式 `google-antigravity` | JSON-RPC / TS SDK |
+| automation surface | 公式 `agy` headless NDJSON (1.1.15+) | JSON-RPC / TS SDK |
 | 用途 | 汎用エージェント | コーディング特化 |
 | 従量課金の遮断 | **AI Credit Overages を `Never`** に設定可 | 未確認 |
-| 成熟度 | v0.1.12 (alpha, 2026-08-13) | app-server の WebSocket は experimental |
+| 成熟度 | CLI の headless schema/stream は新規。version gate が必要 | app-server の WebSocket は experimental |
 
 **Antigravity を第一候補とする。**
 
@@ -140,7 +140,7 @@ Synthify 一式をローカルで動かす。(a) の前提。個人利用とし�
 3. overage を `Never` にできる = 「従量課金は使わない」要件に直接効く。
 
 `LLM_PROVIDER=gemini|codex|antigravity` として旧 RFC の provider seam をそのまま拡張する。
-**最初から複数 provider を実装しない**。alpha の SDK を 2 つ同時に相手にしない。
+**最初から複数 provider を実装しない**。不安定な local automation surface を 2 つ同時に相手にしない。
 
 ### 参考: Gemini CLI の前例
 
@@ -152,9 +152,9 @@ Gemini CLI は 2026-06-18 に個人向けサブスク経路（Login with Google�
 
 (b) のローカル AI サーバーの配布方法。
 
-`google-antigravity` は **pure-python ではなくプラットフォーム別 wheel**
-（macOS arm64 / Linux x86_64・aarch64 / Windows amd64・arm64、各 32〜39MB）で、Go ハーネスを
-同梱している。**元々 OS 別ビルドが前提**なので、単一バイナリ化しても構造は変わらない。
+`agy` 自体が platform 別 binary であり、daemon の単一バイナリ化とは別にインストールと対話 login が
+必要になる。daemon は `agy` を同梱せず、起動時に version、認証済み model discovery、default model
+の完全一致を検証する。
 
 | 方式 | ユーザー要件 | 署名 | 更新 |
 |---|---|---|---|
@@ -166,7 +166,7 @@ Gemini CLI は 2026-06-18 に個人向けサブスク経路（Login with Google�
 - GitHub Releases → 単一バイナリ（一般ユーザー向け）
 - PyPI → `pipx install`（開発者向け）
 
-Connect/Protovalidate/Antigravity の native dependency を含むため、PyInstaller artifact は「生成できた」
+Connect/Protovalidate の dependency を含むため、PyInstaller artifact は「生成できた」
 だけで配布可としない。対応を宣言する OS/architecture ごとに起動、`Check`、validation error、終了時
 cleanup の smoke test を release gate にする。最初の PoC はこの matrix を持たない `pipx` 配布を優先する。
 
@@ -234,12 +234,17 @@ managed provider を要求し続ける（fail closed）。
 - public API の capabilities は既存の `WorkerService` に additive RPC を追加して Worker から取得し、
   API に local-provider endpoint/token を持たせない
 - Protobuf + Buf を契約の正本、Protovalidate を Go/Python 共通の入力制約にする
-- Antigravity SDK 呼び出し（`GenerateText` / `GenerateStructured` 相当）
+- Antigravity CLI headless 呼び出し（NDJSON stdin、structured output の `--json-schema`）
 - structured output の検証
 - Connect code + typed protobuf detail への provider エラー正規化
 - generation ID による明示的な cancellation、request timeout watchdog、Worker crash 時の孤児回収
 - generation RPC の blind retry は禁止し、turn 開始前を保証できる明示的な rate-limit だけ bounded retry
 - プロセス終了時のクリーンアップ
+
+daemon 自身は 1 RPC につき `agy` process を 1 回だけ起動し、再起動・再送しない。ただし `agy` 内部の
+agent/model retry を無効化する公式 flag は現時点で確認できない。このため「subscription に対する
+物理的な試行が必ず 1 回」はまだ保証せず、実トレースで retry 挙動を確認するまで local PoC の
+release gate に残す。
 
 この非同期 job 経路ではブラウザは local provider を直接呼ばないため CORS は不要。(b) の同期的な
 ブラウザ → localhost 経路を別機能で提供する場合は、origin 制限を含む browser-facing transport を
@@ -425,15 +430,13 @@ Synthify Cloud:
   self-hosted 配備、Phase 4 の provider 接続、worker からの endpoint 到達性、および capabilities
   allowlist をすべて満たす場合のみ選択肢に現れる。詳細は
   [Phase 5: モデル選択 UI](#phase-5-モデル選択-ui)。
-- **`conversation_id` の resume 範囲**: **履歴は Google サーバー側に残る前提で設計する**。
-  ローカルサーバーは `conversation_id` を不透明なハンドルとして扱うだけで、自前で履歴を
-  永続化しない。ただし SDK が実際にこの前提を満たすかは未検証のまま Phase 2 の実装に入る
-  ── 実装時に実挙動で確認し、ローカルのみで消えることが判明したら設計を見直す
-  (下記「要検証」に実装前提として残す)。
+- **会話の継続範囲**: Phase 2 の worker contract は意図的に stateless とし、generation ごとに新しい
+  headless CLI process を起動する。会話ハンドルは wire contract に追加しない。resume が必要な対話経路は
+  Phase 7 の agent runtime として別に設計する。
 - **Safari の Mixed Content 挙動**: **対応しない**。PoC は Chrome / Edge のみサポートし、
   Safari での動作確認・サポートはスコープ外とする。
 - **サブスク枠を使い切ったときの挙動**: **サーバー版(Gemini)へのフォールバックを提案する**。
-  overage を `Never` にした場合の SDK エラーを型付き worker エラーへ正規化した上で、
+  overage を `Never` にした場合の CLI エラーを型付き worker エラーへ正規化した上で、
   job を `provider_quota_exhausted` error code 付きの terminal failure にする。Phase 5 のモデル選択 UI
   は durable mutation がない場合だけ付く `retry_with_gemini` recovery action を読んで、元 job の
   snapshot を変更せず Gemini override の新規 job を作る導線を出す。
@@ -442,9 +445,8 @@ Synthify Cloud:
 
 ## 要検証(実装時に確認、設計変更のトリガーになりうる)
 
-- `conversation_id` が実際に Google サーバー側で resume できるか(ローカルのみで消える場合は
-  上記の設計前提が崩れる)。
-- overage `Never` 設定時に SDK が返すエラーの実際の形。
+- overage `Never` 設定時に CLI が返す status/error の実際の形。
+- `agy` 内部の agent/model retry の回数と、quota/rate-limit/timeout 時に追加試行を抑止できるか。
 
 ## 関連
 

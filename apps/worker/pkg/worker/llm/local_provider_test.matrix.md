@@ -40,13 +40,13 @@ generated Go client ↔ Python fake server の実 TCP gate、後続の live-prov
 | `TestValidateLocalProviderCapabilitiesFailsClosed` | default/model prefix/duplicate/structured support の semantic gate | invalid capabilities をcacheしない | OK |
 | `TestInitProcessClientGeminiKeepsExistingClient` | default Gemini path の identity を維持 | 新RPCなし | OK |
 | `TestInitProcessClientLocalFailsClosedInProduction` | production local-provider 設定を startup 前に拒否 | token file / networkへ到達しない | OK |
-| `TestLocalProviderCrossLanguageContract` | generated Go client と generated Python WSGI server の全 unary RPC、typed detail、Protovalidate wire 互換 | bearer auth、同一 generation ID の explicit cancel、no live credentials | OK |
+| `TestLocalProviderCrossLanguageContract` | generated Go client と production Python ASGI handler の全 unary RPC、typed detail、Protovalidate wire 互換 | bearer auth、同一 generation ID の explicit cancel、no live credentials | OK |
 
 ## 未テスト分岐 (GAP)
 
 | GAP | 必要な次のテスト | Gate |
 | --- | --- | --- |
-| daemon timeout / orphan watchdog | Worker crash を模擬して provider turn が最大期限で停止 | release gate |
+| Worker crash 後の daemon watchdog | RPC 切断後も provider turn が最大期限で停止することを実 TCP で確認 | release gate |
 | explicit pre-turn rate-limit retry | `turn_started=false` のみ bounded retry、その他は1回 | retry実装時のPR gate |
 | Windows token ACL | supported Windows runner で owner-only ACL を確認 | Windows配布 gate |
 | source-file shared volume | traversal/symlink escape、cleanup、job isolation | Phase 3 gate |

@@ -9,10 +9,21 @@ description = "Local ConnectRPC provider for Synthify"
 requires-python = ">=3.10"
 dependencies = [
   "connectrpc==0.11.1",
+  "jsonschema==4.26.0",
   "protobuf==7.36.0",
   "protovalidate==1.2.0",
   "pyqwest==0.10.0",
+  "uvicorn==0.52.4",
 ]
+
+[project.optional-dependencies]
+dev = ["ruff==0.12.12"]
+
+[project.scripts]
+synthify-local-provider = "synthify.localprovider.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/buf", "src/synthify"]
+
+[tool.ruff]
+extend-exclude = ["src/buf", "src/synthify/localprovider/v1"]

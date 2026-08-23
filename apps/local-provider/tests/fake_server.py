@@ -1,220 +1,130 @@
 from __future__ import annotations
 
 import argparse
-import hmac
+import asyncio
 import json
-import threading
-from collections.abc import Callable
-from socketserver import ThreadingMixIn
-from typing import Any, BinaryIO
-from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
+import socket
 
+import uvicorn
 from connectrpc.code import Code
-from connectrpc.errors import ConnectError, ErrorDetail
-from connectrpc.request import RequestContext
-from protobuf.wkt import Any as ConnectAny
-from protovalidate import ValidationError, Validator
 
-from synthify.localprovider.v1 import provider_pb2 as provider
-from synthify.localprovider.v1.provider_connect import (
-    LocalProviderServiceWSGIApplication,
+from synthify.localprovider.backend import (
+    BackendCapabilities,
+    BackendError,
+    GenerationResult,
+    ModelInfo,
 )
+from synthify.localprovider.server import create_application
+from synthify.localprovider.v1 import provider_pb2 as provider
 
 
 MODEL_ID = "antigravity:test-model"
 
 
-def _provider_error(
-    code: Code,
-    message: str,
-    detail: provider.LocalProviderErrorDetail,
-) -> ConnectError:
-    """Bridge a google.protobuf detail into Connect Python's wire container."""
-    wire_detail = ConnectAny(
-        type_url=f"type.googleapis.com/{detail.DESCRIPTOR.full_name}",
-        value=detail.SerializeToString(),
-    )
-    return ConnectError(code, message, details=(ErrorDetail(wire_detail),))
-
-
-class BearerAuthInterceptor:
-    def __init__(self, token: str) -> None:
-        self._expected = f"Bearer {token}"
-
-    def intercept_unary_sync(
-        self,
-        call_next: Callable[[Any, RequestContext], Any],
-        request: Any,
-        ctx: RequestContext,
-    ) -> Any:
-        supplied = ctx.request_headers.get("authorization", "")
-        if not hmac.compare_digest(supplied, self._expected):
-            raise _provider_error(
-                Code.UNAUTHENTICATED,
-                "local provider authentication failed",
-                provider.LocalProviderErrorDetail(
-                    reason=provider.LocalProviderErrorDetail.REASON_AUTHENTICATION_REQUIRED,
-                ),
-            )
-        return call_next(request, ctx)
-
-
-class ContractValidationInterceptor:
+class DeterministicBackend:
     def __init__(self) -> None:
-        self._validator = Validator()
-
-    def intercept_unary_sync(
-        self,
-        call_next: Callable[[Any, RequestContext], Any],
-        request: Any,
-        ctx: RequestContext,
-    ) -> Any:
-        try:
-            self._validator.validate(request)
-        except ValidationError as error:
-            raise ConnectError(Code.INVALID_ARGUMENT, "invalid request") from error
-
-        response = call_next(request, ctx)
-        try:
-            self._validator.validate(response)
-        except ValidationError as error:
-            raise _provider_error(
-                Code.INTERNAL,
-                "invalid provider response",
-                provider.LocalProviderErrorDetail(
-                    reason=provider.LocalProviderErrorDetail.REASON_INTERNAL,
-                    turn_started=True,
-                ),
-            ) from error
-        return response
-
-
-class DeterministicLocalProvider:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._active: dict[str, threading.Event] = {}
-
-    def check(
-        self, request: provider.CheckRequest, ctx: RequestContext
-    ) -> provider.CheckResponse:
-        del request, ctx
-        return provider.CheckResponse(status=provider.CheckResponse.STATUS_READY)
-
-    def get_capabilities(
-        self, request: provider.GetCapabilitiesRequest, ctx: RequestContext
-    ) -> provider.GetCapabilitiesResponse:
-        del request, ctx
-        return provider.GetCapabilitiesResponse(
+        self._active: dict[str, asyncio.Event] = {}
+        self._lock = asyncio.Lock()
+        self._capabilities = BackendCapabilities(
             server_version="cross-language-test",
             default_model_id=MODEL_ID,
-            models=[
-                provider.ModelCapability(id=MODEL_ID, supports_structured=True),
-            ],
+            models=(ModelInfo(id=MODEL_ID),),
         )
 
-    def generate_text(
-        self, request: provider.GenerateTextRequest, ctx: RequestContext
-    ) -> provider.GenerateTextResponse:
-        del ctx
-        if request.user_prompt == "rate-limit":
-            raise _provider_error(
+    async def capabilities(self) -> BackendCapabilities:
+        return self._capabilities
+
+    async def generate_text(
+        self,
+        generation_id: str,
+        model_id: str,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> GenerationResult:
+        del system_prompt
+        if user_prompt == "rate-limit":
+            raise BackendError(
                 Code.RESOURCE_EXHAUSTED,
-                "provider rate limit",
-                provider.LocalProviderErrorDetail(
-                    reason=provider.LocalProviderErrorDetail.REASON_RATE_LIMITED,
-                    turn_started=False,
-                    retry_after_ms=250,
-                ),
+                provider.LocalProviderErrorDetail.REASON_RATE_LIMITED,
+                retry_after_ms=250,
             )
-
-        if request.user_prompt == "wait-for-cancel":
-            cancelled = threading.Event()
-            with self._lock:
-                self._active[request.generation_id] = cancelled
-            print(f"STARTED {request.generation_id}", flush=True)
-            if not cancelled.wait(timeout=10):
-                with self._lock:
-                    self._active.pop(request.generation_id, None)
-                raise _provider_error(
-                    Code.DEADLINE_EXCEEDED,
-                    "test generation was not cancelled",
-                    provider.LocalProviderErrorDetail(
-                        reason=provider.LocalProviderErrorDetail.REASON_INTERNAL,
-                        turn_started=True,
-                    ),
-                )
-            raise ConnectError(Code.CANCELED, "generation cancelled")
-
-        return provider.GenerateTextResponse(
-            text=f"text:{request.user_prompt}",
-            usage=provider.Usage(
-                model=MODEL_ID,
-                input_tokens=3,
-                output_tokens=2,
-            ),
+        if user_prompt == "wait-for-cancel":
+            cancelled = asyncio.Event()
+            async with self._lock:
+                self._active[generation_id] = cancelled
+            print(f"STARTED {generation_id}", flush=True)
+            try:
+                await asyncio.wait_for(cancelled.wait(), timeout=10)
+            except TimeoutError as error:
+                raise BackendError.internal(turn_started=True) from error
+            raise BackendError(
+                Code.CANCELED,
+                provider.LocalProviderErrorDetail.REASON_INTERNAL,
+                turn_started=True,
+            )
+        return GenerationResult(
+            content=f"text:{user_prompt}",
+            model=model_id,
+            input_tokens=3,
+            output_tokens=2,
         )
 
-    def generate_structured(
-        self, request: provider.GenerateStructuredRequest, ctx: RequestContext
-    ) -> provider.GenerateStructuredResponse:
-        del ctx
-        json.loads(request.json_schema)
-        return provider.GenerateStructuredResponse(
-            json_payload=b'{"answer":"ok"}',
-            usage=provider.Usage(
-                model=MODEL_ID,
-                input_tokens=5,
-                output_tokens=3,
-            ),
+    async def generate_structured(
+        self,
+        generation_id: str,
+        model_id: str,
+        system_prompt: str,
+        user_prompt: str,
+        json_schema: bytes,
+    ) -> GenerationResult:
+        del generation_id, system_prompt, user_prompt
+        json.loads(json_schema)
+        return GenerationResult(
+            content=b'{"answer":"ok"}',
+            model=model_id,
+            input_tokens=5,
+            output_tokens=3,
         )
 
-    def cancel_generation(
-        self, request: provider.CancelGenerationRequest, ctx: RequestContext
-    ) -> provider.CancelGenerationResponse:
-        del ctx
-        with self._lock:
-            cancelled = self._active.pop(request.generation_id, None)
+    async def cancel(self, generation_id: str) -> bool:
+        async with self._lock:
+            cancelled = self._active.pop(generation_id, None)
         if cancelled is None:
-            return provider.CancelGenerationResponse(found=False)
+            return False
         cancelled.set()
-        print(f"CANCELLED {request.generation_id}", flush=True)
-        return provider.CancelGenerationResponse(found=True)
+        print(f"CANCELLED {generation_id}", flush=True)
+        return True
+
+    async def close(self) -> None:
+        async with self._lock:
+            active = list(self._active.values())
+            self._active.clear()
+        for cancelled in active:
+            cancelled.set()
 
 
-class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
-    daemon_threads = True
-
-
-class QuietRequestHandler(WSGIRequestHandler):
-    def log_message(self, format: str, *args: Any) -> None:
-        del format, args
-
-
-class ContentLengthReader:
-    """Keep WSGI reads within the declared body instead of the live socket."""
-
-    def __init__(self, stream: BinaryIO, length: int) -> None:
-        self._stream = stream
-        self._remaining = length
-
-    def read(self, size: int = -1) -> bytes:
-        if self._remaining == 0:
-            return b""
-        if size < 0 or size > self._remaining:
-            size = self._remaining
-        contents = self._stream.read(size)
-        self._remaining -= len(contents)
-        return contents
-
-
-class ContentLengthBoundApplication:
-    def __init__(self, application: LocalProviderServiceWSGIApplication) -> None:
-        self._application = application
-
-    def __call__(self, environ: dict[str, Any], start_response: Callable) -> Any:
-        length = int(environ.get("CONTENT_LENGTH") or 0)
-        environ["wsgi.input"] = ContentLengthReader(environ["wsgi.input"], length)
-        return self._application(environ, start_response)
+async def serve(args: argparse.Namespace, token: str) -> None:
+    backend = DeterministicBackend()
+    application = create_application(
+        backend,
+        token,
+        max_generation_seconds=10,
+    )
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind((args.host, args.port))
+    listener.listen(socket.SOMAXCONN)
+    print(f"READY {listener.getsockname()[1]}", flush=True)
+    config = uvicorn.Config(
+        application,
+        log_level="error",
+        access_log=False,
+    )
+    server = uvicorn.Server(config)
+    try:
+        await server.serve(sockets=[listener])
+    finally:
+        await backend.close()
 
 
 def main() -> None:
@@ -226,23 +136,7 @@ def main() -> None:
 
     with open(args.token_file, encoding="utf-8") as token_file:
         token = token_file.read().strip()
-
-    application = LocalProviderServiceWSGIApplication(
-        DeterministicLocalProvider(),
-        interceptors=(
-            BearerAuthInterceptor(token),
-            ContractValidationInterceptor(),
-        ),
-    )
-    server = make_server(
-        args.host,
-        args.port,
-        ContentLengthBoundApplication(application),
-        server_class=ThreadingWSGIServer,
-        handler_class=QuietRequestHandler,
-    )
-    print(f"READY {server.server_port}", flush=True)
-    server.serve_forever()
+    asyncio.run(serve(args, token))
 
 
 if __name__ == "__main__":
