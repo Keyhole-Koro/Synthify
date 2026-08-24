@@ -12,7 +12,7 @@ import (
 
 // WorkspaceChatUsecase is the application API required by WorkspaceChatHandler.
 type WorkspaceChatUsecase interface {
-	ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, error)
+	ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, bool, error)
 	ListMessages(ctx context.Context, workspaceID, conversationID, userID string) ([]*domain.ChatMessage, error)
 	SendMessage(ctx context.Context, workspaceID, conversationID, text, userID string) (*domain.ChatMessage, *domain.ChatMessage, error)
 }
@@ -36,7 +36,7 @@ func (h *WorkspaceChatHandler) ListWorkspaceChatConversations(
 	if err != nil {
 		return nil, err
 	}
-	convs, err := h.service.ListConversations(ctx, req.Msg.GetWorkspaceId(), userID)
+	convs, hasAnswerableSources, err := h.service.ListConversations(ctx, req.Msg.GetWorkspaceId(), userID)
 	if err != nil {
 		return nil, toError(err)
 	}
@@ -44,7 +44,10 @@ func (h *WorkspaceChatHandler) ListWorkspaceChatConversations(
 	for _, conv := range convs {
 		out = append(out, toProtoChatConversation(conv))
 	}
-	return connect.NewResponse(&appv1.ListWorkspaceChatConversationsResponse{Conversations: out}), nil
+	return connect.NewResponse(&appv1.ListWorkspaceChatConversationsResponse{
+		Conversations:        out,
+		HasAnswerableSources: hasAnswerableSources,
+	}), nil
 }
 
 func (h *WorkspaceChatHandler) ListWorkspaceChatMessages(

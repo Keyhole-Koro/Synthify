@@ -170,6 +170,15 @@ export declare type ListWorkspaceChatConversationsResponse = Message<"synthify.a
    * @generated from field: repeated synthify.app.v1.WorkspaceChatConversation conversations = 1;
    */
   conversations: WorkspaceChatConversation[];
+
+  /**
+   * 回答の根拠にできる処理済みドキュメントが1件以上あるか。false なら
+   * SendWorkspaceChatMessage は chat_source_unavailable を返すので、UI は
+   * 入力を無効にして理由を出せる。
+   *
+   * @generated from field: bool has_answerable_sources = 2;
+   */
+  hasAnswerableSources: boolean;
 };
 
 /**

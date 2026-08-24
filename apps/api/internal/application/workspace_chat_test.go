@@ -102,7 +102,7 @@ func TestSendMessage_PersistsBothTurnsAndCreatesConversation(t *testing.T) {
 		"the stored model must be the one that actually answered")
 	assert.Equal(t, domain.ChatMessageStatusComplete, assistantMsg.Status)
 
-	convs, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
+	convs, _, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
 	require.NoError(t, err)
 	require.Len(t, convs, 1, "the first message creates the conversation")
 	assert.Equal(t, "結論は？", convs[0].Title)
@@ -189,7 +189,7 @@ func TestSendMessage_GenerationFailure_PersistsFailedTurn(t *testing.T) {
 	assert.Equal(t, domain.ChatErrGenerationFailed, assistantMsg.ErrorCode)
 	assert.Empty(t, assistantMsg.Content)
 
-	convs, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
+	convs, _, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
 	require.NoError(t, err)
 	msgs, err := f.svc.ListMessages(ctx, f.wsID, convs[0].ConversationID, f.userID)
 	require.NoError(t, err)
@@ -240,7 +240,7 @@ func TestSendMessage_ContinuesExistingConversation(t *testing.T) {
 	_, _, err := f.svc.SendMessage(ctx, f.wsID, "", "最初の質問", f.userID)
 	require.NoError(t, err)
 
-	convs, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
+	convs, _, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
 	require.NoError(t, err)
 	require.Len(t, convs, 1)
 	convID := convs[0].ConversationID
@@ -248,7 +248,7 @@ func TestSendMessage_ContinuesExistingConversation(t *testing.T) {
 	_, _, err = f.svc.SendMessage(ctx, f.wsID, convID, "二つ目の質問", f.userID)
 	require.NoError(t, err)
 
-	convs, err = f.svc.ListConversations(ctx, f.wsID, f.userID)
+	convs, _, err = f.svc.ListConversations(ctx, f.wsID, f.userID)
 	require.NoError(t, err)
 	assert.Len(t, convs, 1, "a follow-up must not create a second conversation")
 
@@ -282,7 +282,7 @@ func TestListMessages_NonMember_ReturnsForbidden(t *testing.T) {
 
 	_, _, err := f.svc.SendMessage(ctx, f.wsID, "", "結論は？", f.userID)
 	require.NoError(t, err)
-	convs, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
+	convs, _, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
 	require.NoError(t, err)
 
 	_, err = f.svc.ListMessages(ctx, f.wsID, convs[0].ConversationID, "stranger")
@@ -293,7 +293,7 @@ func TestListConversations_NonMember_ReturnsForbidden(t *testing.T) {
 	ctx := context.Background()
 	f := newChatFixture(t)
 
-	_, err := f.svc.ListConversations(ctx, f.wsID, "stranger")
+	_, _, err := f.svc.ListConversations(ctx, f.wsID, "stranger")
 	assert.ErrorIs(t, err, domain.ErrForbidden)
 }
 
@@ -427,4 +427,49 @@ func TestSendMessage_FailedTurnRecordsTheAnswerer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.ChatMessageStatusFailed, assistantMsg.Status)
 	assert.Equal(t, "gemini-3-flash-preview", assistantMsg.ModelSelection)
+}
+
+// UI が「質問できるか」を自前で推測しないよう、判定はサーバーが返す。
+// retrieval と同じ条件 (succeeded job を持つ document) でなければならない。
+func TestListConversations_ReportsWhetherTheWorkspaceCanAnswer(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("workspace with a processed document", func(t *testing.T) {
+		f := newChatFixture(t)
+		_, hasSources, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
+		require.NoError(t, err)
+		assert.True(t, hasSources)
+	})
+
+	t.Run("empty workspace", func(t *testing.T) {
+		store := mock.NewStore()
+		ws := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+		svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{
+			Repo: store, Workspaces: store, Answerer: &fakeAnswerer{},
+		})
+
+		_, hasSources, err := svc.ListConversations(ctx, ws.Workspace.WorkspaceID, "owner")
+		require.NoError(t, err)
+		assert.False(t, hasSources)
+	})
+
+	t.Run("only an in-flight document", func(t *testing.T) {
+		store := mock.NewStore()
+		ws := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+		doc, _, err := store.CreateDocument(ctx, ws.Workspace.WorkspaceID, "owner", "wip.pdf", "application/pdf", 100)
+		require.NoError(t, err)
+		require.NoError(t, store.SaveDocumentChunks(ctx, doc.DocumentID, []*domain.DocumentChunk{
+			{ChunkID: "c1", DocumentID: doc.DocumentID, Text: "処理中"},
+		}))
+		_, err = store.CreateProcessingJob(ctx, doc.DocumentID, ws.Workspace.WorkspaceID, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+		require.NoError(t, err)
+
+		svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{
+			Repo: store, Workspaces: store, Answerer: &fakeAnswerer{},
+		})
+
+		_, hasSources, err := svc.ListConversations(ctx, ws.Workspace.WorkspaceID, "owner")
+		require.NoError(t, err)
+		assert.False(t, hasSources, "an in-flight upload is not answerable yet")
+	})
 }

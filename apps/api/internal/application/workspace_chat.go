@@ -95,11 +95,23 @@ func (s *WorkspaceChatService) authorizeRead(ctx context.Context, workspaceID, u
 	return nil
 }
 
-func (s *WorkspaceChatService) ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, error) {
+// ListConversations は会話一覧と、この workspace が回答可能かどうかを返す。
+// 可能性の判定を UI に持たせない: 「処理済みドキュメントがある」の定義は
+// retrieval 側の条件と一致していなければならず、Firestore の job 状態など
+// 別経路から推測すると必ずずれる。
+func (s *WorkspaceChatService) ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, bool, error) {
 	if err := s.authorizeRead(ctx, workspaceID, userID); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return s.repo.ListChatConversations(ctx, workspaceID, chatMaxConversations)
+	conversations, err := s.repo.ListChatConversations(ctx, workspaceID, chatMaxConversations)
+	if err != nil {
+		return nil, false, err
+	}
+	sourceCount, err := s.repo.CountChatSourceDocuments(ctx, workspaceID)
+	if err != nil {
+		return nil, false, err
+	}
+	return conversations, sourceCount > 0, nil
 }
 
 func (s *WorkspaceChatService) ListMessages(ctx context.Context, workspaceID, conversationID, userID string) ([]*domain.ChatMessage, error) {
