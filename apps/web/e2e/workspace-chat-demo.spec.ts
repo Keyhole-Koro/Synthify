@@ -12,7 +12,19 @@ test.use({
   viewport: { width: 1280, height: 800 },
 });
 
+// 間を置きながら4つの経路を通すので、既定の 60s には収まらない。
+test.setTimeout(180_000);
+
 const BEAT = 900;
+
+async function openSeededWorkspaceAgain(page: Page) {
+  await page.goto('/');
+  const list = page.getByText('ワークスペース', { exact: true }).first();
+  await expect(list).toBeVisible({ timeout: 30_000 });
+  await list.click();
+  await page.getByText('Synthify Dev Seed', { exact: true }).first().click();
+  await expect(page.getByTestId('workspace-chat')).toBeVisible({ timeout: 30_000 });
+}
 
 async function beat(page: Page, factor = 1) {
   await page.waitForTimeout(BEAT * factor);
@@ -64,7 +76,7 @@ test('@demo workspace chat walkthrough', async ({ page }) => {
   const sources = page.getByTestId('workspace-chat-sources').last();
   await expect(sources).toBeVisible();
   await expect(sources.locator('li').first()).toContainText('ワークスペースと権限');
-  await chat.scrollIntoViewIfNeeded();
+  await sources.scrollIntoViewIfNeeded();
   await beat(page, 2.5);
 
   // 2問目: 同じ会話に続けて質問する。別の節が最上位に来る。
@@ -74,18 +86,39 @@ test('@demo workspace chat walkthrough', async ({ page }) => {
   await send.click();
 
   await expect(page.getByTestId('workspace-chat-message-assistant')).toHaveCount(2);
-  await expect(page.getByTestId('workspace-chat-sources').last().locator('li').first()).toContainText(
-    '処理パイプライン',
-  );
-  await chat.scrollIntoViewIfNeeded();
+  const secondSources = page.getByTestId('workspace-chat-sources').last();
+  await expect(secondSources.locator('li').first()).toContainText('処理パイプライン');
+  await secondSources.scrollIntoViewIfNeeded();
   await beat(page, 2.5);
 
-  // リロードしても会話はサーバーから戻る。
-  await page.reload();
-  const afterReload = page.getByText('ワークスペース', { exact: true }).first();
-  await expect(afterReload).toBeVisible({ timeout: 30_000 });
-  await afterReload.click();
-  await page.getByText('Synthify Dev Seed', { exact: true }).first().click();
+  // 資料が1件も無い workspace でも質問できる。回答には「資料に基づかない」
+  // 旨が添えられる。
+  await page.goto('/');
+  const listAgain = page.getByText('ワークスペース', { exact: true }).first();
+  await expect(listAgain).toBeVisible({ timeout: 30_000 });
+  await listAgain.click();
+  await beat(page);
+  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+
+  const emptyInput = page.getByTestId('workspace-chat-input');
+  await expect(emptyInput).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByTestId('workspace-chat-hint')).toContainText('まだ資料もページもありません');
+  await beat(page, 1.5);
+
+  await emptyInput.click();
+  await emptyInput.pressSequentially('このワークスペースは何に使えますか', { delay: 55 });
+  await beat(page);
+  await page.getByTestId('workspace-chat-send').click();
+
+  await expect(page.getByTestId('workspace-chat-message-assistant').last()).toBeVisible();
+  const ungrounded = page.getByTestId('workspace-chat-ungrounded').last();
+  await expect(ungrounded).toBeVisible();
+  // 回答とバッジはパネル下端に出るため、明示的に画面内へ送らないと録画に写らない。
+  await ungrounded.scrollIntoViewIfNeeded();
+  await beat(page, 3);
+
+  // seed workspace に戻ると、さきほどの会話がサーバーから復元される。
+  await openSeededWorkspaceAgain(page);
 
   await expect(
     page.getByTestId('workspace-chat-message-user').filter({ hasText: 'ワークスペースの権限について教えて' }),
