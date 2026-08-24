@@ -21,6 +21,7 @@ import (
 // 設計 §5 の初期 bound。
 const (
 	chatMaxRetrievedChunks  = 12
+	chatMaxRetrievedItems   = 8
 	chatMaxContextChars     = 24000
 	chatMaxHistoryMessages  = 12
 	chatGenerationTimeout   = 60 * time.Second
@@ -38,11 +39,12 @@ type ChatAnswerRequest struct {
 	Candidates []domain.ChatSourceCandidate
 }
 
-// ChatAnswer は model の出力。SourceChunkIDs は「model が引用したと主張した」
+// ChatAnswer は model の出力。SourceIDs は「model が引用したと主張した」
 // 値であって、検証前の生データである。service 側で候補集合に対して検証する。
+// chunk id と item id の両方を取りうる。
 type ChatAnswer struct {
 	Text           string
-	SourceChunkIDs []string
+	SourceIDs []string
 }
 
 // ChatAnswerer は grounded answer を生成する port。
@@ -95,10 +97,12 @@ func (s *WorkspaceChatService) authorizeRead(ctx context.Context, workspaceID, u
 	return nil
 }
 
-// ListConversations は会話一覧と、この workspace が回答可能かどうかを返す。
-// 可能性の判定を UI に持たせない: 「処理済みドキュメントがある」の定義は
-// retrieval 側の条件と一致していなければならず、Firestore の job 状態など
-// 別経路から推測すると必ずずれる。
+// ListConversations は会話一覧と、この workspace に出典になりうるものが
+// あるかを返す。
+//
+// このフラグは入力欄を塞ぐためのものではない (出典が無くても質問はできる)。
+// 「出典付きで答えられる見込みがあるか」を UI に伝えるだけで、判定条件は
+// retrieval と一致していなければならないのでサーバーが持つ。
 func (s *WorkspaceChatService) ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, bool, error) {
 	if err := s.authorizeRead(ctx, workspaceID, userID); err != nil {
 		return nil, false, err
@@ -107,11 +111,15 @@ func (s *WorkspaceChatService) ListConversations(ctx context.Context, workspaceI
 	if err != nil {
 		return nil, false, err
 	}
-	sourceCount, err := s.repo.CountChatSourceDocuments(ctx, workspaceID)
+	docCount, err := s.repo.CountChatSourceDocuments(ctx, workspaceID)
 	if err != nil {
 		return nil, false, err
 	}
-	return conversations, sourceCount > 0, nil
+	itemCount, err := s.repo.CountChatSourceItems(ctx, workspaceID)
+	if err != nil {
+		return nil, false, err
+	}
+	return conversations, docCount > 0 || itemCount > 0, nil
 }
 
 func (s *WorkspaceChatService) ListMessages(ctx context.Context, workspaceID, conversationID, userID string) ([]*domain.ChatMessage, error) {
@@ -150,15 +158,9 @@ func (s *WorkspaceChatService) SendMessage(ctx context.Context, workspaceID, con
 		return nil, nil, err
 	}
 
-	// 答えられる資料が無いなら、model 呼び出し前に落とす。
-	sourceCount, err := s.repo.CountChatSourceDocuments(ctx, workspaceID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if sourceCount == 0 {
-		return nil, nil, domain.ErrChatSourceUnavailable
-	}
-
+	// 出典が無くても回答は行う。ドキュメント未投入の workspace でも使いたい
+	// という要求があり、出典ゼロは「回答不能」ではなく「一般知識で答えた」と
+	// して表現する (grounded=false)。
 	conv, err := s.ensureConversation(ctx, workspaceID, conversationID, text, userID)
 	if err != nil {
 		return nil, nil, err
@@ -200,10 +202,19 @@ func (s *WorkspaceChatService) generateAnswer(
 ) (*domain.ChatMessage, error) {
 	// SQL 側が一致数で順位付けし、一致ゼロでも候補を返すので、空振り用の
 	// 二度目の問い合わせは要らない。
-	candidates, err := s.repo.SearchChatSourceCandidates(ctx, workspaceID, domain.ChatSearchTerms(question), chatMaxRetrievedChunks)
+	terms := domain.ChatSearchTerms(question)
+
+	candidates, err := s.repo.SearchChatSourceCandidates(ctx, workspaceID, terms, chatMaxRetrievedChunks)
 	if err != nil {
 		return nil, err
 	}
+	// ツリー item も出典候補にする。document が1件も無い workspace で
+	// 回答の根拠になるのはこちらだけ。
+	itemCandidates, err := s.repo.SearchChatSourceItems(ctx, workspaceID, terms, chatMaxRetrievedItems)
+	if err != nil {
+		return nil, err
+	}
+	candidates = append(candidates, itemCandidates...)
 	candidates = boundContext(candidates, chatMaxContextChars)
 
 	genCtx, cancel := context.WithTimeout(ctx, chatGenerationTimeout)
@@ -242,7 +253,7 @@ func (s *WorkspaceChatService) generateAnswer(
 		return failed, nil
 	}
 
-	sources := validateCitations(answer.SourceChunkIDs, candidates)
+	sources := validateCitations(answer.SourceIDs, candidates)
 
 	return s.repo.CreateChatMessage(ctx, &domain.ChatMessage{
 		ConversationID: conversationID,
@@ -251,6 +262,9 @@ func (s *WorkspaceChatService) generateAnswer(
 		Sources:        sources,
 		ModelSelection: model,
 		Status:         domain.ChatMessageStatusComplete,
+		// 出典が1件も付かなかった回答は workspace の中身に基づいていない。
+		// 本文からは後追いで判定できないので行に残し、UI で明示する。
+		Grounded: len(sources) > 0,
 	}, snapshotJSON(candidates, model))
 }
 
@@ -265,22 +279,23 @@ func (s *WorkspaceChatService) ensureConversation(ctx context.Context, workspace
 // 候補に無い id は捨てる。重複も 1 件に畳む。これが「model が prompt に無い
 // 出典をでっち上げる」経路を塞ぐ唯一の場所 (設計 §5)。
 func validateCitations(claimed []string, candidates []domain.ChatSourceCandidate) []domain.ChatSource {
-	byChunk := make(map[string]domain.ChatSourceCandidate, len(candidates))
+	bySourceID := make(map[string]domain.ChatSourceCandidate, len(candidates))
 	for _, c := range candidates {
-		byChunk[c.ChunkID] = c
+		bySourceID[c.SourceID()] = c
 	}
 
 	seen := make(map[string]bool, len(claimed))
 	sources := make([]domain.ChatSource, 0, len(claimed))
-	for _, chunkID := range claimed {
-		candidate, ok := byChunk[chunkID]
-		if !ok || seen[chunkID] {
+	for _, sourceID := range claimed {
+		candidate, ok := bySourceID[sourceID]
+		if !ok || seen[sourceID] {
 			continue
 		}
-		seen[chunkID] = true
+		seen[sourceID] = true
 		sources = append(sources, domain.ChatSource{
 			DocumentID: candidate.DocumentID,
 			ChunkID:    candidate.ChunkID,
+			ItemID:     candidate.ItemID,
 			Label:      candidate.Label(),
 		})
 	}
@@ -314,18 +329,18 @@ func conversationTitle(text string) string {
 // source id / strategy / 実効モデルのみを入れる。資格情報、endpoint、
 // 生の prompt、chunk 本文は入れない (設計 §3, §7)。
 func snapshotJSON(candidates []domain.ChatSourceCandidate, model string) []byte {
-	chunkIDs := make([]string, 0, len(candidates))
+	sourceIDs := make([]string, 0, len(candidates))
 	for _, c := range candidates {
-		chunkIDs = append(chunkIDs, c.ChunkID)
+		sourceIDs = append(sourceIDs, c.SourceID())
 	}
 	snapshot := struct {
 		Strategy            string   `json:"strategy"`
-		CandidateChunkIDs   []string `json:"candidate_chunk_ids"`
+		CandidateSourceIDs  []string `json:"candidate_source_ids"`
 		EffectiveModel      string   `json:"effective_model"`
 		CandidateCountLimit int      `json:"candidate_count_limit"`
 	}{
-		Strategy:            "lexical_v1",
-		CandidateChunkIDs:   chunkIDs,
+		Strategy:            "lexical_v2_chunks_and_items",
+		CandidateSourceIDs:  sourceIDs,
 		EffectiveModel:      model,
 		CandidateCountLimit: chatMaxRetrievedChunks,
 	}

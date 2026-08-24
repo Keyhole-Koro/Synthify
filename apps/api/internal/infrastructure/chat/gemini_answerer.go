@@ -61,21 +61,25 @@ var answerSchema = &genai.Schema{
 			Type:        genai.TypeString,
 			Description: "The answer to the user's question, in the language of the question.",
 		},
-		"source_chunk_ids": {
+		"source_ids": {
 			Type:        genai.TypeArray,
 			Items:       &genai.Schema{Type: genai.TypeString},
-			Description: "chunk_id values from the provided sources that support the answer.",
+			Description: "source_id values from the provided sources that support the answer. Empty when answering from general knowledge.",
 		},
 	},
-	Required: []string{"answer", "source_chunk_ids"},
+	Required: []string{"answer", "source_ids"},
 }
 
-const answerSystemPrompt = `You answer questions about a specific workspace's documents.
+const answerSystemPrompt = `You answer questions about a specific workspace.
+Sources are excerpts from its documents and pages from its knowledge tree.
 
 Rules:
-- Answer only from the provided sources. Never use outside knowledge.
-- Cite with the exact chunk_id values given. Never invent a chunk_id.
-- If the sources do not contain the answer, say so plainly instead of guessing.
+- Prefer the provided sources. When they answer the question, cite them.
+- Cite with the exact source_id values given. Never invent a source_id.
+- When the sources do not cover the question, you may answer from general
+  knowledge — but say so, and cite nothing rather than citing something
+  loosely related.
+- When no sources are provided at all, just answer from general knowledge.
 - Answer in the same language the question was asked in.
 - Be concise: a short paragraph unless the question needs more.`
 
@@ -110,8 +114,8 @@ func (a *GeminiAnswerer) Answer(ctx context.Context, req application.ChatAnswerR
 	}
 
 	var parsed struct {
-		Answer         string   `json:"answer"`
-		SourceChunkIDs []string `json:"source_chunk_ids"`
+		Answer    string   `json:"answer"`
+		SourceIDs []string `json:"source_ids"`
 	}
 	if err := json.Unmarshal([]byte(raw.String()), &parsed); err != nil {
 		return application.ChatAnswer{}, fmt.Errorf("parse gemini answer: %w", err)
@@ -119,7 +123,7 @@ func (a *GeminiAnswerer) Answer(ctx context.Context, req application.ChatAnswerR
 
 	return application.ChatAnswer{
 		Text:           parsed.Answer,
-		SourceChunkIDs: parsed.SourceChunkIDs,
+		SourceIDs: parsed.SourceIDs,
 	}, nil
 }
 
@@ -139,10 +143,14 @@ func buildPrompt(req application.ChatAnswerRequest) string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("## Sources\n\n")
+	if len(req.Candidates) == 0 {
+		b.WriteString("## Sources\n\n(none — answer from general knowledge)\n\n")
+	} else {
+		b.WriteString("## Sources\n\n")
+	}
 	for _, c := range req.Candidates {
-		b.WriteString("chunk_id: ")
-		b.WriteString(c.ChunkID)
+		b.WriteString("source_id: ")
+		b.WriteString(c.SourceID())
 		b.WriteString("\nsource: ")
 		b.WriteString(c.Label())
 		b.WriteString("\n")

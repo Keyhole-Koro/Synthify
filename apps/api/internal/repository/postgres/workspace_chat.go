@@ -79,6 +79,7 @@ func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, 
 		ModelSelection:        msg.ModelSelection,
 		Status:                status,
 		ErrorCode:             msg.ErrorCode,
+		Grounded:              msg.Grounded,
 		RetrievalSnapshotJson: retrievalSnapshot,
 		CreatedAt:             nowTime(),
 	})
@@ -88,9 +89,11 @@ func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, 
 
 	for i, src := range msg.Sources {
 		if err := s.q().CreateWorkspaceChatMessageSource(ctx, sqlcgen.CreateWorkspaceChatMessageSourceParams{
-			MessageID:  messageID,
-			Ordinal:    int32(i),
-			DocumentID: src.DocumentID,
+			MessageID: messageID,
+			Ordinal:   int32(i),
+			// ツリー item 由来の出典には document が無い。空文字は FK 違反に
+			// なるので NULL を入れる。
+			DocumentID: sql.NullString{String: src.DocumentID, Valid: src.DocumentID != ""},
 			ChunkID:    src.ChunkID,
 			ItemID:     src.ItemID,
 			Label:      src.Label,
@@ -108,6 +111,7 @@ func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, 
 		ModelSelection: row.ModelSelection,
 		Status:         row.Status,
 		ErrorCode:      row.ErrorCode,
+		Grounded:       row.Grounded,
 		CreatedAt:      row.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
@@ -128,7 +132,7 @@ func (s *Store) ListChatMessages(ctx context.Context, conversationID string, lim
 	byMessage := make(map[string][]domain.ChatSource, len(sourceRows))
 	for _, src := range sourceRows {
 		byMessage[src.MessageID] = append(byMessage[src.MessageID], domain.ChatSource{
-			DocumentID: src.DocumentID,
+			DocumentID: src.DocumentID.String,
 			ChunkID:    src.ChunkID,
 			ItemID:     src.ItemID,
 			Label:      src.Label,
@@ -146,6 +150,7 @@ func (s *Store) ListChatMessages(ctx context.Context, conversationID string, lim
 			ModelSelection: row.ModelSelection,
 			Status:         row.Status,
 			ErrorCode:      row.ErrorCode,
+			Grounded:       row.Grounded,
 			CreatedAt:      row.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -173,6 +178,7 @@ func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID strin
 			ModelSelection: row.ModelSelection,
 			Status:         row.Status,
 			ErrorCode:      row.ErrorCode,
+			Grounded:       row.Grounded,
 			CreatedAt:      row.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -208,6 +214,42 @@ func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID stri
 		})
 	}
 	return out, nil
+}
+
+// SearchChatSourceItems はナレッジツリーの item を引用候補として返す。
+// document が1件も無い workspace でも回答できるのはこの経路があるため。
+func (s *Store) SearchChatSourceItems(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error) {
+	rows, err := s.q().ListWorkspaceChatSourceItems(ctx, sqlcgen.ListWorkspaceChatSourceItemsParams{
+		WorkspaceID: workspaceID,
+		Terms:       strings.Join(terms, domain.ChatSearchTermSeparator),
+		ResultLimit: int32(limit),
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.ChatSourceCandidate, 0, len(rows))
+	for _, row := range rows {
+		// item の本文は HTML なので、そのまま prompt に入れるとタグが
+		// 大半を占める。description を優先し、無ければ content を使う。
+		text := row.Description
+		if text == "" {
+			text = row.Content
+		}
+		out = append(out, domain.ChatSourceCandidate{
+			ItemID:  row.ID,
+			Heading: row.Title,
+			Text:    text,
+		})
+	}
+	return out, nil
+}
+
+func (s *Store) CountChatSourceItems(ctx context.Context, workspaceID string) (int, error) {
+	count, err := s.q().CountWorkspaceChatSourceItems(ctx, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return int(count), nil
 }
 
 func (s *Store) CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error) {

@@ -393,12 +393,13 @@ type WorkspaceChatMessage struct {
 	ErrorCode             string
 	RetrievalSnapshotJson json.RawMessage
 	CreatedAt             time.Time
+	Grounded              bool
 }
 
 type WorkspaceChatMessageSource struct {
 	MessageID  string
 	Ordinal    int32
-	DocumentID string
+	DocumentID sql.NullString
 	ChunkID    string
 	ItemID     string
 	Label      string

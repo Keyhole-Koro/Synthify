@@ -24,8 +24,8 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  // 処理済みの資料が1件も無い workspace では質問できない。サーバーも
-  // chat_source_unavailable で弾くが、送る前に理由を見せる。
+  // 出典になりうるもの (処理済み資料 or ツリーの paper) があるか。
+  // 入力を塞ぐためではなく、空のときに一言添えるためだけに使う。
   const [hasAnswerableSources, setHasAnswerableSources] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -83,7 +83,7 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
   );
 
   const overLimit = draft.length > MAX_MESSAGE_LENGTH;
-  const disabled = !hasAnswerableSources || sending;
+  const disabled = sending;
 
   return (
     <section className="border-t border-stone-200 px-5 pt-4 pb-5" data-testid="workspace-chat">
@@ -91,10 +91,6 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
 
       {loading ? (
         <p className="text-[12px] text-stone-400">読み込み中…</p>
-      ) : !hasAnswerableSources ? (
-        <p className="text-[12px] text-stone-400" data-testid="workspace-chat-empty">
-          処理済みの資料を追加すると質問できます。
-        </p>
       ) : (
         <>
           <div
@@ -103,8 +99,10 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
             data-testid="workspace-chat-messages"
           >
             {messages.length === 0 && (
-              <p className="text-[12px] text-stone-400">
-                例：この資料の結論は？ / ワークスペースの権限について
+              <p className="text-[12px] text-stone-400" data-testid="workspace-chat-hint">
+                {hasAnswerableSources
+                  ? '例：この資料の結論は？ / ワークスペースの権限について'
+                  : 'まだ資料もページもありません。そのまま質問できますが、回答はこのワークスペースの内容に基づきません。'}
               </p>
             )}
             {messages.map((message) => (
@@ -183,6 +181,15 @@ function ChatBubble({ message }: { message: WorkspaceChatMessage }) {
       >
         {message.content}
       </div>
+
+      {!isUser && !message.grounded && (
+        <p
+          className="mt-1.5 text-[11px] text-amber-600"
+          data-testid="workspace-chat-ungrounded"
+        >
+          このワークスペースの資料には基づかない回答です
+        </p>
+      )}
 
       {message.sources.length > 0 && (
         <ul className="mt-1.5 flex flex-wrap gap-1.5" data-testid="workspace-chat-sources">

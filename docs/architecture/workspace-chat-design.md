@@ -10,6 +10,7 @@ document processing job や knowledge tree の更新を行う agent 経路とは
 
 - ワークスペース単位の会話一覧とメッセージ履歴
 - ユーザーの質問に対する、ワークスペース内 document chunk / tree item を根拠にした回答
+- 出典が無い場合の、モデルの一般知識にもとづく回答 (`grounded=false` として記録し、UI で明示する)
 - 回答ごとの source citation と paper へのリンク
 - 会話・メッセージ・citation の Postgres 永続化
 - Gemini による非 streaming の回答
@@ -20,6 +21,7 @@ document processing job や knowledge tree の更新を行う agent 経路とは
 - tree item、document、dynamic tool、workspace setting の変更
 - ファイルが upload / processing 中の内容を根拠にした回答
 - ブラウザから local provider に直接つなぐ経路
+- チャットからのファイル添付 (後続 phase)
 - チームをまたぐ会話、public share link からの会話
 - 画像生成、添付ファイル、音声入力
 - 会話からの自動 action 実行
@@ -46,7 +48,8 @@ document processing job や knowledge tree の更新を行う agent 経路とは
 [ このワークスペースについて質問…             送信 ]
 ```
 
-- 空の workspace では input を disabled にし、「処理済みの資料を追加すると質問できます」と表示する。
+- 空の workspace でも input は有効のままにする。資料を入れる前から使いたいという要求があるため、
+  入力を塞ぐのではなく「まだ資料もページもありません」と添えるだけにする。
 - processing 中の document は citation / retrieval の候補から除く。既存の完了済み資料には質問できる。
 - 回答生成中は同一 conversation の submit を disabled にし、`停止` を表示する。
 - citation は短い source label とし、クリック時に該当 paper または document viewer を開く。
@@ -104,6 +107,7 @@ CREATE TABLE workspace_chat_messages (
   role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
   content TEXT NOT NULL,
   model_selection TEXT NOT NULL DEFAULT 'gemini',
+  grounded BOOLEAN NOT NULL DEFAULT TRUE,
   retrieval_snapshot_json JSONB NOT NULL DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL
 );
@@ -111,7 +115,8 @@ CREATE TABLE workspace_chat_messages (
 CREATE TABLE workspace_chat_message_sources (
   message_id TEXT NOT NULL REFERENCES workspace_chat_messages(message_id) ON DELETE CASCADE,
   ordinal INTEGER NOT NULL,
-  document_id TEXT NOT NULL REFERENCES documents(document_id) ON DELETE CASCADE,
+  -- tree item だけを出典にする回答には document が無いため NULL を許す。
+  document_id TEXT REFERENCES documents(document_id) ON DELETE CASCADE,
   chunk_id TEXT NOT NULL DEFAULT '',
   item_id TEXT NOT NULL DEFAULT '',
   label TEXT NOT NULL,
@@ -187,7 +192,6 @@ Error mapping:
 |---|---|---|
 | blank/oversized message; invalid conversation-workspace pair | `invalid_argument` | `invalid_chat_message` |
 | no workspace read access | `permission_denied` | `workspace_access_denied` |
-| no completed sources | `failed_precondition` | `chat_source_unavailable` |
 | generation already active for conversation | `failed_precondition` | `chat_generation_in_progress` |
 | cancellation lost race with completed turn | successful idempotent response | — |
 | model deadline/provider failure | terminal assistant error | `chat_generation_failed` |
@@ -198,6 +202,8 @@ Error mapping:
 
 1. Fetch only completed documents in the authorized workspace.
 2. Retrieve a bounded set of chunk candidates using the existing vector search plus a deterministic lexical fallback.
+   Retrieve tree-item candidates the same way: items are citable before any document finishes processing, and in a
+   workspace that never gets one.
 3. Include a bounded tree summary and source metadata in the model request.
 4. Request a structured answer containing `answer` and candidate source IDs.
 5. Validate every returned source ID against the candidate set; drop invalid citations.
@@ -208,14 +214,20 @@ Initial bounds:
 | Limit | v1 value | Reason |
 |---|---:|---|
 | retrieved chunks | 12 | keeps context and citation checking bounded |
+| retrieved tree items | 8 | the same bound applied to the item source path |
 | context text | 24,000 characters | avoids an unbounded prompt cost |
 | conversation history | latest 12 messages | avoids replaying the entire conversation |
 | active generations per conversation | 1 | preserves ordering and cancellation semantics |
 | server generation deadline | 60 seconds | returns a bounded user interaction |
 
-No answer may claim a citation that was not in the retrieval candidate set. An answer with no valid citation is allowed
-only when it clearly labels itself as a synthesis of the workspace tree; otherwise API returns a grounded-answer failure
-instead of fabricating provenance.
+No answer may claim a citation that was not in the retrieval candidate set. That rule is unchanged, and is what keeps
+provenance honest.
+
+An answer with no valid citation is allowed and is stored with `grounded=false`. This revises the original v1 rule.
+Refusing to answer made chat unusable until a document finished processing — precisely when a user most wants to ask
+what the workspace is for. The safeguard is disclosure rather than refusal: the row records that the answer is not
+based on workspace content, and the UI says so beside it. Fabricated provenance remains impossible, because citations
+are validated against the candidate set independently of the answer text.
 
 ---
 

@@ -16,9 +16,6 @@ var (
 	ErrStorageQuotaExceeded    = errors.New("storage quota exceeded")
 	ErrUploadNotConfirmed      = errors.New("upload is not confirmed")
 	ErrUploadSizeMismatch      = errors.New("uploaded object size does not match reservation")
-	// ErrChatSourceUnavailable は workspace に回答の根拠になる処理済み
-	// ドキュメントが1件も無いことを表す。model 呼び出し前に返す。
-	ErrChatSourceUnavailable = errors.New("no processed documents available to answer from")
 
 	// Severity markers
 	ErrCritical = errors.New("critical system error") // Triggers CRITICAL alert

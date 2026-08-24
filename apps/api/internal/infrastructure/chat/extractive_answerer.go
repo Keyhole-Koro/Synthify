@@ -24,8 +24,11 @@ const ExtractiveAnswerNotice = "[ローカル開発用の抽出回答 / no model
 
 func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAnswerRequest) (application.ChatAnswer, error) {
 	if len(req.Candidates) == 0 {
+		// 出典ゼロでも回答自体は返す。サービス側が grounded=false として
+		// 記録し、UI が「資料に基づかない回答」と明示する。
 		return application.ChatAnswer{
-			Text: ExtractiveAnswerNotice + "\n\n該当する資料が見つかりませんでした。",
+			Text: ExtractiveAnswerNotice + "\n\nこのワークスペースにはまだ参照できる資料もページもありません。" +
+				"モデルを設定すると、一般知識にもとづく回答を返せます。\n\n質問: " + req.Question,
 		}, nil
 	}
 
@@ -47,7 +50,7 @@ func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAns
 	b.WriteString(req.Question)
 	b.WriteString("\n\n関連する記述:\n")
 
-	chunkIDs := make([]string, 0, len(matched))
+	sourceIDs := make([]string, 0, len(matched))
 	for _, i := range matched {
 		c := req.Candidates[i]
 		b.WriteString("\n・")
@@ -55,10 +58,10 @@ func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAns
 		b.WriteString("\n  ")
 		b.WriteString(truncateRunes(c.Text, 200))
 		b.WriteString("\n")
-		chunkIDs = append(chunkIDs, c.ChunkID)
+		sourceIDs = append(sourceIDs, c.SourceID())
 	}
 
-	return application.ChatAnswer{Text: b.String(), SourceChunkIDs: chunkIDs}, nil
+	return application.ChatAnswer{Text: b.String(), SourceIDs: sourceIDs}, nil
 }
 
 func truncateRunes(s string, max int) string {

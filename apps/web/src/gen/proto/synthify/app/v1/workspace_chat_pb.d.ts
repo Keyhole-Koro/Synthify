@@ -138,6 +138,14 @@ export declare type WorkspaceChatMessage = Message<"synthify.app.v1.WorkspaceCha
    * @generated from field: string error_code = 9;
    */
   errorCode: string;
+
+  /**
+   * 回答が workspace 内の出典に基づくか。false は「モデルの一般知識で
+   * 答えた」を意味し、UI はその旨を明示する。user メッセージでは常に false。
+   *
+   * @generated from field: bool grounded = 10;
+   */
+  grounded: boolean;
 };
 
 /**
@@ -172,9 +180,11 @@ export declare type ListWorkspaceChatConversationsResponse = Message<"synthify.a
   conversations: WorkspaceChatConversation[];
 
   /**
-   * 回答の根拠にできる処理済みドキュメントが1件以上あるか。false なら
-   * SendWorkspaceChatMessage は chat_source_unavailable を返すので、UI は
-   * 入力を無効にして理由を出せる。
+   * 出典にできる処理済みドキュメントまたはツリーの paper が1件以上あるか。
+   *
+   * 入力欄を塞ぐためのフラグではない: 出典が無くても質問はできる (その場合は
+   * 一般知識で答え、grounded=false になる)。UI が「出典付きで答えられる
+   * 見込み」を示すためだけに使う。
    *
    * @generated from field: bool has_answerable_sources = 2;
    */

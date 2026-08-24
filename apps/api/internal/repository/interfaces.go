@@ -235,7 +235,11 @@ type WorkspaceChatRepository interface {
 	// スコープし、処理が succeeded した document のみを対象にする。
 	// terms に一致した数の多い順で返す。terms が空でも候補は返す。
 	SearchChatSourceCandidates(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error)
+	// SearchChatSourceItems はナレッジツリーの item を引用候補として返す。
+	// document が無い workspace でも回答できるのはこの経路があるため。
+	SearchChatSourceItems(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error)
 	CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error)
+	CountChatSourceItems(ctx context.Context, workspaceID string) (int, error)
 }
 
 type UsageRepository interface {

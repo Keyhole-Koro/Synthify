@@ -20,6 +20,7 @@ sql:
       - "db/migrations/0020_workspace_share_links.up.sql"
       - "db/migrations/0021_item_source_refs.up.sql"
       - "db/migrations/0026_workspace_chat.up.sql"
+      - "db/migrations/0027_workspace_chat_grounding.up.sql"
     queries:
       - "db/queries"
     gen:
@@ -54,6 +55,7 @@ sql:
       - "db/migrations/0020_workspace_share_links.up.sql"
       - "db/migrations/0021_item_source_refs.up.sql"
       - "db/migrations/0026_workspace_chat.up.sql"
+      - "db/migrations/0027_workspace_chat_grounding.up.sql"
     queries:
       - "db/queries"
     gen:

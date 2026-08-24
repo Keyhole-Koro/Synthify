@@ -188,6 +188,61 @@ func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID stri
 	return out, nil
 }
 
+// SearchChatSourceItems は postgres 実装と同じ順位付けを再現する。
+func (s *Store) SearchChatSourceItems(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	items := make([]*domain.Item, 0)
+	for _, item := range s.items[workspaceID] {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ItemID < items[j].ItemID })
+
+	type scored struct {
+		candidate domain.ChatSourceCandidate
+		matches   int
+	}
+	rows := make([]scored, 0, len(items))
+	for _, item := range items {
+		haystack := strings.ToLower(item.Title + " " + item.Description + " " + item.Content)
+		matches := 0
+		for _, term := range terms {
+			if term != "" && strings.Contains(haystack, strings.ToLower(term)) {
+				matches++
+			}
+		}
+		text := item.Description
+		if text == "" {
+			text = item.Content
+		}
+		rows = append(rows, scored{
+			candidate: domain.ChatSourceCandidate{
+				ItemID:  item.ItemID,
+				Heading: item.Title,
+				Text:    text,
+			},
+			matches: matches,
+		})
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].matches > rows[j].matches })
+
+	out := make([]domain.ChatSourceCandidate, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, row.candidate)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *Store) CountChatSourceItems(ctx context.Context, workspaceID string) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.items[workspaceID]), nil
+}
+
 func (s *Store) CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

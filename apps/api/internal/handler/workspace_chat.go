@@ -134,6 +134,7 @@ func toProtoChatMessage(msg *domain.ChatMessage) *appv1.WorkspaceChatMessage {
 		CreatedAt:      msg.CreatedAt,
 		Status:         toProtoChatMessageStatus(msg.Status),
 		ErrorCode:      msg.ErrorCode,
+		Grounded:       msg.Grounded,
 	}
 }
 

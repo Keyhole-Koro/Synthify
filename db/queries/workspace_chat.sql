@@ -22,13 +22,13 @@ WHERE conversation_id = $1;
 
 -- name: CreateWorkspaceChatMessage :one
 INSERT INTO workspace_chat_messages (
-  message_id, conversation_id, role, content, model_selection, status, error_code, retrieval_snapshot_json, created_at
+  message_id, conversation_id, role, content, model_selection, status, error_code, grounded, retrieval_snapshot_json, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING message_id, conversation_id, role, content, model_selection, status, error_code, created_at;
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at;
 
 -- name: ListWorkspaceChatMessages :many
-SELECT message_id, conversation_id, role, content, model_selection, status, error_code, created_at
+SELECT message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
 FROM workspace_chat_messages
 WHERE conversation_id = $1
 ORDER BY created_at, message_id
@@ -37,7 +37,7 @@ LIMIT $2;
 -- ListRecentWorkspaceChatMessages returns the newest N messages for prompt history.
 -- Caller reverses the slice to get chronological order.
 -- name: ListRecentWorkspaceChatMessages :many
-SELECT message_id, conversation_id, role, content, model_selection, status, error_code, created_at
+SELECT message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
 FROM workspace_chat_messages
 WHERE conversation_id = $1 AND status = 'complete'
 ORDER BY created_at DESC, message_id DESC
@@ -128,3 +128,29 @@ WHERE d.workspace_id = $1
     SELECT 1 FROM document_processing_jobs j
     WHERE j.document_id = d.document_id AND j.status = 'succeeded'
   );
+
+-- ListWorkspaceChatSourceItems retrieves knowledge-tree items as citation
+-- candidates, ranked the same way as the chunk query.
+--
+-- Tree items are usable as sources before any document finishes processing —
+-- and in a workspace that never gets one — which is why chat no longer refuses
+-- to answer on an empty document set.
+-- name: ListWorkspaceChatSourceItems :many
+SELECT i.id, i.title, i.description, i.content,
+       (
+         SELECT count(*) FROM unnest(string_to_array(sqlc.arg(terms)::text, chr(31))) AS t
+         WHERE t <> '' AND (
+           i.title ILIKE '%' || t || '%'
+           OR i.description ILIKE '%' || t || '%'
+           OR i.content ILIKE '%' || t || '%'
+         )
+       )::int AS match_count
+FROM tree_items i
+WHERE i.workspace_id = sqlc.arg(workspace_id)
+ORDER BY match_count DESC, i.id
+LIMIT sqlc.arg(result_limit);
+
+-- name: CountWorkspaceChatSourceItems :one
+SELECT COUNT(*)::bigint AS item_count
+FROM tree_items
+WHERE workspace_id = $1;

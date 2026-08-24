@@ -50,6 +50,19 @@ func (q *Queries) CountWorkspaceChatSourceDocuments(ctx context.Context, workspa
 	return document_count, err
 }
 
+const countWorkspaceChatSourceItems = `-- name: CountWorkspaceChatSourceItems :one
+SELECT COUNT(*)::bigint AS item_count
+FROM tree_items
+WHERE workspace_id = $1
+`
+
+func (q *Queries) CountWorkspaceChatSourceItems(ctx context.Context, workspaceID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countWorkspaceChatSourceItems, workspaceID)
+	var item_count int64
+	err := row.Scan(&item_count)
+	return item_count, err
+}
+
 const createWorkspaceChatConversation = `-- name: CreateWorkspaceChatConversation :one
 INSERT INTO workspace_chat_conversations (conversation_id, workspace_id, created_by, title, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $5)
@@ -86,10 +99,10 @@ func (q *Queries) CreateWorkspaceChatConversation(ctx context.Context, arg Creat
 
 const createWorkspaceChatMessage = `-- name: CreateWorkspaceChatMessage :one
 INSERT INTO workspace_chat_messages (
-  message_id, conversation_id, role, content, model_selection, status, error_code, retrieval_snapshot_json, created_at
+  message_id, conversation_id, role, content, model_selection, status, error_code, grounded, retrieval_snapshot_json, created_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING message_id, conversation_id, role, content, model_selection, status, error_code, created_at
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
 `
 
 type CreateWorkspaceChatMessageParams struct {
@@ -100,6 +113,7 @@ type CreateWorkspaceChatMessageParams struct {
 	ModelSelection        string
 	Status                string
 	ErrorCode             string
+	Grounded              bool
 	RetrievalSnapshotJson json.RawMessage
 	CreatedAt             time.Time
 }
@@ -112,6 +126,7 @@ type CreateWorkspaceChatMessageRow struct {
 	ModelSelection string
 	Status         string
 	ErrorCode      string
+	Grounded       bool
 	CreatedAt      time.Time
 }
 
@@ -124,6 +139,7 @@ func (q *Queries) CreateWorkspaceChatMessage(ctx context.Context, arg CreateWork
 		arg.ModelSelection,
 		arg.Status,
 		arg.ErrorCode,
+		arg.Grounded,
 		arg.RetrievalSnapshotJson,
 		arg.CreatedAt,
 	)
@@ -136,6 +152,7 @@ func (q *Queries) CreateWorkspaceChatMessage(ctx context.Context, arg CreateWork
 		&i.ModelSelection,
 		&i.Status,
 		&i.ErrorCode,
+		&i.Grounded,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -149,7 +166,7 @@ VALUES ($1, $2, $3, $4, $5, $6)
 type CreateWorkspaceChatMessageSourceParams struct {
 	MessageID  string
 	Ordinal    int32
-	DocumentID string
+	DocumentID sql.NullString
 	ChunkID    string
 	ItemID     string
 	Label      string
@@ -188,7 +205,7 @@ func (q *Queries) GetWorkspaceChatConversation(ctx context.Context, conversation
 }
 
 const listRecentWorkspaceChatMessages = `-- name: ListRecentWorkspaceChatMessages :many
-SELECT message_id, conversation_id, role, content, model_selection, status, error_code, created_at
+SELECT message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
 FROM workspace_chat_messages
 WHERE conversation_id = $1 AND status = 'complete'
 ORDER BY created_at DESC, message_id DESC
@@ -208,6 +225,7 @@ type ListRecentWorkspaceChatMessagesRow struct {
 	ModelSelection string
 	Status         string
 	ErrorCode      string
+	Grounded       bool
 	CreatedAt      time.Time
 }
 
@@ -230,6 +248,7 @@ func (q *Queries) ListRecentWorkspaceChatMessages(ctx context.Context, arg ListR
 			&i.ModelSelection,
 			&i.Status,
 			&i.ErrorCode,
+			&i.Grounded,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -327,7 +346,7 @@ func (q *Queries) ListWorkspaceChatMessageSources(ctx context.Context, conversat
 }
 
 const listWorkspaceChatMessages = `-- name: ListWorkspaceChatMessages :many
-SELECT message_id, conversation_id, role, content, model_selection, status, error_code, created_at
+SELECT message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
 FROM workspace_chat_messages
 WHERE conversation_id = $1
 ORDER BY created_at, message_id
@@ -347,6 +366,7 @@ type ListWorkspaceChatMessagesRow struct {
 	ModelSelection string
 	Status         string
 	ErrorCode      string
+	Grounded       bool
 	CreatedAt      time.Time
 }
 
@@ -367,6 +387,7 @@ func (q *Queries) ListWorkspaceChatMessages(ctx context.Context, arg ListWorkspa
 			&i.ModelSelection,
 			&i.Status,
 			&i.ErrorCode,
+			&i.Grounded,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -449,6 +470,71 @@ func (q *Queries) ListWorkspaceChatSourceChunksLexical(ctx context.Context, arg 
 			&i.Heading,
 			&i.Text,
 			&i.SourcePage,
+			&i.MatchCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceChatSourceItems = `-- name: ListWorkspaceChatSourceItems :many
+SELECT i.id, i.title, i.description, i.content,
+       (
+         SELECT count(*) FROM unnest(string_to_array($1::text, chr(31))) AS t
+         WHERE t <> '' AND (
+           i.title ILIKE '%' || t || '%'
+           OR i.description ILIKE '%' || t || '%'
+           OR i.content ILIKE '%' || t || '%'
+         )
+       )::int AS match_count
+FROM tree_items i
+WHERE i.workspace_id = $2
+ORDER BY match_count DESC, i.id
+LIMIT $3
+`
+
+type ListWorkspaceChatSourceItemsParams struct {
+	Terms       string
+	WorkspaceID string
+	ResultLimit int32
+}
+
+type ListWorkspaceChatSourceItemsRow struct {
+	ID          string
+	Title       string
+	Description string
+	Content     string
+	MatchCount  int32
+}
+
+// ListWorkspaceChatSourceItems retrieves knowledge-tree items as citation
+// candidates, ranked the same way as the chunk query.
+//
+// Tree items are usable as sources before any document finishes processing —
+// and in a workspace that never gets one — which is why chat no longer refuses
+// to answer on an empty document set.
+func (q *Queries) ListWorkspaceChatSourceItems(ctx context.Context, arg ListWorkspaceChatSourceItemsParams) ([]ListWorkspaceChatSourceItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceChatSourceItems, arg.Terms, arg.WorkspaceID, arg.ResultLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkspaceChatSourceItemsRow
+	for rows.Next() {
+		var i ListWorkspaceChatSourceItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Description,
+			&i.Content,
 			&i.MatchCount,
 		); err != nil {
 			return nil, err

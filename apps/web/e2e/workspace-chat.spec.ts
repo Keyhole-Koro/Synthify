@@ -30,7 +30,7 @@ async function openSeededWorkspace(page: Page) {
   });
 
   // seed は処理済みドキュメント (chunk + succeeded job) を1件作る。
-  // これが無いとチャットは chat_source_unavailable になる。
+  // これが出典付き回答 (grounded=true) の前提になる。
   await page.getByRole('button', { name: 'Dev seed workspace' }).click();
 
   // seed 直後の workspace は一覧の in-memory state に入らないことがあるので、
@@ -118,12 +118,20 @@ test('asks follow-up questions in the same conversation', async ({ page }) => {
   await expect(questions).toHaveCount(questionsBefore + 2);
 });
 
-test('disables asking in a workspace with no processed documents', async ({ page }) => {
+// 資料が無くても質問できる。回答は「資料に基づかない」と明示される。
+test('answers in a workspace with no documents, marked as ungrounded', async ({ page }) => {
   await page.goto('/');
   await openWorkspaceList(page);
   await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
 
-  // 新規ワークスペースには処理済みの資料が無いので、送信前に理由を出す。
-  await expect(page.getByTestId('workspace-chat-empty')).toBeVisible();
-  await expect(page.getByTestId('workspace-chat-input')).toHaveCount(0);
+  const input = page.getByTestId('workspace-chat-input');
+  await expect(input).toBeEnabled({ timeout: WORKSPACE_LIST_TIMEOUT });
+  await expect(page.getByTestId('workspace-chat-hint')).toContainText('まだ資料もページもありません');
+
+  await input.fill('このワークスペースは何に使えますか');
+  await page.getByTestId('workspace-chat-send').click();
+
+  await expect(page.getByTestId('workspace-chat-message-assistant').last()).toBeVisible();
+  await expect(page.getByTestId('workspace-chat-ungrounded').last()).toBeVisible();
+  await expect(page.getByTestId('workspace-chat-sources')).toHaveCount(0);
 });

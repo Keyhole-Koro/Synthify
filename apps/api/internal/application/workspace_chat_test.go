@@ -39,7 +39,7 @@ func (f *fakeAnswerer) Answer(ctx context.Context, req ChatAnswerRequest) (ChatA
 		return ChatAnswer{}, f.err
 	}
 	if f.claimedIDs != nil {
-		return ChatAnswer{Text: f.answer.Text, SourceChunkIDs: f.claimedIDs}, nil
+		return ChatAnswer{Text: f.answer.Text, SourceIDs: f.claimedIDs}, nil
 	}
 	return f.answer, nil
 }
@@ -70,7 +70,8 @@ func newChatFixture(t *testing.T) *chatFixture {
 	require.NoError(t, err)
 	require.NoError(t, store.CompleteProcessingJob(ctx, job.JobID))
 
-	answerer := &fakeAnswerer{answer: ChatAnswer{Text: "結論はXです。"}}
+	// 既定では正しい出典を1件主張する「普通の回答」を返す。
+	answerer := &fakeAnswerer{answer: ChatAnswer{Text: "結論はXです。"}, claimedIDs: []string{"c2"}}
 	svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{
 		Repo:       store,
 		Workspaces: store,
@@ -100,6 +101,7 @@ func TestSendMessage_PersistsBothTurnsAndCreatesConversation(t *testing.T) {
 	assert.Equal(t, "結論はXです。", assistantMsg.Content)
 	assert.Equal(t, "fake-model", assistantMsg.ModelSelection,
 		"the stored model must be the one that actually answered")
+	assert.True(t, assistantMsg.Grounded, "an answer citing workspace sources is grounded")
 	assert.Equal(t, domain.ChatMessageStatusComplete, assistantMsg.Status)
 
 	convs, _, err := f.svc.ListConversations(ctx, f.wsID, f.userID)
@@ -141,21 +143,28 @@ func TestSendMessage_NonMember_ReturnsForbidden(t *testing.T) {
 	assert.Zero(t, f.answerer.callCount, "an unauthorized caller must not reach the model")
 }
 
-// 資料が1件も無い workspace では、model を呼ぶ前に落とす。
-func TestSendMessage_NoProcessedDocuments_ReturnsSourceUnavailable(t *testing.T) {
+// 資料も paper も無い workspace でも回答する。出典ゼロは「回答不能」ではなく
+// 「一般知識で答えた」として grounded=false で記録する。
+func TestSendMessage_EmptyWorkspace_AnswersUngrounded(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	ws := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
-	answerer := &fakeAnswerer{}
+	answerer := &fakeAnswerer{answer: ChatAnswer{Text: "一般知識からの回答です。"}}
 	svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{Repo: store, Workspaces: store, Answerer: answerer})
 
-	_, _, err := svc.SendMessage(ctx, ws.Workspace.WorkspaceID, "", "結論は？", "owner")
-	assert.ErrorIs(t, err, domain.ErrChatSourceUnavailable)
-	assert.Zero(t, answerer.callCount, "no sources means no model spend")
+	userMsg, assistantMsg, err := svc.SendMessage(ctx, ws.Workspace.WorkspaceID, "", "Go とは？", "owner")
+	require.NoError(t, err)
+
+	assert.Equal(t, "Go とは？", userMsg.Content)
+	assert.Equal(t, domain.ChatMessageStatusComplete, assistantMsg.Status)
+	assert.Empty(t, assistantMsg.Sources)
+	assert.False(t, assistantMsg.Grounded, "an answer with no citation is not grounded in the workspace")
+	assert.Equal(t, 1, answerer.callCount, "an empty workspace still reaches the model")
 }
 
-// 処理中のドキュメントしか無い workspace も同じく回答不能。
-func TestSendMessage_OnlyInFlightDocuments_ReturnsSourceUnavailable(t *testing.T) {
+// 処理中のドキュメントしか無い workspace でも回答は返す。ただし処理中の
+// chunk は出典にしないので grounded=false になる。
+func TestSendMessage_OnlyInFlightDocuments_AnswersUngrounded(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()
 	ws := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
@@ -168,11 +177,13 @@ func TestSendMessage_OnlyInFlightDocuments_ReturnsSourceUnavailable(t *testing.T
 	_, err = store.CreateProcessingJob(ctx, doc.DocumentID, ws.Workspace.WorkspaceID, "owner", appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
 	require.NoError(t, err)
 
-	answerer := &fakeAnswerer{}
+	answerer := &fakeAnswerer{answer: ChatAnswer{Text: "まだ処理中です。"}}
 	svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{Repo: store, Workspaces: store, Answerer: answerer})
 
-	_, _, err = svc.SendMessage(ctx, ws.Workspace.WorkspaceID, "", "結論は？", "owner")
-	assert.ErrorIs(t, err, domain.ErrChatSourceUnavailable)
+	_, assistantMsg, err := svc.SendMessage(ctx, ws.Workspace.WorkspaceID, "", "結論は？", "owner")
+	require.NoError(t, err)
+	assert.Empty(t, assistantMsg.Sources, "an in-flight document is still not citable")
+	assert.False(t, assistantMsg.Grounded)
 }
 
 // 生成が落ちても質問は残り、assistant 行は failed として永続化される。
@@ -345,7 +356,7 @@ func TestSnapshotJSON_ContainsOnlyBoundedIdentifiers(t *testing.T) {
 	var snapshot map[string]any
 	require.NoError(t, json.Unmarshal(raw, &snapshot))
 
-	assert.Equal(t, "lexical_v1", snapshot["strategy"])
+	assert.Equal(t, "lexical_v2_chunks_and_items", snapshot["strategy"])
 	assert.Equal(t, "gemini", snapshot["effective_model"])
 	assert.Contains(t, string(raw), "c1")
 	assert.NotContains(t, string(raw), "機密の本文", "chunk text must never enter the snapshot")
@@ -472,4 +483,80 @@ func TestListConversations_ReportsWhetherTheWorkspaceCanAnswer(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, hasSources, "an in-flight upload is not answerable yet")
 	})
+}
+
+// document が1件も無くても、ツリーの paper があれば出典付きで答えられる。
+// これがドキュメント未投入の workspace でチャットが成立する経路。
+func TestSendMessage_UsesTreeItemsWhenNoDocumentsExist(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	ws := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+
+	item, err := store.CreateItem(ctx, ws.Workspace.WorkspaceID, "用量計算の原則", "投与量を決める基本的な考え方を扱う。", "", "owner")
+	require.NoError(t, err)
+
+	answerer := &fakeAnswerer{
+		answer:     ChatAnswer{Text: "用量計算の原則に基づきます。"},
+		claimedIDs: []string{item.ItemID},
+	}
+	svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{Repo: store, Workspaces: store, Answerer: answerer})
+
+	_, assistantMsg, err := svc.SendMessage(ctx, ws.Workspace.WorkspaceID, "", "用量計算について", "owner")
+	require.NoError(t, err)
+
+	require.Len(t, assistantMsg.Sources, 1)
+	assert.Equal(t, item.ItemID, assistantMsg.Sources[0].ItemID)
+	assert.Empty(t, assistantMsg.Sources[0].DocumentID, "a tree item citation has no document")
+	assert.Equal(t, "用量計算の原則", assistantMsg.Sources[0].Label)
+	assert.True(t, assistantMsg.Grounded)
+
+	// 候補として item が model に渡っている。
+	require.NotEmpty(t, answerer.lastReq.Candidates)
+}
+
+// item も別 workspace のものは候補にも引用にもならない。
+func TestSendMessage_TreeItemsStayInsideTheWorkspace(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	mine := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+
+	acct, err := store.GetOrCreateAccount(ctx, "stranger")
+	require.NoError(t, err)
+	other, err := store.CreateWorkspace(ctx, acct.AccountID, "other-workspace")
+	require.NoError(t, err)
+	secret, err := store.CreateItem(ctx, other.WorkspaceID, "他人のページ", "秘密", "", "stranger")
+	require.NoError(t, err)
+
+	answerer := &fakeAnswerer{answer: ChatAnswer{Text: "..."}, claimedIDs: []string{secret.ItemID}}
+	svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{Repo: store, Workspaces: store, Answerer: answerer})
+
+	_, assistantMsg, err := svc.SendMessage(ctx, mine.Workspace.WorkspaceID, "", "秘密は？", "owner")
+	require.NoError(t, err)
+
+	assert.Empty(t, assistantMsg.Sources, "an item from another workspace can never be cited")
+	assert.False(t, assistantMsg.Grounded)
+	for _, c := range answerer.lastReq.Candidates {
+		assert.NotEqual(t, secret.ItemID, c.ItemID)
+	}
+}
+
+// 出典があるかどうかは document と item の両方で判定する。
+func TestListConversations_CountsTreeItemsAsSources(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	ws := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+	svc := NewWorkspaceChatService(WorkspaceChatServiceDeps{
+		Repo: store, Workspaces: store, Answerer: &fakeAnswerer{},
+	})
+
+	_, hasSources, err := svc.ListConversations(ctx, ws.Workspace.WorkspaceID, "owner")
+	require.NoError(t, err)
+	assert.False(t, hasSources, "an empty workspace has neither documents nor pages")
+
+	_, err = store.CreateItem(ctx, ws.Workspace.WorkspaceID, "最初のページ", "", "", "owner")
+	require.NoError(t, err)
+
+	_, hasSources, err = svc.ListConversations(ctx, ws.Workspace.WorkspaceID, "owner")
+	require.NoError(t, err)
+	assert.True(t, hasSources, "a page alone makes the workspace answerable with citations")
 }

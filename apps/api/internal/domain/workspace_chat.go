@@ -24,7 +24,6 @@ const (
 // 安定した client 向けエラーコード。設計 §4 の error mapping 表に対応する。
 const (
 	ChatErrInvalidMessage     = "invalid_chat_message"
-	ChatErrSourceUnavailable  = "chat_source_unavailable"
 	ChatErrGenerationFailed   = "chat_generation_failed"
 	ChatErrWorkspaceForbidden = "workspace_access_denied"
 )
@@ -59,13 +58,20 @@ type ChatMessage struct {
 	ModelSelection string       `json:"model_selection"`
 	Status         string       `json:"status"`
 	ErrorCode      string       `json:"error_code,omitempty"`
-	CreatedAt      string       `json:"created_at"`
+	// Grounded は回答が workspace 内の出典に基づくか。false は
+	// 「モデルの一般知識で答えた」を意味し、UI で明示する。
+	Grounded  bool   `json:"grounded"`
+	CreatedAt string `json:"created_at"`
 }
 
 // ChatSourceCandidate は retrieval が返す引用候補。model が返した source id は
 // この集合に対してのみ検証され、集合外の id は捨てられる (設計 §5)。
+//
+// 候補はドキュメントの chunk か、ナレッジツリーの item のどちらか。item 由来の
+// 候補は DocumentID が空になる。
 type ChatSourceCandidate struct {
 	ChunkID    string
+	ItemID     string
 	DocumentID string
 	Filename   string
 	SubPath    string
@@ -74,8 +80,21 @@ type ChatSourceCandidate struct {
 	SourcePage int
 }
 
+// SourceID は候補を一意に指す id。model にはこの値を出典として返させ、
+// 検証もこれで行う。
+func (c ChatSourceCandidate) SourceID() string {
+	if c.ItemID != "" {
+		return c.ItemID
+	}
+	return c.ChunkID
+}
+
 // Label は citation に出す短い source label を組み立てる。
 func (c ChatSourceCandidate) Label() string {
+	if c.ItemID != "" {
+		// item は見出しそのものが名前なので、ファイル名は付けない。
+		return c.Heading
+	}
 	name := c.Filename
 	if c.SubPath != "" {
 		name = c.SubPath
