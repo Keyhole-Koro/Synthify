@@ -6,6 +6,7 @@ import (
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 const devSeedWorkspaceName = "Synthify Dev Seed"
@@ -19,6 +20,9 @@ type DevSeedService struct {
 	workspaces repository.WorkspaceRepository
 	tree       repository.TreeRepository
 	items      repository.ItemRepository
+	documents  repository.DocumentRepository
+	chunks     repository.DocumentChunkRepository
+	jobs       repository.JobRepository
 }
 
 type DevSeedServiceDeps struct {
@@ -26,13 +30,17 @@ type DevSeedServiceDeps struct {
 	Workspaces repository.WorkspaceRepository
 	Tree       repository.TreeRepository
 	Items      repository.ItemRepository
+	Documents  repository.DocumentRepository
+	Chunks     repository.DocumentChunkRepository
+	Jobs       repository.JobRepository
 }
 
 type DevSeedResult struct {
-	Workspace        *domain.Workspace `json:"workspace"`
-	CreatedWorkspace bool              `json:"created_workspace"`
-	CreatedItemCount int               `json:"created_item_count"`
-	TotalItemCount   int               `json:"total_item_count"`
+	Workspace           *domain.Workspace `json:"workspace"`
+	CreatedWorkspace    bool              `json:"created_workspace"`
+	CreatedItemCount    int               `json:"created_item_count"`
+	TotalItemCount      int               `json:"total_item_count"`
+	CreatedDocumentName string            `json:"created_document_name,omitempty"`
 }
 
 func NewDevSeedService(deps DevSeedServiceDeps) *DevSeedService {
@@ -41,6 +49,9 @@ func NewDevSeedService(deps DevSeedServiceDeps) *DevSeedService {
 		workspaces: deps.Workspaces,
 		tree:       deps.Tree,
 		items:      deps.Items,
+		documents:  deps.Documents,
+		chunks:     deps.Chunks,
+		jobs:       deps.Jobs,
 	}
 }
 
@@ -64,12 +75,70 @@ func (s *DevSeedService) SeedWorkspace(ctx context.Context, userID string) (*Dev
 		return nil, err
 	}
 
+	documentName, err := s.seedDocument(ctx, workspace.WorkspaceID, userID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &DevSeedResult{
-		Workspace:        workspace,
-		CreatedWorkspace: createdWorkspace,
-		CreatedItemCount: createdItems,
-		TotalItemCount:   totalItems,
+		Workspace:           workspace,
+		CreatedWorkspace:    createdWorkspace,
+		CreatedItemCount:    createdItems,
+		TotalItemCount:      totalItems,
+		CreatedDocumentName: documentName,
 	}, nil
+}
+
+// seedDocument は「処理済みの資料」を1件用意する。chunk と succeeded job まで
+// 作るのは、workspace chat が回答の根拠に使えるのが succeeded job を持つ
+// document だけだからで、これが無いと seed workspace ではチャットが常に
+// chat_source_unavailable になる。
+//
+// 実際のアップロードや worker 実行は行わない。ローカル開発と e2e で
+// retrieval / citation の経路を動かすための最小の土台。
+func (s *DevSeedService) seedDocument(ctx context.Context, workspaceID, userID string) (string, error) {
+	if s.documents == nil || s.chunks == nil || s.jobs == nil {
+		return "", nil
+	}
+
+	existing, err := s.documents.ListDocuments(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	for _, doc := range existing {
+		if doc.Filename == devSeedDocumentName {
+			return "", nil // 既に seed 済み
+		}
+	}
+
+	doc, _, err := s.documents.CreateDocument(ctx, workspaceID, userID, devSeedDocumentName, "text/markdown", devSeedDocumentSize)
+	if err != nil {
+		return "", err
+	}
+
+	chunks := make([]*domain.DocumentChunk, 0, len(devSeedChunks))
+	for i, spec := range devSeedChunks {
+		chunks = append(chunks, &domain.DocumentChunk{
+			ChunkID:    fmt.Sprintf("%s-chunk-%d", doc.DocumentID, i+1),
+			DocumentID: doc.DocumentID,
+			Heading:    spec.heading,
+			Text:       spec.text,
+			SourcePage: i + 1,
+		})
+	}
+	if err := s.chunks.SaveDocumentChunks(ctx, doc.DocumentID, chunks); err != nil {
+		return "", err
+	}
+
+	job, err := s.jobs.CreateProcessingJob(ctx, doc.DocumentID, workspaceID, userID, appv1.JobType_JOB_TYPE_PROCESS_DOCUMENT)
+	if err != nil {
+		return "", err
+	}
+	if err := s.jobs.CompleteProcessingJob(ctx, job.JobID); err != nil {
+		return "", err
+	}
+
+	return doc.Filename, nil
 }
 
 func (s *DevSeedService) findOrCreateSeedWorkspace(ctx context.Context, userID, accountID string) (*domain.Workspace, bool, error) {
@@ -87,6 +156,50 @@ func (s *DevSeedService) findOrCreateSeedWorkspace(ctx context.Context, userID, 
 		return nil, false, err
 	}
 	return workspace, true, nil
+}
+
+const (
+	devSeedDocumentName = "synthify-overview.md"
+	devSeedDocumentSize = 4096
+)
+
+type devSeedChunk struct {
+	heading string
+	text    string
+}
+
+// devSeedChunks は seed 資料の本文。chat の retrieval が拾えるよう、
+// 見出しと本文に検索しやすい語を入れてある。
+var devSeedChunks = []devSeedChunk{
+	{
+		heading: "概要",
+		text: "Synthify はアップロードされたドキュメントを解析し、paper-in-paper で読める" +
+			"ナレッジツリーに変換するサービスである。利用者は資料を投入するだけで、" +
+			"章立てに沿った探索可能な知識構造を得られる。",
+	},
+	{
+		heading: "処理パイプライン",
+		text: "アップロードされた資料はまず GCS に保存され、worker が非同期ジョブとして" +
+			"テキスト抽出とチャンク分割を行う。各チャンクは埋め込みベクトルとともに保存され、" +
+			"ナレッジツリーの各アイテムから出典として参照される。",
+	},
+	{
+		heading: "ナレッジツリー",
+		text: "ナレッジツリーの各アイテムは単体で読んで意味が通じる粒度で作られる。" +
+			"親アイテムは本文中に子アイテムへのリンクを含み、クリックすると子が親の中に" +
+			"展開される。階層の深さに制限は設けていない。",
+	},
+	{
+		heading: "ワークスペースと権限",
+		text: "ワークスペースは owner / editor / viewer の3つの role を持つ。" +
+			"viewer は閲覧のみ可能で、資料の追加やツリーの変更はできない。" +
+			"課金が発生する処理は editor 以上のメンバーだけが実行できる。",
+	},
+	{
+		heading: "結論",
+		text: "Synthify の狙いは、読むのに時間がかかる資料を、必要な部分だけ辿れる形に" +
+			"変えることである。全文を通読しなくても、知りたい概念から出典まで最短で辿り着ける。",
+	},
 }
 
 type devSeedNode struct {

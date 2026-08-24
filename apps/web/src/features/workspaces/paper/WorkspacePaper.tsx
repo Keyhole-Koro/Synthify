@@ -13,6 +13,7 @@ import { getInitialAuthUser } from '@/features/auth/session';
 import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
+import { WorkspaceChatPanel } from '@/features/workspaceChat/WorkspaceChatPanel';
 
 // WORKSPACE_PAPER_HUE matches the hue the factory assigns to the workspace
 // paper (workspacePaperFactory). The paper renders with saturationScale: 0, so
@@ -345,6 +346,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
           </div>}
         </div>
       )}
+
+      {/* Read-only Q&A over this workspace's processed documents. Placed below
+          the upload control per docs/architecture/workspace-chat-design.md §1.
+          It is not gated on canWrite: any workspace reader may ask, since
+          asking changes nothing. */}
+      <WorkspaceChatPanel workspaceId={workspaceId} />
     </div>
   );
 }

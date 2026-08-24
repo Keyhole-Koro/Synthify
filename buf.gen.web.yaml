@@ -2,3 +2,5 @@ version: v2
 plugins:
   - remote: buf.build/bufbuild/es:v2.6.0
     out: apps/web/src/gen/proto
+    exclude_types:
+      - synthify.localprovider.v1.**

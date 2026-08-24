@@ -15,6 +15,7 @@ import (
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 	"github.com/synthify/backend/apps/api/internal/config"
 	"github.com/synthify/backend/apps/api/internal/handler"
+	apichat "github.com/synthify/backend/apps/api/internal/infrastructure/chat"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/storage"
 	"github.com/synthify/backend/apps/api/internal/infrastructure/stripe"
 	apiworker "github.com/synthify/backend/apps/api/internal/infrastructure/worker"
@@ -54,23 +55,27 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	sourceURLBuilder := NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 	imageURLIssuer := NewDocumentImageURLIssuer(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
-	stripeProvider, err := stripe.NewProvider(stripe.Config{
-		SecretKey:        cfg.Stripe.SecretKey,
-		WebhookSecret:    cfg.Stripe.WebhookSecret,
-		ProPriceIDJPY:    cfg.Stripe.ProPriceIDJPY,
-		ProPriceIDUSD:    cfg.Stripe.ProPriceIDUSD,
-		DefaultCurrency:  cfg.Stripe.DefaultCurrency,
-		SuccessURL:       cfg.Billing.SuccessURL,
-		CancelURL:        cfg.Billing.CancelURL,
-		PortalReturnURL:  cfg.Billing.PortalReturnURL,
-		APIBase:          cfg.Stripe.APIBase,
-		APIVersion:       cfg.Stripe.APIVersion,
-		MeterInputEvent:  cfg.Stripe.MeterInputEvent,
-		MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
-	})
-	if err != nil {
-		_ = closeDispatcher()
-		return nil, fmt.Errorf("stripe provider init: %w", err)
+	var stripeProvider application.BillingProvider
+	if cfg.Stripe != nil {
+		sp, err := stripe.NewProvider(stripe.Config{
+			SecretKey:        cfg.Stripe.SecretKey,
+			WebhookSecret:    cfg.Stripe.WebhookSecret,
+			ProPriceIDJPY:    cfg.Stripe.ProPriceIDJPY,
+			ProPriceIDUSD:    cfg.Stripe.ProPriceIDUSD,
+			DefaultCurrency:  cfg.Stripe.DefaultCurrency,
+			SuccessURL:       cfg.Billing.SuccessURL,
+			CancelURL:        cfg.Billing.CancelURL,
+			PortalReturnURL:  cfg.Billing.PortalReturnURL,
+			APIBase:          cfg.Stripe.APIBase,
+			APIVersion:       cfg.Stripe.APIVersion,
+			MeterInputEvent:  cfg.Stripe.MeterInputEvent,
+			MeterOutputEvent: cfg.Stripe.MeterOutputEvent,
+		})
+		if err != nil {
+			_ = closeDispatcher()
+			return nil, fmt.Errorf("stripe provider init: %w", err)
+		}
+		stripeProvider = sp
 	}
 
 	billingSvc, err := application.NewBillingService(application.BillingServiceDeps{
@@ -109,7 +114,27 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
 	userSvc := application.NewUserService(application.UserServiceDeps{Users: store, Accounts: store, Billing: billingSvc, Logger: logger})
 	treeSvc := application.NewTreeService(application.TreeServiceDeps{Tree: store, Workspaces: store, Logger: logger})
-	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{Accounts: store, Workspaces: store, Tree: store, Items: store})
+	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{
+		Accounts:   store,
+		Workspaces: store,
+		Tree:       store,
+		Items:      store,
+		Documents:  store,
+		Chunks:     store,
+		Jobs:       store,
+	})
+
+	chatAnswerer, err := newChatAnswerer(ctx, cfg, logger)
+	if err != nil {
+		_ = closeDispatcher()
+		return nil, fmt.Errorf("chat answerer init: %w", err)
+	}
+	workspaceChatSvc := application.NewWorkspaceChatService(application.WorkspaceChatServiceDeps{
+		Repo:       store,
+		Workspaces: store,
+		Answerer:   chatAnswerer,
+		Logger:     logger,
+	})
 
 	authenticator, err := apiauth.NewFirebaseAuthenticator(apiauth.FirebaseAuthenticatorConfig{
 		ProjectID:        cfg.FirebaseProjectID,
@@ -134,6 +159,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc), connectOptions...))
 	mux.Handle(appv1connect.NewJobServiceHandler(handler.NewJobHandler(store, store, store, store, store, logger), connectOptions...))
 	mux.Handle(appv1connect.NewBillingServiceHandler(handler.NewBillingHandler(billingSvc), connectOptions...))
+	mux.Handle(appv1connect.NewWorkspaceChatServiceHandler(handler.NewWorkspaceChatHandler(workspaceChatSvc), connectOptions...))
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, logger))
 	if devSeedEnabled(cfg.Env) {
 		mux.Handle("POST /dev/seed-workspace", handler.NewDevSeedHTTPHandler(devSeedSvc, true))
@@ -261,4 +287,51 @@ func devSeedEnabled(env string) bool {
 
 func requiresBilling(env string) bool {
 	return env == "production" || env == "staging"
+}
+
+// newChatAnswerer selects the grounded-answer client for workspace chat.
+//
+// With a Gemini key (or Vertex project) configured it returns the real client.
+// Without one it returns the extractive answerer, but only outside production —
+// in production a missing model configuration is a startup failure, not a
+// silent downgrade to quoting chunks back at the user.
+func newChatAnswerer(ctx context.Context, cfg config.API, logger *slog.Logger) (application.ChatAnswerer, error) {
+	modelConfigured := cfg.Chat.GeminiAPIKey != "" || cfg.Chat.VertexProject != ""
+
+	if modelConfigured {
+		answerer, err := apichat.NewGeminiAnswerer(ctx, apichat.GeminiAnswererConfig{
+			APIKey:   cfg.Chat.GeminiAPIKey,
+			Project:  cfg.Chat.VertexProject,
+			Location: cfg.Chat.VertexLocation,
+			Model:    cfg.Chat.GeminiModel,
+		})
+		if err == nil {
+			logger.Info("chat.answerer_gemini", "model", cfg.Chat.GeminiModel)
+			return answerer, nil
+		}
+		// A configured project is not the same as usable credentials. The local
+		// compose stack sets GCP_PROJECT_ID=synthify-local as a placeholder, so
+		// the Vertex backend gets picked and then fails looking up ADC. Outside
+		// production that must not stop the API from booting.
+		if requiresBilling(cfg.Env) {
+			return nil, err
+		}
+		logger.Warn("chat.answerer_extractive",
+			"env", cfg.Env,
+			"reason", "gemini client init failed",
+			"error", err.Error(),
+			"effect", "chat quotes retrieved chunks instead of generating an answer",
+		)
+		return apichat.NewExtractiveAnswerer(), nil
+	}
+
+	if requiresBilling(cfg.Env) {
+		return nil, fmt.Errorf("workspace chat needs GEMINI_API_KEY (or GOOGLE_API_KEY / GCP_PROJECT) in %s", cfg.Env)
+	}
+	logger.Warn("chat.answerer_extractive",
+		"env", cfg.Env,
+		"reason", "no GEMINI_API_KEY / GOOGLE_API_KEY / GCP_PROJECT configured",
+		"effect", "chat quotes retrieved chunks instead of generating an answer",
+	)
+	return apichat.NewExtractiveAnswerer(), nil
 }

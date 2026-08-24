@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package synthify.app.v1;
+
+option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
+
+// Workspace chat: workspace 内の完了済みドキュメント / ナレッジツリーを対象にした
+// read-only の質問応答。設計は docs/architecture/workspace-chat-design.md を参照。
+//
+// このサービスは tree item / document / workspace setting を一切変更しない。
+// v1 は unary のみ。streaming は永続化セマンティクスを変えない additive な
+// transport 変更として後から足す。
+service WorkspaceChatService {
+  rpc ListWorkspaceChatConversations(ListWorkspaceChatConversationsRequest) returns (ListWorkspaceChatConversationsResponse);
+  rpc ListWorkspaceChatMessages(ListWorkspaceChatMessagesRequest) returns (ListWorkspaceChatMessagesResponse);
+  rpc SendWorkspaceChatMessage(SendWorkspaceChatMessageRequest) returns (SendWorkspaceChatMessageResponse);
+}
+
+message WorkspaceChatConversation {
+  string conversation_id = 1;
+  string workspace_id = 2;
+  string created_by = 3;
+  string title = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+// WorkspaceChatSource is always server-generated. Client input can never name a
+// source id: API only emits ids that were in the retrieval candidate set.
+message WorkspaceChatSource {
+  string document_id = 1;
+  string chunk_id = 2;
+  string item_id = 3;
+  string label = 4;
+}
+
+enum WorkspaceChatMessageStatus {
+  WORKSPACE_CHAT_MESSAGE_STATUS_UNSPECIFIED = 0;
+  WORKSPACE_CHAT_MESSAGE_STATUS_COMPLETE = 1;
+  WORKSPACE_CHAT_MESSAGE_STATUS_FAILED = 2;
+  WORKSPACE_CHAT_MESSAGE_STATUS_CANCELLED = 3;
+}
+
+message WorkspaceChatMessage {
+  string message_id = 1;
+  string conversation_id = 2;
+  // "user" | "assistant"
+  string role = 3;
+  string content = 4;
+  repeated WorkspaceChatSource sources = 5;
+  string model_selection = 6;
+  string created_at = 7;
+  WorkspaceChatMessageStatus status = 8;
+  // 安定した client 向けエラーコード ("chat_generation_failed" など)。
+  // status が COMPLETE のときは空。
+  string error_code = 9;
+  // 回答が workspace 内の出典に基づくか。false は「モデルの一般知識で
+  // 答えた」を意味し、UI はその旨を明示する。user メッセージでは常に false。
+  bool grounded = 10;
+}
+
+message ListWorkspaceChatConversationsRequest {
+  string workspace_id = 1;
+}
+
+message ListWorkspaceChatConversationsResponse {
+  repeated WorkspaceChatConversation conversations = 1;
+  // 出典にできる処理済みドキュメントまたはツリーの paper が1件以上あるか。
+  //
+  // 入力欄を塞ぐためのフラグではない: 出典が無くても質問はできる (その場合は
+  // 一般知識で答え、grounded=false になる)。UI が「出典付きで答えられる
+  // 見込み」を示すためだけに使う。
+  bool has_answerable_sources = 2;
+}
+
+message ListWorkspaceChatMessagesRequest {
+  string workspace_id = 1;
+  string conversation_id = 2;
+}
+
+message ListWorkspaceChatMessagesResponse {
+  repeated WorkspaceChatMessage messages = 1;
+}
+
+message SendWorkspaceChatMessageRequest {
+  string workspace_id = 1;
+  // 空なら新しい会話を作る。指定する場合は workspace_id に属している必要がある。
+  string conversation_id = 2;
+  // 1..8000 Unicode code point。全て空白のメッセージは invalid。
+  string text = 3;
+}
+
+message SendWorkspaceChatMessageResponse {
+  string conversation_id = 1;
+  WorkspaceChatMessage user_message = 2;
+  WorkspaceChatMessage assistant_message = 3;
+}

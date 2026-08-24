@@ -23,9 +23,20 @@ type API struct {
 	WorkerBaseURL            string
 	WorkerDispatch           WorkerDispatch
 	Auth                     Auth
-	Stripe                   Stripe
+	Stripe                   *Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+	Chat                     Chat
+}
+
+// Chat configures the grounded-answer client for workspace chat. When no key
+// and no Vertex project are set, bootstrap falls back to a non-model extractive
+// answerer outside production and fails startup inside it.
+type Chat struct {
+	GeminiAPIKey   string
+	GeminiModel    string
+	VertexProject  string
+	VertexLocation string
 }
 
 // WorkerDispatch controls how the API hands jobs to the worker. When
@@ -84,11 +95,31 @@ type Store struct {
 	DBMaxIdleConns int
 }
 
+func loadStripeConfig(env string) *Stripe {
+	secret := os.Getenv("STRIPE_SECRET_KEY")
+	if env == "local" && secret == "" {
+		return nil
+	}
+	return &Stripe{
+		SecretKey:        secret,
+		WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
+		ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
+		DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
+		MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
+		MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
+		APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
+		APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
+	}
+}
+
 func LoadAPI() API {
 	uploadBase := mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443"))
+	env := get("ENV", "production")
+
 	return API{
 		Port:                     get("PORT", "8080"),
-		Env:                      get("ENV", "production"),
+		Env:                      env,
 		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
 		ReadinessMonitorKey:      os.Getenv("SYNTHIFY_READINESS_MONITOR_KEY"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000"),
@@ -110,17 +141,7 @@ func LoadAPI() API {
 			AdminEmailsCSV:   os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"),
 			AllowedEmailsCSV: os.Getenv("SYNTHIFY_ALLOWED_USER_EMAILS"),
 		},
-		Stripe: Stripe{
-			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
-			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
-			ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
-			ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
-			DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
-			MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
-			MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
-			APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
-			APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
-		},
+		Stripe: loadStripeConfig(env),
 		Billing: Billing{
 			SuccessURL:      get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
 			CancelURL:       get("BILLING_CANCEL_URL", "http://localhost:3000/workspaces?billing=cancel"),
@@ -130,7 +151,28 @@ func LoadAPI() API {
 			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-api")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
+		Chat: Chat{
+			// Same env vars the worker reads, so a deployment configures the
+			// model once rather than separately per service.
+			GeminiAPIKey: firstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+			GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
+			VertexProject: firstNonEmpty(
+				os.Getenv("GCP_PROJECT"),
+				os.Getenv("GOOGLE_CLOUD_PROJECT"),
+				os.Getenv("GCP_PROJECT_ID"),
+			),
+			VertexLocation: get("VERTEX_LOCATION", "global"),
+		},
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func LoadStore() Store {
