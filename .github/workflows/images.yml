@@ -1,0 +1,96 @@
+name: Images
+
+# Build every container image on PRs.
+#
+# Until this existed, nothing built these Dockerfiles except deploy-backend.yml,
+# so the first thing to ever parse a Dockerfile change was a deploy against a
+# real environment — one verification per production deploy attempt. The monitor
+# image broke twice that way in a row (a file: dependency missing from the deps
+# stage, then the workspace node_modules missing from the builder stage), and
+# both were plain build errors a PR check would have caught.
+#
+# Nothing here pushes or needs cloud credentials: the images are built and
+# thrown away. Correctness of the build is the whole signal.
+
+on:
+  pull_request:
+    paths:
+      - apps/**
+      - internal/**
+      - go.mod
+      - go.sum
+      - bun.lock
+      - package.json
+      - .dockerignore
+      - .github/workflows/images.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps/**
+      - internal/**
+      - go.mod
+      - go.sum
+      - bun.lock
+      - package.json
+      - .dockerignore
+      - .github/workflows/images.yml
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One image failing should not hide the state of the other three.
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: apps/api/Dockerfile
+            build_args: ""
+          - image: worker
+            dockerfile: apps/worker/Dockerfile
+            build_args: ""
+          - image: eval
+            dockerfile: apps/eval/Dockerfile
+            build_args: ""
+          # NEXT_PUBLIC_* are baked into the client bundle at build time, so the
+          # build needs them present. These are placeholders: the image is
+          # discarded, and only whether it builds is being checked.
+          - image: monitor
+            dockerfile: apps/monitor/ui/Dockerfile
+            build_args: >-
+              --build-arg NEXT_PUBLIC_FIREBASE_API_KEY=ci-placeholder
+              --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID=ci-placeholder
+              --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=ci-placeholder.firebaseapp.com
+              --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=ci-placeholder.appspot.com
+              --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=0
+              --build-arg NEXT_PUBLIC_FIREBASE_APP_ID=ci-placeholder
+
+    steps:
+      # The monitor image copies apps/web/vender/paper-in-paper, a submodule, so
+      # it has to be in the build context.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.image }} image
+        run: |
+          set -euo pipefail
+          # No --push and no --load on purpose: the result is discarded, so the
+          # build runs without registry credentials and without spending time
+          # unpacking the image into the runner's docker daemon.
+          #
+          # Cache scope is distinct from deploy-backend.yml's <image>-<env>
+          # scopes so PR builds and real deploys never evict each other.
+          docker buildx build \
+            --cache-from "type=gha,scope=ci-${{ matrix.image }}" \
+            --cache-to   "type=gha,scope=ci-${{ matrix.image }},mode=max" \
+            ${{ matrix.build_args }} \
+            -f "${{ matrix.dockerfile }}" .
