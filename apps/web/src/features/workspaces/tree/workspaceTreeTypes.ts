@@ -1,5 +1,6 @@
 import type { ApiItem, SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
+import type { MockTreeSpec, ResolvedMockTreeSpec } from './mockTreeGenerator';
 
 export interface RefreshResult {
   // rootNodeIds are the workspace's top-level nodes (parent_id IS NULL). The
@@ -24,24 +25,32 @@ export interface InjectMockNodeArgs {
 }
 
 // InjectMockWorkspaceTreeArgs builds a complete, frontend-only workspace tree
-// (N root nodes, each with M child nodes) without touching the backend API.
-// Used by __synthifyDebug to preview WorkspacePaper UI states.
-export interface InjectMockWorkspaceTreeArgs {
+// without touching the backend API. Used by __synthifyDebug to preview
+// WorkspacePaper UI states and by the load-test harness to give the client an
+// arbitrary number of items. The shape knobs (totalItems / depth / branching /
+// contentBytes / seed) come from MockTreeSpec; see mockTreeGenerator.ts.
+export interface InjectMockWorkspaceTreeArgs extends MockTreeSpec {
+  // documentCount / nodesPerDocument are the original console-facing knobs.
+  // They still produce the old flat shape (one root, documentCount ×
+  // nodesPerDocument children) when no MockTreeSpec knob is given.
   documentCount?: number;
   nodesPerDocument?: number;
   documentTitles?: string[];
-  // rootContent / rootOverrideCss override the first root node's cover-report
-  // HTML and isolated CSS. When omitted, a rich sample report is used so the
-  // iframe rendering, CSS isolation, and child links are all exercised.
-  rootContent?: string;
-  rootOverrideCss?: string;
+}
+
+// InjectMockWorkspaceTreeResult reports the tree that was actually built, so a
+// measurement is never ambiguous about its input.
+export interface InjectMockWorkspaceTreeResult extends RefreshResult {
+  resolved: ResolvedMockTreeSpec;
 }
 
 export interface TreeStoreDebugSnapshot {
   workspaceId: string;
   rootNodeIds: string[];
   initialized: boolean;
-  fullyLoaded: boolean;
+  // outlineLoaded: the workspace tree structure has been fetched. Node
+  // bodies are separate — see loadedItemIds.
+  outlineLoaded: boolean;
   itemCount: number;
   treeItems: SubtreeItem[];
   loadedItemIds: string[];
@@ -56,7 +65,7 @@ export interface WorkspaceTreeCache {
   isLoaded: (itemId: string) => boolean;
   isLoading: (itemId: string) => boolean;
   hasChildren: (itemId: string) => boolean;
-  isFullyLoaded: (workspaceId: string) => boolean;
+  isOutlineLoaded: (workspaceId: string) => boolean;
   getNewlyCreated: (workspaceId: string) => Workspace | undefined;
   listNewlyCreatedIds: () => string[];
   markInitialized: (workspaceId: string) => void;
@@ -69,7 +78,7 @@ export interface WorkspaceTreeCache {
   markSubtreeLoadFinished: (itemId: string) => void;
   mergeSubtreeItems: (workspaceId: string, items: SubtreeItem[]) => void;
   injectMockNode: (workspaceId: string, args?: InjectMockNodeArgs) => string | null;
-  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => RefreshResult;
+  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => InjectMockWorkspaceTreeResult;
   debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;
 }
@@ -82,7 +91,7 @@ export interface TreeStore {
   isLoaded: (itemId: string) => boolean;
   isLoading: (itemId: string) => boolean;
   hasChildren: (itemId: string) => boolean;
-  isFullyLoaded: (workspaceId: string) => boolean;
+  isOutlineLoaded: (workspaceId: string) => boolean;
   getNewlyCreated: (workspaceId: string) => Workspace | undefined;
   listNewlyCreatedIds: () => string[];
   markInitialized: (workspaceId: string) => void;
@@ -90,7 +99,7 @@ export interface TreeStore {
   refreshWorkspaceTree: (workspaceId: string) => Promise<RefreshResult>;
   loadSubtree: (workspaceId: string, itemId: string, maxDepth?: number) => Promise<SubtreeItem[]>;
   injectMockNode: (workspaceId: string, args?: InjectMockNodeArgs) => string | null;
-  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => RefreshResult;
+  injectMockWorkspaceTree: (workspaceId: string, args?: InjectMockWorkspaceTreeArgs) => InjectMockWorkspaceTreeResult;
   debugSnapshot: (workspaceId: string) => TreeStoreDebugSnapshot;
   reset: () => void;
 }

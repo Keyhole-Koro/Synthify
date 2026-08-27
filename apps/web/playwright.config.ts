@@ -47,6 +47,24 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         storageState: authFile,
       },
+      // The load test is slow by construction and its numbers are only
+      // meaningful when it has the machine to itself, so it never rides along
+      // with the functional suite.
+      testIgnore: /perf\.spec\.ts/,
+      dependencies: ['setup'],
+    },
+    {
+      // Client load test (`bun run e2e:perf`). Measurements are taken from
+      // Chromium's CDP counters, so this project must stay Chromium-only, and
+      // must not run in parallel with anything else on the box.
+      name: 'perf',
+      testMatch: /perf\.spec\.ts/,
+      fullyParallel: false,
+      retries: 0,
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authFile,
+      },
       dependencies: ['setup'],
     },
     // The nightly checks hit a deployed environment, where there is no Auth

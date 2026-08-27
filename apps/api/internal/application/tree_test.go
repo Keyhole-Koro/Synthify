@@ -24,6 +24,40 @@ func TestTreeService_GetTree_ReturnsItems(t *testing.T) {
 	assert.NotEmpty(t, items)
 }
 
+// GetTree returns an outline: the root node keeps its body (it is the workspace
+// cover report, rendered immediately) and every other node does not. Clients
+// fetch those bodies through GetSubtree when a paper opens. Without this, the
+// response grows with the node count — 5,000 nodes came to 14 MiB of JSON.
+func TestTreeService_GetTree_OmitsBodiesBelowRootNodes(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	fixture := mock.CreateWorkspaceWithTreeFixture(t, ctx, store, "owner")
+
+	child, err := store.CreateItem(ctx, fixture.Workspace.WorkspaceID, "Child node", "", fixture.RootNodeID, "worker")
+	require.NoError(t, err)
+	require.NoError(t, store.UpdateItemSummaryHTMLWithCapability(ctx, nil, "job", fixture.RootNodeID, "<p>root body</p>"))
+	require.NoError(t, store.UpdateItemSummaryHTMLWithCapability(ctx, nil, "job", child.ItemID, "<p>child body</p>"))
+
+	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})
+	items, err := svc.GetTree(ctx, fixture.Workspace.WorkspaceID, "owner")
+	require.NoError(t, err)
+
+	byID := make(map[string]*domain.Item, len(items))
+	for _, item := range items {
+		byID[item.ItemID] = item
+	}
+	require.Contains(t, byID, fixture.RootNodeID)
+	require.Contains(t, byID, child.ItemID)
+	assert.Equal(t, "<p>root body</p>", byID[fixture.RootNodeID].Content, "root node keeps its body")
+	assert.Empty(t, byID[child.ItemID].Content, "non-root body must not ride along in GetTree")
+
+	// GetSubtree is the path that does carry it, so the body is still reachable.
+	subtree, err := svc.GetSubtree(ctx, fixture.Workspace.WorkspaceID, child.ItemID, "owner", 1)
+	require.NoError(t, err)
+	require.NotEmpty(t, subtree)
+	assert.Equal(t, "<p>child body</p>", subtree[0].Item.Content)
+}
+
 func TestTreeService_GetTree_EmptyWorkspaceID_ReturnsError(t *testing.T) {
 	store := mock.NewStore()
 	svc := NewTreeService(TreeServiceDeps{Tree: store, Workspaces: store, Logger: nil})

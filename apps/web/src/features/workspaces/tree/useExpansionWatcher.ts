@@ -47,10 +47,14 @@ export function useExpansionWatcher({
     prevExpansionRef.current = expansionMap;
 
     for (const itemId of newlyOpened) {
-      if (!store.hasChildren(itemId)) continue;
       const workspaceId = store.getItemWorkspaceId(itemId);
       if (!workspaceId) continue;
-      if (!store.isFullyLoaded(workspaceId)) continue;
+      if (!store.isOutlineLoaded(workspaceId)) continue;
+      // Childless items are fetched too, which they were not while GetTree
+      // carried every body. A leaf still has a body of its own, and GetSubtree
+      // returns the requested item along with its descendants — so this is how
+      // an opened leaf gets its content. Repeat fetches are suppressed by
+      // shouldSkipSubtreeLoad, not by this condition.
       onLoadSubtree(workspaceId, itemId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps

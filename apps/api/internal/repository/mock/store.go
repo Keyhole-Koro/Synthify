@@ -1398,6 +1398,26 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	return res, nil
 }
 
+// GetTreeOutlineByWorkspace mirrors the SQL store: bodies survive only on root
+// nodes. The items are copied before blanking so the mock's stored tree is not
+// mutated — a caller that later asks for the full tree must still get bodies.
+func (s *Store) GetTreeOutlineByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {
+	items, err := s.GetTreeByWorkspace(ctx, wsID)
+	if err != nil {
+		return nil, err
+	}
+	outlines := make([]*domain.Item, 0, len(items))
+	for _, item := range items {
+		copied := *item
+		if copied.ParentID != "" {
+			copied.Content = ""
+			copied.OverrideCSS = ""
+		}
+		outlines = append(outlines, &copied)
+	}
+	return outlines, nil
+}
+
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	items, err := s.GetTreeByWorkspace(ctx, wsID)
 	if err != nil {

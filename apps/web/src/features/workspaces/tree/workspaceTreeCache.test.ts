@@ -54,4 +54,67 @@ describe('workspaceTreeCache', () => {
     expect(cache.getTreeItems('ws_1').get('debug_node_1')?.item?.title).toBe('Debug Paper');
     expect(cache.isLoaded('debug_node_1')).toBe(true);
   });
+
+  // GetTree returns an outline: bodies only on root nodes. These cases pin the
+  // consequences, because getting them wrong is silent — the papers still
+  // render, they just render the description fallback forever.
+  it('treats only root nodes as body-loaded after an outline replace', () => {
+    const cache = createWorkspaceTreeCache();
+    cache.replaceWorkspaceTree('ws_1', [
+      makeItem('root', '', ['child']),
+      makeItem('child', 'root'),
+    ]);
+
+    expect(cache.isLoaded('root')).toBe(true);
+    expect(cache.isLoaded('child')).toBe(false);
+  });
+
+  it('does not skip a subtree load just because the outline is present', () => {
+    const cache = createWorkspaceTreeCache();
+    cache.replaceWorkspaceTree('ws_1', [
+      makeItem('root', '', ['child']),
+      makeItem('child', 'root'),
+    ]);
+
+    expect(cache.isOutlineLoaded('ws_1')).toBe(true);
+    expect(cache.shouldSkipSubtreeLoad('ws_1', 'child')).toBe(false);
+  });
+
+  it('skips a repeat load for an item whose body has arrived or is in flight', () => {
+    const cache = createWorkspaceTreeCache();
+    cache.replaceWorkspaceTree('ws_1', [makeItem('root', '', ['child']), makeItem('child', 'root')]);
+
+    cache.markSubtreeLoading('child');
+    expect(cache.shouldSkipSubtreeLoad('ws_1', 'child')).toBe(true);
+
+    cache.markSubtreeLoadFinished('child');
+    cache.markSubtreeLoaded('child');
+    expect(cache.shouldSkipSubtreeLoad('ws_1', 'child')).toBe(true);
+  });
+
+  it('drops body-loaded marks for items a refresh replaced', () => {
+    const cache = createWorkspaceTreeCache();
+    cache.replaceWorkspaceTree('ws_1', [makeItem('root', '', ['child']), makeItem('child', 'root')]);
+    cache.markSubtreeLoaded('child');
+
+    // A treeChanged refresh rebuilds the workspace's items, so the body that
+    // mark referred to is gone with them.
+    cache.replaceWorkspaceTree('ws_1', [makeItem('root', '', ['child']), makeItem('child', 'root')]);
+
+    expect(cache.isLoaded('child')).toBe(false);
+    expect(cache.shouldSkipSubtreeLoad('ws_1', 'child')).toBe(false);
+  });
+
+  it('marks an injected mock tree fully body-loaded so it needs no backend', () => {
+    const cache = createWorkspaceTreeCache();
+    const { rootNodeIds } = cache.injectMockWorkspaceTree('debug_ws', { totalItems: 12, depth: 2, branching: 3 });
+
+    const ids = Array.from(cache.getTreeItems('debug_ws').keys());
+    expect(ids.length).toBe(12);
+    expect(rootNodeIds).toHaveLength(1);
+    for (const id of ids) {
+      expect(cache.shouldSkipSubtreeLoad('debug_ws', id)).toBe(true);
+    }
+  });
 });
+
