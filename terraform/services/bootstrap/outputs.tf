@@ -25,6 +25,10 @@ output "eval_scheduler_service_account_email" {
   value = module.platform.eval_scheduler_service_account_email
 }
 
+output "maintenance_scheduler_service_account_email" {
+  value = module.platform.maintenance_scheduler_service_account_email
+}
+
 output "monitor_service_account_email" {
   value = module.platform.monitor_service_account_email
 }

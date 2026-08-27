@@ -26,6 +26,19 @@ type API struct {
 	Stripe                   Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+	Maintenance              Maintenance
+}
+
+// Maintenance identifies the Cloud Scheduler job allowed to drive the periodic
+// housekeeping sweep. Both fields must be set for the endpoint to be mounted;
+// an unset allowlist disables it rather than opening it up.
+type Maintenance struct {
+	// OIDCAudience the scheduler's token must carry. Terraform sets it to the
+	// API's own Cloud Run URL.
+	OIDCAudience string
+	// SchedulerServiceAccountsCSV are the caller identities permitted to invoke
+	// the sweep.
+	SchedulerServiceAccountsCSV string
 }
 
 // WorkerDispatch controls how the API hands jobs to the worker. When
@@ -129,6 +142,10 @@ func LoadAPI() API {
 		NewRelic: NewRelic{
 			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-api")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
+		},
+		Maintenance: Maintenance{
+			OIDCAudience:                os.Getenv("SYNTHIFY_MAINTENANCE_OIDC_AUDIENCE"),
+			SchedulerServiceAccountsCSV: os.Getenv("SYNTHIFY_MAINTENANCE_SCHEDULER_SERVICE_ACCOUNTS"),
 		},
 	}
 }

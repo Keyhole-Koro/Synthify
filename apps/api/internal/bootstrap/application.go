@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/application"
@@ -102,9 +101,6 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		Logger:           logger,
 		NRApp:            nrApp,
 	})
-	startAutoResume(documentSvc, logger)
-	startStuckJobMonitor(documentSvc, logger)
-
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
 	userSvc := application.NewUserService(application.UserServiceDeps{Users: store, Accounts: store, Billing: billingSvc, Logger: logger})
@@ -139,6 +135,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		mux.Handle("POST /dev/seed-workspace", handler.NewDevSeedHTTPHandler(devSeedSvc, true))
 	}
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey, cfg.ReadinessMonitorKey))
+	registerMaintenanceSweep(mux, cfg, documentSvc, logger)
 
 	var h http.Handler = mux
 	h = apimiddleware.WithAuth(authenticator, logger, h)
@@ -168,49 +165,37 @@ func newWorkerDispatcher(ctx context.Context, cfg config.API, logger *slog.Logge
 	return dispatcher, dispatcher.Close, nil
 }
 
-func startAutoResume(documentSvc *application.DocumentService, logger *slog.Logger) {
-	go func() {
-		time.Sleep(15 * time.Second)
-		resumeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-		defer cancel()
-		resumed, err := documentSvc.AutoResumeFailedJobs(resumeCtx)
-		if err != nil {
-			logger.Error("job.auto_resume_scan_failed", "error", err.Error())
-			return
-		}
-		if resumed > 0 {
-			logger.Info("job.auto_resume_completed", "resumed", resumed)
-		}
-	}()
-}
-
-// stuckJobScanInterval is how often the stuck-job sweep runs. Re-emitting the
-// same job_id every interval is fine: the NR alert uses uniqueCount(job_id), so
-// repeats within the window collapse to one and running on several API
-// instances does not inflate the count.
-const stuckJobScanInterval = 5 * time.Minute
-
-// startStuckJobMonitor periodically sweeps for jobs wedged in QUEUED/RUNNING and
-// emits JobStuck events for New Relic to alert on. These never surface as
-// JobFailed, so this sweep is the only signal that a job silently stopped
-// progressing.
-func startStuckJobMonitor(documentSvc *application.DocumentService, logger *slog.Logger) {
-	go func() {
-		ticker := time.NewTicker(stuckJobScanInterval)
-		defer ticker.Stop()
-		for range ticker.C {
-			scanCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
-			stuck, err := documentSvc.ReportStuckJobs(scanCtx)
-			cancel()
-			if err != nil {
-				logger.Error("job.stuck_scan_failed", "error", err.Error())
-				continue
-			}
-			if stuck > 0 {
-				logger.Warn("job.stuck_scan_found", "count", stuck)
-			}
-		}
-	}()
+// registerMaintenanceSweep mounts the Cloud Scheduler-driven housekeeping route
+// (auto-resume of failed jobs + the stuck-job sweep that feeds the New Relic
+// JobStuck alert). Both used to be in-process goroutines, which only works when
+// Cloud Run keeps CPU allocated outside requests — i.e. when you pay for an
+// always-on instance. Driving them from Cloud Scheduler lets the service run
+// with cpu_idle=true and scale to zero between sweeps.
+//
+// Re-emitting the same job_id on every sweep is fine: the NR alert uses
+// uniqueCount(job_id), so repeats within the window collapse to one.
+//
+// The route is only mounted when the scheduler identity is configured, so local
+// and test runs (and any environment that has not been applied yet) expose no
+// unauthenticated surface. It stays outside the Firebase auth middleware —
+// see isAuthExempt — because it carries a Google OIDC token instead.
+func registerMaintenanceSweep(mux *http.ServeMux, cfg config.API, documentSvc *application.DocumentService, logger *slog.Logger) {
+	// Unset is the normal state locally and in tests, so this is not a warning.
+	// A half-configured deployment is, and falls through to the error below.
+	if strings.TrimSpace(cfg.Maintenance.SchedulerServiceAccountsCSV) == "" {
+		logger.Info("maintenance.sweep_disabled", "reason", "SYNTHIFY_MAINTENANCE_SCHEDULER_SERVICE_ACCOUNTS is empty")
+		return
+	}
+	schedulerAuth, err := apiauth.NewSchedulerAuthenticator(apiauth.SchedulerAuthenticatorConfig{
+		Audience:                  cfg.Maintenance.OIDCAudience,
+		AllowedServiceAccountsCSV: cfg.Maintenance.SchedulerServiceAccountsCSV,
+	})
+	if err != nil {
+		logger.Error("maintenance.sweep_disabled", "error", err.Error())
+		return
+	}
+	mux.Handle(apimiddleware.MaintenanceSweepPath, handler.NewMaintenanceHTTPHandler(documentSvc, schedulerAuth, logger))
+	logger.Info("maintenance.sweep_enabled", "path", apimiddleware.MaintenanceSweepPath)
 }
 
 type readinessChecker interface {

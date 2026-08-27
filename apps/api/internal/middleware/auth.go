@@ -60,12 +60,18 @@ func writeAuthError(w http.ResponseWriter, err error, unauthorizedMessage string
 	http.Error(w, unauthorizedMessage, http.StatusUnauthorized)
 }
 
+// MaintenanceSweepPath is the Cloud Scheduler-driven housekeeping endpoint. It
+// is exempt from the Firebase middleware because it authenticates a Google OIDC
+// token itself (see auth.SchedulerAuthenticator); the handler is only mounted
+// when that identity is configured.
+const MaintenanceSweepPath = "/internal/maintenance/sweep"
+
 func isAuthExempt(r *http.Request) bool {
 	if r.Method == http.MethodOptions {
 		return true
 	}
 	switch r.URL.Path {
-	case "/health", "/stripe/webhook":
+	case "/health", "/stripe/webhook", MaintenanceSweepPath:
 		return true
 	// 公開リンクの解決は無認証経路 (token のみで workspace を解決する)。
 	case "/synthify.app.v1.WorkspaceService/ResolveShareLink":
