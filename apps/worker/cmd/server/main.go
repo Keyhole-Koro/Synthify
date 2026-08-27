@@ -98,7 +98,25 @@ func main() {
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	appLogger.Info("worker.started", "addr", addr)
 	h := httpmiddleware.Recover(appLogger, httpmiddleware.Logger(appLogger, withJobLogger(jobLogger, mux)))
-	if err := http.ListenAndServe(addr, h); err != nil {
+	// http.ListenAndServe leaves every timeout at zero, so a client that opens a
+	// connection and stops mid-header holds a goroutine indefinitely.
+	// ReadHeaderTimeout is the bound for that; GO-2026-6089 was the case where
+	// even the one net/http applies internally was skipped during the h2c
+	// upgrade check.
+	//
+	// ReadTimeout and WriteTimeout stay unset deliberately: /internal/dispatch-job
+	// runs the whole job inline (see InternalDispatchHandler.ServeHTTP), so the
+	// response is written minutes after the request arrives. Bounding either one
+	// would abort work that is still making progress. That budget is enforced
+	// instead by cfg.RequestTimeout / AgentBudget, which shadow Cloud Run's own
+	// request timeout.
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 20 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

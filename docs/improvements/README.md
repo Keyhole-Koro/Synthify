@@ -63,6 +63,7 @@
 
 ## テスト・品質
 
+- [dependency-scanning.md](dependency-scanning.md) — **Done**: 依存・設定スキャンの構成（`govulncheck` / `bun audit` / `trivy config` / CodeQL / Dependabot）。Snyk を採らなかった理由と、`bun audit` を blocking に切り替える条件も記載
 - [stage-prod-smoke-tests.md](stage-prod-smoke-tests.md) — stage / prod deploy 後に API・Worker・Frontend の最低限の死活を確認する smoke test 導入計画
 - [tool-calling-tests.md](tool-calling-tests.md) — LLM エージェントが各ツールを正しく呼び出せているかを確認するテストの追加
 - [gcs-put-upload-test.md](gcs-put-upload-test.md) — 署名付き URL を使った GCS PUT アップロードの統合テスト追加

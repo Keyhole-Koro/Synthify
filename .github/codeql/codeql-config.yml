@@ -1,0 +1,13 @@
+name: Synthify CodeQL config
+
+# paths-ignore only applies to the interpreted languages (javascript-typescript
+# here); the Go analysis follows whatever `go build ./...` compiles.
+paths-ignore:
+  # Vendored submodule — upstream's code, and it is not even checked out in the
+  # CodeQL job, but keep it excluded so a future checkout change does not
+  # silently start reporting findings nobody here can fix.
+  - apps/web/vender
+  # buf / openapi-typescript output; findings belong to the generator.
+  - "**/generated/**"
+  # Playwright specs deliberately do things production code must not.
+  - apps/web/e2e
