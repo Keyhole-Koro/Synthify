@@ -50,15 +50,17 @@ test('answers a question about the workspace and cites its sources', async ({ pa
   await openSeededWorkspace(page);
 
   const input = page.getByTestId('workspace-chat-input');
+  const questions = page.getByTestId('workspace-chat-message-user');
   await expect(input).toBeEnabled();
 
+  const questionsBefore = await questions.count();
   await input.fill('ワークスペースの権限について教えて');
   await page.getByTestId('workspace-chat-send').click();
 
-  // 質問は送信直後に永続化され、そのまま履歴に残る。
-  await expect(page.getByTestId('workspace-chat-message-user')).toContainText(
-    'ワークスペースの権限について教えて',
-  );
+  // seed workspace の会話履歴はテスト間・retry 間で残るので、絶対件数や
+  // 単一要素を前提にせず「今回の送信で1件増えた」ことを待つ。
+  await expect(questions).toHaveCount(questionsBefore + 1);
+  await expect(questions.last()).toContainText('ワークスペースの権限について教えて');
 
   const answer = page.getByTestId('workspace-chat-message-assistant');
   await expect(answer).toBeVisible();
@@ -77,16 +79,24 @@ test('keeps the conversation across a reload', async ({ page }) => {
   await openSeededWorkspace(page);
 
   const input = page.getByTestId('workspace-chat-input');
+  const answers = page.getByTestId('workspace-chat-message-assistant');
+  const answersBefore = await answers.count();
+
   await input.fill('結論は何ですか');
   await page.getByTestId('workspace-chat-send').click();
-  await expect(page.getByTestId('workspace-chat-message-assistant').last()).toBeVisible();
+
+  // 既存の assistant message が見えているだけでは送信完了を保証できない。
+  // 今回の回答が追加されるまで待ってから reload し、RPC の abort (499) を防ぐ。
+  await expect(answers).toHaveCount(answersBefore + 1);
 
   await page.reload();
   await openWorkspaceList(page);
   await page.getByText('Synthify Dev Seed', { exact: true }).first().click();
 
   // 会話はサーバーに保存されているので、リロード後も履歴が戻る。
-  await expect(page.getByTestId('workspace-chat-message-user').filter({ hasText: '結論は何ですか' })).toBeVisible();
+  await expect(
+    page.getByTestId('workspace-chat-message-user').filter({ hasText: '結論は何ですか' }),
+  ).toBeVisible();
 });
 
 test('asks follow-up questions in the same conversation', async ({ page }) => {
