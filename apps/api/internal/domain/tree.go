@@ -105,3 +105,63 @@ type TreePath struct {
 }
 
 type NodeGovernanceState string
+
+// Governance state names are the values stored in tree_items.governance_state
+// and the vocabulary STIF import documents use. Keeping the mapping here means
+// the storage layer, the import parser and the RPC layer all agree on it.
+const (
+	GovernanceStateNameSystemGenerated = "system_generated"
+	GovernanceStateNamePendingReview   = "pending_review"
+	GovernanceStateNameHumanCurated    = "human_curated"
+	GovernanceStateNameLocked          = "locked"
+)
+
+// ItemGovernanceStateFromName maps a stored/authored name onto the enum,
+// returning UNSPECIFIED for anything it does not recognise.
+func ItemGovernanceStateFromName(name string) appv1.ItemGovernanceState {
+	switch name {
+	case GovernanceStateNameSystemGenerated:
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED
+	case GovernanceStateNamePendingReview:
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_PENDING_REVIEW
+	case GovernanceStateNameHumanCurated:
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED
+	case GovernanceStateNameLocked:
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED
+	default:
+		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_UNSPECIFIED
+	}
+}
+
+// ItemGovernanceStateName is the inverse of ItemGovernanceStateFromName. An
+// unspecified state stores as system_generated, which is the column default.
+func ItemGovernanceStateName(state appv1.ItemGovernanceState) string {
+	switch state {
+	case appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_PENDING_REVIEW:
+		return GovernanceStateNamePendingReview
+	case appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED:
+		return GovernanceStateNameHumanCurated
+	case appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED:
+		return GovernanceStateNameLocked
+	default:
+		return GovernanceStateNameSystemGenerated
+	}
+}
+
+// Scope names are the vocabulary STIF uses for TreeProjectionScope.
+const (
+	ScopeNameDocument  = "document"
+	ScopeNameCanonical = "canonical"
+)
+
+// TreeProjectionScopeFromName maps a scope name onto the enum.
+func TreeProjectionScopeFromName(name string) appv1.TreeProjectionScope {
+	switch name {
+	case ScopeNameDocument:
+		return appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT
+	case ScopeNameCanonical:
+		return appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_CANONICAL
+	default:
+		return appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_UNSPECIFIED
+	}
+}
