@@ -214,6 +214,57 @@ func (q *Queries) InsertJobMutationLog(ctx context.Context, arg InsertJobMutatio
 	return err
 }
 
+const listChildIDsByWorkspace = `-- name: ListChildIDsByWorkspace :many
+SELECT parent_id, id
+FROM tree_items
+WHERE workspace_id = $1 AND parent_id IS NOT NULL
+ORDER BY created_at ASC, id ASC
+`
+
+type ListChildIDsByWorkspaceRow struct {
+	ParentID sql.NullString
+	ID       string
+}
+
+// Every parent-to-child edge in a workspace, in one round trip, used to fill in
+// each item's ChildIDs after a tree listing. Doing it per item meant 1+N
+// queries, and each of those selected the full row including `content` — so
+// assembling a list of ids re-read every node body a second time. At 5,000
+// nodes that was 43 ms of query time (against 7 ms for the listing itself) and
+// 11 MiB of body text read for nothing. Measurements in
+// docs/improvements/client-item-load-testing.md.
+//
+// Only the two id columns are selected, so the result stays small however large
+// the bodies are. Workspace-scoped rather than parent-scoped because a scalar
+// parameter needs no array support from the driver.
+//
+// Ordered by created_at to match the order the item listings use, with id
+// breaking ties: a job persists a tree in one statement, so siblings routinely
+// share a created_at and that column alone is not a total order. The per-parent
+// query had no ORDER BY at all, so sibling order was whatever the scan produced.
+func (q *Queries) ListChildIDsByWorkspace(ctx context.Context, workspaceID string) ([]ListChildIDsByWorkspaceRow, error) {
+	rows, err := q.db.QueryContext(ctx, listChildIDsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListChildIDsByWorkspaceRow
+	for rows.Next() {
+		var i ListChildIDsByWorkspaceRow
+		if err := rows.Scan(&i.ParentID, &i.ID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChildItems = `-- name: ListChildItems :many
 SELECT id, workspace_id, parent_id, title, level, description, content, override_css, created_by,
   governance_state, cross_document, created_at,

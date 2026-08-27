@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
@@ -38,7 +39,9 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	for _, r := range rows {
 		items = append(items, toItemFromItemRow(r))
 	}
-	s.populateChildIDs(ctx, items)
+	if err := s.populateChildIDs(ctx, items); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -104,23 +107,51 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 	for _, item := range items {
 		plainItems = append(plainItems, &item.Item)
 	}
-	s.populateChildIDs(ctx, plainItems)
+	if err := s.populateChildIDs(ctx, plainItems); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
-func (s *Store) populateChildIDs(ctx context.Context, items []*domain.Item) {
+// populateChildIDs fills in ChildIDs for every item, using one query per
+// distinct workspace rather than one per item. See the
+// ListChildIDsByWorkspace query for why: the per-item version was 1+N queries
+// that each dragged along the node bodies it did not need.
+//
+// Errors are returned rather than swallowed. The per-item version skipped a
+// failed item and left its ChildIDs empty, which is survivable; one failure
+// here would silently flatten the entire tree, which is not.
+func (s *Store) populateChildIDs(ctx context.Context, items []*domain.Item) error {
+	itemsByID := make(map[string]*domain.Item, len(items))
+	workspaceIDs := make([]string, 0, 1)
 	for _, item := range items {
 		if item == nil || item.ItemID == "" {
 			continue
 		}
-		rows, err := s.q().ListChildItems(ctx, sql.NullString{String: item.ItemID, Valid: true})
-		if err != nil {
-			continue
+		itemsByID[item.ItemID] = item
+		// Every item starts with an empty (non-nil) slice, matching what the
+		// per-item version produced for a childless node.
+		item.ChildIDs = []string{}
+		if item.WorkspaceID != "" && !slices.Contains(workspaceIDs, item.WorkspaceID) {
+			workspaceIDs = append(workspaceIDs, item.WorkspaceID)
 		}
-		childIDs := make([]string, 0, len(rows))
-		for _, row := range rows {
-			childIDs = append(childIDs, row.ID)
-		}
-		item.ChildIDs = childIDs
 	}
+	if len(itemsByID) == 0 {
+		return nil
+	}
+
+	for _, wsID := range workspaceIDs {
+		rows, err := s.q().ListChildIDsByWorkspace(ctx, wsID)
+		if err != nil {
+			return fmt.Errorf("list child ids by workspace: %w", err)
+		}
+		for _, row := range rows {
+			// Edges whose parent is not among `items` are skipped: a subtree
+			// listing holds only part of the workspace.
+			if parent, ok := itemsByID[row.ParentID.String]; ok {
+				parent.ChildIDs = append(parent.ChildIDs, row.ID)
+			}
+		}
+	}
+	return nil
 }
