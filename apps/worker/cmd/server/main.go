@@ -91,8 +91,10 @@ func main() {
 	// runs that bypass Cloud Tasks. Authentication is enforced upstream by
 	// Cloud Run (allow_unauthenticated=false + run.invoker on the Cloud
 	// Tasks SA).
-	mux.Handle("POST /internal/dispatch-job",
-		worker.NewInternalDispatchHandler(processor, planner, appLogger))
+	dispatchHandler := http.Handler(worker.NewInternalDispatchHandler(processor, planner, appLogger))
+	dispatchHandler = observability.NewRelicHTTPHandler(nrApp, "POST /internal/dispatch-job", dispatchHandler)
+	dispatchHandler = observability.ExtractTraceContext(dispatchHandler)
+	mux.Handle("POST /internal/dispatch-job", dispatchHandler)
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey))
 
 	addr := fmt.Sprintf(":%s", cfg.Port)
