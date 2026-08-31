@@ -1,8 +1,11 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"testing"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestTaskID_Deterministic(t *testing.T) {
@@ -45,6 +48,35 @@ func TestTaskID_ValidCloudTasksName(t *testing.T) {
 		if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
 			t.Fatalf("task id contains non-hex char: %s", got)
 		}
+	}
+}
+
+func TestCloudTaskHeadersPropagateTraceContext(t *testing.T) {
+	traceID, err := trace.TraceIDFromHex("4bf92f3577b34da6a3ce929d0e0e4736")
+	if err != nil {
+		t.Fatalf("trace id: %v", err)
+	}
+	spanID, err := trace.SpanIDFromHex("00f067aa0ba902b7")
+	if err != nil {
+		t.Fatalf("span id: %v", err)
+	}
+	spanContext := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     spanID,
+		TraceFlags: trace.FlagsSampled,
+	})
+	ctx := trace.ContextWithSpanContext(context.Background(), spanContext)
+
+	headers := cloudTaskHeaders(ctx)
+	if got := headers["Content-Type"]; got != "application/json" {
+		t.Fatalf("Content-Type = %q", got)
+	}
+	const wantTraceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	if got := headers["Traceparent"]; got != wantTraceparent {
+		t.Fatalf("Traceparent = %q, want %q", got, wantTraceparent)
+	}
+	if _, ok := headers["Baggage"]; ok {
+		t.Fatal("baggage must not be propagated to Cloud Tasks")
 	}
 }
 
