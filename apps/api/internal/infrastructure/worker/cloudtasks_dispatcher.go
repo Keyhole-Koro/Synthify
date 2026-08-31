@@ -125,16 +125,6 @@ func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, re
 	// second CreateTask returns AlreadyExists and we treat it as success.
 	taskName := fmt.Sprintf("%s/tasks/%s", d.queuePath, taskID(req.JobID, procedure))
 
-	httpHeaders := make(http.Header)
-	httpHeaders.Set("Content-Type", "application/json")
-	observability.InjectTraceContext(ctx, httpHeaders)
-	taskHeaders := make(map[string]string, len(httpHeaders))
-	for key, values := range httpHeaders {
-		if len(values) > 0 {
-			taskHeaders[key] = values[0]
-		}
-	}
-
 	task := &taskspb.Task{
 		Name:             taskName,
 		DispatchDeadline: durationpb.New(d.dispatchDeadline),
@@ -142,7 +132,7 @@ func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, re
 			HttpRequest: &taskspb.HttpRequest{
 				HttpMethod: taskspb.HttpMethod_POST,
 				Url:        d.dispatchURL,
-				Headers:    taskHeaders,
+				Headers:    cloudTaskHeaders(ctx),
 				Body:       body,
 				AuthorizationHeader: &taskspb.HttpRequest_OidcToken{
 					OidcToken: &taskspb.OidcToken{
@@ -180,6 +170,20 @@ func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, re
 		"task_name", taskName,
 	)
 	return nil
+}
+
+func cloudTaskHeaders(ctx context.Context) map[string]string {
+	httpHeaders := make(http.Header)
+	httpHeaders.Set("Content-Type", "application/json")
+	observability.InjectTraceContext(ctx, httpHeaders)
+
+	taskHeaders := make(map[string]string, len(httpHeaders))
+	for key, values := range httpHeaders {
+		if len(values) > 0 {
+			taskHeaders[key] = values[0]
+		}
+	}
+	return taskHeaders
 }
 
 // taskID is the Cloud Tasks dedup key. Task names must match
