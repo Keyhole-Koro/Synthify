@@ -1,6 +1,7 @@
 .gemini-cache
 .codex
 .claude
+.idea/
 node_modules/
 __pycache__/
 *.py[cod]
@@ -34,5 +35,3 @@ apps/worker/server
 .e2e-bin/
 
 tmp/
-
-.gemini-cache

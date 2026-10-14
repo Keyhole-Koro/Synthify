@@ -38,7 +38,7 @@ Worker smoke checks:
 Frontend smoke checks:
 
 - `GET FRONTEND_URL` returns 2xx.
-- The response looks like an HTML app shell (`html`, `doctype`, `__next`, or script marker).
+- The response looks like an HTML app shell (`html`, `doctype`, or script marker).
 
 ## Endpoint Contract
 

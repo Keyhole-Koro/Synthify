@@ -13,27 +13,27 @@ on:
           - prod
   push:
     branches:
-      - stage
+      - main
       - prod
 
 concurrency:
-  group: deploy-backend-${{ github.event.inputs.environment || github.ref_name }}
+  group: deploy-backend-${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Resolve env from manual input, else from the pushed branch name.
-    # The GitHub Environment scopes the deploy credentials (GCP_WIF_*) and the
-    # values that cannot live in the repository. Where the target is — project
-    # id, region — comes from tfvars instead; see the resolve step below.
-    environment: ${{ github.event.inputs.environment || github.ref_name }}
+    # Manual runs use the selected environment. Pushes to main deploy to stage;
+    # pushes to prod continue to deploy to prod. The GitHub Environment scopes
+    # the deploy credentials (GCP_WIF_*) and the values that cannot live in the
+    # repository. Project id and region come from tfvars below.
+    environment: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }}
     permissions:
       contents: read
       id-token: write
 
     env:
-      ENVIRONMENT: ${{ github.event.inputs.environment || github.ref_name }}
+      ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }}
       TF_DIR: terraform/environments
 
     steps:
@@ -359,6 +359,6 @@ jobs:
     with:
       status: failure
       workflow_name: Deploy Backend
-      job_name: deploy (${{ github.event.inputs.environment || github.ref_name }})
+      job_name: deploy (${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }})
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
