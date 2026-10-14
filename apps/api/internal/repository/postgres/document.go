@@ -633,7 +633,7 @@ func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reas
 	}
 	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    plan.PlanID,
-		Status:    "pending_approval",
+		Status:    string(domain.PlanStatusPendingApproval),
 		UpdatedAt: now,
 	}); err != nil {
 		return nil, fmt.Errorf("update plan status: %w", err)
@@ -641,7 +641,7 @@ func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reas
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: plan.PlanID,
-		PlanStatus:      "pending_approval",
+		PlanStatus:      string(domain.PlanStatusPendingApproval),
 		UpdatedAt:       now,
 	}); err != nil {
 		return nil, fmt.Errorf("update job plan state: %w", err)
@@ -689,7 +689,7 @@ func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, revie
 	}
 	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    planID,
-		Status:    "approved",
+		Status:    string(domain.PlanStatusApproved),
 		UpdatedAt: now,
 	}); err != nil {
 		return fmt.Errorf("update plan status: %w", err)
@@ -697,7 +697,7 @@ func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, revie
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: planID,
-		PlanStatus:      "approved",
+		PlanStatus:      string(domain.PlanStatusApproved),
 		UpdatedAt:       now,
 	}); err != nil {
 		return fmt.Errorf("update job plan state: %w", err)
@@ -734,7 +734,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	}
 	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    planID,
-		Status:    "rejected",
+		Status:    string(domain.PlanStatusRejected),
 		UpdatedAt: now,
 	}); err != nil {
 		return fmt.Errorf("update plan status: %w", err)
@@ -742,7 +742,7 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: planID,
-		PlanStatus:      "rejected",
+		PlanStatus:      string(domain.PlanStatusRejected),
 		UpdatedAt:       now,
 	}); err != nil {
 		return fmt.Errorf("update job plan state: %w", err)

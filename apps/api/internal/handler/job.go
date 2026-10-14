@@ -129,7 +129,7 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 		Message:     fmt.Sprintf("approval approved by=%s approval_id=%s", userID, req.Msg.GetApprovalId()),
 		Detail:      map[string]any{"by": userID, "approval_id": req.Msg.GetApprovalId()},
 	})
-	return connect.NewResponse(&appv1.ApproveJobApprovalResponse{Status: "approved"}), nil
+	return connect.NewResponse(&appv1.ApproveJobApprovalResponse{Status: string(domain.PlanStatusApproved)}), nil
 }
 
 // RejectJobApproval rejects a pending job approval request, terminating or aborting the stage.
@@ -154,7 +154,7 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 		Message:     fmt.Sprintf("approval rejected by=%s approval_id=%s reason=%q", userID, req.Msg.GetApprovalId(), req.Msg.GetReason()),
 		Detail:      map[string]any{"by": userID, "approval_id": req.Msg.GetApprovalId(), "reason": req.Msg.GetReason()},
 	})
-	return connect.NewResponse(&appv1.RejectJobApprovalResponse{Status: "rejected"}), nil
+	return connect.NewResponse(&appv1.RejectJobApprovalResponse{Status: string(domain.PlanStatusRejected)}), nil
 }
 
 // ListJobMutationLogs returns state mutations produced during the execution of a job.

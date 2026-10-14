@@ -566,24 +566,15 @@ func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reas
 	}
 	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    plan.PlanID,
-		Status:    "pending_approval",
+		Status:    string(domain.PlanStatusPendingApproval),
 		UpdatedAt: now,
 	}); err != nil {
 		return nil, fmt.Errorf("update plan status: %w", err)
 	}
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
-		JobID:           approvalID, // Wait, this should be jobID
-		ExecutionPlanID: plan.PlanID,
-		PlanStatus:      "pending_approval",
-		UpdatedAt:       now,
-	}); err != nil {
-		// Wait, I see I used approvalID as JobID in previous version. Fixed below.
-	}
-	// Redoing carefully.
-	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: plan.PlanID,
-		PlanStatus:      "pending_approval",
+		PlanStatus:      string(domain.PlanStatusPendingApproval),
 		UpdatedAt:       now,
 	}); err != nil {
 		return nil, fmt.Errorf("update job plan state: %w", err)
@@ -630,7 +621,7 @@ func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, revie
 	}
 	if _, err := qtx.UpdateJobExecutionPlanStatus(ctx, sqlcgen.UpdateJobExecutionPlanStatusParams{
 		PlanID:    planID,
-		Status:    "approved",
+		Status:    string(domain.PlanStatusApproved),
 		UpdatedAt: now,
 	}); err != nil {
 		return fmt.Errorf("update plan status: %w", err)
@@ -638,7 +629,7 @@ func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, revie
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: planID,
-		PlanStatus:      "approved",
+		PlanStatus:      string(domain.PlanStatusApproved),
 		UpdatedAt:       now,
 	}); err != nil {
 		return fmt.Errorf("update job plan state: %w", err)

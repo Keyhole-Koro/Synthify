@@ -4,15 +4,13 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
-const planStatusPendingApproval = "pending_approval"
-
 // DeriveLifecycleState computes the user-facing document lifecycle state from its latest
 // processing job. A document with no associated job is considered uploaded only.
 func DeriveLifecycleState(latestJob *DocumentProcessingJob) appv1.DocumentLifecycleState {
 	if latestJob == nil {
 		return appv1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_UPLOADED
 	}
-	if latestJob.PlanStatus == planStatusPendingApproval {
+	if latestJob.PlanStatus == string(PlanStatusPendingApproval) {
 		return appv1.DocumentLifecycleState_DOCUMENT_LIFECYCLE_STATE_PENDING_NORMALIZATION
 	}
 	switch latestJob.Status {

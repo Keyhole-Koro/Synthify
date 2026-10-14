@@ -96,18 +96,17 @@ const (
 	DocumentStatusRejected DocumentStatus = "rejected"
 )
 
-// PlanStatus represents the execution state of an execution plan.
+// PlanStatus is the approval state of a job's execution plan. The same values
+// are stored in job_execution_plans.status and processing_jobs.plan_status.
 type PlanStatus string
 
 const (
-	// PlanStatusPending indicates that a plan is awaiting execution.
-	PlanStatusPending PlanStatus = "pending"
-	// PlanStatusInProgress indicates that a plan is actively running.
-	PlanStatusInProgress PlanStatus = "in_progress"
-	// PlanStatusCompleted indicates that all plan steps finished successfully.
-	PlanStatusCompleted PlanStatus = "completed"
-	// PlanStatusFailed indicates that plan execution encountered an unrecoverable error.
-	PlanStatusFailed PlanStatus = "failed"
+	// PlanStatusNone is the processing_jobs default before any plan exists.
+	PlanStatusNone PlanStatus = "none"
+	// PlanStatusPendingApproval indicates that the plan waits for a reviewer.
+	PlanStatusPendingApproval PlanStatus = "pending_approval"
+	// PlanStatusApproved indicates that the plan may run.
+	PlanStatusApproved PlanStatus = "approved"
 	// PlanStatusRejected indicates that the plan was explicitly rejected.
 	PlanStatusRejected PlanStatus = "rejected"
 )

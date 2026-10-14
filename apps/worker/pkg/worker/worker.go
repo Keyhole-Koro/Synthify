@@ -419,7 +419,7 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 	plan := &domain.JobExecutionPlan{
 		PlanID:    "plan_" + req.JobID,
 		JobID:     req.JobID,
-		Status:    "approved",
+		Status:    string(domain.PlanStatusApproved),
 		Summary:   "Extract text, chunk semantically, generate knowledge tree items, persist mutations, and evaluate the job.",
 		PlanJSON:  string(planJSONBytes),
 		CreatedBy: "llm_worker",
