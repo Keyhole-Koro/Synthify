@@ -38,6 +38,7 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 │  └─ Connect / gRPC proto source of truth
 │
 ├─ internal/
+│  ├─ db/sqlcgen/ # sqlc の生成コード（db/migrations と db/queries が正本。api と worker で共有）
 │  ├─ domain/     # api と worker が共有する業務の型・enum・domain error（型の定義はここだけ）
 │  ├─ gen/        # Go generated proto / Connect code
 │  └─ platform/   # 変化の少ない横断基盤 (applog, observability, util等)
@@ -82,7 +83,7 @@ API 契約の唯一のソース (`contracts/connectrpc`) から生成された G
 ### 3.3 `apps/api/internal`
 
 API アプリケーションの全責任を持ちます。
-*   **repository:** DB 実装 (SQLC 生成物含む)
+*   **repository:** DB 実装（SQLC 生成物は `internal/db/sqlcgen`）
 *   **service:** ユースケース実行
 *   **middleware:** Auth, CORS 等の API 固有処理
 

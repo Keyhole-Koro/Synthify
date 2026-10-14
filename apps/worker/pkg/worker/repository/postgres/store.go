@@ -9,7 +9,7 @@ import (
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
-	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
 	"github.com/synthify/backend/internal/platform/database"
 	"github.com/synthify/backend/internal/platform/util"
 )

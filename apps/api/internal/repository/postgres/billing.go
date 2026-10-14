@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/synthify/backend/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
 )
 
 // GetModelPricing returns the pricing row for the given model.

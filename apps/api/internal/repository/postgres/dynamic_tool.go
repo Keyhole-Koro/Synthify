@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
 	"github.com/synthify/backend/internal/domain"
 )
 
