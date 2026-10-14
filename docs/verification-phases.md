@@ -30,8 +30,6 @@ go test -count=1 ./internal/platform/...
 # Phase 3
 go vet ./apps/eval/...
 go test -count=1 ./apps/eval/...
-(cd apps/monitor && go vet ./...)
-(cd apps/monitor && go test -count=1 ./...)
 
 # Phase 5
 go vet ./apps/api/...
@@ -95,7 +93,7 @@ Phase 7〜9 はフェーズ単位で対象を分けて実行する。`bun run we
 
 ## 注意事項
 
-- `apps/monitor/` は独立した Go module のため、ルートからではなく `apps/monitor/` 内で検証する。
+- `apps/monitor/` の Go module（`joblog`）は、使われていない `internal/platform/job/log` の複製だったため削除した。Phase 3 の Go は `apps/eval/` だけになる。
 - `apps/monitor/ui/` の30件という旧集計は、UI の一部だけを数えた値であり、API route を含む対象ディレクトリ全体の件数ではない。
 - `apps/api/` の70件という旧集計は、現在の生成コード除外ルールでは再現できない。現行値は68件である。
 - テストなし package は品質失敗ではないが、通常の `vitest run` は exit 1 になるため、Phase 2では `--passWithNoTests` を明示する。

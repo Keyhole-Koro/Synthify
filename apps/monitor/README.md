@@ -4,8 +4,8 @@ Synthify の内部運用ツール。ジョブログ閲覧と運用 BI / LLM Eval
 
 ## 構成
 
-- **`joblog/`** (Go) — ジョブログの共有インターフェース (`Event` / `Logger` / `Repository`)。
-  worker・api から `context` 経由で使われ、構造化ログを Postgres に永続化する。
+- ジョブログを書く側のインターフェース (`Event` / `Logger` / `Repository`) は
+  `internal/platform/job/log`（worker・api が `context` 経由で使い、Postgres に永続化する）。
 - **`ui/`** (Next.js) — monitor の画面本体。BFF パターンで、クライアントは API
   (Connect/gRPC) を叩かず、同一 Next.js アプリの Route Handlers (`/api/...`) が
   サーバーサイドで Postgres を **read-only の `monitor` ロール**で直接参照する。
