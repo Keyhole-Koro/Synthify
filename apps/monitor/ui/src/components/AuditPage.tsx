@@ -3,7 +3,6 @@
  *
  * @module
  */
-'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createJobLogDataSource } from '@/lib/data-source';

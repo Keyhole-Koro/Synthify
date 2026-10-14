@@ -3,7 +3,6 @@
  *
  * @module
  */
-'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { JobLog, JobLogDataSource, JobLogFilters, JobLogGroup } from './types';

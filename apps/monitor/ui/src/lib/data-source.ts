@@ -15,7 +15,7 @@ import type {
 import { authFetch } from './auth-client';
 
 /**
- * Creates an implementation of JobLogDataSource that queries Next.js BFF API endpoints using authFetch.
+ * Creates an implementation of JobLogDataSource that queries the monitor BFF API endpoints using authFetch.
  *
  * @returns Configured JobLogDataSource instance. Non-2xx BFF responses are converted to
  *   empty result pages so the viewer can render an inline empty/error state; auth/network

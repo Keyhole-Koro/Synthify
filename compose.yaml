@@ -181,7 +181,7 @@ services:
     command: >
       bash -c '
         set -e;
-        if [ ! -x /workspace/node_modules/.bin/next ]; then
+        if [ ! -x /workspace/apps/monitor/ui/node_modules/.bin/vite ]; then
           cd /workspace;
           bun install --frozen-lockfile;
         fi;

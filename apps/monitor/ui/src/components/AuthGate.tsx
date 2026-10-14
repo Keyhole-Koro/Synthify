@@ -3,7 +3,6 @@
  *
  * @module
  */
-'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
@@ -14,7 +13,7 @@ import {
   signOutUser,
   subscribeUser,
 } from '@/lib/auth-client';
-import { PREVIEW_BYPASS, isAuthEmulator } from '@/config.client';
+import { PREVIEW_BYPASS, isAuthEmulator } from '@/client-config';
 
 /**
  * State representing user authentication lifecycle in the gate.

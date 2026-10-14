@@ -4,9 +4,8 @@
  *
  * @module
  */
-'use client';
 
-import Link from 'next/link';
+import { Link } from '@tanstack/react-router';
 import { useEffect, useState, type ReactNode } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { authFetch } from '@/lib/auth-client';
@@ -130,7 +129,7 @@ export function EvalDashboard() {
     <div className="flex h-screen overflow-hidden bg-stone-50">
       <aside className="flex w-56 shrink-0 flex-col border-r border-stone-200 bg-white">
         <div className="border-b border-stone-100 bg-stone-50/50 p-4"><h1 className="text-sm font-bold uppercase tracking-tight text-stone-800">Dashboards</h1><p className="mt-0.5 text-[10px] text-stone-400">Operations BI</p></div>
-        <nav className="flex-1 p-2"><Link href="/dashboards" className="mb-0.5 block rounded-md px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100">Logs & Operations</Link><span className="block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval Trace</span></nav>
+        <nav className="flex-1 p-2"><Link to="/dashboards" className="mb-0.5 block rounded-md px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100">Logs & Operations</Link><span className="block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval Trace</span></nav>
         <div className="border-t border-stone-100 p-3 text-[10px] text-stone-400">Inspect LLM calls, tool calls, validation and assertion failures.</div>
       </aside>
 

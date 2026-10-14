@@ -216,9 +216,9 @@ jobs:
             -f apps/eval/Dockerfile --push . &
           pids+=($!)
 
-          # Monitor is a Next.js app: NEXT_PUBLIC_* are baked into the client
-          # bundle at build time, so they are passed as build args (not runtime
-          # env). Server-side secrets (MONITOR_DATABASE_URL) stay in Cloud Run.
+          # Monitor is a TanStack Start (Vite) app: NEXT_PUBLIC_* are baked into
+          # the client bundle at build time, so they are passed as build args
+          # (not runtime env). Server-side secrets (MONITOR_DATABASE_URL) stay in Cloud Run.
           docker buildx build \
             --cache-from "type=gha,scope=monitor-${ENVIRONMENT}" \
             --cache-to   "type=gha,scope=monitor-${ENVIRONMENT},mode=max" \

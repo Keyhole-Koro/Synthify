@@ -6,9 +6,11 @@ Synthify の内部運用ツール。ジョブログ閲覧と運用 BI / LLM Eval
 
 - ジョブログを書く側のインターフェース (`Event` / `Logger` / `Repository`) は
   `internal/platform/job/log`（worker・api が `context` 経由で使い、Postgres に永続化する）。
-- **`ui/`** (Next.js) — monitor の画面本体。BFF パターンで、クライアントは API
-  (Connect/gRPC) を叩かず、同一 Next.js アプリの Route Handlers (`/api/...`) が
-  サーバーサイドで Postgres を **read-only の `monitor` ロール**で直接参照する。
+- **`ui/`** (TanStack Start + Vite) — monitor の画面本体。BFF パターンで、クライアントは
+  API (Connect/gRPC) を叩かず、同一アプリの server route (`src/routes/api/**`、
+  処理は `src/server/api/**`) がサーバーサイドで Postgres を **read-only の `monitor`
+  ロール**で直接参照する。画面は TanStack Router のファイルルート (`src/routes/`)
+  で、ブラウザでだけ描画する（API 呼び出しに管理者の Firebase ID トークンが要るため）。
 
 ## UI の機能
 
@@ -69,8 +71,8 @@ GCS artifact の出力後に run / case telemetry を同一 transaction で保�
 api / worker / eval と同じ `deploy-backend.yml` パイプラインで Cloud Run
 サービス `synthify-monitor-<env>` としてデプロイされる。
 
-- **イメージ**: `apps/monitor/ui/Dockerfile`（monorepo コンテキスト・Next.js
-  standalone）。`NEXT_PUBLIC_FIREBASE_*` はクライアントバンドルに焼き込まれる
+- **イメージ**: `apps/monitor/ui/Dockerfile`（monorepo コンテキスト。`vite build` の
+  `dist/` と monitor の本番依存だけを載せ、`bun server.ts` で配信する）。`NEXT_PUBLIC_FIREBASE_*` はクライアントバンドルに焼き込まれる
   ため **ビルド時の build-arg** で渡す（GitHub Environment vars を利用）。
 - **公開範囲**: `ingress = all` の公開 Cloud Run。ネットワーク層では開き、
   アプリ層の `requireAdmin`（Firebase ID トークン + `SYNTHIFY_ADMIN_USER_EMAILS`）

@@ -4,7 +4,6 @@
  *
  * @module
  */
-'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import type { EvalCaseRow, EvalRunRow, EvalTraceEvent } from '@/lib/eval-queries';

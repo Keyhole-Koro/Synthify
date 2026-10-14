@@ -3,11 +3,10 @@
  *
  * @module
  */
-'use client';
 
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
-import { authEmulatorUrl, firebaseConfig } from '@/config.client';
+import { authEmulatorUrl, firebaseConfig } from '@/client-config';
 
 let cachedAuth: Auth | null = null;
 

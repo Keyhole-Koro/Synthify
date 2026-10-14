@@ -3,7 +3,6 @@
  *
  * @module
  */
-'use client';
 
 import {
   GoogleAuthProvider,

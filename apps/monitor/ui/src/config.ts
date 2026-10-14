@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 /** Zod schema validating server-side environment variables. */
 const envSchema = z.object({
-  // BFF (Next.js Route Handlers) は MONITOR_DATABASE_URL で Postgres を直接参照する。
+  // BFF (TanStack Start の server route) は MONITOR_DATABASE_URL で Postgres を直接参照する。
   // monitor ロールに GRANT SELECT が与えられた read-only DSN を指す想定
   // (db/migrations/0014_monitor_role.up.sql, view は 0013_monitor_views.up.sql)。
   MONITOR_DATABASE_URL: z

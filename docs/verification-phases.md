@@ -11,7 +11,7 @@
 | Phase 1 | `internal/platform/` | Go | 21 | `go vet` / `go test` PASS |
 | Phase 2 | `packages/*` と `apps/desktop/` | TypeScript | 26 | 全 package と desktop の typecheck / test PASS（テストなし package は許容） |
 | Phase 3 | `apps/eval/` と `apps/monitor/`（`ui/`除外） | Go | 16 | `go vet` / `go test` PASS |
-| Phase 4 | `apps/monitor/ui/` | TypeScript | 40 | test 2 files / 11 tests、`next build` PASS |
+| Phase 4 | `apps/monitor/ui/` | TypeScript | 40 | test 2 files / 11 tests、`next build` PASS（2026-10 に TanStack Start へ移行。現在は `vite build`） |
 | Phase 5 | `apps/api/` | Go | 68 | `go vet` / `go test -short` PASS |
 | Phase 6 | `apps/worker/` | Go | 87 | `go vet` / `go test -short` PASS |
 | Phase 7 | `apps/web/src/{config,shared,lib,client}/` | TypeScript | 20 | typecheck PASS、対象 test 5 files / 28 tests PASS |

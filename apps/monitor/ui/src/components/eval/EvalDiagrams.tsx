@@ -4,7 +4,6 @@
  *
  * @module
  */
-'use client';
 
 import type { EvalFunnelData, EvalPromptSourceRow, EvalRunRow } from '@/lib/eval-queries';
 

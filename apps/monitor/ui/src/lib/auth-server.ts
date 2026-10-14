@@ -3,7 +3,6 @@
  *
  * @module
  */
-import { NextResponse, type NextRequest } from 'next/server';
 import { adminAuth } from './firebase-admin';
 import { isAdmin, parseAdminEmails, parseBearer } from './auth-rules';
 import { config } from '../config';
@@ -21,39 +20,39 @@ export interface AdminPrincipal {
  * Verifies the Firebase ID token in the Authorization header and confirms admin membership.
  * Fails closed with 401 Unauthorized or 403 Forbidden responses on validation errors.
  *
- * @param req Incoming Next.js API request.
- * @returns The resolved AdminPrincipal, or a NextResponse error on failure.
+ * @param req Incoming API request.
+ * @returns The resolved AdminPrincipal, or an error Response on failure.
  */
 export async function authenticateAdmin(
-  req: NextRequest,
-): Promise<AdminPrincipal | NextResponse> {
+  req: Request,
+): Promise<AdminPrincipal | Response> {
   const token = parseBearer(req.headers.get('authorization'));
   if (!token) {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return Response.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
   let decoded;
   try {
     decoded = await adminAuth().verifyIdToken(token);
   } catch {
-    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    return Response.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
   if (!isAdmin(decoded.email, parseAdminEmails(config.SYNTHIFY_ADMIN_USER_EMAILS))) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    return Response.json({ error: 'forbidden' }, { status: 403 });
   }
 
   return { uid: decoded.uid, email: (decoded.email ?? '').toLowerCase() };
 }
 
 /**
- * Guard utility for Route Handlers. Returns an error NextResponse if unauthenticated or forbidden,
+ * Guard utility for Route Handlers. Returns an error Response if unauthenticated or forbidden,
  * or null if authorization succeeds.
  *
- * @param req Incoming Next.js API request.
+ * @param req Incoming API request.
  * @returns Error response to terminate the request, or null to continue.
  */
-export async function requireAdmin(req: NextRequest): Promise<NextResponse | null> {
+export async function requireAdmin(req: Request): Promise<Response | null> {
   const result = await authenticateAdmin(req);
-  return result instanceof NextResponse ? result : null;
+  return result instanceof Response ? result : null;
 }

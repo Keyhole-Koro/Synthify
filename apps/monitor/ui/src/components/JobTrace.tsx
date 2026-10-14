@@ -4,7 +4,6 @@
  *
  * @module
  */
-'use client';
 
 import React, { useEffect, useState } from 'react';
 import type { JobTraceData, ToolCallEntry } from '@/lib/trace-queries';

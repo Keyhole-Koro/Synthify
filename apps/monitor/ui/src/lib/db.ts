@@ -6,7 +6,7 @@
 import { Pool } from 'pg';
 import { config } from '../config';
 
-// Next.js の dev mode で HMR が走るたびに新しい Pool ができないよう、
+// vite dev で HMR が走るたびに新しい Pool ができないよう、
 // globalThis にキャッシュする。
 declare global {
   // eslint-disable-next-line no-var
@@ -26,7 +26,7 @@ function createPool(): Pool {
  * Returns the global PostgreSQL pool singleton, creating it if not already initialized.
  *
  * @returns Cached or newly initialized pg.Pool instance. The pool is stored on globalThis
- *   so Next.js development reloads do not create one pool per module evaluation.
+ *   so vite dev reloads do not create one pool per module evaluation.
  * @throws Pool construction errors for invalid database configuration; connection failures
  *   are reported by individual queries.
  */
