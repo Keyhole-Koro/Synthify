@@ -117,9 +117,6 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
-	if req.Msg.GetApprovalId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("approval_id is required"))
-	}
 	if err := h.approvals.ApproveJobApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), userID); err != nil {
 		return nil, toError(err)
 	}
@@ -144,9 +141,6 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
-	}
-	if req.Msg.GetApprovalId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("approval_id is required"))
 	}
 	if err := h.approvals.RejectJobApproval(ctx, req.Msg.GetJobId(), req.Msg.GetApprovalId(), userID, req.Msg.GetReason()); err != nil {
 		return nil, toError(err)

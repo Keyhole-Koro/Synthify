@@ -25,6 +25,7 @@ import (
 	appv1connect "github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	"github.com/synthify/backend/internal/platform/observability"
+	"github.com/synthify/backend/internal/platform/transport/rpcvalidate"
 )
 
 // Application is the fully wired API process. bootstrap is the only package
@@ -156,6 +157,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		observability.ConnectHandlerOptions(nrApp),
 		observability.MaskInternalErrorsHandlerOptions(logger)...,
 	)
+	connectOptions = append(connectOptions, rpcvalidate.HandlerOptions()...)
 	mux.Handle(appv1connect.NewDocumentServiceHandler(handler.NewDocumentHandler(documentSvc, store), connectOptions...))
 	mux.Handle(appv1connect.NewTreeServiceHandler(handler.NewTreeHandler(treeSvc), connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(handler.NewItemHandler(itemSvc), connectOptions...))

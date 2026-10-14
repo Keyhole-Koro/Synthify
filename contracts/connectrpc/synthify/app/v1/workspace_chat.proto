@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package synthify.app.v1;
 
+import "buf/validate/validate.proto";
+
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
 // Workspace chat: workspace 内の完了済みドキュメント / ナレッジツリーを対象にした
@@ -60,7 +62,7 @@ message WorkspaceChatMessage {
 }
 
 message ListWorkspaceChatConversationsRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).required = true];
 }
 
 message ListWorkspaceChatConversationsResponse {
@@ -74,8 +76,8 @@ message ListWorkspaceChatConversationsResponse {
 }
 
 message ListWorkspaceChatMessagesRequest {
-  string workspace_id = 1;
-  string conversation_id = 2;
+  string workspace_id = 1 [(buf.validate.field).required = true];
+  string conversation_id = 2 [(buf.validate.field).required = true];
 }
 
 message ListWorkspaceChatMessagesResponse {
@@ -83,7 +85,7 @@ message ListWorkspaceChatMessagesResponse {
 }
 
 message SendWorkspaceChatMessageRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).required = true];
   // 空なら新しい会話を作る。指定する場合は workspace_id に属している必要がある。
   string conversation_id = 2;
   // 1..8000 Unicode code point。全て空白のメッセージは invalid。

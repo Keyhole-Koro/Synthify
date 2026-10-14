@@ -37,9 +37,6 @@ func NewConnectHandler(processor interface {
 
 // GenerateExecutionPlan generates a multi-stage execution plan for a document processing job.
 func (h *ConnectHandler) GenerateExecutionPlan(ctx context.Context, req *connect.Request[workerv1.GenerateExecutionPlanRequest]) (*connect.Response[workerv1.GenerateExecutionPlanResponse], error) {
-	if req.Msg.GetJobId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("job_id is required"))
-	}
 	dispatchReq := ExecutePlanRequest{
 		JobID:       req.Msg.GetJobId(),
 		JobType:     req.Msg.GetJobType(),
@@ -93,9 +90,6 @@ func (h *ConnectHandler) ExecuteApprovedPlan(ctx context.Context, req *connect.R
 
 // EvaluateJobArtifact performs semantic quality evaluation on artifacts produced by a completed job.
 func (h *ConnectHandler) EvaluateJobArtifact(ctx context.Context, req *connect.Request[workerv1.EvaluateJobArtifactRequest]) (*connect.Response[workerv1.EvaluateJobArtifactResponse], error) {
-	if req.Msg.GetJobId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("job_id is required"))
-	}
 
 	var result *domain.JobEvaluationResult
 

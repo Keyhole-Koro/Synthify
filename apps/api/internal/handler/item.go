@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/internal/domain"
@@ -37,9 +36,6 @@ func NewItemHandler(service ItemUsecase) *ItemHandler {
 
 // GetTreeEntityDetail retrieves detailed information and evidence for a specific tree entity/item.
 func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Request[appv1.GetTreeEntityDetailRequest]) (*connect.Response[appv1.GetTreeEntityDetailResponse], error) {
-	if req.Msg.GetTargetRef() == nil || req.Msg.GetTargetRef().GetId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("target_ref.id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -67,9 +63,6 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 
 // CreateItem creates a new taxonomy node/item in the workspace.
 func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1.CreateItemRequest]) (*connect.Response[appv1.CreateItemResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetLabel() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and label are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -83,9 +76,6 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 
 // ApproveAlias approves a proposed alias relationship between two items.
 func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[appv1.ApproveAliasRequest]) (*connect.Response[appv1.ApproveAliasResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalItemId() == "" || req.Msg.GetAliasItemId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_item_id, and alias_item_id are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -102,9 +92,6 @@ func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[app
 
 // RejectAlias rejects a proposed alias relationship between two items.
 func (h *ItemHandler) RejectAlias(ctx context.Context, req *connect.Request[appv1.RejectAliasRequest]) (*connect.Response[appv1.RejectAliasResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalItemId() == "" || req.Msg.GetAliasItemId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_item_id, and alias_item_id are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err

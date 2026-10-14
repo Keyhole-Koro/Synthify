@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 
 	connect "connectrpc.com/connect"
 
@@ -35,9 +34,6 @@ func (h *WorkspaceChatHandler) ListWorkspaceChatConversations(
 	ctx context.Context,
 	req *connect.Request[appv1.ListWorkspaceChatConversationsRequest],
 ) (*connect.Response[appv1.ListWorkspaceChatConversationsResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -61,9 +57,6 @@ func (h *WorkspaceChatHandler) ListWorkspaceChatMessages(
 	ctx context.Context,
 	req *connect.Request[appv1.ListWorkspaceChatMessagesRequest],
 ) (*connect.Response[appv1.ListWorkspaceChatMessagesResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetConversationId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and conversation_id are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -84,9 +77,6 @@ func (h *WorkspaceChatHandler) SendWorkspaceChatMessage(
 	ctx context.Context,
 	req *connect.Request[appv1.SendWorkspaceChatMessageRequest],
 ) (*connect.Response[appv1.SendWorkspaceChatMessageResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err

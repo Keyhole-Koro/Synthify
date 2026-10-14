@@ -24,6 +24,7 @@ import (
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/observability"
+	"github.com/synthify/backend/internal/platform/transport/rpcvalidate"
 )
 
 // main boots the worker service, initializes dependencies, and binds HTTP and Connect RPC handlers.
@@ -84,6 +85,7 @@ func main() {
 		observability.ConnectHandlerOptions(nrApp),
 		observability.MaskInternalErrorsHandlerOptions(appLogger)...,
 	)
+	handlerOpts = append(handlerOpts, rpcvalidate.HandlerOptions()...)
 	mux.Handle(workerv1connect.NewWorkerServiceHandler(
 		worker.NewConnectHandler(processor, store, planner, evaluator, appLogger),
 		handlerOpts...,

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"errors"
 
 	connect "connectrpc.com/connect"
 	"github.com/synthify/backend/internal/domain"
@@ -31,9 +30,6 @@ func NewTreeHandler(svc TreeUsecase) *TreeHandler {
 
 // GetTree returns the entire hierarchical item tree for a workspace.
 func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.GetTreeRequest]) (*connect.Response[appv1.GetTreeResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserIDOrShareToken(ctx)
 	if err != nil {
 		return nil, err
@@ -52,12 +48,6 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 // GetSubtree returns the subtree rooted at a specific item up to a requested depth.
 func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1.GetSubtreeRequest]) (*connect.Response[appv1.GetSubtreeResponse], error) {
 	wsID := req.Msg.GetWorkspaceId()
-	if wsID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
-	if req.Msg.GetItemId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("item_id is required"))
-	}
 	userID, err := requireUserIDOrShareToken(ctx)
 	if err != nil {
 		return nil, err
@@ -75,12 +65,6 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 
 // FindPaths finds relationship paths between source and target items within a workspace.
 func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.FindPathsRequest]) (*connect.Response[appv1.FindPathsResponse], error) {
-	if req.Msg.GetSourceItemId() == "" || req.Msg.GetTargetItemId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("source_item_id and target_item_id are required"))
-	}
-	if req.Msg.GetWorkspaceId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserIDOrShareToken(ctx)
 	if err != nil {
 		return nil, err

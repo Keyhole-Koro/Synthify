@@ -39,9 +39,6 @@ func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Reques
 
 // GetWorkspace returns details and members of a specific workspace.
 func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Request[appv1.GetWorkspaceRequest]) (*connect.Response[appv1.GetWorkspaceResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -66,9 +63,6 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 // CreateWorkspace creates a new workspace and sets the caller as the owner.
 func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[appv1.CreateWorkspaceRequest]) (*connect.Response[appv1.CreateWorkspaceResponse], error) {
 	name := strings.TrimSpace(req.Msg.GetName())
-	if name == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -85,13 +79,7 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 // UpdateWorkspace updates the name of an existing workspace.
 func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Request[appv1.UpdateWorkspaceRequest]) (*connect.Response[appv1.UpdateWorkspaceResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	name := strings.TrimSpace(req.Msg.GetName())
-	if name == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("name is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -108,9 +96,6 @@ func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Req
 // DeleteWorkspace deletes a workspace and its associated items/resources.
 func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Request[appv1.DeleteWorkspaceRequest]) (*connect.Response[appv1.DeleteWorkspaceResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -124,13 +109,7 @@ func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Req
 // InviteMember invites a user by email to join the workspace with a specific role.
 func (h *WorkspaceHandler) InviteMember(ctx context.Context, req *connect.Request[appv1.InviteMemberRequest]) (*connect.Response[appv1.InviteMemberResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	email := strings.TrimSpace(req.Msg.GetEmail())
-	if email == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("email is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -147,13 +126,7 @@ func (h *WorkspaceHandler) InviteMember(ctx context.Context, req *connect.Reques
 // UpdateMemberRole updates the role assigned to a workspace member.
 func (h *WorkspaceHandler) UpdateMemberRole(ctx context.Context, req *connect.Request[appv1.UpdateMemberRoleRequest]) (*connect.Response[appv1.UpdateMemberRoleResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	targetUserID := strings.TrimSpace(req.Msg.GetUserId())
-	if targetUserID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("user_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -170,13 +143,7 @@ func (h *WorkspaceHandler) UpdateMemberRole(ctx context.Context, req *connect.Re
 // RemoveMember removes a member from the workspace.
 func (h *WorkspaceHandler) RemoveMember(ctx context.Context, req *connect.Request[appv1.RemoveMemberRequest]) (*connect.Response[appv1.RemoveMemberResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	targetUserID := strings.TrimSpace(req.Msg.GetUserId())
-	if targetUserID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("user_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -195,9 +162,6 @@ func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Reque
 // CreateShareLink creates a shareable token for accessing the workspace.
 func (h *WorkspaceHandler) CreateShareLink(ctx context.Context, req *connect.Request[appv1.CreateShareLinkRequest]) (*connect.Response[appv1.CreateShareLinkResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -214,9 +178,6 @@ func (h *WorkspaceHandler) CreateShareLink(ctx context.Context, req *connect.Req
 // ListShareLinks lists active share links for a workspace.
 func (h *WorkspaceHandler) ListShareLinks(ctx context.Context, req *connect.Request[appv1.ListShareLinksRequest]) (*connect.Response[appv1.ListShareLinksResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -235,13 +196,7 @@ func (h *WorkspaceHandler) ListShareLinks(ctx context.Context, req *connect.Requ
 // RevokeShareLink invalidates a previously issued share link.
 func (h *WorkspaceHandler) RevokeShareLink(ctx context.Context, req *connect.Request[appv1.RevokeShareLinkRequest]) (*connect.Response[appv1.RevokeShareLinkResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
-	if workspaceID == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
-	}
 	token := strings.TrimSpace(req.Msg.GetToken())
-	if token == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("token is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -255,9 +210,6 @@ func (h *WorkspaceHandler) RevokeShareLink(ctx context.Context, req *connect.Req
 // ResolveShareLink resolves a share token to inspect the workspace and access role without requiring authentication.
 func (h *WorkspaceHandler) ResolveShareLink(ctx context.Context, req *connect.Request[appv1.ResolveShareLinkRequest]) (*connect.Response[appv1.ResolveShareLinkResponse], error) {
 	token := strings.TrimSpace(req.Msg.GetToken())
-	if token == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("token is required"))
-	}
 	workspace, role, err := h.service.ResolveShareLink(ctx, token)
 	if err != nil {
 		return nil, toError(err)

@@ -4,6 +4,7 @@ package synthify.app.v1;
 
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
+import "buf/validate/validate.proto";
 import "synthify/app/v1/job.proto";
 
 service DocumentService {
@@ -45,8 +46,8 @@ enum DocumentLifecycleState {
 }
 
 message CreateDocumentRequest {
-  string workspace_id = 1;
-  string filename = 2;
+  string workspace_id = 1 [(buf.validate.field).required = true];
+  string filename = 2 [(buf.validate.field).required = true];
   string mime_type = 3;
   int64 file_size = 4;
 }
@@ -59,7 +60,7 @@ message CreateDocumentResponse {
 }
 
 message GetDocumentRequest {
-  string document_id = 1;
+  string document_id = 1 [(buf.validate.field).required = true];
 }
 
 message GetDocumentResponse {
@@ -67,7 +68,7 @@ message GetDocumentResponse {
 }
 
 message ListDocumentsRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).required = true];
   int32 page_size = 2;
   string page_token = 3;
   DocumentLifecycleState status_filter = 4;
@@ -94,7 +95,7 @@ message GetUploadURLResponse {
 
 // data-file-id マーカーを表示用の署名付き GET URL に解決する。
 message GetImageURLRequest {
-  string file_id = 1;
+  string file_id = 1 [(buf.validate.field).required = true];
 }
 
 message GetImageURLResponse {
@@ -103,7 +104,7 @@ message GetImageURLResponse {
 }
 
 message ConfirmUploadRequest {
-  string document_id = 1;
+  string document_id = 1 [(buf.validate.field).required = true];
 }
 
 message ConfirmUploadResponse {
@@ -112,7 +113,7 @@ message ConfirmUploadResponse {
 
 message StartProcessingRequest {
   // The target document must already be uploaded and currently be in uploaded status.
-  string document_id = 1;
+  string document_id = 1 [(buf.validate.field).required = true];
   bool force_reprocess = 2;
 }
 
@@ -123,7 +124,7 @@ message StartProcessingResponse {
 
 // pending_normalization 状態の document を手動または自動で処理再開する
 message ResumeProcessingRequest {
-  string document_id = 1;
+  string document_id = 1 [(buf.validate.field).required = true];
 }
 
 message ResumeProcessingResponse {
