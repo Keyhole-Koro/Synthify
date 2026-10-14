@@ -700,22 +700,11 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 		return &domain.UsageRecordResult{EventID: ev.EventID, Cost: "0.00"}, nil
 	}
 
-	pue := toPlatformEvent(ev)
-	result, err := s.recorder.Record(ctx, pue)
+	// Recorder fills in the cost and the credit/Stripe split on ev.
+	result, err := s.recorder.Record(ctx, ev)
 	if err != nil {
-		if errors.Is(err, platformusage.ErrEventInvalid) {
-			return nil, domain.ErrBillingUsageEventInvalid
-		}
 		return nil, err
 	}
-	// Recorder mutated pue with the chosen split; mirror the relevant fields
-	// back onto the caller's domain event so callers reading ev after the
-	// fact see the same accounting.
-	ev.CostMinor = pue.CostMinor
-	ev.Currency = pue.Currency
-	ev.PaidVia = domain.PaidVia(pue.PaidVia)
-	ev.CreditAmountMinor = pue.CreditAmountMinor
-	ev.StripeAmountMinor = pue.StripeAmountMinor
 
 	// Pricing が解決できず cost 0 で記録された場合は課金漏れ。recorder 側で
 	// error ログは出るが、ここでも NewRelic に notice してアラート可能にする。
@@ -739,35 +728,7 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 		s.reportStripeMeterPortion(ctx, ev, inTok, outTok)
 	}
 
-	return &domain.UsageRecordResult{
-		EventID:           result.EventID,
-		Cost:              result.Cost,
-		BudgetExceeded:    result.BudgetExceeded,
-		CreditStopped:     result.CreditStopped,
-		PaidVia:           domain.PaidVia(result.PaidVia),
-		CreditAmountMinor: result.CreditAmountMinor,
-		StripeAmountMinor: result.StripeAmountMinor,
-		PricingMissing:    result.PricingMissing,
-	}, nil
-}
-
-// toPlatformEvent converts a domain.UsageEvent to the platform billing usage event structure.
-func toPlatformEvent(ev *domain.UsageEvent) *platformusage.Event {
-	return &platformusage.Event{
-		EventID:           ev.EventID,
-		AccountID:         ev.AccountID,
-		WorkspaceID:       ev.WorkspaceID,
-		JobID:             ev.JobID,
-		Model:             ev.Model,
-		InputTokens:       ev.InputTokens,
-		OutputTokens:      ev.OutputTokens,
-		CostMinor:         ev.CostMinor,
-		Currency:          ev.Currency,
-		PaidVia:           platformusage.PaidVia(ev.PaidVia),
-		CreditAmountMinor: ev.CreditAmountMinor,
-		StripeAmountMinor: ev.StripeAmountMinor,
-		CreatedAt:         ev.CreatedAt,
-	}
+	return result, nil
 }
 
 // reportStripeMeterPortion reports metered token usage directly to the billing provider.

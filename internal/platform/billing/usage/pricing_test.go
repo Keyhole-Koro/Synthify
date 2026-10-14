@@ -1,9 +1,13 @@
 package usage
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/synthify/backend/internal/domain"
+)
 
 func TestComputeCostMinor(t *testing.T) {
-	pricing := &ModelPricing{InputCostPerMTokenMinor: 3_000, OutputCostPerMTokenMinor: 5_000}
+	pricing := &domain.ModelPricing{InputCostPerMTokenMinor: 3_000, OutputCostPerMTokenMinor: 5_000}
 	if got := ComputeCostMinor(pricing, 1_000_000, 2_000_000); got != 13_000 {
 		t.Fatalf("ComputeCostMinor() = %d, want 13000", got)
 	}
