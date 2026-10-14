@@ -1,17 +1,30 @@
+/**
+ * Firebase Admin SDK initialization for server-side token verification.
+ *
+ * @module
+ */
 import { getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth, type Auth, type DecodedIdToken } from 'firebase-admin/auth';
 import { config } from '../config';
 
-// firebase-admin は FIREBASE_AUTH_EMULATOR_HOST が設定されていれば自動でエミュ
-// レータに接続し、署名検証をスキップする。本番では ADC を利用するが、ID トークン
-// の検証は projectID と Google の公開鍵だけで完結するため service account 鍵は
-// 不要 (apps/api の FirebaseAuthenticator と同じ前提)。
+/**
+ * Returns the existing initialized Firebase Admin App singleton or creates a new one.
+ *
+ * @returns Firebase Admin app configured with the monitor project ID.
+ * @throws Firebase Admin initialization errors when server credentials/configuration are invalid.
+ */
 function getAdminApp(): App {
   const apps = getApps();
   if (apps.length > 0) return apps[0]!;
   return initializeApp({ projectId: config.FIREBASE_PROJECT_ID });
 }
 
+/**
+ * Obtains the Firebase Admin Auth service instance for verifying ID tokens.
+ *
+ * @returns Cached Admin Auth service bound to the monitor Firebase project.
+ * @throws Firebase Admin initialization errors when the app cannot be created.
+ */
 export function adminAuth(): Auth {
   return getAuth(getAdminApp());
 }

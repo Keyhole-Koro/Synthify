@@ -1,7 +1,15 @@
+/**
+ * Operations BI Dashboard page with quick navigation link to LLM Eval traces.
+ *
+ * @module
+ */
 import Link from 'next/link';
 import { AuthGate } from '@/components/AuthGate';
 import { Dashboard } from '@/components/Dashboard';
 
+/**
+ * Operations BI page presenting system health metrics, cost trends, and link to eval trace view.
+ */
 export default function DashboardsPage() {
   return (
     <AuthGate>

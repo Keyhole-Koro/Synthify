@@ -1,9 +1,15 @@
+/**
+ * LLM Evaluation aggregated metrics API endpoint.
+ *
+ * @module
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-server';
 import { queryEval } from '@/lib/eval-queries';
 import type { Period } from '@/lib/dashboard-queries';
 
+/** Empty fallback evaluation metrics payload. */
 const EMPTY_EVAL = {
   totalRuns: 0,
   totalCases: 0,
@@ -30,10 +36,23 @@ const EMPTY_EVAL = {
   slowestCases: [],
 };
 
+/**
+ * Validates and normalizes the period query parameter into a recognized Period enum value.
+ *
+ * @param value - Raw URL search parameter value.
+ * @returns Validated Period string ('today', '7d', or '30d').
+ */
 function parsePeriod(value: string | null): Period {
   return value === 'today' || value === '7d' || value === '30d' ? value : '7d';
 }
 
+/**
+ * Handles GET requests to retrieve aggregated LLM evaluation analytics across prompt sources,
+ * models, funnel stages, and historical runs.
+ *
+ * @param req - Incoming HTTP request with admin authorization and period filter.
+ * @returns Evaluation metrics JSON payload.
+ */
 export async function GET(req: NextRequest) {
   const denied = await requireAdmin(req);
   if (denied) return denied;

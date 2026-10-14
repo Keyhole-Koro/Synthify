@@ -1,6 +1,15 @@
+/**
+ * Next.js application configuration for Synthify Monitor UI.
+ *
+ * @module
+ */
 import type { NextConfig } from 'next';
 import path from 'node:path';
 
+/**
+ * Next.js configuration object configuring standalone builds, Turbopack monorepo roots,
+ * and externalizing Node-only packages like firebase-admin.
+ */
 const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,

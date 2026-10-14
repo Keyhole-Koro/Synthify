@@ -1,9 +1,19 @@
+/**
+ * Processing jobs enumeration API endpoint.
+ *
+ * @module
+ */
 import { NextResponse, type NextRequest } from 'next/server';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-server';
 import type { ListJobsResponse } from '@/types';
 
-// GET /api/jobs - 全 job 列挙 (admin / monitor 用途)
+/**
+ * Handles GET requests to list recently processed and ongoing background jobs.
+ *
+ * @param req - Incoming HTTP request with admin authorization token.
+ * @returns ListJobsResponse JSON object containing up to 500 job summaries.
+ */
 export async function GET(req: NextRequest) {
   const denied = await requireAdmin(req);
   if (denied) return denied;

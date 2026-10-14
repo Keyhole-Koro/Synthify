@@ -1,3 +1,8 @@
+/**
+ * Job audit log and trace inspection page component.
+ *
+ * @module
+ */
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -7,12 +12,25 @@ import { JobTrace } from './JobTrace';
 import type { JobSummary, ListJobsResponse } from '../types';
 import { authFetch } from '@/lib/auth-client';
 
+/**
+ * Props for the AuditPage component.
+ */
 interface AuditPageProps {
+  /** When true, renders in embedded layout mode (height 100%) rather than full screen. */
   embedded?: boolean;
+  /** Optional job ID to force selection from parent context. */
   forcedJobId?: string | null;
+  /** Optional callback fired when a job item is clicked. */
   onJobSelect?: (jobId: string) => void;
 }
 
+/**
+ * Main audit view displaying a searchable list of processing jobs
+ * alongside detailed execution logs and distributed trace spans.
+ *
+ * @param props - Optional embedded layout, forced job selection, and selection callback.
+ * @returns The monitor audit screen containing job search, log, and trace panels.
+ */
 export function AuditPage({ embedded = false, forcedJobId, onJobSelect }: AuditPageProps) {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -29,7 +47,7 @@ export function AuditPage({ embedded = false, forcedJobId, onJobSelect }: AuditP
       .finally(() => setLoading(false));
   }, []);
 
-  // 外部からジョブIDが指定されたら選択状態を同期
+  // Synchronize selection state when an external forcedJobId is provided
   useEffect(() => {
     if (forcedJobId) {
       setSelectedJobId(forcedJobId);
@@ -37,6 +55,11 @@ export function AuditPage({ embedded = false, forcedJobId, onJobSelect }: AuditP
     }
   }, [forcedJobId]);
 
+  /**
+   * Selects a target job and opens the log viewer tab.
+   *
+   * @param jobId - UUID of the selected job.
+   */
   function selectJob(jobId: string) {
     setSelectedJobId(jobId);
     setMainTab('logs');

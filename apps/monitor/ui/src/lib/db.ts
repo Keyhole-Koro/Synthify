@@ -1,3 +1,8 @@
+/**
+ * PostgreSQL connection pooling singleton for server-side route handlers.
+ *
+ * @module
+ */
 import { Pool } from 'pg';
 import { config } from '../config';
 
@@ -8,6 +13,7 @@ declare global {
   var __logViewerPgPool: Pool | undefined;
 }
 
+/** Creates a new PostgreSQL client pool using monitor database configuration. */
 function createPool(): Pool {
   return new Pool({
     connectionString: config.MONITOR_DATABASE_URL,
@@ -16,6 +22,14 @@ function createPool(): Pool {
   });
 }
 
+/**
+ * Returns the global PostgreSQL pool singleton, creating it if not already initialized.
+ *
+ * @returns Cached or newly initialized pg.Pool instance. The pool is stored on globalThis
+ *   so Next.js development reloads do not create one pool per module evaluation.
+ * @throws Pool construction errors for invalid database configuration; connection failures
+ *   are reported by individual queries.
+ */
 export function getPool(): Pool {
   if (!globalThis.__logViewerPgPool) {
     globalThis.__logViewerPgPool = createPool();

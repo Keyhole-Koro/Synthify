@@ -1,9 +1,20 @@
+/**
+ * Job logs search and filtering API endpoint.
+ *
+ * @module
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-server';
 import { logRowToWireFormat, searchLogs } from '@/lib/log-queries';
 import type { ListJobLogsResponse, SearchJobLogsRequest } from '@/types';
 
+/**
+ * Handles POST requests to search and filter job logs by keyword, log levels, events, and timestamps.
+ *
+ * @param req - Incoming HTTP request with SearchJobLogsRequest payload.
+ * @returns ListJobLogsResponse JSON payload containing matching logs and pagination cursor.
+ */
 export async function POST(req: NextRequest) {
   const denied = await requireAdmin(req);
   if (denied) return denied;

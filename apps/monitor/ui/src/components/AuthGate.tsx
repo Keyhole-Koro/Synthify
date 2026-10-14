@@ -1,3 +1,8 @@
+/**
+ * Authentication gatekeeper component that protects the monitor UI behind Firebase Admin authentication.
+ *
+ * @module
+ */
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -11,12 +16,27 @@ import {
 } from '@/lib/auth-client';
 import { PREVIEW_BYPASS, isAuthEmulator } from '@/config.client';
 
+/**
+ * State representing user authentication lifecycle in the gate.
+ */
 type GateState = 'loading' | 'signed-out' | 'checking' | 'authorized' | 'forbidden';
 
-// monitor の実質的なセキュリティ境界は各 API ルートの requireAdmin。
-// AuthGate は UX 上のログイン画面で、サインイン後に /api/auth/me で admin 判定して
-// ダッシュボードを出すか「権限なし」を出すかを切り替える。
-export function AuthGate({ children }: { children: React.ReactNode }) {
+/**
+ * Props for AuthGate component.
+ */
+interface AuthGateProps {
+  /** Child content rendered once user has been authenticated and verified as admin. */
+  children: React.ReactNode;
+}
+
+/**
+ * Client-side authentication guard component that renders login options (Google / Password)
+ * when unauthenticated, verifies admin claims against `/api/auth/me`, and renders children upon authorization.
+ *
+ * @param props - Child tree to render after Firebase authentication and admin verification succeed.
+ * @returns Login/loading/error UI while authentication is pending, or the protected children.
+ */
+export function AuthGate({ children }: AuthGateProps) {
   const [state, setState] = useState<GateState>('loading');
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState('');

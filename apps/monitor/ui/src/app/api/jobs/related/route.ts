@@ -1,10 +1,20 @@
+/**
+ * Correlated jobs and log groupings API endpoint.
+ *
+ * @module
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-server';
 import { logRowToWireFormat } from '@/lib/log-queries';
 import type { JobLog, ListRelatedJobLogsRequest, ListRelatedJobLogsResponse } from '@/types';
 
-// POST /api/jobs/related — scope に応じて関連 job を取って logs を group 化する。
+/**
+ * Handles POST requests to fetch and group correlated logs across job, document, or workspace scopes.
+ *
+ * @param req - Incoming HTTP request containing scope and identifier filters.
+ * @returns Grouped job logs response.
+ */
 export async function POST(req: NextRequest) {
   const denied = await requireAdmin(req);
   if (denied) return denied;
@@ -19,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const pool = getPool();
-    // job 一覧の取得
+    // Fetch job list based on scope
     let jobsSQL: string;
     const jobsArgs: unknown[] = [];
     switch (body.scope) {
@@ -73,7 +83,7 @@ export async function POST(req: NextRequest) {
       [jobIds, limit * jobIds.length],
     );
 
-    // group: workspace_id + document_id, jobs: その下のジョブ群
+    // Group logs by workspace_id + document_id
     const groupMap = new Map<string, {
       workspaceId: string;
       documentId: string;
@@ -114,6 +124,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Returns an empty response structure for related job log queries.
+ *
+ * @returns Empty ListRelatedJobLogsResponse object.
+ */
 function emptyRelatedResponse(): ListRelatedJobLogsResponse {
   return { groups: [], nextPageToken: '' };
 }

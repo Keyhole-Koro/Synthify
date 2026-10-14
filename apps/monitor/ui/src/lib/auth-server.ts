@@ -1,16 +1,29 @@
+/**
+ * Server-side Firebase ID token verification and admin authorization guard middleware.
+ *
+ * @module
+ */
 import { NextResponse, type NextRequest } from 'next/server';
 import { adminAuth } from './firebase-admin';
 import { isAdmin, parseAdminEmails, parseBearer } from './auth-rules';
 import { config } from '../config';
 
+/**
+ * Authenticated admin user identity principal.
+ */
 export interface AdminPrincipal {
+  /** Unique Firebase user identifier. */
   uid: string;
+  /** Verified email address in lowercase. */
   email: string;
 }
-
-// 認証 (Firebase ID トークン検証) と認可 (admin メール判定) を行う。
-// いずれかに失敗したら NextResponse (401/403) を、成功したら AdminPrincipal を返す。
-// admin メールが未設定の場合は fail-closed で全リクエストを 403 にする。
+/**
+ * Verifies the Firebase ID token in the Authorization header and confirms admin membership.
+ * Fails closed with 401 Unauthorized or 403 Forbidden responses on validation errors.
+ *
+ * @param req Incoming Next.js API request.
+ * @returns The resolved AdminPrincipal, or a NextResponse error on failure.
+ */
 export async function authenticateAdmin(
   req: NextRequest,
 ): Promise<AdminPrincipal | NextResponse> {
@@ -33,8 +46,13 @@ export async function authenticateAdmin(
   return { uid: decoded.uid, email: (decoded.email ?? '').toLowerCase() };
 }
 
-// ルートハンドラの先頭で使うガード。認可 NG なら NextResponse を返し (そのまま
-// return する)、OK なら null を返す。
+/**
+ * Guard utility for Route Handlers. Returns an error NextResponse if unauthenticated or forbidden,
+ * or null if authorization succeeds.
+ *
+ * @param req Incoming Next.js API request.
+ * @returns Error response to terminate the request, or null to continue.
+ */
 export async function requireAdmin(req: NextRequest): Promise<NextResponse | null> {
   const result = await authenticateAdmin(req);
   return result instanceof NextResponse ? result : null;

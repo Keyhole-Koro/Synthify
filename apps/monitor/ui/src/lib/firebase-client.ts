@@ -1,3 +1,8 @@
+/**
+ * Browser-side Firebase App and Auth client initialization singleton.
+ *
+ * @module
+ */
 'use client';
 
 import { getApp, getApps, initializeApp, type FirebaseApp } from 'firebase/app';
@@ -6,6 +11,14 @@ import { authEmulatorUrl, firebaseConfig } from '@/config.client';
 
 let cachedAuth: Auth | null = null;
 
+/**
+ * Lazily initializes and returns the singleton Firebase Auth client instance,
+ * connecting to the local Auth emulator in development if configured.
+ *
+ * @returns Cached Firebase Auth instance. The first call initializes the app and, when
+ *   configured, connects the instance to the local Auth emulator exactly once per browser.
+ * @throws Firebase initialization errors when the public client configuration is invalid.
+ */
 export function getFirebaseAuth(): Auth {
   if (cachedAuth) return cachedAuth;
 

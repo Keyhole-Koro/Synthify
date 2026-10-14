@@ -1,21 +1,52 @@
+/**
+ * Diagrams and visualization components for eval pipelines, failure funnels,
+ * run timelines, and variant performance comparisons.
+ *
+ * @module
+ */
 'use client';
 
 import type { EvalFunnelData, EvalPromptSourceRow, EvalRunRow } from '@/lib/eval-queries';
 
+/**
+ * Calculates a percentage string formatted to one decimal place.
+ *
+ * @param value - Numerator count.
+ * @param total - Denominator total.
+ * @returns Formatted percentage (e.g. "85.2%").
+ */
 function pct(value: number, total: number): string {
   return total > 0 ? `${((value / total) * 100).toFixed(1)}%` : '0.0%';
 }
 
+/**
+ * Formats a duration in milliseconds into a concise time unit string.
+ *
+ * @param ms - Milliseconds duration.
+ * @returns Formatted duration string.
+ */
 function fmtMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
 }
 
+/**
+ * Formats an integer using compact notation for large numbers.
+ *
+ * @param value - Integer number.
+ * @returns Formatted number string.
+ */
 function fmtNumber(value: number): string {
   return new Intl.NumberFormat('en-US', { notation: value >= 10_000 ? 'compact' : 'standard' }).format(value);
 }
 
+/**
+ * Resolves Tailwind styling classes for pipeline stage badges based on color tone.
+ *
+ * @param tone - Tone color key.
+ * @returns Tailwind CSS classes.
+ */
 function toneClasses(tone: 'neutral' | 'blue' | 'amber' | 'emerald') {
   switch (tone) {
     case 'blue': return 'border-sky-200 bg-sky-50 text-sky-800';
@@ -25,19 +56,27 @@ function toneClasses(tone: 'neutral' | 'blue' | 'amber' | 'emerald') {
   }
 }
 
+/**
+ * Props for rendering an individual stage block in an eval pipeline diagram.
+ */
+interface PipelineStageProps {
+  label: string;
+  count: number;
+  total: number;
+  detail: string;
+  tone: 'neutral' | 'blue' | 'amber' | 'emerald';
+}
+
+/**
+ * Renders an individual stage card showing counts, completion percentage, and status tone.
+ */
 function PipelineStage({
   label,
   count,
   total,
   detail,
   tone,
-}: {
-  label: string;
-  count: number;
-  total: number;
-  detail: string;
-  tone: 'neutral' | 'blue' | 'amber' | 'emerald';
-}) {
+}: PipelineStageProps) {
   return (
     <div className={`min-w-[150px] flex-1 rounded-xl border p-4 shadow-sm ${toneClasses(tone)}`}>
       <p className="text-[10px] font-bold uppercase tracking-wider opacity-60">{label}</p>
@@ -50,6 +89,9 @@ function PipelineStage({
   );
 }
 
+/**
+ * Directional connector arrow between pipeline stages.
+ */
 function Arrow() {
   return (
     <div className="hidden shrink-0 items-center xl:flex" aria-hidden>
@@ -59,6 +101,12 @@ function Arrow() {
   );
 }
 
+/**
+ * Visualizes the multi-stage evaluation pipeline from case loading to assertion verification.
+ *
+ * @param props - Funnel totals, artifact-run count, and total run count used by the stage cards.
+ * @returns Pipeline diagram with stage counts, percentages, and status tones.
+ */
 export function EvalPipelineDiagram({ funnel, artifactRuns, runCount }: { funnel: EvalFunnelData; artifactRuns: number; runCount: number }) {
   const total = funnel.totalCases;
   return (
@@ -96,6 +144,12 @@ export function EvalPipelineDiagram({ funnel, artifactRuns, runCount }: { funnel
   );
 }
 
+/**
+ * Visual funnel diagram depicting conversion across eval stages and failure categorization.
+ *
+ * @param props - Funnel counters used to calculate each stage width and failure bucket.
+ * @returns Stacked evaluation funnel diagram.
+ */
 export function EvalFailureFunnel({ funnel }: { funnel: EvalFunnelData }) {
   const total = Math.max(funnel.totalCases, 1);
   const stages = [
@@ -143,6 +197,12 @@ export function EvalFailureFunnel({ funnel }: { funnel: EvalFunnelData }) {
   );
 }
 
+/**
+ * Timeline bars illustrating recent test run execution durations and pass ratios.
+ *
+ * @param props - Recent evaluation runs; at most the latest eight are displayed.
+ * @returns Timeline visualization of duration and pass ratio per run.
+ */
 export function EvalRunTimeline({ runs }: { runs: EvalRunRow[] }) {
   const visible = runs.slice(0, 8);
   const maxDuration = Math.max(...visible.map((run) => run.durationMs), 1);
@@ -184,6 +244,13 @@ export function EvalRunTimeline({ runs }: { runs: EvalRunRow[] }) {
   );
 }
 
+/**
+ * Comparative cards benchmarking pass rate, execution latency, and token consumption
+ * across different prompt variants.
+ *
+ * @param props - Prompt-variant aggregate rows used to calculate relative metrics.
+ * @returns Comparative metric cards for each prompt variant.
+ */
 export function EvalVariantComparison({ rows }: { rows: EvalPromptSourceRow[] }) {
   const maxLatency = Math.max(...rows.map((row) => row.avgDurationMs), 1);
   const perCaseTokens = rows.map((row) => row.cases > 0 ? (row.inputTokens + row.outputTokens) / row.cases : 0);

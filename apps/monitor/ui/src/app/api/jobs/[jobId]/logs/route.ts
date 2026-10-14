@@ -1,9 +1,20 @@
+/**
+ * Individual job logs retrieval API endpoint with cursor-based pagination.
+ *
+ * @module
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-server';
 import type { JobLog, ListJobLogsResponse } from '@/types';
 
-// GET /api/jobs/[jobId]/logs?page_token=&limit=500
+/**
+ * Handles GET requests to retrieve paginated log entries for a single background job.
+ *
+ * @param req - Incoming HTTP request with optional `page_token` and `limit` query parameters.
+ * @param context - Route context containing the `jobId` parameter promise.
+ * @returns ListJobLogsResponse JSON payload containing logs and next page token.
+ */
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ jobId: string }> },
@@ -22,7 +33,7 @@ export async function GET(
 
   try {
     const pool = getPool();
-    // page_token は created_at (ISO) を載せる単純な cursor
+    // page_token is a timestamp cursor on created_at (ISO)
     const args: unknown[] = [jobId];
     let where = 'WHERE job_id = $1';
     if (pageToken) {
@@ -53,6 +64,12 @@ export async function GET(
   }
 }
 
+/**
+ * Converts a database row from `v_job_logs` to the frontend `JobLog` shape.
+ *
+ * @param r - Database result row.
+ * @returns Formatted JobLog object.
+ */
 function rowToLog(r: Record<string, unknown>): JobLog {
   return {
     timestamp:

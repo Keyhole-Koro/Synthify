@@ -1,9 +1,11 @@
-// クライアント (ブラウザ) 側の設定を一元化するモジュール。
-// ここで参照するのは NEXT_PUBLIC_* のみ = ビルド時にクライアントバンドルへ
-// 焼き込まれる公開値。サーバー専用の設定 (MONITOR_DATABASE_URL,
-// SYNTHIFY_ADMIN_USER_EMAILS など) は config.ts (server) に置くこと。
+/**
+ * Client-side (browser) configuration constants and feature flags.
+ * Consumes NEXT_PUBLIC_* environment variables baked into the client bundle at build time.
+ *
+ * @module
+ */
 
-// ブラウザ側 Firebase SDK の初期化設定。
+/** Browser-side Firebase client SDK initialization credentials. */
 export const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -13,16 +15,21 @@ export const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// dev で Auth エミュレータへ接続する URL (未設定なら本番 Firebase)。
+/** URL for connecting to the local Firebase Auth emulator in development. */
 export const authEmulatorUrl = process.env.NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL ?? '';
 
+/**
+ * Checks whether the client is configured to use the local Firebase Auth emulator.
+ * @returns True when `NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL` is non-empty.
+ */
 export function isAuthEmulator(): boolean {
   return authEmulatorUrl !== '';
 }
 
-// スクリーンショット / ローカルプレビュー用の認証バイパス。
-// NODE_ENV === 'production' により本番ビルドでは常に false へ畳み込まれるため、
-// production で認証を素通りさせることはない (dev サーバー + 明示フラグのときだけ有効)。
+/**
+ * Authentication bypass flag for screenshot testing and local UI previewing.
+ * Always resolves to false in production builds.
+ */
 export const PREVIEW_BYPASS =
   process.env.NODE_ENV !== 'production' &&
   process.env.NEXT_PUBLIC_MONITOR_PREVIEW === '1';

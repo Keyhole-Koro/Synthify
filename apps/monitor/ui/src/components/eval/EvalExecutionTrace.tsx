@@ -1,11 +1,19 @@
+/**
+ * LLM Eval Execution Trace tree inspector for exploring hierarchical span events
+ * (tools, LLM prompts/responses, schema checks, and assertions).
+ *
+ * @module
+ */
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import type { EvalCaseRow, EvalRunRow, EvalTraceEvent } from '@/lib/eval-queries';
 import { authFetch } from '@/lib/auth-client';
 
+/** Category classification for a trace node event. */
 type TraceKind = 'case' | 'tool' | 'llm' | 'validation' | 'assertion';
 
+/** Visual execution graph node displayed in the trace waterfall tree. */
 type TraceNode = {
   id: string;
   kind: TraceKind;
@@ -17,20 +25,36 @@ type TraceNode = {
   details: Record<string, unknown>;
 };
 
+/**
+ * Formats a duration in milliseconds into a concise time unit string.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns Formatted duration string.
+ */
 function fmtMs(ms?: number): string {
   if (ms === undefined) return 'not recorded';
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/**
+ * Serializes an object to formatted JSON for inspecting node payloads.
+ *
+ * @param value - Value to serialize.
+ * @returns Pretty-printed JSON string.
+ */
 function json(value: unknown): string {
   if (value === undefined || value === null || value === '') return 'Not recorded';
   try { return JSON.stringify(value, null, 2); } catch { return String(value); }
 }
 
-// buildReconstructedNodes is the fallback for runs recorded before trace
-// instrumentation existed. It derives the skeleton from the aggregate case row;
-// the LLM prompt is genuinely not available for those runs.
+/**
+ * Fallback synthesizer that generates synthetic trace nodes for legacy eval runs
+ * that lack persisted span event telemetry.
+ *
+ * @param row - Case result row.
+ * @returns Array of synthesized trace nodes.
+ */
 function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
   const executionFailed = Boolean(row.error) && !row.output;
   return [
@@ -65,9 +89,14 @@ function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
   ];
 }
 
-// buildTraceNodes builds nodes from real persisted spans. The case node frames
-// the run; every following node is an actual recorded event with its own
-// prompt/response, tokens and duration.
+/**
+ * Constructs hierarchical trace nodes from persisted span events, calculating indentation
+ * depth from the parent-child event ID chain.
+ *
+ * @param row - Parent eval case summary row.
+ * @param events - Chronological array of trace events.
+ * @returns Array of formatted trace nodes.
+ */
 function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[] {
   const caseNode: TraceNode = {
     id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok', depth: 0,
@@ -101,8 +130,16 @@ function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[
   return [caseNode, ...eventNodes];
 }
 
+/** Badge label mappings for node kind categories. */
 const kindLabel: Record<TraceKind, string> = { case: 'CASE', tool: 'TOOL', llm: 'LLM', validation: 'CHECK', assertion: 'ASSERT' };
 
+/**
+ * Three-column interactive explorer for navigating eval runs, selecting test cases,
+ * rendering execution trees, and inspecting full prompt/response payloads.
+ *
+ * @param props - Evaluation runs and cases available for selection.
+ * @returns Interactive run/case selector and the selected execution trace detail.
+ */
 export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases: EvalCaseRow[] }) {
   const [runId, setRunId] = useState(cases[0]?.runId ?? runs[0]?.runId ?? '');
   const visibleCases = useMemo(() => cases.filter((row) => !runId || row.runId === runId), [cases, runId]);

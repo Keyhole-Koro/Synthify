@@ -1,8 +1,19 @@
+/**
+ * LLM Eval case execution trace API endpoint.
+ *
+ * @module
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/auth-server';
 import { queryEvalCaseTrace } from '@/lib/eval-queries';
 
+/**
+ * Handles GET requests to retrieve detailed span events (tool and LLM calls) for a specific eval case.
+ *
+ * @param req - Incoming HTTP request with `runId` and `caseIndex` query parameters.
+ * @returns JSON list of span trace events.
+ */
 export async function GET(req: NextRequest) {
   const denied = await requireAdmin(req);
   if (denied) return denied;
