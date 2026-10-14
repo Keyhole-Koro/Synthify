@@ -1,7 +1,7 @@
 import { createRPCClient } from '@/lib/connect';
 import { UserFacingError } from '@/lib/errors';
 import { DocumentService } from '@/gen/proto/synthify/app/v1/document_pb';
-import type { Document } from '@/gen/proto/synthify/app/v1/document_pb';
+import type { CreateDocumentResponse, Document } from '@/gen/proto/synthify/app/v1/document_pb';
 import type { Job } from '@/gen/proto/synthify/app/v1/job_pb';
 
 export type { Document } from '@/gen/proto/synthify/app/v1/document_pb';
@@ -33,19 +33,12 @@ export async function getDocument(documentId: string): Promise<Document> {
 }
 
 /**
- * Result returned upon creating a document record, including presigned upload instructions.
- *
- * @property document - Newly created document metadata and processing state.
- * @property uploadUrl - Short-lived object-storage URL used for the file upload.
- * @property uploadMethod - HTTP method required by the storage provider.
- * @property uploadContentType - Content type expected by the storage provider.
+ * Result returned upon creating a document record: the proto
+ * `CreateDocumentResponse` with `document` guaranteed to be present.
  */
-export interface CreateDocumentResult {
+export type CreateDocumentResult = Omit<CreateDocumentResponse, '$typeName' | '$unknown' | 'document'> & {
   document: Document;
-  uploadUrl: string;
-  uploadMethod: string;
-  uploadContentType: string;
-}
+};
 
 /**
  * Registers a new document record and acquires a presigned URL for direct storage upload.
