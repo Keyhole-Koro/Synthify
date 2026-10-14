@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/job/log"
 )

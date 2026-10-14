@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // NumberedHeadingPattern matches section headers starting with hierarchical numbers like "1.", "1.2", or "2.3.1".

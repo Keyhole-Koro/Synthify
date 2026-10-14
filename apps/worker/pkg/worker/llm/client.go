@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // Client defines the core generative model contract for structured JSON and free-form text completions.

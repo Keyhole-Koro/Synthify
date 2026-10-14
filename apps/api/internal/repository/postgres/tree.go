@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // GetTree returns the tree metadata for a workspace. The workspace itself is

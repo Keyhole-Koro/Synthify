@@ -7,8 +7,8 @@ import (
 	"time"
 
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // defaultSubtreeMaxDepth is the fallback depth limit when traversing a subtree if none is specified.

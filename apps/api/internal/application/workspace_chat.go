@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // Workspace chat の application service。

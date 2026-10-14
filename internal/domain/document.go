@@ -83,3 +83,31 @@ type SectionBrief struct {
 	ItemCandidates  []string `json:"item_candidates"`
 	ConnectionHints string   `json:"connection_hints"`
 }
+
+// DocumentStatus indicates the upload and validation status of a document.
+type DocumentStatus string
+
+const (
+	// DocumentStatusReserved indicates that an upload reservation has been created.
+	DocumentStatusReserved DocumentStatus = "reserved"
+	// DocumentStatusConfirmed indicates that file upload has been verified.
+	DocumentStatusConfirmed DocumentStatus = "confirmed"
+	// DocumentStatusRejected indicates that the file failed validation.
+	DocumentStatusRejected DocumentStatus = "rejected"
+)
+
+// PlanStatus represents the execution state of an execution plan.
+type PlanStatus string
+
+const (
+	// PlanStatusPending indicates that a plan is awaiting execution.
+	PlanStatusPending PlanStatus = "pending"
+	// PlanStatusInProgress indicates that a plan is actively running.
+	PlanStatusInProgress PlanStatus = "in_progress"
+	// PlanStatusCompleted indicates that all plan steps finished successfully.
+	PlanStatusCompleted PlanStatus = "completed"
+	// PlanStatusFailed indicates that plan execution encountered an unrecoverable error.
+	PlanStatusFailed PlanStatus = "failed"
+	// PlanStatusRejected indicates that the plan was explicitly rejected.
+	PlanStatusRejected PlanStatus = "rejected"
+)

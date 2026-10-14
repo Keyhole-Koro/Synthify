@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // PersistenceArgs defines input parameters for persisting knowledge tree items to the database.

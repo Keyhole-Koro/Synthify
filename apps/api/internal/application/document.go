@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	joblog "github.com/synthify/backend/internal/platform/job/log"

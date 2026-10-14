@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/synthify/backend/apps/api/internal/application"
 	"github.com/synthify/backend/apps/api/internal/auth"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 type devSeedUsecaseStub struct {

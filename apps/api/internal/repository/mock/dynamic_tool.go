@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // RecordCandidate persists a freshly generated tool with status=candidate and

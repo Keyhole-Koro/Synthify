@@ -275,3 +275,17 @@ func DefaultJobCapability(jobID, workspaceID, documentID string, createdAt time.
 		CreatedAt:             createdAt.UTC().Format(time.RFC3339),
 	}
 }
+
+// ActionStatus represents the status of an approval or review request.
+type ActionStatus string
+
+const (
+	// ActionStatusPending indicates an action awaiting resolution.
+	ActionStatusPending ActionStatus = "pending"
+	// ActionStatusCompleted indicates that the action finished.
+	ActionStatusCompleted ActionStatus = "completed"
+	// ActionStatusRejected indicates that the action was rejected.
+	ActionStatusRejected ActionStatus = "rejected"
+	// ActionStatusFailed indicates that the action encountered an error.
+	ActionStatusFailed ActionStatus = "failed"
+)

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // GetUser retrieves a user record by user ID from PostgreSQL.

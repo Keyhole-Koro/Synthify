@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestWorkerConnectError(t *testing.T) {

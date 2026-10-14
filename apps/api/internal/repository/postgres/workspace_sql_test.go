@@ -16,7 +16,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func newStoreWithMock(t *testing.T) (*Store, sqlmock.Sqlmock, func()) {

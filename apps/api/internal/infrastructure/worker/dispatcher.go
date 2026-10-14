@@ -17,7 +17,7 @@ import (
 	"strings"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
 	"golang.org/x/oauth2"

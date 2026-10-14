@@ -20,7 +20,7 @@ billing に関わる関数・インターフェイス・データフローを **
 
 ### 1.1 BillingPlan
 
-`apps/api/internal/domain/billing.go` / `apps/worker/pkg/worker/domain/billing.go`
+`internal/domain/billing.go`
 
 | 値 | 意味 | Stripe 顧客 | 課金挙動 |
 |---|---|---|---|

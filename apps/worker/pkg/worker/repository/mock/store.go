@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/job/log"
 )

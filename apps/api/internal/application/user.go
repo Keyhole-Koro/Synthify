@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // UserUsecase defines the use-case interface for user sign-in and provisioning.

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 	workerv1 "github.com/synthify/backend/internal/gen/synthify/worker/v1"
 )
 

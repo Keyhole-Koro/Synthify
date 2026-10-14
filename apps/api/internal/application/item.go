@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // ItemService manages knowledge tree item lifecycle, evidence retrieval, and alias approvals.

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestToErrorMapsDomainErrorsAtTransportBoundary(t *testing.T) {

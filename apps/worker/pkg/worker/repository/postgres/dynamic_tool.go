@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // toDynamicTool maps a sqlc DynamicTool row to the domain DynamicTool model.

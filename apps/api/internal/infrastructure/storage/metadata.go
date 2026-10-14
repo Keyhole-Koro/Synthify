@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	gcs "cloud.google.com/go/storage"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	sharedstorage "github.com/synthify/backend/internal/platform/storage"
 	"google.golang.org/api/iterator"
 )

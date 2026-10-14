@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/synthify/backend/apps/api/internal/application"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestExtractiveAnswererWithoutCandidates(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	shareddocument "github.com/synthify/backend/apps/worker/pkg/worker/document"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // ChunkingArgs defines input text and identifiers for semantic document chunking.

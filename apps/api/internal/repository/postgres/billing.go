@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
 )
 

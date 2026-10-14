@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // WorkspaceUsecase defines the use-case interface for workspace management, memberships, and share links.

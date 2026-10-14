@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 	platformusage "github.com/synthify/backend/internal/platform/billing/usage"
 )
 

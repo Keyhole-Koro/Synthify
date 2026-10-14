@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // Brief holds the working memory block for high-level document topic and claim summaries.

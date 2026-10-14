@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // Config holds runtime configuration settings and API keys for Stripe integration.

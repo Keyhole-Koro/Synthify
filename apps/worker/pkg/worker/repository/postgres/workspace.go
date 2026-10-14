@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // defaultFreePlan defines the default plan limits for newly created accounts.

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	platformusage "github.com/synthify/backend/internal/platform/billing/usage"
 )

@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/process"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"

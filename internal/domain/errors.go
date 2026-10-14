@@ -45,4 +45,10 @@ var (
 	ErrCheckpointInvalid = errors.New("checkpoint version or format is invalid")
 	// ErrCheckpointMismatch indicates that checkpoint inputs do not match current stage parameters.
 	ErrCheckpointMismatch = errors.New("checkpoint inputs do not match current request")
+	// ErrAgentExecution is a sentinel wrap used by agent-call sites that
+	// want their failure to land in the agent_error bucket of the
+	// FirestoreJobStatusReason enum. Wrap with fmt.Errorf("...: %w", err,
+	// ErrAgentExecution) so errors.Is keeps working alongside the
+	// original cause.
+	ErrAgentExecution = errors.New("agent execution failed")
 )

@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/internal/platform/job/log"
 	"google.golang.org/genai"
 )

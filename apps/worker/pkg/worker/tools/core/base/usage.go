@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/internal/domain"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // toError converts standard application and domain errors into appropriate Connect-RPC errors with gRPC-compatible status codes.
