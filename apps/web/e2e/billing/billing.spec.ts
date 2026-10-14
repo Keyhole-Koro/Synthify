@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/test';
+import { expect, test } from '../fixtures/test';
 
 const account = {
   accountId: 'e2e-account', plan: 'free', storageUsedBytes: '1048576', storageQuotaBytes: '10485760',

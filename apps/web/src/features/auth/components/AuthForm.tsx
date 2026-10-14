@@ -1,5 +1,9 @@
-import React from 'react';
 
+/**
+ * Header and welcoming banner rendered at the top of the authentication form.
+ *
+ * @returns Static authentication heading and introductory copy.
+ */
 export function AuthForm() {
   return (
     <div className="flex flex-col gap-4 pt-1">

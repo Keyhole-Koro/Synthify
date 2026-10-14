@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/test';
+import { expect, test } from '../fixtures/test';
 
 async function uploadFixture(page: import('@playwright/test').Page) {
   await page.goto('/');

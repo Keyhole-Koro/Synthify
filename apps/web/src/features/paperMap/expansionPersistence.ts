@@ -5,16 +5,28 @@ const STORAGE_KEY = 'synthify_expansion_map';
 const FOCUS_KEY = 'synthify_focused_item_id';
 const ANONYMOUS_SCOPE = 'anonymous';
 
+/**
+ * Represents the owner of the canvas open state, typically an authenticated user or null.
+ */
 export type OpenStateOwner = { id: string } | null;
 
+/**
+ * Returns a storage scoping string derived from the owner's unique ID.
+ */
 function openStateScope(owner: OpenStateOwner) {
   return owner?.id ?? ANONYMOUS_SCOPE;
 }
 
+/**
+ * Generates a scoped localStorage key.
+ */
 function storageKey(baseKey: string, scope?: string | null) {
   return `${baseKey}:${scope || ANONYMOUS_SCOPE}`;
 }
 
+/**
+ * Serializes and writes the paper expansion map to browser localStorage.
+ */
 function saveExpansionMap(map: ExpansionMap, scope: string) {
   if (typeof window === 'undefined') return;
   try {
@@ -29,6 +41,9 @@ function saveExpansionMap(map: ExpansionMap, scope: string) {
   }
 }
 
+/**
+ * Reads and deserializes the paper expansion map from browser localStorage.
+ */
 function loadExpansionMap(scope: string): ExpansionMap | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -42,6 +57,9 @@ function loadExpansionMap(scope: string): ExpansionMap | null {
   }
 }
 
+/**
+ * Writes or removes the focused item ID in browser localStorage.
+ */
 function saveFocusedItemId(id: string | null, scope: string) {
   if (typeof window === 'undefined') return;
   const key = storageKey(FOCUS_KEY, scope);
@@ -52,11 +70,20 @@ function saveFocusedItemId(id: string | null, scope: string) {
   }
 }
 
+/**
+ * Retrieves the focused item ID from browser localStorage.
+ */
 function loadFocusedItemId(scope: string): string | null {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem(storageKey(FOCUS_KEY, scope));
 }
 
+/**
+ * Loads the persisted canvas open state (expansion map and focused node) for the given owner.
+ *
+ * @param owner - The current auth user or null for anonymous sessions.
+ * @returns The restored open state, or null if no persisted record exists.
+ */
 export function loadOpenState(owner: OpenStateOwner): DefaultOpenState | null {
   const scope = openStateScope(owner);
   const expansionMap = loadExpansionMap(scope);
@@ -65,12 +92,27 @@ export function loadOpenState(owner: OpenStateOwner): DefaultOpenState | null {
   return { expansionMap, focusedNodeId };
 }
 
+/**
+ * Persists the canvas open state (expansion map and focused node) for the given owner.
+ *
+ * @param owner - The current auth user or null for anonymous sessions.
+ * @param expansionMap - The current paper expansion map to serialize. Only open child IDs
+ *   are persisted; runtime metadata is intentionally discarded.
+ * @param focusedNodeId - The current focused node identifier, or null to clear focus.
+ * @returns Nothing. Browser storage failures are logged by the lower-level persistence helper.
+ */
 export function saveOpenState(owner: OpenStateOwner, expansionMap: ExpansionMap, focusedNodeId: string | null) {
   const scope = openStateScope(owner);
   saveExpansionMap(expansionMap, scope);
   saveFocusedItemId(focusedNodeId, scope);
 }
 
+/**
+ * Clears the persisted open state and focus records for the given owner from localStorage.
+ *
+ * @param owner - The auth user whose saved canvas state should be purged.
+ * @returns Nothing. Safe to call during SSR or when no state has been saved.
+ */
 export function clearOpenState(owner: OpenStateOwner) {
   if (typeof window === 'undefined') return;
   const scope = openStateScope(owner);

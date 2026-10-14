@@ -1,4 +1,3 @@
-'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { isJobFailed, isJobSucceeded, isJobTerminal } from '@/features/jobs/contracts/jobStatusContract';
@@ -9,43 +8,71 @@ import { WorkspaceJobList } from './components/WorkspaceJobList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { getWorkspace, WorkspaceRole, type Workspace } from '@/features/workspaces/api';
+import { ConnectError, Code } from '@connectrpc/connect';
 import { getInitialAuthUser } from '@/features/auth/session';
 import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
 import { WorkspaceChatPanel } from '@/features/workspaceChat/WorkspaceChatPanel';
 
-// WORKSPACE_PAPER_HUE matches the hue the factory assigns to the workspace
-// paper (workspacePaperFactory). The paper renders with saturationScale: 0, so
-// the room/content read as a neutral surface while only the header keeps the
-// hue's tint. The root content iframe is transparent, so the room background
-// shows through it directly — no surface color needs to be threaded in.
+/**
+ * Constant defining the primary HSL hue (200) for workspace papers on canvas.
+ */
 export const WORKSPACE_PAPER_HUE = 200;
 
+/**
+ * Initial runtime parameters passed into a workspace paper to restore job progress and uploads.
+ */
 export interface WorkspacePaperRuntimeState {
+  /** Identifier of the active job initiated prior to mounting. */
   initialActiveJobId?: string | null;
+  /** Identifier of the document being processed. */
   initialDocumentId?: string | null;
+  /** Whether an upload is actively occurring upon mount. */
   initialUploading?: boolean;
+  /** Status message associated with the ongoing upload. */
   initialUploadMessage?: string | null;
 }
 
+/**
+ * Props for the {@link WorkspacePaper} canvas card component.
+ */
 interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
+  /** The full Protobuf Workspace entity. */
   workspace: Workspace;
+  /** Unique workspace ID string. */
   workspaceId: string;
+  /** Current display name of the workspace. */
   workspaceName: string;
+  /** Whether any knowledge trees or root nodes currently exist. */
   hasTree: boolean;
+  /** Child papers associated with top-level root nodes. */
   childItems: { id: string; title: string }[];
-  // rootContent is the single root node's rich HTML (the workspace's cover
-  // report), rendered as a CSS-isolated iframe. null when the tree is empty.
+  /** HTML cover report string for the workspace root, or null if empty. */
   rootContent: string | null;
+  /** Optional custom CSS styling for the sandboxed root iframe. */
   rootOverrideCss: string | null;
+  /** Callback invoked when a user drops or selects a file to upload. */
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
+  /** Callback invoked when renaming the workspace. */
   onRenameWorkspace: (name: string) => Promise<Workspace>;
+  /** Callback invoked when deleting the workspace. */
   onDeleteWorkspace: () => Promise<void>;
+  /** Callback triggered when AI generates an updated workspace title. */
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
+  /** Optional callback triggered when an active job reaches completion. */
   onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
 
+/**
+ * Main container paper for an individual workspace on the canvas map.
+ * Houses the workspace title header, document upload dropzone, live job progress bar,
+ * sandboxed cover report iframe, and Q&A chat panel.
+ *
+ * @param props - Component properties.
+ * @returns The rendered workspace paper component.
+ */
 export function WorkspacePaper(props: WorkspacePaperProps) {
   const {
     workspaceId,
@@ -100,7 +127,6 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -130,16 +156,36 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     try {
       await onDeleteWorkspace();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : 'ワークスペースの削除に失敗しました');
       setDeleting(false);
+      if (error instanceof UserFacingError) {
+        setDeleteError(error.message);
+        return;
+      }
+      if (error instanceof ConnectError) {
+        if (error.code === Code.PermissionDenied) {
+          setDeleteError('ワークスペースを削除する権限がありません。');
+          return;
+        }
+        if (error.code === Code.NotFound) {
+          setDeleteError('ワークスペースが見つかりませんでした。');
+          return;
+        }
+        if (error.code === Code.Unavailable || error.code === Code.DeadlineExceeded) {
+          setDeleteError('通信環境を確認して、再度お試しください。');
+          return;
+        }
+        if (isExpectedConnectError(error)) {
+          setDeleteError(formatConnectErrorMessage(error, 'ワークスペースの削除に失敗しました。'));
+          return;
+        }
+      }
+      console.error('Unexpected UI error', error);
+      setDeleteError('ワークスペースの削除に失敗しました。');
     }
   }, [onDeleteWorkspace]);
 
   const isTreeMissing = !hasTree;
-  const isExpanded = !isPopulated || isHovered || isFailed;
-
-  const handleMouseEnter = useCallback(() => setIsHovered(true), []);
-  const handleMouseLeave = useCallback(() => setIsHovered(false), []);
+  const isExpanded = !isPopulated || isFailed;
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,8 +216,6 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   return (
     <div
       className="flex h-full flex-col"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
     >
       <input
         ref={fileInputRef}

@@ -1,12 +1,23 @@
-'use client';
 
 import { useEffect, useState } from 'react';
+import { ConnectError, Code } from '@connectrpc/connect';
 import { createCheckoutSession, type BillingCurrency } from './api';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 
+/**
+ * Props for the plan upgrade paper.
+ */
 interface UpgradePaperProps {
+  /** Target account identifier. */
   accountId: string;
 }
 
+/**
+ * Paper component enabling currency selection and redirection to Stripe Checkout for plan upgrades.
+ *
+ * @param props - Account identifier used to create the checkout session.
+ * @returns Upgrade paper with currency selection, loading state, and checkout action.
+ */
 export function UpgradePaper({ accountId }: UpgradePaperProps) {
   const [currency, setCurrency] = useState<BillingCurrency>('jpy');
   const [url, setUrl] = useState<string | null>(null);
@@ -22,11 +33,41 @@ export function UpgradePaper({ accountId }: UpgradePaperProps) {
           setError(null);
         }
       })
-      .catch(() => {
-        if (!cancelled) {
-          setUrl(null);
-          setError('決済URLを取得できませんでした。');
+      .catch((err) => {
+        if (cancelled) return;
+        setUrl(null);
+        if (err instanceof UserFacingError) {
+          setError(err.message);
+          return;
         }
+        if (err instanceof ConnectError) {
+          if (err.code === Code.FailedPrecondition) {
+            setError(err.rawMessage || '決済プロバイダが設定されていません。');
+            return;
+          }
+          if (err.code === Code.InvalidArgument) {
+            setError(err.rawMessage || '決済パラメータが不正です。');
+            return;
+          }
+          if (err.code === Code.PermissionDenied) {
+            setError('決済URLを取得する権限がありません。');
+            return;
+          }
+          if (err.code === Code.NotFound) {
+            setError('請求アカウントが見つかりませんでした。');
+            return;
+          }
+          if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+            setError('通信環境を確認して、再度お試しください。');
+            return;
+          }
+          if (isExpectedConnectError(err)) {
+            setError(formatConnectErrorMessage(err, '決済URLの取得に失敗しました。'));
+            return;
+          }
+        }
+        console.error('Unexpected UI error', err);
+        setError('決済URLの取得に失敗しました。');
       })
       .finally(() => {
         if (!cancelled) {

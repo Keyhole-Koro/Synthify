@@ -2,24 +2,28 @@ import React, { useMemo, useRef, useState } from 'react';
 import { usePaperDispatch } from '@keyhole-koro/paper-in-paper';
 import { getImageURL } from '@/features/documents/api';
 
+/**
+ * Props for the {@link WorkspaceRootContent} sandboxed report iframe.
+ */
 interface WorkspaceRootContentProps {
-  // nodeId is the workspace paper's id. data-paper-id clicks inside the iframe
-  // open child papers via dispatch({ OPEN_NODE, parentId: nodeId, childId }).
+  /** The workspace paper's node ID, used to dispatch OPEN_NODE events. */
   nodeId: string;
-  // content is the root node's rich HTML (the workspace's cover report).
+  /** The root node's rich HTML content (synthesised cover report). */
   content: string;
-  // overrideCss is the node's per-item CSS, isolated inside the iframe so it
-  // never collides with the host page.
+  /** Optional custom CSS stylesheet injected into the iframe. */
   overrideCss?: string | null;
-  // childItems are the workspace paper's child papers (top-level knowledge
-  // nodes). Any child not already referenced by a data-paper-id link in the
-  // content is appended as a "related" link so navigation is never lost.
+  /** Child papers belonging to the workspace to append as fallback related links. */
   childItems?: { id: string; title: string }[];
 }
 
-// appendRelatedLinks mirrors paper-in-paper's behavior: children not mentioned
-// in the content HTML get appended as data-paper-id links so every child stays
-// reachable from the cover report.
+/**
+ * Appends unmentioned child node links to the end of the HTML report content,
+ * ensuring all workspace knowledge nodes remain navigable.
+ *
+ * @param content - Raw HTML content of the cover report.
+ * @param childItems - Array of child paper records.
+ * @returns Combined HTML string with appended related links block.
+ */
 function appendRelatedLinks(content: string, childItems: { id: string; title: string }[]): string {
   const unmentioned = childItems.filter((c) => !content.includes(`data-paper-id="${c.id}"`));
   if (unmentioned.length === 0) return content;
@@ -29,15 +33,14 @@ function appendRelatedLinks(content: string, childItems: { id: string; title: st
   return `${content}<hr/><div class="related"><p class="related-label">関連ノード</p><p class="related-links">${links}</p></div>`;
 }
 
-// WorkspaceRootContent renders the workspace's single root node content inside
-// a sandboxed iframe. The iframe is the reason this is a separate component:
-// the root node carries its own override_css and arbitrary rich HTML, which we
-// must render CSS-isolated from (and unable to script) the host page.
-//
-// A small bootstrap script inside the iframe forwards data-paper-id clicks to
-// the host via postMessage (the frame boundary otherwise cuts those clicks off
-// from paper-in-paper). The host turns each into an OPEN_NODE dispatch, so
-// child links embedded directly in the LLM-authored content are clickable.
+/**
+ * Renders the workspace cover report inside a CSS-isolated, sandboxed iframe.
+ * Communicates via window postMessage to dynamically size its height, request signed image URLs,
+ * and relay `data-paper-id` clicks back to the parent paper canvas dispatcher.
+ *
+ * @param props - Component properties.
+ * @returns The rendered sandboxed iframe element.
+ */
 export function WorkspaceRootContent({ nodeId, content, overrideCss, childItems = [] }: WorkspaceRootContentProps) {
   const dispatch = usePaperDispatch();
   const frameRef = useRef<HTMLIFrameElement>(null);

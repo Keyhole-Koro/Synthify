@@ -12,15 +12,27 @@ const treeClient = createRPCClient(TreeService);
 const itemClient = createRPCClient(ItemService);
 const jobClient = createRPCClient(JobService);
 
-// 公開リンクビューア用: 認証ヘッダの代わりに share token を付けて tree を読む。
+// For public link viewers: authenticated with X-Synthify-Share-Token header instead of Bearer token.
 const publicTreeClient = createPublicRPCClient(TreeService);
 
+/**
+ * Fetches the entire knowledge tree structure for a workspace.
+ *
+ * @param workspaceId - Workspace identifier.
+ * @returns Complete Tree object.
+ */
 export async function getTree(workspaceId: string) {
   const res = await treeClient.getTree({ workspaceId });
   return res.tree!;
 }
 
-// getTreeViaShareToken は無認証で、share token を header に載せて tree を取得する。
+/**
+ * Fetches the knowledge tree via a public share token without requiring user authentication.
+ *
+ * @param workspaceId - Workspace identifier.
+ * @param shareToken - Public share link access token.
+ * @returns Complete Tree object.
+ */
 export async function getTreeViaShareToken(workspaceId: string, shareToken: string) {
   const res = await publicTreeClient.getTree(
     { workspaceId },
@@ -29,6 +41,13 @@ export async function getTreeViaShareToken(workspaceId: string, shareToken: stri
   return res.tree!;
 }
 
+/**
+ * Retrieves detailed entity information for a specific node in the tree.
+ *
+ * @param targetRef - Target entity reference containing workspace ID, projection scope, and entity ID.
+ * @param resolveAliases - Whether to resolve alias references.
+ * @returns Detailed TreeEntityDetail.
+ */
 export async function getTreeEntityDetail(
   targetRef: { workspaceId: string; scope: TreeProjectionScope; id: string; documentId?: string },
   resolveAliases = false,
@@ -40,6 +59,14 @@ export async function getTreeEntityDetail(
   return res.detail!;
 }
 
+/**
+ * Retrieves a subtree rooted at a specific item down to a maximum traversal depth.
+ *
+ * @param workspaceId - Workspace identifier.
+ * @param itemId - Root item of the subtree.
+ * @param maxDepth - Maximum descent depth (defaults to 3).
+ * @returns Array of SubtreeItem objects.
+ */
 export async function getSubtree(
   workspaceId: string,
   itemId: string,
@@ -49,6 +76,12 @@ export async function getSubtree(
   return res.items;
 }
 
+/**
+ * Retrieves all processing jobs across the system for monitoring/debugging.
+ *
+ * @returns Promise resolving to all processing jobs visible to the current
+ *   caller. The result is an empty array when the service has no jobs.
+ */
 export async function listAllJobs() {
   const res = await jobClient.listAllJobs({});
   return res.jobs;

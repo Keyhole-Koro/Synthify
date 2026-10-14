@@ -2,7 +2,16 @@ import type { Paper } from '@keyhole-koro/paper-in-paper';
 import type { SubtreeItem } from '@/features/tree/api';
 
 
-export function buildProjectedPaper(
+/**
+ * Converts a cached SubtreeItem into a renderable Paper object for the canvas,
+ * adjusting its parent link to point to the workspace when it is a top-level root node.
+ *
+ * @param itemId - Unique node identifier.
+ * @param treeItems - Map of all cached tree items in this workspace.
+ * @param workspaceId - Workspace identifier acting as the root parent.
+ * @returns The converted Paper object, or null if the item is missing.
+ */
+function buildProjectedPaper(
   itemId: string,
   treeItems: Map<string, SubtreeItem>,
   workspaceId: string,
@@ -25,12 +34,28 @@ export function buildProjectedPaper(
   } satisfies Paper;
 }
 
+/**
+ * Projected root node data used to render the cover report iframe in the workspace paper.
+ */
 export interface WorkspaceRootNodeProjection {
+  /** Node identifier of the workspace root item. */
   id: string;
+  /** HTML/Markdown content representing the synthesised workspace summary. */
   content: string;
+  /** Optional custom CSS stylesheet injected into the report preview. */
   overrideCss?: string;
 }
 
+/**
+ * Projects a workspace's loaded subtree nodes into an array of Paper definitions
+ * consumed by the PaperCanvas layout engine.
+ *
+ * @param workspaceId - Target workspace identifier.
+ * @param treeItems - Map of all loaded tree nodes.
+ * @param rootNodeIds - Array of root item IDs found in the workspace tree.
+ * @param buildWsPaper - Factory callback for generating the workspace parent paper.
+ * @returns Array of all projected papers including the workspace container paper.
+ */
 export function projectWorkspacePapers(
   workspaceId: string,
   treeItems: Map<string, SubtreeItem>,

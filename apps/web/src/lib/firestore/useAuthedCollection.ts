@@ -1,22 +1,32 @@
-'use client';
-
 import { useEffect, useState } from 'react';
-import { onSnapshot, type Query } from 'firebase/firestore';
+import { onSnapshot, type Query, type FirestoreError } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { type AppError } from '@/lib/errors';
-import { classifyFirestoreSnapshotError, reportSnapshotError } from './snapshotError';
+import { log } from '@/lib/observability/log';
 
+/**
+ * Result returned by the useAuthedCollection hook.
+ *
+ * @typeParam T - Expected item document shape.
+ */
 export interface UseAuthedCollectionResult<T> {
+  /** Array of documents if query succeeded, or null if loading, unauthenticated, or empty ref. */
   data: T[] | null;
-  error: AppError | null;
+  /** Snapshot subscription error if one occurred. */
+  error: FirestoreError | null;
 }
 
-// query は呼び出し側で useMemo して渡す前提。useAuthedDoc と同じ規約。
-// label は観測用の任意ラベル（どのクエリで失敗したか NR で分かるように）。
+/**
+ * Subscribes to real-time updates for a Firestore Query, gating subscription on an authenticated Firebase user session.
+ *
+ * @typeParam T - Document item type.
+ * @param q - Firestore Query (should be memoized by caller).
+ * @param label - Optional label for observability logging.
+ * @returns Result containing the document array and any Firestore error.
+ */
 export function useAuthedCollection<T>(q: Query | null, label?: string): UseAuthedCollectionResult<T> {
   const [data, setData] = useState<T[] | null>(null);
-  const [error, setError] = useState<AppError | null>(null);
+  const [error, setError] = useState<FirestoreError | null>(null);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null)), []);
@@ -29,11 +39,13 @@ export function useAuthedCollection<T>(q: Query | null, label?: string): UseAuth
         setData(snapshot.docs.map((d) => d.data() as T));
         setError(null);
       },
-      (err) => {
-        const classified = classifyFirestoreSnapshotError(err);
-        reportSnapshotError(err, classified, { label });
-        if (classified.kind === 'transient') return;
-        setError(classified.error);
+      (err: FirestoreError) => {
+        log.error('Firestore snapshot failed', {
+          source: 'firestore_snapshot',
+          code: err.code,
+          label: label ?? null,
+        }, err);
+        setError(err);
       },
     );
   }, [uid, q, label]);

@@ -1,4 +1,3 @@
-'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
@@ -14,11 +13,26 @@ import { useExpansionWatcher } from './tree/useExpansionWatcher';
 import { createWorkspacePaperFactory } from './paper/workspacePaperFactory';
 export type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 
-// useWorkspaceTree is the orchestrator. It owns no data of its own — the
-// tree cache lives in workspaceTreeCache, API calls live in
-// workspaceTreeCommands, the paper factory in workspacePaperFactory, and the
-// expansion side effects in useExpansionWatcher. This hook wires those
-// boundaries together.
+/**
+ * Master orchestrator hook connecting workspace tree caching, network commands,
+ * canvas projection, expansion watching, and paper factory rendering.
+ *
+ * @param getWorkspaceName - Function returning the title for a workspace ID.
+ * @param expansionMap - The current map of expanded paper IDs on canvas.
+ * @param onExpansionMapChange - Callback invoked when child expansion state changes.
+ * @param onFocusedNodeIdChange - Callback to adjust the active canvas focus target.
+ * @param setWorkspacePapers - Callback to register generated papers for a workspace.
+ * @param clearWorkspacePapers - Callback to purge all workspace papers from canvas.
+ * @param workspaces - List of workspaces available to the user.
+ * @param onRenameWorkspace - Handler for updating a workspace name.
+ * @param onSuggestedWorkspaceName - Handler for AI-suggested title updates.
+ * @param onDeleteWorkspace - Handler for deleting a workspace.
+ * @param getWorkspacePaperRuntimeState - Accessor for active job/processing states.
+ * @param onWorkspaceRuntimeStateComplete - Callback triggered when background jobs complete.
+ * @param canFetchWorkspaceTree - Guard checking whether user has access to fetch tree nodes.
+ * @param loading - Whether initial workspace loading is in flight.
+ * @returns Commands and helpers to manage workspace tree data and user navigation.
+ */
 export function useWorkspaceTree(
   getWorkspaceName: (id: string) => string,
   expansionMap: ExpansionMap,

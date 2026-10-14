@@ -1,8 +1,8 @@
 import { createRPCClient } from '@/lib/connect';
+import { UserFacingError } from '@/lib/errors';
 import { DocumentService } from '@/gen/proto/synthify/app/v1/document_pb';
 import type { Document } from '@/gen/proto/synthify/app/v1/document_pb';
 import type { Job } from '@/gen/proto/synthify/app/v1/job_pb';
-import { createAppError } from '@/lib/errors';
 
 export type { Document } from '@/gen/proto/synthify/app/v1/document_pb';
 export { DocumentLifecycleState } from '@/gen/proto/synthify/app/v1/document_pb';
@@ -10,16 +10,36 @@ export type { Job as ProcessingJob } from '@/gen/proto/synthify/app/v1/job_pb';
 
 const client = createRPCClient(DocumentService);
 
+/**
+ * Lists all documents belonging to a workspace.
+ *
+ * @param workspaceId - Workspace identifier.
+ * @returns Array of Document objects.
+ */
 export async function listDocuments(workspaceId: string): Promise<Document[]> {
   const res = await client.listDocuments({ workspaceId });
   return res.documents;
 }
 
+/**
+ * Fetches a single document by its ID.
+ *
+ * @param documentId - Document identifier.
+ * @returns The Document object.
+ */
 export async function getDocument(documentId: string): Promise<Document> {
   const res = await client.getDocument({ documentId });
   return res.document!;
 }
 
+/**
+ * Result returned upon creating a document record, including presigned upload instructions.
+ *
+ * @property document - Newly created document metadata and processing state.
+ * @property uploadUrl - Short-lived object-storage URL used for the file upload.
+ * @property uploadMethod - HTTP method required by the storage provider.
+ * @property uploadContentType - Content type expected by the storage provider.
+ */
 export interface CreateDocumentResult {
   document: Document;
   uploadUrl: string;
@@ -27,6 +47,15 @@ export interface CreateDocumentResult {
   uploadContentType: string;
 }
 
+/**
+ * Registers a new document record and acquires a presigned URL for direct storage upload.
+ *
+ * @param workspaceId - Target workspace ID.
+ * @param filename - Original file name.
+ * @param mimeType - Document MIME type.
+ * @param fileSize - File byte size.
+ * @returns Created document and upload credentials.
+ */
 export async function createDocument(
   workspaceId: string,
   filename: string,
@@ -47,6 +76,13 @@ export async function createDocument(
   };
 }
 
+/**
+ * Triggers background worker processing for an uploaded document.
+ *
+ * @param documentId - Target document ID.
+ * @param forceReprocess - Whether to bypass cache and reprocess from scratch.
+ * @returns Document ID and scheduled processing Job.
+ */
 export async function startProcessing(
   documentId: string,
   forceReprocess = false,
@@ -59,13 +95,29 @@ export async function startProcessing(
  * Resolves a data-file-id image marker (embedded in generated HTML) to a
  * short-lived signed GET URL. Called at render time, so the URL is never
  * persisted into the saved HTML.
+ *
+ * @param fileId - Storage file identifier taken from the HTML marker.
+ * @returns Short-lived signed URL that can be used to load the image.
+ * @throws Propagates the RPC error when the file cannot be resolved or the
+ *   caller is not authorized to access it.
  */
 export async function getImageURL(fileId: string): Promise<string> {
   const res = await client.getImageURL({ fileId });
   return res.url;
 }
 
-/** Uploads a file to a GCS signed URL with PUT or POST. */
+/**
+ * Uploads a file directly to object storage using a signed URL.
+ *
+ * @param uploadUrl - Short-lived storage URL returned by `createDocument`.
+ * @param file - Browser `File` whose bytes should be uploaded.
+ * @param method - Signed-upload HTTP method, normally `PUT` or `POST`.
+ * @param contentType - MIME type sent in the upload request; defaults to the
+ *   file type or `application/octet-stream` when the file has no type.
+ * @returns Promise fulfilled after the storage service accepts the upload.
+ * @throws `UserFacingError` for an oversized file, a non-success response, or
+ *   a network failure that prevents the request from completing.
+ */
 export async function uploadFile(
   uploadUrl: string,
   file: File,
@@ -79,21 +131,14 @@ export async function uploadFile(
       body: file,
     });
     if (!res.ok) {
-      throw createAppError({
-        kind: res.status === 413 ? 'validation' : res.status >= 500 ? 'server' : 'unknown',
-        message: `アップロードに失敗しました (Status: ${res.status})`,
-        retryable: res.status >= 500,
-        code: res.status === 413 ? 'FILE_TOO_LARGE' : 'UPLOAD_FAILED',
-        status: res.status,
-      });
+      if (res.status === 413) {
+        throw new UserFacingError('ファイルサイズが上限を超えています。');
+      }
+      throw new UserFacingError('アップロードに失敗しました。');
     }
   } catch (err) {
     if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      throw createAppError({
-        kind: 'network',
-        message: 'アップロード中にネットワークエラーが発生しました。',
-        retryable: true,
-        code: 'NETWORK_ERROR',
+      throw new UserFacingError('アップロード中にネットワークエラーが発生しました。通信環境を確認してください。', {
         cause: err,
       });
     }

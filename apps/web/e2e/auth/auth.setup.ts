@@ -1,8 +1,8 @@
-import { expect, test as setup } from './fixtures/test';
+import { expect, test as setup } from '../fixtures/test';
 import { fileURLToPath } from 'node:url';
-import { createTestUser, signInThroughApp } from './helpers/firebase-emulator';
+import { createTestUser, signInThroughApp } from '../helpers/firebase-emulator';
 
-const authFile = fileURLToPath(new URL('./.auth/user.json', import.meta.url));
+const authFile = fileURLToPath(new URL('../.auth/user.json', import.meta.url));
 
 setup('authenticate with Firebase Auth Emulator', async ({ page }) => {
   const user = await createTestUser();

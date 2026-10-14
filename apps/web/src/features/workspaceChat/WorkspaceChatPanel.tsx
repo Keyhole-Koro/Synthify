@@ -1,7 +1,9 @@
-'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ConnectError, Code } from '@connectrpc/connect';
 import { InlineError } from '@/components/error/InlineError';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
+import { log } from '@/lib/observability/log';
 import {
   listChatMessages,
   listChatConversations,
@@ -13,10 +15,20 @@ import {
 // 設計 §4 と揃える。サーバー側が正本で、ここは送信前に気づかせるためだけの複製。
 const MAX_MESSAGE_LENGTH = 8000;
 
+/**
+ * Props for the workspace Q&A chat panel.
+ */
 interface WorkspaceChatPanelProps {
+  /** Target workspace identifier. */
   workspaceId: string;
 }
 
+/**
+ * Embedded chat sidebar enabling natural language questions grounded in workspace documents and knowledge tree papers.
+ *
+ * @param props - Workspace identifier used to load/create the conversation and send messages.
+ * @returns Chat panel with conversation history, draft input, loading state, and error display.
+ */
 export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
   const [messages, setMessages] = useState<WorkspaceChatMessage[]>([]);
   const [conversationId, setConversationId] = useState('');
@@ -44,8 +56,13 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
         if (cancelled) return;
         setConversationId(latest.conversationId);
         setMessages(history);
-      } catch {
+      } catch (err) {
         // 履歴の復元失敗で入力まで止めない。送信時のエラーは別途出す。
+        log.warn('Chat history restore failed', {
+          source: 'workspace_chat_history',
+          workspaceId,
+          error: err instanceof Error ? err.message : String(err),
+        });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,8 +90,38 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
         setMessages((prev) => [...prev, result.userMessage, result.assistantMessage]);
         setDraft('');
       } catch (err) {
-        const message = err instanceof Error ? err.message : '送信に失敗しました。';
-        setError(message);
+        if (err instanceof UserFacingError) {
+          setError(err.message);
+          return;
+        }
+        if (err instanceof ConnectError) {
+          if (err.code === Code.InvalidArgument) {
+            setError(err.rawMessage || 'メッセージの入力内容が不正です。');
+            return;
+          }
+          if (err.code === Code.ResourceExhausted) {
+            setError(err.rawMessage || 'リクエストの上限に達しました。しばらく時間をおいてから再度お試しください。');
+            return;
+          }
+          if (err.code === Code.PermissionDenied) {
+            setError('メッセージを送信する権限がありません。');
+            return;
+          }
+          if (err.code === Code.NotFound) {
+            setError('ワークスペースまたは会話が見つかりませんでした。');
+            return;
+          }
+          if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+            setError('通信環境を確認して、再度お試しください。');
+            return;
+          }
+          if (isExpectedConnectError(err)) {
+            setError(formatConnectErrorMessage(err, 'メッセージの送信に失敗しました。'));
+            return;
+          }
+        }
+        log.error('Chat message send failed', { source: 'workspace_chat_send', workspaceId }, err);
+        setError('メッセージの送信に失敗しました。');
       } finally {
         setSending(false);
       }
@@ -156,6 +203,9 @@ export function WorkspaceChatPanel({ workspaceId }: WorkspaceChatPanelProps) {
   );
 }
 
+/**
+ * Renders an individual chat bubble with grounding badges and source reference pills.
+ */
 function ChatBubble({ message }: { message: WorkspaceChatMessage }) {
   const isUser = message.role === 'user';
   const isFailed = message.status === WorkspaceChatMessageStatus.FAILED;

@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/test';
+import { expect, test } from '../fixtures/test';
 import type { Page } from '@playwright/test';
 
 // レビュー用のデモ録画。挙動を確認するのが目的で、検証は

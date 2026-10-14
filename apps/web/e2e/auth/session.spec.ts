@@ -1,5 +1,5 @@
-import { expect, test } from './fixtures/test';
-import { createTestUser, signInThroughApp } from './helpers/firebase-emulator';
+import { expect, test } from '../fixtures/test';
+import { createTestUser, signInThroughApp } from '../helpers/firebase-emulator';
 
 test('restores the authenticated session after reload', async ({ page }) => {
   await page.goto('/');

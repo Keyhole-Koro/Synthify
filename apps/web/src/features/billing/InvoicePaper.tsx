@@ -1,79 +1,52 @@
-'use client';
+import { useQuery } from '@tanstack/react-query';
+import {
+  billingInvoicesQueryOptions,
+  billingPaymentMethodsQueryOptions,
+  billingPortalQueryOptions,
+} from './queries';
 
-import { useEffect, useState } from 'react';
-import { createPortalSession, listInvoices, listPaymentMethods, type InvoiceList, type PaymentMethodList } from './api';
-
+/**
+ * Props for the invoice and payment methods paper.
+ */
 interface InvoicePaperProps {
+  /** Target account identifier. */
   accountId: string;
 }
 
-interface InvoiceState {
-  accountId: string;
-  invoices: InvoiceList | null;
-  methods: PaymentMethodList | null;
-  portalUrl: string | null;
-  loading: boolean;
-  error: string | null;
-}
-
+/**
+ * Paper component presenting upcoming invoices, payment methods on file, and invoice history table.
+ *
+ * @param props - Account identifier used to load invoices and saved payment methods.
+ * @returns Invoice/payment-method paper with loading, error, and empty-state handling.
+ */
 export function InvoicePaper({ accountId }: InvoicePaperProps) {
-  const [state, setState] = useState<InvoiceState>({
-    accountId,
-    invoices: null,
-    methods: null,
-    portalUrl: null,
-    loading: true,
-    error: null,
-  });
+  const {
+    data: invoices,
+    isLoading: isInvoicesLoading,
+    error: invoicesError,
+  } = useQuery(billingInvoicesQueryOptions(accountId));
 
-  useEffect(() => {
-    let cancelled = false;
+  const {
+    data: methods,
+    isLoading: isMethodsLoading,
+    error: methodsError,
+  } = useQuery(billingPaymentMethodsQueryOptions(accountId));
 
-    Promise.all([
-      listInvoices(accountId),
-      listPaymentMethods(accountId),
-      createPortalSession(accountId).catch(() => null),
-    ])
-      .then(([invoices, methods, portalUrl]) => {
-        if (!cancelled) {
-          setState({
-            accountId,
-            invoices,
-            methods,
-            portalUrl,
-            loading: false,
-            error: null,
-          });
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setState({
-            accountId,
-            invoices: null,
-            methods: null,
-            portalUrl: null,
-            loading: false,
-            error: '請求情報を取得できませんでした。',
-          });
-        }
-      });
+  const { data: portalUrl } = useQuery(billingPortalQueryOptions(accountId));
 
-    return () => {
-      cancelled = true;
-    };
-  }, [accountId]);
+  const loading = isInvoicesLoading || isMethodsLoading;
+  const error = invoicesError || methodsError ? '請求情報を取得できませんでした。' : null;
 
-  if (state.accountId !== accountId || state.loading) {
+  if (loading) {
     return <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)' }}>読み込み中...</p>;
   }
-  if (state.error) {
-    return <p style={{ margin: 0, fontSize: '0.8rem', color: '#f87171' }}>{state.error}</p>;
+  if (error) {
+    return <p style={{ margin: 0, fontSize: '0.8rem', color: '#f87171' }}>{error}</p>;
   }
 
-  const upcoming = Number(state.invoices?.upcomingAmount) || 0;
-  const upcomingEnd = state.invoices?.upcomingPeriodEnd ?? '';
-  const defaultMethod = state.methods?.paymentMethods.find((m) => m.isDefault) ?? state.methods?.paymentMethods[0];
+  const upcoming = Number(invoices?.upcomingAmount) || 0;
+  const upcomingEnd = invoices?.upcomingPeriodEnd ?? '';
+  const defaultMethod = methods?.paymentMethods.find((m) => m.isDefault) ?? methods?.paymentMethods[0];
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
@@ -110,9 +83,9 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
                 </p>
               </div>
             </div>
-            {state.portalUrl && (
+            {portalUrl && (
               <a
-                href={state.portalUrl}
+                href={portalUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ fontSize: '0.75rem', color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}
@@ -123,8 +96,8 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
           </div>
         ) : (
           <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>
-            支払い方法は登録されていません。{state.portalUrl && (
-              <a href={state.portalUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>
+            支払い方法は登録されていません。{portalUrl && (
+              <a href={portalUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>
                 Stripe で追加 →
               </a>
             )}
@@ -133,7 +106,7 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
       </Section>
 
       <Section title="請求履歴">
-        {state.invoices && state.invoices.invoices.length > 0 ? (
+        {invoices && invoices.invoices.length > 0 ? (
           <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--surface-alt)' }}>
@@ -143,7 +116,7 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
               </tr>
             </thead>
             <tbody>
-              {state.invoices.invoices.map((row) => {
+              {invoices.invoices.map((row) => {
                 const date = (row.paidAt || row.createdAt || '').slice(0, 10);
                 const amount = Number(row.amount) || 0;
                 const linkUrl = row.hostedInvoiceUrl || row.invoicePdfUrl;
@@ -151,7 +124,7 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
                   <tr key={row.invoiceId} style={{ borderBottom: '1px solid var(--link-border)' }}>
                     <td style={{ padding: '6px 8px' }}>
                       {linkUrl ? (
-                        <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
+                         <a href={linkUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>
                           {date}
                         </a>
                       ) : (
@@ -170,9 +143,9 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
         ) : (
           <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)' }}>請求履歴はまだありません。</p>
         )}
-        {state.portalUrl && (
+        {portalUrl && (
           <a
-            href={state.portalUrl}
+            href={portalUrl}
             target="_blank"
             rel="noopener noreferrer"
             style={{ display: 'inline-block', marginTop: 8, fontSize: '0.75rem', color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}
@@ -185,6 +158,9 @@ export function InvoicePaper({ accountId }: InvoicePaperProps) {
   );
 }
 
+/**
+ * Section container with standard typography styling.
+ */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
@@ -196,6 +172,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/**
+ * Renders an SVG card brand badge for Visa, Mastercard, or generic card.
+ */
 function PaymentBrandIcon({ brand }: { brand?: string }) {
   const b = (brand || '').toLowerCase();
   if (b === 'visa') {

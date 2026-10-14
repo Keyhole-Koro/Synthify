@@ -1,6 +1,6 @@
-'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { create } from '@bufbuild/protobuf';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
@@ -8,6 +8,7 @@ import { WorkspaceSchema } from '@/gen/proto/synthify/app/v1/workspace_pb';
 import { useAuthState } from '@/features/auth/useAuthState';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
+import { workspacesQueryKey } from '@/features/workspaces/queries';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
 import { usePersistentPaperOpenState } from '@/features/paperMap/hooks/usePersistentPaperOpenState';
@@ -50,18 +51,22 @@ declare global {
   }
 }
 
-// useLandingPageController is the orchestrator for the landing page. It
-// wires the auth state, paper map persistence, the workspace tree, and the
-// per-workspace CRUD + root upload flows together. All non-trivial logic
-// lives in the specialized hooks under landing/ and workspaces/tree/.
+/**
+ * Orchestrates the full landing page state: combines authentication, paper canvas persistence,
+ * workspace tree hierarchical loading, drag-and-drop file upload, and workspace CRUD actions.
+ *
+ * @returns Aggregated landing-page state, derived paper maps, loading/error flags, and stable
+ *   handlers consumed by LandingPageView. All returned callbacks preserve the current auth/cache
+ *   boundary and clear user-scoped state on logout.
+ */
 export function useLandingPageController() {
+  const queryClient = useQueryClient();
   const {
     user,
     loading,
     workspaces,
     workspaceError,
     authError,
-    setWorkspaces,
     verifiedWorkspaceIds,
     markWorkspaceVerified,
     handleGoogleSubmit,
@@ -150,7 +155,6 @@ export function useLandingPageController() {
   const crud = useWorkspaceCRUD({
     user,
     workspaces,
-    setWorkspaces,
     setPendingRevealNodeId,
     handleOpenWorkspace: tree.handleOpenWorkspace,
     markWorkspaceVerified,
@@ -171,7 +175,6 @@ export function useLandingPageController() {
   const { handleCreateWorkspace } = crud;
 
   const handleRootUpload = useRootUpload({
-    setWorkspaces,
     setPendingRevealNodeId,
     markWorkspaceVerified,
     handleOpenWorkspace: tree.handleOpenWorkspace,
@@ -198,7 +201,7 @@ export function useLandingPageController() {
   });
 
   useEffect(() => {
-    if (process.env.NODE_ENV === 'production' || typeof window === 'undefined') return;
+    if (import.meta.env.PROD || typeof window === 'undefined') return;
 
     const debugApi = {
       dumpWorkspace: async (workspaceId: string) => {
@@ -286,7 +289,10 @@ export function useLandingPageController() {
           name: args.workspaceName?.trim() || 'Mock workspace',
           ownerId: user?.id ?? 'debug-user',
         });
-        setWorkspaces((prev) => [...prev, workspace]);
+        queryClient.setQueryData<import('@/features/workspaces/api').Workspace[]>(
+          workspacesQueryKey(user?.id),
+          (prev = []) => [...prev, workspace],
+        );
         markWorkspaceVerified(workspaceId);
         const result = tree.injectMockWorkspaceTree(workspace, {
           documentCount: args.documentCount,
@@ -307,7 +313,7 @@ export function useLandingPageController() {
         delete window.__synthifyDebug;
       }
     };
-  }, [handleCreateWorkspace, paperMap, tree, workspacePaperGroups, setWorkspaces, user, expansionMap]);
+  }, [handleCreateWorkspace, paperMap, tree, workspacePaperGroups, queryClient, user, expansionMap, markWorkspaceVerified]);
 
   return {
     isReady: hasMounted && hasDefaultOpenState,
@@ -326,4 +332,7 @@ export function useLandingPageController() {
   };
 }
 
+/**
+ * Controller return type encapsulating all landing page state and action handlers.
+ */
 export type LandingPageController = ReturnType<typeof useLandingPageController>;

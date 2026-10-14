@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/test';
+import { expect, test } from '../fixtures/test';
 
 // Keep local runs serialized to avoid multiple uploads competing for the same
 // developer stack. CI gives each shard an isolated Compose stack and runs one

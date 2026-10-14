@@ -1,5 +1,5 @@
-import { expect, test } from './fixtures/test';
-import { createTestUser, signInThroughApp } from './helpers/firebase-emulator';
+import { expect, test } from '../fixtures/test';
+import { createTestUser, signInThroughApp } from '../helpers/firebase-emulator';
 
 test('owner invites editor/viewer, changes role, and removes the member', async ({ browser, page }) => {
   test.setTimeout(120_000);

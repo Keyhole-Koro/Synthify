@@ -1,15 +1,18 @@
-'use client';
-
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { signOutSession, type AuthUser } from '@/features/auth/session';
-import { createWorkspace, deleteWorkspace, updateWorkspace, type Workspace } from '@/features/workspaces/api';
+import type { Workspace } from '@/features/workspaces/api';
+import {
+  useCreateWorkspaceMutation,
+  useUpdateWorkspaceMutation,
+  useDeleteWorkspaceMutation,
+} from '@/features/workspaces/mutations';
 
 const NEW_WORKSPACE_NAME = '新規ワークスペース';
 
 interface UseWorkspaceCRUDArgs {
   user: AuthUser | null;
   workspaces: Workspace[];
-  setWorkspaces: React.Dispatch<React.SetStateAction<Workspace[]>>;
   setPendingRevealNodeId: (id: string | null) => void;
   handleOpenWorkspace: (workspaceId: string, overrideWorkspace?: Workspace) => Promise<void>;
   markWorkspaceVerified: (workspaceId: string) => void;
@@ -18,14 +21,16 @@ interface UseWorkspaceCRUDArgs {
   resetToLoggedOutDefaults: (previousUser: AuthUser | null) => void;
 }
 
-// useWorkspaceCRUD bundles the workspace-level mutations that the landing
-// page exposes through the paper map: rename (manual / auto), create, and
-// logout. The hook keeps the orchestrator wiring small and the rename /
-// create paths consistent.
+/**
+ * Bundles workspace mutations (create, rename, auto-naming, delete, logout)
+ * used across the paper canvas landing interface, keeping TanStack Query cache synchronized.
+ *
+ * @param props - Authenticated user, workspace collection, cache/UI callbacks, and tree reset hooks.
+ * @returns Stable handlers for rename, auto-name, create, delete, and logout operations.
+ */
 export function useWorkspaceCRUD({
   user,
   workspaces,
-  setWorkspaces,
   setPendingRevealNodeId,
   handleOpenWorkspace,
   markWorkspaceVerified,
@@ -33,17 +38,14 @@ export function useWorkspaceCRUD({
   resetRuntimeState,
   resetToLoggedOutDefaults,
 }: UseWorkspaceCRUDArgs) {
-  const applyWorkspaceUpdate = useCallback((workspace: Workspace) => {
-    setWorkspaces((prev) => prev.map((candidate) => (
-      candidate.workspaceId === workspace.workspaceId ? workspace : candidate
-    )));
-  }, [setWorkspaces]);
+  const queryClient = useQueryClient();
+  const createMutation = useCreateWorkspaceMutation();
+  const updateMutation = useUpdateWorkspaceMutation();
+  const deleteMutation = useDeleteWorkspaceMutation();
 
   const handleRenameWorkspace = useCallback(async (workspaceId: string, name: string) => {
-    const updated = await updateWorkspace(workspaceId, name);
-    applyWorkspaceUpdate(updated);
-    return updated;
-  }, [applyWorkspaceUpdate]);
+    return await updateMutation.mutateAsync({ workspaceId, name });
+  }, [updateMutation]);
 
   const handleAutoNameWorkspace = useCallback(async (workspaceId: string, suggestedName: string) => {
     const current = workspaces.find((workspace) => workspace.workspaceId === workspaceId);
@@ -54,27 +56,26 @@ export function useWorkspaceCRUD({
   }, [handleRenameWorkspace, workspaces]);
 
   const handleCreateWorkspace = useCallback(async (name: string) => {
-    const ws = await createWorkspace(name);
+    const ws = await createMutation.mutateAsync(name);
     markWorkspaceVerified(ws.workspaceId);
-    setWorkspaces((prev) => [ws, ...prev]);
     void handleOpenWorkspace(ws.workspaceId, ws);
     setPendingRevealNodeId(ws.workspaceId);
     return ws;
-  }, [handleOpenWorkspace, markWorkspaceVerified, setPendingRevealNodeId, setWorkspaces]);
+  }, [createMutation, handleOpenWorkspace, markWorkspaceVerified, setPendingRevealNodeId]);
 
   const handleDeleteWorkspace = useCallback(async (workspaceId: string) => {
-    await deleteWorkspace(workspaceId);
-    setWorkspaces((prev) => prev.filter((workspace) => workspace.workspaceId !== workspaceId));
+    await deleteMutation.mutateAsync(workspaceId);
     setPendingRevealNodeId(null);
-  }, [setPendingRevealNodeId, setWorkspaces]);
+  }, [deleteMutation, setPendingRevealNodeId]);
 
   const handleLogout = useCallback(async () => {
     const previousUser = user;
     await signOutSession();
+    queryClient.removeQueries({ queryKey: ['workspaces'] });
     resetRuntimeState();
     resetTree();
     resetToLoggedOutDefaults(previousUser);
-  }, [resetRuntimeState, resetTree, resetToLoggedOutDefaults, user]);
+  }, [queryClient, resetRuntimeState, resetTree, resetToLoggedOutDefaults, user]);
 
   return {
     handleRenameWorkspace,

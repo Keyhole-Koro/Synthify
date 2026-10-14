@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/test';
+import { expect, test } from '../fixtures/test';
 import type { Page } from '@playwright/test';
 
 // このファイルは常に動画を録る。チャットは「入力 → 回答 → 出典」までの

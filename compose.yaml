@@ -12,14 +12,11 @@ services:
           echo "apps/web/package.json not found. Waiting for web implementation...";
           sleep infinity;
         fi;
-        if [ ! -x /workspace/apps/web/node_modules/.bin/next ]; then
+        if [ ! -x /workspace/apps/web/node_modules/.bin/vite ]; then
           cd /workspace;
           bun install --frozen-lockfile;
         fi;
-        mkdir -p /workspace/node_modules;
-        ln -sfn /workspace/apps/web/node_modules/next /workspace/node_modules/next;
         cd /workspace/apps/web;
-        rm -rf .next;
         bun run dev
       '
     environment:
@@ -35,7 +32,7 @@ services:
       NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: ${NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST:-127.0.0.1}
       NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: ${NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT:-${FIREBASE_FIRESTORE_PORT:-8282}}
       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://host.docker.internal:${BACKEND_PORT:-8080}}
-      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

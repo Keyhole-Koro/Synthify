@@ -1,11 +1,12 @@
-'use client';
 
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { isJobInFlight } from '@/features/jobs/contracts/jobStatusContract';
 import { useJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceJobStatuses } from '@/features/jobs/firestore/useWorkspaceJobStatuses';
 import type { Workspace } from '@/features/workspaces/api';
-import { toAppError } from '@/lib/error_normalize';
+import { validateWorkspaceName } from '@/features/workspaces/workspaceValidation';
+import { ConnectError, Code } from '@connectrpc/connect';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 import type { WorkspacePaperRuntimeState } from '../paper/WorkspacePaper';
 import { selectRecoverableWorkspaceJob } from './workspaceRecovery';
@@ -23,17 +24,35 @@ import {
   isWorkspaceJustCompleted,
 } from './workspaceSessionSelectors';
 
+/**
+ * Arguments for the {@link useWorkspaceSession} state management hook.
+ */
 export interface UseWorkspaceSessionArgs extends WorkspacePaperRuntimeState {
+  /** Target workspace identifier. */
   workspaceId: string;
+  /** Current display name of the workspace. */
   workspaceName: string;
+  /** Whether the workspace has a tree loaded. */
   hasTree: boolean;
+  /** Number of child items currently present under the workspace. */
   childItemsCount: number;
+  /** Callback to initiate document upload pipeline. */
   onUploadFile: (file: File) => Promise<{ jobId: string; documentId: string }>;
+  /** Callback to persist updated workspace display name. */
   onRenameWorkspace: (name: string) => Promise<Workspace>;
+  /** Callback invoked when an AI-suggested title is detected. */
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
+  /** Optional callback fired when an ongoing processing job completes. */
   onProcessingComplete?: (jobId: string) => Promise<void> | void;
 }
 
+/**
+ * Manages the client-side session state for an active workspace paper, coordinating
+ * uploads, job status polling/recovery, title renaming, and completion notifications.
+ *
+ * @param args - Initial session configuration and event callbacks.
+ * @returns State and updater handlers for driving the workspace paper UI.
+ */
 export function useWorkspaceSession({
   workspaceId,
   workspaceName,
@@ -125,17 +144,43 @@ export function useWorkspaceSession({
       dispatch({ type: 'upload/enqueued', jobId: job.jobId, documentId: job.documentId });
     } catch (err) {
       log.error('Upload failed', { source: 'workspace_upload', workspaceId }, err);
-      const appErr = toAppError(err);
-      dispatch({ type: 'upload/failed', message: appErr.message });
+      if (err instanceof UserFacingError) {
+        dispatch({ type: 'upload/failed', message: err.message });
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.PermissionDenied) {
+          dispatch({ type: 'upload/failed', message: 'アップロードする権限がありません。' });
+          return;
+        }
+        if (err.code === Code.ResourceExhausted) {
+          dispatch({ type: 'upload/failed', message: err.rawMessage || 'ストレージ容量またはクォータの上限に達しました。' });
+          return;
+        }
+        if (err.code === Code.InvalidArgument) {
+          dispatch({ type: 'upload/failed', message: err.rawMessage || 'サポートされていないファイル形式です。' });
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          dispatch({ type: 'upload/failed', message: '通信環境を確認して、再度お試しください。' });
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          dispatch({ type: 'upload/failed', message: formatConnectErrorMessage(err, 'アップロードに失敗しました。') });
+          return;
+        }
+      }
+      dispatch({ type: 'upload/failed', message: 'アップロードに失敗しました。' });
     }
   }, [onUploadFile, workspaceId]);
 
   const commitName = useCallback(async () => {
-    const nextName = state.rename.draftName.trim();
-    if (!nextName) {
-      dispatch({ type: 'rename/saveFailed', message: 'ワークスペース名を入力してください。' });
+    const validated = validateWorkspaceName(state.rename.draftName);
+    if (!validated.ok) {
+      dispatch({ type: 'rename/saveFailed', message: validated.error.message });
       return;
     }
+    const nextName = validated.value;
     if (nextName === workspaceName) {
       dispatch({ type: 'rename/cancelled', currentName: workspaceName });
       return;
@@ -146,8 +191,36 @@ export function useWorkspaceSession({
       dispatch({ type: 'rename/saveSucceeded', name: nextName });
     } catch (err) {
       log.error('Rename workspace failed', { source: 'workspace_rename', workspaceId }, err);
-      const appErr = toAppError(err);
-      dispatch({ type: 'rename/saveFailed', message: appErr.message });
+      if (err instanceof UserFacingError) {
+        dispatch({ type: 'rename/saveFailed', message: err.message });
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.PermissionDenied) {
+          dispatch({ type: 'rename/saveFailed', message: 'ワークスペース名を変更する権限がありません。' });
+          return;
+        }
+        if (err.code === Code.NotFound) {
+          dispatch({ type: 'rename/saveFailed', message: 'ワークスペースが見つかりませんでした。' });
+          return;
+        }
+        if (err.code === Code.InvalidArgument) {
+          dispatch({ type: 'rename/saveFailed', message: err.rawMessage || 'ワークスペース名が不正です。' });
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          dispatch({ type: 'rename/saveFailed', message: '通信環境を確認して、再度お試しください。' });
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          dispatch({
+            type: 'rename/saveFailed',
+            message: formatConnectErrorMessage(err, 'ワークスペース名の変更に失敗しました。'),
+          });
+          return;
+        }
+      }
+      dispatch({ type: 'rename/saveFailed', message: 'ワークスペース名の変更に失敗しました。' });
     }
   }, [onRenameWorkspace, state.rename.draftName, workspaceId, workspaceName]);
 
