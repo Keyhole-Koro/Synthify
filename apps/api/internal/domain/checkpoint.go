@@ -1,5 +1,6 @@
 package domain
 
+// JobStageCheckpoint records execution progress and intermediate state storage references for a pipeline stage.
 type JobStageCheckpoint struct {
 	JobID     string `json:"job_id"`
 	Stage     string `json:"stage"`
@@ -8,6 +9,7 @@ type JobStageCheckpoint struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// CheckpointEnvelope encapsulates serializable stage inputs, outputs, and execution metrics stored in GCS.
 type CheckpointEnvelope struct {
 	SchemaVersion int            `json:"schema_version"`
 	Kind          string         `json:"kind"` // "synthify.worker_checkpoint"

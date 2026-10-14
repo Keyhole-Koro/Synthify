@@ -10,14 +10,17 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// WorkspaceHandler implements Connect-RPC endpoints for workspace management, memberships, and share links.
 type WorkspaceHandler struct {
 	service WorkspaceUsecase
 }
 
+// NewWorkspaceHandler constructs a new WorkspaceHandler with the provided WorkspaceUsecase.
 func NewWorkspaceHandler(svc WorkspaceUsecase) *WorkspaceHandler {
 	return &WorkspaceHandler{service: svc}
 }
 
+// ListWorkspaces lists all workspaces where the authenticated user is a member.
 func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Request[appv1.ListWorkspacesRequest]) (*connect.Response[appv1.ListWorkspacesResponse], error) {
 	userID, err := requireUserID(ctx)
 	if err != nil {
@@ -34,6 +37,7 @@ func (h *WorkspaceHandler) ListWorkspaces(ctx context.Context, _ *connect.Reques
 	return res, nil
 }
 
+// GetWorkspace returns details and members of a specific workspace.
 func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Request[appv1.GetWorkspaceRequest]) (*connect.Response[appv1.GetWorkspaceResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
@@ -59,6 +63,7 @@ func (h *WorkspaceHandler) GetWorkspace(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(res), nil
 }
 
+// CreateWorkspace creates a new workspace and sets the caller as the owner.
 func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Request[appv1.CreateWorkspaceRequest]) (*connect.Response[appv1.CreateWorkspaceResponse], error) {
 	name := strings.TrimSpace(req.Msg.GetName())
 	if name == "" {
@@ -77,6 +82,7 @@ func (h *WorkspaceHandler) CreateWorkspace(ctx context.Context, req *connect.Req
 	}), nil
 }
 
+// UpdateWorkspace updates the name of an existing workspace.
 func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Request[appv1.UpdateWorkspaceRequest]) (*connect.Response[appv1.UpdateWorkspaceResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -99,6 +105,7 @@ func (h *WorkspaceHandler) UpdateWorkspace(ctx context.Context, req *connect.Req
 	}), nil
 }
 
+// DeleteWorkspace deletes a workspace and its associated items/resources.
 func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Request[appv1.DeleteWorkspaceRequest]) (*connect.Response[appv1.DeleteWorkspaceResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -114,6 +121,7 @@ func (h *WorkspaceHandler) DeleteWorkspace(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&appv1.DeleteWorkspaceResponse{}), nil
 }
 
+// InviteMember invites a user by email to join the workspace with a specific role.
 func (h *WorkspaceHandler) InviteMember(ctx context.Context, req *connect.Request[appv1.InviteMemberRequest]) (*connect.Response[appv1.InviteMemberResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -136,6 +144,7 @@ func (h *WorkspaceHandler) InviteMember(ctx context.Context, req *connect.Reques
 	}), nil
 }
 
+// UpdateMemberRole updates the role assigned to a workspace member.
 func (h *WorkspaceHandler) UpdateMemberRole(ctx context.Context, req *connect.Request[appv1.UpdateMemberRoleRequest]) (*connect.Response[appv1.UpdateMemberRoleResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -158,6 +167,7 @@ func (h *WorkspaceHandler) UpdateMemberRole(ctx context.Context, req *connect.Re
 	}), nil
 }
 
+// RemoveMember removes a member from the workspace.
 func (h *WorkspaceHandler) RemoveMember(ctx context.Context, req *connect.Request[appv1.RemoveMemberRequest]) (*connect.Response[appv1.RemoveMemberResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -177,10 +187,12 @@ func (h *WorkspaceHandler) RemoveMember(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&appv1.RemoveMemberResponse{}), nil
 }
 
+// TransferOwnership returns unimplemented because ownership is tied to account level.
 func (h *WorkspaceHandler) TransferOwnership(_ context.Context, _ *connect.Request[appv1.TransferOwnershipRequest]) (*connect.Response[appv1.TransferOwnershipResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("workspace ownership is managed at account level"))
 }
 
+// CreateShareLink creates a shareable token for accessing the workspace.
 func (h *WorkspaceHandler) CreateShareLink(ctx context.Context, req *connect.Request[appv1.CreateShareLinkRequest]) (*connect.Response[appv1.CreateShareLinkResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -199,6 +211,7 @@ func (h *WorkspaceHandler) CreateShareLink(ctx context.Context, req *connect.Req
 	}), nil
 }
 
+// ListShareLinks lists active share links for a workspace.
 func (h *WorkspaceHandler) ListShareLinks(ctx context.Context, req *connect.Request[appv1.ListShareLinksRequest]) (*connect.Response[appv1.ListShareLinksResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -219,6 +232,7 @@ func (h *WorkspaceHandler) ListShareLinks(ctx context.Context, req *connect.Requ
 	return connect.NewResponse(res), nil
 }
 
+// RevokeShareLink invalidates a previously issued share link.
 func (h *WorkspaceHandler) RevokeShareLink(ctx context.Context, req *connect.Request[appv1.RevokeShareLinkRequest]) (*connect.Response[appv1.RevokeShareLinkResponse], error) {
 	workspaceID := strings.TrimSpace(req.Msg.GetWorkspaceId())
 	if workspaceID == "" {
@@ -238,7 +252,7 @@ func (h *WorkspaceHandler) RevokeShareLink(ctx context.Context, req *connect.Req
 	return connect.NewResponse(&appv1.RevokeShareLinkResponse{}), nil
 }
 
-// ResolveShareLink は無認証経路 (auth middleware で exempt)。token のみで解決する。
+// ResolveShareLink resolves a share token to inspect the workspace and access role without requiring authentication.
 func (h *WorkspaceHandler) ResolveShareLink(ctx context.Context, req *connect.Request[appv1.ResolveShareLinkRequest]) (*connect.Response[appv1.ResolveShareLinkResponse], error) {
 	token := strings.TrimSpace(req.Msg.GetToken())
 	if token == "" {
@@ -254,6 +268,7 @@ func (h *WorkspaceHandler) ResolveShareLink(ctx context.Context, req *connect.Re
 	}), nil
 }
 
+// toProtoWorkspace converts a domain Workspace to its protobuf representation.
 func toProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
 	if ws == nil {
 		return nil
@@ -271,6 +286,7 @@ func toProtoWorkspace(ws *domain.Workspace) *appv1.Workspace {
 	}
 }
 
+// toProtoWorkspaceMember converts a domain WorkspaceMember to its protobuf representation.
 func toProtoWorkspaceMember(m *domain.WorkspaceMember) *appv1.WorkspaceMember {
 	if m == nil {
 		return nil
@@ -284,6 +300,7 @@ func toProtoWorkspaceMember(m *domain.WorkspaceMember) *appv1.WorkspaceMember {
 	}
 }
 
+// toProtoShareLink converts a domain ShareLink to its protobuf representation.
 func toProtoShareLink(l *domain.ShareLink) *appv1.ShareLink {
 	if l == nil {
 		return nil
@@ -299,6 +316,7 @@ func toProtoShareLink(l *domain.ShareLink) *appv1.ShareLink {
 	}
 }
 
+// toProtoWorkspaceRole maps a domain WorkspaceRole into its protobuf enum equivalent.
 func toProtoWorkspaceRole(role domain.WorkspaceRole) appv1.WorkspaceRole {
 	switch role {
 	case domain.WorkspaceRoleOwner:
@@ -312,6 +330,7 @@ func toProtoWorkspaceRole(role domain.WorkspaceRole) appv1.WorkspaceRole {
 	}
 }
 
+// fromProtoWorkspaceRole maps a protobuf WorkspaceRole into the domain WorkspaceRole.
 func fromProtoWorkspaceRole(role appv1.WorkspaceRole) domain.WorkspaceRole {
 	switch role {
 	case appv1.WorkspaceRole_WORKSPACE_ROLE_OWNER:
@@ -325,6 +344,7 @@ func fromProtoWorkspaceRole(role appv1.WorkspaceRole) domain.WorkspaceRole {
 	}
 }
 
+// toProtoWorkspacePlan converts a plan string into its protobuf WorkspacePlan enum.
 func toProtoWorkspacePlan(plan string) appv1.WorkspacePlan {
 	switch plan {
 	case "pro":

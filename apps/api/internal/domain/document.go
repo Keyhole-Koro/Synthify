@@ -1,5 +1,6 @@
 package domain
 
+// Document represents an uploaded document metadata entity within a workspace.
 type Document struct {
 	DocumentID  string `json:"document_id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -10,6 +11,7 @@ type Document struct {
 	CreatedAt   string `json:"created_at"`
 }
 
+// DocumentFile represents an individual file or asset associated with an uploaded document.
 type DocumentFile struct {
 	FileID     string `json:"file_id"`
 	DocumentID string `json:"document_id"`
@@ -30,6 +32,7 @@ type DocumentFileLocation struct {
 	MimeType    string
 }
 
+// DocumentChunk represents a semantic chunk of extracted text with headings and optional vector embeddings.
 type DocumentChunk struct {
 	ChunkID    string    `json:"chunk_id"`
 	DocumentID string    `json:"document_id"`
@@ -40,6 +43,7 @@ type DocumentChunk struct {
 	Embedding  []float32 `json:"embedding,omitempty"`
 }
 
+// ObjectMetadata describes byte size and MIME type of an object in blob storage.
 type ObjectMetadata struct {
 	Size        int64  `json:"size"`
 	ContentType string `json:"content_type,omitempty"`
@@ -53,6 +57,7 @@ type ExpiredReservation struct {
 	WorkspaceID string
 }
 
+// SourceFile represents an input file with binary content or URI reference ready for ingestion.
 type SourceFile struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	DocumentID  string `json:"document_id,omitempty"`
@@ -62,6 +67,7 @@ type SourceFile struct {
 	Content     []byte `json:"content,omitempty"`
 }
 
+// DocumentBrief contains top-level topical synthesis, key claim summaries, and entity outlines.
 type DocumentBrief struct {
 	Topic        string   `json:"topic"`
 	Level01Hints []string `json:"level01_hints"`
@@ -70,6 +76,7 @@ type DocumentBrief struct {
 	Outline      []string `json:"outline"`
 }
 
+// SectionBrief contains section-specific topic models, entity candidates, and relationship connections.
 type SectionBrief struct {
 	Heading         string   `json:"heading"`
 	Topic           string   `json:"topic"`

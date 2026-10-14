@@ -1,3 +1,6 @@
+// Package config provides configuration structs and environment variable loaders
+// for the Synthify API service, storage buckets, worker dispatching, authentication,
+// Stripe billing, and observability.
 package config
 
 import (
@@ -9,6 +12,7 @@ import (
 	"github.com/synthify/backend/internal/platform/storage"
 )
 
+// API holds all runtime configuration settings required by the Synthify API server.
 type API struct {
 	Port                     string
 	Env                      string
@@ -60,12 +64,14 @@ type WorkerDispatch struct {
 	DispatchDeadline time.Duration
 }
 
+// Auth defines credentials and access control lists for internal and external API callers.
 type Auth struct {
 	ServiceToken     string
 	AdminEmailsCSV   string
 	AllowedEmailsCSV string
 }
 
+// Stripe encapsulates API keys, pricing plan IDs, meter events, and webhook secrets for Stripe integration.
 type Stripe struct {
 	SecretKey        string
 	WebhookSecret    string
@@ -78,23 +84,28 @@ type Stripe struct {
 	APIVersion       string
 }
 
+// Billing holds redirect URLs for Stripe Checkout and Customer Portal flows.
 type Billing struct {
 	SuccessURL      string
 	CancelURL       string
 	PortalReturnURL string
 }
 
+// NewRelic configures application telemetry and APM licensing credentials.
 type NewRelic struct {
 	AppName    string
 	LicenseKey string
 }
 
+// Store holds database connection parameters and connection pool tuning parameters.
 type Store struct {
 	DatabaseDSN    string
 	DBMaxOpenConns int
 	DBMaxIdleConns int
 }
 
+// loadStripeConfig initializes Stripe configuration from environment variables,
+// returning nil in local environments if STRIPE_SECRET_KEY is omitted.
 func loadStripeConfig(env string) *Stripe {
 	secret := os.Getenv("STRIPE_SECRET_KEY")
 	if env == "local" && secret == "" {
@@ -113,6 +124,7 @@ func loadStripeConfig(env string) *Stripe {
 	}
 }
 
+// LoadAPI loads and validates all API server configuration settings from environment variables.
 func LoadAPI() API {
 	uploadBase := mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443"))
 	env := get("ENV", "production")
@@ -166,6 +178,7 @@ func LoadAPI() API {
 	}
 }
 
+// firstNonEmpty returns the first non-empty string in the provided list.
 func firstNonEmpty(values ...string) string {
 	for _, v := range values {
 		if v != "" {
@@ -175,6 +188,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// LoadStore loads database DSN and connection pool configuration from environment variables.
 func LoadStore() Store {
 	return Store{
 		DatabaseDSN:    os.Getenv("DATABASE_DSN"),
@@ -202,6 +216,7 @@ func getDurationSeconds(key string, fallback time.Duration) time.Duration {
 	return time.Duration(secs) * time.Second
 }
 
+// get retrieves an environment variable value or returns the fallback if empty.
 func get(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -209,6 +224,7 @@ func get(key, fallback string) string {
 	return fallback
 }
 
+// defaultNewRelicAppName derives the New Relic APM application name based on deployment environment.
 func defaultNewRelicAppName(base string) string {
 	env := os.Getenv("ENV")
 	switch env {
@@ -234,6 +250,8 @@ func getInt(key string, def int) int {
 	return def
 }
 
+// mustBaseURL validates that the specified URL string is an acceptable HTTP/HTTPS base URL,
+// panicking if validation fails.
 func mustBaseURL(name, value string) string {
 	if err := storage.ValidateBaseURL(value); err != nil {
 		panic(fmt.Sprintf("%s is invalid: %v", name, err))

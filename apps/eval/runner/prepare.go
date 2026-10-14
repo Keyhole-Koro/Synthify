@@ -10,15 +10,14 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// preparedInput encapsulates prepared JSON payload along with metadata snapshot.
 type preparedInput struct {
 	Raw      json.RawMessage
 	Snapshot *InputSnapshot
 }
 
-// UnmarshalYAML preserves case input as JSON. Fixture resolution is a prepare
-// step, not tool execution: the runner keeps the tool body as input JSON ->
-// output JSON, while this layer turns YAML conveniences such as chunks paths
-// into the JSON payload the tool actually receives.
+// UnmarshalYAML implements yaml.Unmarshaler to parse evaluation case configurations,
+// preserving the case input as normalized JSON and resolving fixture paths.
 func (c *Case) UnmarshalYAML(value *yaml.Node) error {
 	var raw struct {
 		Name   string     `yaml:"name"`
@@ -40,6 +39,7 @@ func (c *Case) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
+// normalizeYAMLValue recursively normalizes YAML map keys and slice values to JSON-compatible data structures.
 func normalizeYAMLValue(v any) any {
 	switch x := v.(type) {
 	case map[string]any:
@@ -65,6 +65,7 @@ func normalizeYAMLValue(v any) any {
 	}
 }
 
+// prepareToolInput preprocesses tool input based on tool requirements, resolving external fixture files.
 func prepareToolInput(c Case, baseDir string) (preparedInput, error) {
 	switch c.Tool {
 	case ToolKnowledgeTree:
@@ -74,6 +75,7 @@ func prepareToolInput(c Case, baseDir string) (preparedInput, error) {
 	}
 }
 
+// prepareKnowledgeTreeInput validates knowledge tree input, loading chunks from disk if a path is specified.
 func prepareKnowledgeTreeInput(raw json.RawMessage, baseDir string) (preparedInput, error) {
 	var obj map[string]any
 	if err := json.Unmarshal(raw, &obj); err != nil {

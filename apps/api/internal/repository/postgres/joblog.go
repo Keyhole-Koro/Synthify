@@ -15,18 +15,22 @@ import (
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
+// DBLogger provides a joblog.Logger implementation writing events to PostgreSQL.
 type DBLogger struct {
 	repo joblog.Repository
 }
 
+// NewDBLogger creates a DBLogger wrapping a joblog.Repository.
 func NewDBLogger(repo joblog.Repository) *DBLogger {
 	return &DBLogger{repo: repo}
 }
 
+// Log records a job log event asynchronously to the underlying repository.
 func (l *DBLogger) Log(ctx context.Context, e joblog.Event) {
 	_ = l.repo.LogJobEvent(ctx, e)
 }
 
+// LogJobEvent inserts a structured job execution event into the job_logs table.
 func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {
 	detailJSON, err := json.Marshal(e.Detail)
 	if err != nil {
@@ -41,6 +45,7 @@ func (s *Store) LogJobEvent(ctx context.Context, e joblog.Event) error {
 	return err
 }
 
+// ListJobLogs queries unified job logs (system events and tool mutations) for a job with cursor pagination.
 func (s *Store) ListJobLogs(ctx context.Context, jobID string, pageToken string, limit int) ([]*domain.JobLog, string, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 500
@@ -79,6 +84,7 @@ LIMIT $%d`, unifiedJobLogsSourceSQL(), where, len(args))
 	return logs, nextPageToken, nil
 }
 
+// SearchJobLogs searches unified job logs across workspaces, documents, or jobs with flexible filtering and cursor pagination.
 func (s *Store) SearchJobLogs(ctx context.Context, filter domain.JobLogSearchFilter) ([]*domain.JobLog, string, error) {
 	if filter.Limit <= 0 || filter.Limit > 500 {
 		filter.Limit = 200
@@ -148,6 +154,7 @@ LIMIT $%d`, unifiedJobLogsSourceSQL(), strings.Join(where, " AND "), len(args))
 	return logs, nextPageToken, nil
 }
 
+// ListRelatedJobLogs finds recent processing jobs grouped by document for a given job, document, or workspace scope.
 func (s *Store) ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100
@@ -205,6 +212,7 @@ func (s *Store) ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogS
 	return groups, nextPageToken, rows.Err()
 }
 
+// unifiedJobLogsSourceSQL returns a SQL subquery unifying job_logs and tool-level job_mutation_logs.
 func unifiedJobLogsSourceSQL() string {
 	return `
 SELECT
@@ -261,6 +269,7 @@ FROM job_mutation_logs m
 INNER JOIN document_processing_jobs j ON j.job_id = m.job_id`
 }
 
+// relatedJobsSQL constructs a SQL query selecting processing jobs ordered by created_at descending.
 func relatedJobsSQL(where string, limit, offset int) string {
 	return fmt.Sprintf(`
 SELECT j.job_id, j.document_id, j.workspace_id, j.status, j.created_at
@@ -270,6 +279,7 @@ ORDER BY j.created_at DESC
 LIMIT %d OFFSET %d`, where, limit, offset)
 }
 
+// inCondition formats an SQL IN clause appending values to the argument slice.
 func inCondition(column string, args *[]any, values []string) string {
 	var placeholders []string
 	for _, value := range values {
@@ -279,11 +289,13 @@ func inCondition(column string, args *[]any, values []string) string {
 	return fmt.Sprintf("%s IN (%s)", column, joinStrings(placeholders, ", "))
 }
 
+// jobLogCursor represents a pagination cursor for job logs.
 type jobLogCursor struct {
 	Timestamp time.Time
 	SourceID  string
 }
 
+// jobLogRow represents an internal scanned row from unified job logs queries.
 type jobLogRow struct {
 	Timestamp   time.Time
 	Level       string
@@ -297,14 +309,17 @@ type jobLogRow struct {
 	WorkspaceID string
 }
 
+// parseJobStatus converts a database status string into appv1.JobLifecycleState.
 func parseJobStatus(s string) appv1.JobLifecycleState {
 	return jobstatus.LifecycleStateFromDB(s)
 }
 
+// encodeJobLogCursor encodes timestamp and sourceID into a composite pagination token.
 func encodeJobLogCursor(ts time.Time, sourceID string) string {
 	return ts.UTC().Format(time.RFC3339Nano) + "|" + sourceID
 }
 
+// decodeJobLogCursor parses a composite pagination token into timestamp and source ID.
 func decodeJobLogCursor(token string) (jobLogCursor, error) {
 	parts := strings.SplitN(token, "|", 2)
 	if len(parts) != 2 {
@@ -317,6 +332,7 @@ func decodeJobLogCursor(token string) (jobLogCursor, error) {
 	return jobLogCursor{Timestamp: ts, SourceID: parts[1]}, nil
 }
 
+// paginateLogRows truncates log rows to limit, generates next page token, and orders chronological.
 func paginateLogRows(rows []jobLogRow, limit int) ([]*domain.JobLog, string) {
 	nextPageToken := ""
 	if len(rows) > limit {
@@ -331,6 +347,7 @@ func paginateLogRows(rows []jobLogRow, limit int) ([]*domain.JobLog, string) {
 	return toDomainJobLogs(rows), nextPageToken
 }
 
+// joinStrings joins slice elements with a separator string.
 func joinStrings(values []string, sep string) string {
 	if len(values) == 0 {
 		return ""
@@ -342,6 +359,7 @@ func joinStrings(values []string, sep string) string {
 	return out
 }
 
+// scanJobLogRows scans sql.Rows into a slice of jobLogRow structs.
 func scanJobLogRows(rows *sql.Rows) ([]jobLogRow, error) {
 	var logs []jobLogRow
 	for rows.Next() {
@@ -354,6 +372,7 @@ func scanJobLogRows(rows *sql.Rows) ([]jobLogRow, error) {
 	return logs, rows.Err()
 }
 
+// toDomainJobLogs converts internal jobLogRow slice to domain.JobLog slice.
 func toDomainJobLogs(rows []jobLogRow) []*domain.JobLog {
 	var logs []*domain.JobLog
 	for _, row := range rows {

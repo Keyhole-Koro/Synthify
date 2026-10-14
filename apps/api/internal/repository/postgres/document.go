@@ -17,6 +17,7 @@ import (
 	sharedstorage "github.com/synthify/backend/internal/platform/storage"
 )
 
+// ListDocuments returns all documents uploaded to the specified workspace, ordered by creation time descending.
 func (s *Store) ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error) {
 	rows, err := s.q().ListDocuments(ctx, wsID)
 	if err != nil {
@@ -29,6 +30,8 @@ func (s *Store) ListDocuments(ctx context.Context, wsID string) ([]*domain.Docum
 	return docs, nil
 }
 
+// GetDocument retrieves a single document record by ID.
+// Returns domain.ErrNotFound if the document does not exist.
 func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, error) {
 	row, err := s.q().GetDocument(ctx, id)
 	if err != nil {
@@ -40,6 +43,7 @@ func (s *Store) GetDocument(ctx context.Context, id string) (*domain.Document, e
 	return toDocument(row), nil
 }
 
+// GetDocumentChunks retrieves all extracted text chunks associated with the specified document.
 func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error) {
 	rows, err := s.q().ListDocumentChunks(ctx, documentID)
 	if err != nil {
@@ -59,6 +63,8 @@ func (s *Store) GetDocumentChunks(ctx context.Context, documentID string) ([]*do
 	return chunks, nil
 }
 
+// GetJobPlanningSignals collects contextual statistics (duplicate items, approved/protected aliases)
+// used by the planner to determine risk tier and execution plan constraints.
 func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error) {
 	signals := &domain.JobPlanningSignals{
 		DocumentID:  documentID,
@@ -96,6 +102,8 @@ func (s *Store) GetJobPlanningSignals(ctx context.Context, documentID, workspace
 	return signals, nil
 }
 
+// CreateDocument initializes a document record and temporary upload reservation,
+// validating storage quotas before issuing a signed upload URL target.
 func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
 	createdAt := nowTime()
 	docID := newID()
@@ -175,6 +183,8 @@ VALUES ($1, $2, $3, $4, $5, 0, 'reserved', $6, $7)
 	}, target, nil
 }
 
+// ConfirmDocumentUpload verifies the uploaded file size matches the reservation,
+// ensures storage quotas are maintained, marks the reservation confirmed, and increments used storage.
 func (s *Store) ConfirmDocumentUpload(ctx context.Context, documentID string, actualSize int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -248,10 +258,11 @@ WHERE document_id = $1
 	return tx.Commit()
 }
 
+// ExpireUploadReservations scans for pending reservations past their expiration timestamp,
+// transitions them to 'expired', and returns their identifiers for cleanup.
 func (s *Store) ExpireUploadReservations(ctx context.Context, now time.Time) ([]domain.ExpiredReservation, error) {
-	// RETURNING で expire 対象の document/workspace を取り出し、呼び出し側に GCS
-	// オブジェクト削除を委ねる。reserved → expired は 1 文の UPDATE なので競合は
-	// 発生せず、同じドキュメントを 2 回拾うことは無い。
+	// RETURNING returns expired document/workspace IDs so caller can handle GCS object deletion.
+	// Atomic single update ensures no race conditions or duplicate cleanups.
 	rows, err := s.db.QueryContext(ctx, `
 UPDATE upload_reservations
 SET status = 'expired'
@@ -276,6 +287,7 @@ RETURNING document_id, workspace_id
 	return expired, nil
 }
 
+// lockWorkspaceAccount locks and retrieves the account associated with the specified workspace.
 func lockWorkspaceAccount(ctx context.Context, tx *sql.Tx, workspaceID string) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32
@@ -313,6 +325,7 @@ FOR UPDATE OF a
 	return &account, nil
 }
 
+// activeReservedBytes sums up bytes currently reserved for unexpired uploads of an account.
 func activeReservedBytes(ctx context.Context, tx *sql.Tx, accountID string, now time.Time) (int64, error) {
 	var reserved sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `
@@ -328,6 +341,7 @@ WHERE account_id = $1 AND status = 'reserved' AND expires_at > $2
 	return reserved.Int64, nil
 }
 
+// validateUploadSize checks whether the upload file size fits within plan limits and quotas.
 func validateUploadSize(account *domain.Account, fileSize int64) error {
 	if fileSize <= 0 {
 		return domain.ErrUploadSizeMismatch
@@ -341,6 +355,8 @@ func validateUploadSize(account *domain.Account, fileSize int64) error {
 	return nil
 }
 
+// CreateDocumentFile registers an extracted or source file under a document.
+// The operation is idempotent on (document_id, path).
 func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {
 	// Idempotent on (document_id, path): a re-registration returns the existing
 	// file_id instead of violating the unique index.
@@ -365,6 +381,7 @@ func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType st
 	}, nil
 }
 
+// ListDocumentFiles returns metadata for all files associated with a given document.
 func (s *Store) ListDocumentFiles(ctx context.Context, docID string) ([]*domain.DocumentFile, error) {
 	rows, err := s.q().ListDocumentFiles(ctx, docID)
 	if err != nil {
@@ -384,6 +401,8 @@ func (s *Store) ListDocumentFiles(ctx context.Context, docID string) ([]*domain.
 	return res, nil
 }
 
+// GetDocumentFileByPath retrieves a file record by document ID and relative storage path.
+// Returns domain.ErrNotFound if the file record does not exist.
 func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (*domain.DocumentFile, error) {
 	row, err := s.q().GetDocumentFileByPath(ctx, sqlcgen.GetDocumentFileByPathParams{
 		DocumentID: docID,
@@ -405,6 +424,8 @@ func (s *Store) GetDocumentFileByPath(ctx context.Context, docID, path string) (
 	}, nil
 }
 
+// GetDocumentFileForDelivery retrieves file location metadata needed to deliver or stream the file content.
+// Returns domain.ErrNotFound if the file does not exist.
 func (s *Store) GetDocumentFileForDelivery(ctx context.Context, fileID string) (*domain.DocumentFileLocation, error) {
 	row, err := s.q().GetDocumentFileForDelivery(ctx, fileID)
 	if err != nil {
@@ -422,6 +443,8 @@ func (s *Store) GetDocumentFileForDelivery(ctx context.Context, fileID string) (
 	}, nil
 }
 
+// GetLatestProcessingJob retrieves the most recently created processing job for a document.
+// Returns domain.ErrNotFound if no jobs exist for the document.
 func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error) {
 	row, err := s.q().GetLatestProcessingJob(ctx, docID)
 	if err != nil {
@@ -433,6 +456,8 @@ func (s *Store) GetLatestProcessingJob(ctx context.Context, docID string) (*doma
 	return toJob(row), nil
 }
 
+// GetProcessingJob retrieves a document processing job by its job ID.
+// Returns domain.ErrNotFound if the job does not exist.
 func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error) {
 	row, err := s.q().GetProcessingJob(ctx, jobID)
 	if err != nil {
@@ -444,6 +469,8 @@ func (s *Store) GetProcessingJob(ctx context.Context, jobID string) (*domain.Doc
 	return toJob(row), nil
 }
 
+// GetJobCapability retrieves permission capabilities and execution quotas granted to a job.
+// Returns domain.ErrNotFound if no capability row is found.
 func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.JobCapability, error) {
 	row, err := s.q().GetJobCapability(ctx, jobID)
 	if err != nil {
@@ -474,6 +501,8 @@ func (s *Store) GetJobCapability(ctx context.Context, jobID string) (*domain.Job
 	}, nil
 }
 
+// GetJobExecutionPlan retrieves the execution plan record associated with a job.
+// Returns domain.ErrNotFound if no plan exists for the job.
 func (s *Store) GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.JobExecutionPlan, error) {
 	row, err := s.q().GetJobExecutionPlan(ctx, jobID)
 	if err != nil {
@@ -494,6 +523,7 @@ func (s *Store) GetJobExecutionPlan(ctx context.Context, jobID string) (*domain.
 	}, nil
 }
 
+// UpsertJobExecutionPlan creates or updates the execution plan for a processing job.
 func (s *Store) UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error {
 	createdAt, _ := time.Parse(time.RFC3339, plan.CreatedAt)
 	if createdAt.IsZero() {
@@ -514,6 +544,7 @@ func (s *Store) UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *
 	return nil
 }
 
+// UpsertJobEvaluation updates the evaluation status of a processing job.
 func (s *Store) UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error {
 	if err := s.q().UpdateProcessingJobEvaluationState(ctx, sqlcgen.UpdateProcessingJobEvaluationStateParams{
 		JobID:            jobID,
@@ -525,6 +556,7 @@ func (s *Store) UpsertJobEvaluation(ctx context.Context, jobID string, result *d
 	return nil
 }
 
+// EvaluateJob constructs a JobEvaluationResult from the current status of the processing job.
 func (s *Store) EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error) {
 	job, err := s.GetProcessingJob(ctx, jobID)
 	if err != nil {
@@ -538,6 +570,7 @@ func (s *Store) EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvalu
 	}, nil
 }
 
+// ListJobApprovalRequests lists all approval requests created for a processing job.
 func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, error) {
 	rows, err := s.q().ListJobApprovalRequests(ctx, jobID)
 	if err != nil {
@@ -559,6 +592,7 @@ func (s *Store) ListJobApprovalRequests(ctx context.Context, jobID string) ([]*d
 	return res, nil
 }
 
+// RequestJobApproval submits a request for human review and approval before executing an execution plan.
 func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error) {
 	plan, err := s.GetJobExecutionPlan(ctx, jobID)
 	if err != nil {
@@ -605,15 +639,6 @@ func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reas
 		return nil, fmt.Errorf("update plan status: %w", err)
 	}
 	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
-		JobID:           approvalID, // Wait, this should be jobID
-		ExecutionPlanID: plan.PlanID,
-		PlanStatus:      "pending_approval",
-		UpdatedAt:       now,
-	}); err != nil {
-		// Wait, I see I used approvalID as JobID in previous version. Fixed below.
-	}
-	// Redoing carefully.
-	if err := qtx.UpdateProcessingJobPlanState(ctx, sqlcgen.UpdateProcessingJobPlanStateParams{
 		JobID:           jobID,
 		ExecutionPlanID: plan.PlanID,
 		PlanStatus:      "pending_approval",
@@ -637,6 +662,7 @@ func (s *Store) RequestJobApproval(ctx context.Context, jobID, requestedBy, reas
 	}, nil
 }
 
+// ApproveJobApproval marks an approval request as approved and transitions the associated plan to approved.
 func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, reviewedBy string) error {
 	now := nowTime()
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -680,6 +706,7 @@ func (s *Store) ApproveJobApproval(ctx context.Context, jobID, approvalID, revie
 	return tx.Commit()
 }
 
+// RejectJobApproval marks an approval request as rejected along with an optional reason.
 func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error {
 	now := nowTime()
 	tx, err := s.db.BeginTx(ctx, nil)
@@ -724,10 +751,8 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return tx.Commit()
 }
 
-// CreateProcessingJob は job_capabilities と processing_jobs に 1 件ずつ
-// 挿入する。atomic 性は呼び出し側 (Transactor.WithTx) の責務。
-// Store 自身は tx を開始しない: tx スコープ内で呼ばれていれば q() が
-// tx-bound queries を返すのでそのまま乗る。
+// CreateProcessingJob inserts one job_capabilities row and one processing_jobs row.
+// It relies on any surrounding transaction provided by Transactor.WithTx via q().
 func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error) {
 	createdAt := nowTime()
 	jobID := newID()
@@ -794,6 +819,8 @@ func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, req
 	}, nil
 }
 
+// MarkProcessingJobRunning sets a job's status to running.
+// Returns domain.ErrNotFound if the job does not exist.
 func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) error {
 	rowsAffected, err := s.q().MarkProcessingJobRunning(ctx, sqlcgen.MarkProcessingJobRunningParams{
 		JobID:     jobID,
@@ -808,6 +835,7 @@ func (s *Store) MarkProcessingJobRunning(ctx context.Context, jobID string) erro
 	return nil
 }
 
+// UpdateProcessingJobStage updates the current execution stage name of a processing job.
 func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error {
 	if err := s.q().UpdateProcessingJobStage(ctx, sqlcgen.UpdateProcessingJobStageParams{
 		JobID:        jobID,
@@ -819,6 +847,8 @@ func (s *Store) UpdateProcessingJobStage(ctx context.Context, jobID, stage strin
 	return nil
 }
 
+// FailProcessingJob transitions a processing job to failed state with an error message.
+// Returns domain.ErrNotFound if the job does not exist.
 func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage string) error {
 	rowsAffected, err := s.q().FailProcessingJob(ctx, sqlcgen.FailProcessingJobParams{
 		JobID:        jobID,
@@ -834,6 +864,8 @@ func (s *Store) FailProcessingJob(ctx context.Context, jobID, errorMessage strin
 	return nil
 }
 
+// SetProcessingJobRetryCount sets the retry attempt counter for a processing job.
+// Returns domain.ErrNotFound if the job does not exist.
 func (s *Store) SetProcessingJobRetryCount(ctx context.Context, jobID string, retryCount int) error {
 	res, err := s.db.ExecContext(ctx, `
 UPDATE document_processing_jobs
@@ -853,6 +885,8 @@ WHERE job_id = $1
 	return nil
 }
 
+// CompleteProcessingJob marks a processing job as succeeded and clears any failure messages.
+// Returns domain.ErrNotFound if the job does not exist.
 func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error {
 	rowsAffected, err := s.q().CompleteProcessingJob(ctx, sqlcgen.CompleteProcessingJobParams{
 		JobID:     jobID,
@@ -867,7 +901,7 @@ func (s *Store) CompleteProcessingJob(ctx context.Context, jobID string) error {
 	return nil
 }
 
-// CheckpointRepository implementation
+// UpsertStageRunning records that a pipeline stage has started running for a job.
 func (s *Store) UpsertStageRunning(ctx context.Context, jobID, stage string) error {
 	return s.q().UpsertJobStageCheckpoint(ctx, sqlcgen.UpsertJobStageCheckpointParams{
 		JobID:     jobID,
@@ -878,6 +912,7 @@ func (s *Store) UpsertStageRunning(ctx context.Context, jobID, stage string) err
 	})
 }
 
+// MarkStageSucceeded records the successful completion of a stage and attaches its GCS artifact reference.
 func (s *Store) MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error {
 	return s.q().UpsertJobStageCheckpoint(ctx, sqlcgen.UpsertJobStageCheckpointParams{
 		JobID:     jobID,
@@ -888,6 +923,7 @@ func (s *Store) MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef str
 	})
 }
 
+// MarkStageFailed records that a pipeline stage failed execution.
 func (s *Store) MarkStageFailed(ctx context.Context, jobID, stage, errorMessage string) error {
 	// We could store the error message in the envelope if needed,
 	// for the DB index we just mark it failed.
@@ -900,6 +936,7 @@ func (s *Store) MarkStageFailed(ctx context.Context, jobID, stage, errorMessage 
 	})
 }
 
+// ListStageCheckpoints returns all stage execution checkpoints recorded for a job.
 func (s *Store) ListStageCheckpoints(ctx context.Context, jobID string) ([]domain.JobStageCheckpoint, error) {
 	rows, err := s.q().ListJobStageCheckpoints(ctx, jobID)
 	if err != nil {
@@ -918,6 +955,7 @@ func (s *Store) ListStageCheckpoints(ctx context.Context, jobID string) ([]domai
 	return res, nil
 }
 
+// SaveDocumentChunks atomically replaces all chunks for a document with the provided slice.
 func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -946,6 +984,7 @@ func (s *Store) SaveDocumentChunks(ctx context.Context, documentID string, chunk
 	return tx.Commit()
 }
 
+// ListJobMutationLogs retrieves all mutation audit log entries produced during job execution.
 func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error) {
 	rows, err := s.q().ListJobMutationLogs(ctx, jobID)
 	if err != nil {
@@ -972,6 +1011,7 @@ func (s *Store) ListJobMutationLogs(ctx context.Context, jobID string) ([]*domai
 	return res, nil
 }
 
+// ListAllJobs returns all document processing jobs in the system, ordered by creation time descending.
 func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJob, error) {
 	rows, err := s.q().ListAllJobs(ctx)
 	if err != nil {
@@ -984,6 +1024,7 @@ func (s *Store) ListAllJobs(ctx context.Context) ([]*domain.DocumentProcessingJo
 	return res, nil
 }
 
+// LogToolCall records a mutation log entry for a dynamic tool invocation within a job.
 func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error {
 	now := nowTime()
 	return s.q().CreateJobMutationLog(ctx, sqlcgen.CreateJobMutationLogParams{
@@ -1001,6 +1042,7 @@ func (s *Store) LogToolCall(ctx context.Context, jobID, toolName, inputJSON, out
 	})
 }
 
+// SearchRelatedChunksByVector queries document chunks in the workspace using cosine similarity on embeddings.
 func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error) {
 	rows, err := s.q().SearchWorkspaceDocumentChunksByVector(ctx, sqlcgen.SearchWorkspaceDocumentChunksByVectorParams{
 		WorkspaceID:    workspaceID,
@@ -1025,6 +1067,7 @@ func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID str
 	return res, nil
 }
 
+// toDocument converts a sqlcgen.Document row to a domain.Document entity.
 func toDocument(row sqlcgen.Document) *domain.Document {
 	return &domain.Document{
 		DocumentID:  row.DocumentID,
@@ -1037,6 +1080,7 @@ func toDocument(row sqlcgen.Document) *domain.Document {
 	}
 }
 
+// toJob converts a sqlcgen.DocumentProcessingJob query row into a domain.DocumentProcessingJob.
 func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	return &domain.DocumentProcessingJob{
 		JobID:            row.JobID,
@@ -1059,6 +1103,7 @@ func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	}
 }
 
+// firstNonEmptyNonSQL returns the first non-empty string or the fallback if v is blank.
 func firstNonEmptyNonSQL(v, fallback string) string {
 	if strings.TrimSpace(v) != "" {
 		return v

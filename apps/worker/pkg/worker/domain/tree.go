@@ -4,6 +4,7 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// Tree represents a workspace knowledge tree taxonomy container.
 type Tree struct {
 	TreeID      string `json:"tree_id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -12,6 +13,7 @@ type Tree struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
+// Item represents a single node within the hierarchical workspace taxonomy.
 type Item struct {
 	ItemID            string                    `json:"id"`
 	WorkspaceID       string                    `json:"workspace_id"`
@@ -30,6 +32,7 @@ type Item struct {
 	CrossDocument     bool                      `json:"cross_document,omitempty"`
 }
 
+// ItemSource links an item to its provenance source text, document, and chunk.
 type ItemSource struct {
 	ItemID     string  `json:"item_id"`
 	DocumentID string  `json:"document_id"`
@@ -39,6 +42,7 @@ type ItemSource struct {
 	Confidence float64 `json:"confidence,omitempty"`
 }
 
+// ItemEvidence aggregates all source excerpts that ground an item.
 type ItemEvidence struct {
 	Sources []*ItemSource `json:"sources,omitempty"`
 }
@@ -52,6 +56,7 @@ type TreeItem struct {
 	Content     string                    `json:"content,omitempty"`
 }
 
+// GeneratedTreeItem represents an item produced by LLM taxonomy synthesis before persistence.
 type GeneratedTreeItem struct {
 	LocalID string `json:"local_id"`
 	// MergeTargetItemID, when set, is the id of an existing workspace tree node
@@ -79,17 +84,20 @@ type ExistingNode struct {
 	Description string `json:"description"`
 }
 
+// Chunk represents a numbered text section during document processing.
 type Chunk struct {
 	ChunkIndex int    `json:"chunk_index"`
 	Heading    string `json:"heading"`
 	Text       string `json:"text"`
 }
 
+// SubtreeItem wraps an Item with a boolean flag indicating if descendants exist.
 type SubtreeItem struct {
 	Item
 	HasChildren bool `json:"has_children"`
 }
 
+// TreePath describes a traversable relationship sequence between items.
 type TreePath struct {
 	ItemIDs  []string `json:"item_ids"`
 	HopCount int      `json:"hop_count"`
@@ -98,12 +106,17 @@ type TreePath struct {
 	} `json:"evidence_ref"`
 }
 
+// NodeGovernanceState represents the curation or review lifecycle state of a taxonomy node.
 type NodeGovernanceState string
 
 const (
+	// GovernanceStateSystemGenerated indicates the node was generated autonomously by AI.
 	GovernanceStateSystemGenerated NodeGovernanceState = "system_generated"
-	GovernanceStatePendingReview   NodeGovernanceState = "pending_review"
-	GovernanceStateHumanCurated    NodeGovernanceState = "human_curated"
-	GovernanceStateLocked          NodeGovernanceState = "locked"
+	// GovernanceStatePendingReview indicates that the node requires human review.
+	GovernanceStatePendingReview NodeGovernanceState = "pending_review"
+	// GovernanceStateHumanCurated indicates human edits or verification have been applied.
+	GovernanceStateHumanCurated NodeGovernanceState = "human_curated"
+	// GovernanceStateLocked protects the node from automatic modification or merging.
+	GovernanceStateLocked NodeGovernanceState = "locked"
 )
 

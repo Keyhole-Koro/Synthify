@@ -4,6 +4,7 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// Tree represents a hierarchical knowledge tree aggregate within a workspace.
 type Tree struct {
 	TreeID      string `json:"tree_id"`
 	WorkspaceID string `json:"workspace_id"`
@@ -12,6 +13,7 @@ type Tree struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
+// Item represents a node within the hierarchical knowledge tree.
 type Item struct {
 	ItemID            string                    `json:"id"`
 	WorkspaceID       string                    `json:"workspace_id"`
@@ -30,6 +32,7 @@ type Item struct {
 	CrossDocument     bool                      `json:"cross_document,omitempty"`
 }
 
+// ItemSource connects a knowledge tree item to an ingested document chunk as grounding evidence.
 type ItemSource struct {
 	ItemID     string  `json:"item_id"`
 	DocumentID string  `json:"document_id"`
@@ -39,6 +42,7 @@ type ItemSource struct {
 	Confidence float64 `json:"confidence,omitempty"`
 }
 
+// ItemSourceRef records an external reference or repository source location supporting a tree item.
 type ItemSourceRef struct {
 	SourceRefID  string  `json:"source_ref_id"`
 	ItemID       string  `json:"item_id"`
@@ -58,12 +62,13 @@ type ItemSourceRef struct {
 	MetadataJSON string  `json:"metadata_json,omitempty"`
 }
 
+// ItemEvidence aggregates all internal document chunks and external source references supporting an item.
 type ItemEvidence struct {
 	Sources    []*ItemSource    `json:"sources,omitempty"`
 	SourceRefs []*ItemSourceRef `json:"source_refs,omitempty"`
 }
 
-// TreeItem is the item representation returned by the API.
+// TreeItem is the lightweight item projection returned by read-only tree listing APIs.
 type TreeItem struct {
 	ID          string                    `json:"id"`
 	Scope       appv1.TreeProjectionScope `json:"scope"`
@@ -72,6 +77,7 @@ type TreeItem struct {
 	Content     string                    `json:"content,omitempty"`
 }
 
+// GeneratedTreeItem represents an item candidate synthesized during document analysis prior to tree insertion.
 type GeneratedTreeItem struct {
 	LocalID           string   `json:"local_id"`
 	MergeTargetItemID string   `json:"merge_target_item_id,omitempty"`
@@ -85,17 +91,20 @@ type GeneratedTreeItem struct {
 	SourceChunkIDs    []string `json:"source_chunk_ids"`
 }
 
+// Chunk represents a numbered text block with heading extracted from a source document.
 type Chunk struct {
 	ChunkIndex int    `json:"chunk_index"`
 	Heading    string `json:"heading"`
 	Text       string `json:"text"`
 }
 
+// SubtreeItem decorates an Item with a boolean indicating if it possesses child nodes.
 type SubtreeItem struct {
 	Item
 	HasChildren bool `json:"has_children"`
 }
 
+// TreePath represents an ordered chain of item IDs representing a hierarchical traversal.
 type TreePath struct {
 	ItemIDs  []string `json:"item_ids"`
 	HopCount int      `json:"hop_count"`
@@ -104,4 +113,5 @@ type TreePath struct {
 	} `json:"evidence_ref"`
 }
 
+// NodeGovernanceState denotes approval or review status of a tree node.
 type NodeGovernanceState string

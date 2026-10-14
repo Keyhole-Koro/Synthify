@@ -343,10 +343,12 @@ func formatMinorCost(minor int64, currency string) string {
 	return neg + itoa(whole) + "." + pad2(frac)
 }
 
+// itoa formats an int64 integer into a decimal string.
 func itoa(n int64) string {
 	return string(appendInt(nil, n))
 }
 
+// appendInt appends the decimal representation of n to b and returns the result.
 func appendInt(b []byte, n int64) []byte {
 	if n == 0 {
 		return append(b, '0')
@@ -361,6 +363,7 @@ func appendInt(b []byte, n int64) []byte {
 	return append(b, buf[pos:]...)
 }
 
+// pad2 formats a non-negative integer under 100 with zero padding to two digits.
 func pad2(n int64) string {
 	if n < 10 {
 		return "0" + string([]byte{byte('0' + n)})

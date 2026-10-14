@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 )
 
 // ErrNotFound is returned by Repository.GetModelPricing when no pricing row
@@ -50,8 +51,21 @@ type Recorder struct {
 	logger *slog.Logger
 }
 
+// NewRecorder constructs a Recorder with the provided persistence repository, clock, and logger.
 func NewRecorder(repo Repository, clock Clock, logger *slog.Logger) *Recorder {
+	if clock == nil {
+		clock = systemClock{}
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Recorder{repo: repo, clock: clock, logger: logger}
+}
+
+type systemClock struct{}
+
+func (systemClock) NowRFC3339Date() string {
+	return time.Now().UTC().Format(time.RFC3339)
 }
 
 // Record applies pricing, draws down credit, persists the event, and
@@ -88,8 +102,12 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 		)
 	default:
 		pricingMissing = true
+		pricingErr := err
+		if pricingErr == nil {
+			pricingErr = errors.New("pricing record is missing")
+		}
 		r.logger.Error("billing.record_usage.pricing_lookup_failed",
-			"error", err.Error(),
+			"error", pricingErr.Error(),
 			"model", ev.Model,
 			"account_id", ev.AccountID,
 			"event_id", ev.EventID,

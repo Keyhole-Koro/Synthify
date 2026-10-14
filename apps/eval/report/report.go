@@ -1,3 +1,5 @@
+// Package report formats evaluation execution results into human-readable tables
+// or machine-readable JSON documents.
 package report
 
 import (
@@ -10,6 +12,7 @@ import (
 	"github.com/synthify/backend/apps/eval/runner"
 )
 
+// Write writes evaluation results to w formatted according to the specified format ("table" or "json").
 func Write(w io.Writer, format string, results []runner.Result) error {
 	switch format {
 	case "json":
@@ -23,7 +26,7 @@ func Write(w io.Writer, format string, results []runner.Result) error {
 		return fmt.Errorf("unsupported format %q: use table or json", format)
 	}
 }
-
+// writeTable formats a slice of evaluation results into an aligned tab-separated table.
 func writeTable(w io.Writer, results []runner.Result) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "CASE\tPASS\tSCHEMA\tPROMPT_SRC\tFAILED_INPUT\tDURATION_MS\tMODEL\tTOKENS_IN\tTOKENS_OUT\tERROR")
@@ -44,6 +47,7 @@ func writeTable(w io.Writer, results []runner.Result) error {
 	return tw.Flush()
 }
 
+// failedInputSummary produces a one-line diagnostic string describing the chunk inputs of a failed run.
 func failedInputSummary(r runner.Result) string {
 	if r.FailedInput == nil {
 		return ""

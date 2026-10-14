@@ -17,10 +17,12 @@ type FixtureProcessor struct {
 	notifier jobstatus.Notifier
 }
 
+// NewFixtureProcessor creates a new deterministic FixtureProcessor for testing environments.
 func NewFixtureProcessor(repo Repository, notifier jobstatus.Notifier) *FixtureProcessor {
 	return &FixtureProcessor{repo: repo, notifier: notifier}
 }
 
+// Process begins background execution of a deterministic fixture scenario for integration testing.
 func (p *FixtureProcessor) Process(ctx context.Context, req ExecutePlanRequest) error {
 	if err := req.Validate(); err != nil {
 		return err
@@ -33,6 +35,7 @@ func (p *FixtureProcessor) Process(ctx context.Context, req ExecutePlanRequest) 
 	return nil
 }
 
+// run executes the mock stages and creates synthetic knowledge tree nodes.
 func (p *FixtureProcessor) run(ctx context.Context, req ExecutePlanRequest) error {
 	job, err := p.repo.GetProcessingJob(ctx, req.JobID)
 	if err != nil {

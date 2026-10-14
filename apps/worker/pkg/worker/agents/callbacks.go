@@ -12,6 +12,7 @@ import (
 	"google.golang.org/genai"
 )
 
+// beforeModelCallbacks configures LLM call accounting and injects working memory into prompt instructions.
 func (o *Orchestrator) beforeModelCallbacks() []llmagent.BeforeModelCallback {
 	return []llmagent.BeforeModelCallback{
 		func(ctx agent.CallbackContext, req *model.LLMRequest) (*model.LLMResponse, error) {
@@ -36,6 +37,7 @@ func (o *Orchestrator) beforeModelCallbacks() []llmagent.BeforeModelCallback {
 	}
 }
 
+// beforeToolCallbacks enforces repeat tool call guards, budget accounting, and checkpoint resumption.
 func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 	return []llmagent.BeforeToolCallback{
 		func(ctx tool.Context, t tool.Tool, args map[string]any) (map[string]any, error) {
@@ -108,6 +110,7 @@ func (o *Orchestrator) beforeToolCallbacks() []llmagent.BeforeToolCallback {
 	}
 }
 
+// afterToolCallbacks logs execution telemetry, records checkpoint outcomes, and reports user-facing stage progress.
 func (o *Orchestrator) afterToolCallbacks() []llmagent.AfterToolCallback {
 	return []llmagent.AfterToolCallback{
 		func(ctx tool.Context, t tool.Tool, args, result map[string]any, err error) (map[string]any, error) {

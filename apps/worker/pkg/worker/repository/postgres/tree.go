@@ -52,7 +52,7 @@ func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID 
 }
 
 func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
-	// ルートアイテム取得
+	// Fetch root item
 	rootRow, err := s.q().GetItem(ctx, rootItemID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -61,7 +61,7 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 		return nil, err
 	}
 
-	// 子要素取得
+	// Fetch child items
 	rows, err := s.q().ListChildItems(ctx, sql.NullString{String: rootItemID, Valid: true})
 	if err != nil {
 		return nil, err
@@ -87,6 +87,7 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 	return items, nil
 }
 
+// populateChildIDs resolves and attaches immediate child item IDs for a slice of items.
 func (s *Store) populateChildIDs(ctx context.Context, items []*domain.Item) {
 	for _, item := range items {
 		if item == nil || item.ItemID == "" {

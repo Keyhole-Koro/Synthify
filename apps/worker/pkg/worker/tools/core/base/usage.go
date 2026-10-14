@@ -34,6 +34,19 @@ type UsageLimiter struct {
 	jobs map[string]*usageCounters
 }
 
+// NewUsageLimiter creates a per-job usage counter backed by the repository's
+// capability limits. The limiter is intentionally in-memory: callers should
+// create one per worker/orchestrator lifetime and use BeginJob before counting
+// calls for a job.
+//
+// A nil logger is accepted for compatibility with lightweight tests; callers
+// should normally pass the application logger so limit violations are recorded.
+//
+// Parameters:
+//   - repo loads the capability limits for a job; nil disables limit lookup.
+//   - logger receives structured limit-exceeded events.
+//
+// Returns a limiter ready to track jobs.
 func NewUsageLimiter(repo Repository, logger *slog.Logger) *UsageLimiter {
 	return &UsageLimiter{
 		repo:   repo,
@@ -69,7 +82,7 @@ func (l *UsageLimiter) IncrementItemCreations(ctx context.Context, count int) er
 
 // IncrementTransformCreations counts a create_transform invocation. The same
 // counter is consumed by syntax_error fix-regeneration so a malformed-code
-// loop cannot run unbounded (see design doc "コストと再帰の暴走防止").
+// loop cannot run unbounded (see design doc on preventing unbounded recursion and cost runaway).
 func (l *UsageLimiter) IncrementTransformCreations(ctx context.Context) error {
 	return l.increment(ctx, 0, 0, 0, 1, 0)
 }
@@ -190,6 +203,16 @@ type CountingLLMClient struct {
 	usage *UsageLimiter
 }
 
+// NewCountingLLMClient wraps an LLM client and increments the usage limiter
+// before each delegated text or structured generation call.
+//
+// Parameters:
+//   - inner is the client that performs the actual model request. A nil client
+//     returns nil because there is nothing safe to delegate to.
+//   - usage receives one LLM-call increment per request; nil disables counting.
+//
+// Returns a client preserving the inner client's responses and errors while
+// failing early when the job's LLM-call limit has been exceeded.
 func NewCountingLLMClient(inner LLMClient, usage *UsageLimiter) LLMClient {
 	if inner == nil {
 		return nil

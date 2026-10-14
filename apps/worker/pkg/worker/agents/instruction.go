@@ -1,5 +1,6 @@
 package agents
 
+// orchestratorInstruction defines the system instruction given to the autonomous knowledge pipeline agent.
 const orchestratorInstruction = `You are the Lead Knowledge Architect for Synthify.
 Your mission is to build a flawless knowledge tree from raw document data.
 

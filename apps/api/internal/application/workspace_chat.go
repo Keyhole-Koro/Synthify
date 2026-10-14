@@ -18,7 +18,7 @@ import (
 // repository に依存しない。chat が write 可能な agent に育つのを防ぐ主な
 // 構造的ガードがこれなので、依存を足すときは §7 を読むこと。
 
-// 設計 §5 の初期 bound。
+// Initial limits and bounds for workspace chat retrieval and generation.
 const (
 	chatMaxRetrievedChunks  = 12
 	chatMaxRetrievedItems   = 8
@@ -29,38 +29,31 @@ const (
 	chatMaxMessagesPerFetch = 200
 )
 
-// chatModelUnknown は answerer が自身のモデル ID を返さなかった場合の値。
+// chatModelUnknown is the fallback model name when an answerer does not supply a specific identifier.
 const chatModelUnknown = "unknown"
 
-// ChatAnswerRequest は grounded answer 1 回分の入力。
+// ChatAnswerRequest defines the prompt inputs for grounded question answering.
 type ChatAnswerRequest struct {
 	Question   string
 	History    []*domain.ChatMessage
 	Candidates []domain.ChatSourceCandidate
 }
 
-// ChatAnswer は model の出力。SourceIDs は「model が引用したと主張した」
-// 値であって、検証前の生データである。service 側で候補集合に対して検証する。
-// chunk id と item id の両方を取りうる。
+// ChatAnswer represents the generative model's answer text and claimed source citations.
 type ChatAnswer struct {
-	Text           string
+	Text      string
 	SourceIDs []string
 }
 
-// ChatAnswerer は grounded answer を生成する port。
-//
-// 意図的に狭い: API は apps/worker/pkg/worker の ADK / LLM ツリーを取り込まない
-// (infrastructure/worker/dispatcher.go と同じ方針)。実装は infrastructure 側に置く。
+// ChatAnswerer abstracts the generation of grounded answers from retrieved context.
 type ChatAnswerer interface {
+	// Answer generates a grounded response for the given request.
 	Answer(ctx context.Context, req ChatAnswerRequest) (ChatAnswer, error)
-	// ModelID は実際に回答を生成した主体の識別子を返す。message 行と
-	// retrieval snapshot にそのまま記録するので、"gemini" のような固定値では
-	// なく、実装が本当に使ったものを返すこと。後からモデルを増やしたときに
-	// 「どれが答えたか」を遡れることがこのフィールドの唯一の存在理由なので、
-	// 嘘をつくと監査価値が消える。
+	// ModelID returns the identifier of the model actually used for answer generation.
 	ModelID() string
 }
 
+// WorkspaceChatService manages conversations, retrieval-augmented generation, and citation validation.
 type WorkspaceChatService struct {
 	repo       repository.WorkspaceChatRepository
 	workspaces repository.WorkspaceRepository
@@ -68,6 +61,7 @@ type WorkspaceChatService struct {
 	logger     *slog.Logger
 }
 
+// WorkspaceChatServiceDeps defines the dependencies required to instantiate WorkspaceChatService.
 type WorkspaceChatServiceDeps struct {
 	Repo       repository.WorkspaceChatRepository
 	Workspaces repository.WorkspaceRepository
@@ -75,6 +69,7 @@ type WorkspaceChatServiceDeps struct {
 	Logger     *slog.Logger
 }
 
+// NewWorkspaceChatService creates a new WorkspaceChatService instance.
 func NewWorkspaceChatService(deps WorkspaceChatServiceDeps) *WorkspaceChatService {
 	return &WorkspaceChatService{
 		repo:       deps.Repo,
@@ -84,8 +79,7 @@ func NewWorkspaceChatService(deps WorkspaceChatServiceDeps) *WorkspaceChatServic
 	}
 }
 
-// authorizeRead は workspace への read 権限を確認する。会話・メッセージ・chunk・
-// item label のいずれかを読む前に必ず通す (設計 §7)。
+// authorizeRead verifies that the user has read access to the workspace.
 func (s *WorkspaceChatService) authorizeRead(ctx context.Context, workspaceID, userID string) error {
 	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
 	if err != nil {
@@ -97,12 +91,7 @@ func (s *WorkspaceChatService) authorizeRead(ctx context.Context, workspaceID, u
 	return nil
 }
 
-// ListConversations は会話一覧と、この workspace に出典になりうるものが
-// あるかを返す。
-//
-// このフラグは入力欄を塞ぐためのものではない (出典が無くても質問はできる)。
-// 「出典付きで答えられる見込みがあるか」を UI に伝えるだけで、判定条件は
-// retrieval と一致していなければならないのでサーバーが持つ。
+// ListConversations returns recent chat conversations in a workspace and indicates whether sources are available.
 func (s *WorkspaceChatService) ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, bool, error) {
 	if err := s.authorizeRead(ctx, workspaceID, userID); err != nil {
 		return nil, false, err
@@ -122,6 +111,7 @@ func (s *WorkspaceChatService) ListConversations(ctx context.Context, workspaceI
 	return conversations, docCount > 0 || itemCount > 0, nil
 }
 
+// ListMessages retrieves the message history of a conversation up to chatMaxMessagesPerFetch.
 func (s *WorkspaceChatService) ListMessages(ctx context.Context, workspaceID, conversationID, userID string) ([]*domain.ChatMessage, error) {
 	if err := s.authorizeRead(ctx, workspaceID, userID); err != nil {
 		return nil, err
@@ -132,9 +122,7 @@ func (s *WorkspaceChatService) ListMessages(ctx context.Context, workspaceID, co
 	return s.repo.ListChatMessages(ctx, conversationID, chatMaxMessagesPerFetch)
 }
 
-// resolveConversation は conversation が指定 workspace のものであることを確認する。
-// 別 workspace の conversation_id を渡された場合は Forbidden を返し、存在の
-// 有無を漏らさない。
+// resolveConversation verifies that the conversation belongs to the specified workspace.
 func (s *WorkspaceChatService) resolveConversation(ctx context.Context, workspaceID, conversationID string) (*domain.ChatConversation, error) {
 	conv, err := s.repo.GetChatConversation(ctx, conversationID)
 	if err != nil {
@@ -146,10 +134,8 @@ func (s *WorkspaceChatService) resolveConversation(ctx context.Context, workspac
 	return conv, nil
 }
 
-// SendMessage はユーザーの質問を永続化し、grounded answer を生成して返す。
-//
-// 順序が重要: user メッセージは生成を始める前に必ず永続化する。生成が落ちても
-// 質問が消えないようにするため (設計 §4)。
+// SendMessage persists the user's question, generates a grounded answer via the configured model,
+// records citations, and touches the conversation's updated timestamp.
 func (s *WorkspaceChatService) SendMessage(ctx context.Context, workspaceID, conversationID, text, userID string) (*domain.ChatMessage, *domain.ChatMessage, error) {
 	if err := domain.ValidateChatMessageText(text); err != nil {
 		return nil, nil, err
@@ -158,9 +144,8 @@ func (s *WorkspaceChatService) SendMessage(ctx context.Context, workspaceID, con
 		return nil, nil, err
 	}
 
-	// 出典が無くても回答は行う。ドキュメント未投入の workspace でも使いたい
-	// という要求があり、出典ゼロは「回答不能」ではなく「一般知識で答えた」と
-	// して表現する (grounded=false)。
+	// Always generate an answer even if no documents exist in the workspace;
+	// zero sources results in an ungrounded general knowledge answer (Grounded=false).
 	conv, err := s.ensureConversation(ctx, workspaceID, conversationID, text, userID)
 	if err != nil {
 		return nil, nil, err
@@ -192,24 +177,19 @@ func (s *WorkspaceChatService) SendMessage(ctx context.Context, workspaceID, con
 	return userMsg, assistantMsg, nil
 }
 
-// generateAnswer は retrieval → 生成 → citation 検証 → 永続化を行う。
-// 生成が失敗した場合も assistant 行を failed として残し、turn が黙って
-// 消えないようにする。
+// generateAnswer performs retrieval, prompts the model for an answer, validates citations against retrieved candidates, and persists the assistant message.
 func (s *WorkspaceChatService) generateAnswer(
 	ctx context.Context,
 	workspaceID, conversationID, question string,
 	history []*domain.ChatMessage,
 ) (*domain.ChatMessage, error) {
-	// SQL 側が一致数で順位付けし、一致ゼロでも候補を返すので、空振り用の
-	// 二度目の問い合わせは要らない。
 	terms := domain.ChatSearchTerms(question)
 
 	candidates, err := s.repo.SearchChatSourceCandidates(ctx, workspaceID, terms, chatMaxRetrievedChunks)
 	if err != nil {
 		return nil, err
 	}
-	// ツリー item も出典候補にする。document が1件も無い workspace で
-	// 回答の根拠になるのはこちらだけ。
+	// Knowledge tree items can also serve as source candidates if documents are absent.
 	itemCandidates, err := s.repo.SearchChatSourceItems(ctx, workspaceID, terms, chatMaxRetrievedItems)
 	if err != nil {
 		return nil, err
@@ -238,7 +218,7 @@ func (s *WorkspaceChatService) generateAnswer(
 				"error", genErr.Error(),
 			)
 		}
-		// 失敗も行として残す。中身 (質問文・生成文) はログに出さない。
+		// Record failed generation as an assistant message so conversation history is preserved.
 		failed, err := s.repo.CreateChatMessage(ctx, &domain.ChatMessage{
 			ConversationID: conversationID,
 			Role:           domain.ChatRoleAssistant,
@@ -262,12 +242,12 @@ func (s *WorkspaceChatService) generateAnswer(
 		Sources:        sources,
 		ModelSelection: model,
 		Status:         domain.ChatMessageStatusComplete,
-		// 出典が1件も付かなかった回答は workspace の中身に基づいていない。
-		// 本文からは後追いで判定できないので行に残し、UI で明示する。
+		// If no sources matched, the answer was not grounded in workspace materials.
 		Grounded: len(sources) > 0,
 	}, snapshotJSON(candidates, model))
 }
 
+// ensureConversation returns an existing conversation or creates a new one using the initial message text as title.
 func (s *WorkspaceChatService) ensureConversation(ctx context.Context, workspaceID, conversationID, firstText, userID string) (*domain.ChatConversation, error) {
 	if conversationID != "" {
 		return s.resolveConversation(ctx, workspaceID, conversationID)
@@ -275,9 +255,7 @@ func (s *WorkspaceChatService) ensureConversation(ctx context.Context, workspace
 	return s.repo.CreateChatConversation(ctx, workspaceID, userID, conversationTitle(firstText))
 }
 
-// validateCitations は model が返した chunk id を候補集合に突き合わせる。
-// 候補に無い id は捨てる。重複も 1 件に畳む。これが「model が prompt に無い
-// 出典をでっち上げる」経路を塞ぐ唯一の場所 (設計 §5)。
+// validateCitations filters claimed citation source IDs against candidates retrieved in the context window.
 func validateCitations(claimed []string, candidates []domain.ChatSourceCandidate) []domain.ChatSource {
 	bySourceID := make(map[string]domain.ChatSourceCandidate, len(candidates))
 	for _, c := range candidates {
@@ -302,7 +280,7 @@ func validateCitations(claimed []string, candidates []domain.ChatSourceCandidate
 	return sources
 }
 
-// boundContext は候補列を累計文字数で切る。prompt コストを無制限にしないため。
+// boundContext trims the candidate slice to prevent prompt tokens from exceeding character limits.
 func boundContext(candidates []domain.ChatSourceCandidate, maxChars int) []domain.ChatSourceCandidate {
 	total := 0
 	for i, c := range candidates {
@@ -314,8 +292,7 @@ func boundContext(candidates []domain.ChatSourceCandidate, maxChars int) []domai
 	return candidates
 }
 
-// conversationTitle は最初の質問から会話タイトルを作る。v1 では LLM による
-// 自動命名はしない (設計 §1)。
+// conversationTitle produces a default truncated conversation title from the first query string.
 func conversationTitle(text string) string {
 	trimmed := strings.TrimSpace(text)
 	runes := []rune(trimmed)
@@ -325,9 +302,7 @@ func conversationTitle(text string) string {
 	return trimmed
 }
 
-// snapshotJSON は retrieval の再現用記録を作る。
-// source id / strategy / 実効モデルのみを入れる。資格情報、endpoint、
-// 生の prompt、chunk 本文は入れない (設計 §3, §7)。
+// snapshotJSON encodes source candidate identifiers and retrieval metadata into a reproducible JSON snapshot.
 func snapshotJSON(candidates []domain.ChatSourceCandidate, model string) []byte {
 	sourceIDs := make([]string, 0, len(candidates))
 	for _, c := range candidates {

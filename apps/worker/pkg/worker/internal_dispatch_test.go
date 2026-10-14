@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
@@ -202,6 +203,9 @@ func TestInternalDispatch_TransientErrorIs5xx(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for transient error, got %d", rec.Code)
 	}
+	if strings.Contains(rec.Body.String(), "postgres connection refused") {
+		t.Fatalf("internal error leaked to response: %s", rec.Body.String())
+	}
 }
 
 func TestInternalDispatch_PlannerErrorIs5xx(t *testing.T) {
@@ -214,5 +218,8 @@ func TestInternalDispatch_PlannerErrorIs5xx(t *testing.T) {
 	})
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected 500 for planner failure, got %d", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "llm timeout") {
+		t.Fatalf("internal error leaked to response: %s", rec.Body.String())
 	}
 }

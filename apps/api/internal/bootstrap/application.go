@@ -1,3 +1,5 @@
+// Package bootstrap wires configuration, infrastructure components, application services,
+// and HTTP/Connect-RPC handlers into a runnable API server application.
 package bootstrap
 
 import (
@@ -34,6 +36,7 @@ type Application struct {
 	close   func() error
 }
 
+// Close releases resources and stops background workers associated with the Application.
 func (a *Application) Close() error {
 	if a == nil || a.close == nil {
 		return nil
@@ -41,6 +44,7 @@ func (a *Application) Close() error {
 	return a.close()
 }
 
+// NewApplication constructs and wires a new API Application instance with all services and middleware.
 func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nrApp *newrelic.Application) (*Application, error) {
 	appCtx := Bootstrap(ctx, cfg.GCSBucket, cfg.GCSUploadURLBase, cfg.FirebaseProjectID, logger, nrApp)
 	store := appCtx.Store
@@ -162,7 +166,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	mux.Handle(appv1connect.NewWorkspaceChatServiceHandler(handler.NewWorkspaceChatHandler(workspaceChatSvc), connectOptions...))
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, logger))
 	if devSeedEnabled(cfg.Env) {
-		mux.Handle("POST /dev/seed-workspace", handler.NewDevSeedHTTPHandler(devSeedSvc, true))
+		mux.Handle("POST /dev/seed-workspace", handler.NewDevSeedHTTPHandler(devSeedSvc, true, logger))
 	}
 	mux.HandleFunc("GET /health", healthHandler(store, cfg.ReadinessKey, cfg.ReadinessMonitorKey))
 
@@ -176,6 +180,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	return &Application{Handler: h, Address: ":" + cfg.Port, close: closeDispatcher}, nil
 }
 
+// newWorkerDispatcher creates a WorkerDispatcher backed by Cloud Tasks or direct HTTP based on configuration.
 func newWorkerDispatcher(ctx context.Context, cfg config.API, logger *slog.Logger, nrApp *newrelic.Application) (application.WorkerDispatcher, func() error, error) {
 	if cfg.WorkerDispatch.CloudTasksQueue == "" {
 		return apiworker.NewHTTPDispatcher(cfg.WorkerBaseURL, logger, observability.ConnectClientOptions(nrApp)...), func() error { return nil }, nil
@@ -194,6 +199,7 @@ func newWorkerDispatcher(ctx context.Context, cfg config.API, logger *slog.Logge
 	return dispatcher, dispatcher.Close, nil
 }
 
+// startAutoResume launches a background goroutine after initial startup delay to resume pending failed jobs.
 func startAutoResume(documentSvc *application.DocumentService, logger *slog.Logger) {
 	go func() {
 		time.Sleep(15 * time.Second)
@@ -239,10 +245,12 @@ func startStuckJobMonitor(documentSvc *application.DocumentService, logger *slog
 	}()
 }
 
+// readinessChecker defines an interface for components capable of verifying system readiness.
 type readinessChecker interface {
 	CheckReadiness(context.Context) error
 }
 
+// healthHandler provides liveness and optional protected readiness probes.
 func healthHandler(store any, readinessKey, readinessMonitorKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("ready") != "1" {
@@ -270,12 +278,14 @@ func healthHandler(store any, readinessKey, readinessMonitorKey string) http.Han
 	}
 }
 
+// constantTimeEqual securely tests equality between two strings using SHA-256 hashes.
 func constantTimeEqual(left, right string) bool {
 	leftSum := sha256.Sum256([]byte(left))
 	rightSum := sha256.Sum256([]byte(right))
 	return subtle.ConstantTimeCompare(leftSum[:], rightSum[:]) == 1
 }
 
+// devSeedEnabled returns whether the development database seed endpoints should be activated.
 func devSeedEnabled(env string) bool {
 	switch strings.ToLower(strings.TrimSpace(env)) {
 	case "local", "dev", "development", "test":
@@ -285,6 +295,7 @@ func devSeedEnabled(env string) bool {
 	}
 }
 
+// requiresBilling returns true if the specified deployment environment enforces billing and usage quotas.
 func requiresBilling(env string) bool {
 	return env == "production" || env == "staging"
 }

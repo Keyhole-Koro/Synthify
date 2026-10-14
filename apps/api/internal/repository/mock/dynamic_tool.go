@@ -131,6 +131,7 @@ func (s *Store) IncrementUseCount(ctx context.Context, toolID string) error {
 	return nil
 }
 
+// findDynamicToolLocked searches the in-memory store for a dynamic tool by ID while lock is held.
 func (s *Store) findDynamicToolLocked(toolID string) *domain.DynamicTool {
 	for _, tool := range s.dynamicTools {
 		if tool.ToolID == toolID {

@@ -14,6 +14,7 @@ import (
 // Workspace chat の in-memory 実装。postgres.Store と同じ可視性ルールを守る:
 // 会話は workspace 単位で見え、created_by による私的な絞り込みはしない。
 
+// CreateChatConversation creates and persists a new in-memory conversation thread.
 func (s *Store) CreateChatConversation(ctx context.Context, workspaceID, createdBy, title string) (*domain.ChatConversation, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -31,6 +32,7 @@ func (s *Store) CreateChatConversation(ctx context.Context, workspaceID, created
 	return copyChatConversation(conv), nil
 }
 
+// GetChatConversation retrieves a conversation thread by its unique ID.
 func (s *Store) GetChatConversation(ctx context.Context, conversationID string) (*domain.ChatConversation, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -41,6 +43,7 @@ func (s *Store) GetChatConversation(ctx context.Context, conversationID string) 
 	return copyChatConversation(conv), nil
 }
 
+// ListChatConversations returns conversations in a workspace ordered by updated_at descending.
 func (s *Store) ListChatConversations(ctx context.Context, workspaceID string, limit int) ([]*domain.ChatConversation, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -62,6 +65,7 @@ func (s *Store) ListChatConversations(ctx context.Context, workspaceID string, l
 	return out, nil
 }
 
+// TouchChatConversation updates the updated_at timestamp of the specified conversation.
 func (s *Store) TouchChatConversation(ctx context.Context, conversationID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -73,11 +77,12 @@ func (s *Store) TouchChatConversation(ctx context.Context, conversationID string
 	return nil
 }
 
+// CreateChatMessage records a new chat message in the conversation thread.
 func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, retrievalSnapshot []byte) (*domain.ChatMessage, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.chatConversations[msg.ConversationID]; !ok {
-		// 実 DB では FK 違反になるケース。
+		// Mimic DB foreign key violation
 		return nil, domain.ErrNotFound
 	}
 	s.chatSeq++
@@ -93,6 +98,7 @@ func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, 
 	return copyChatMessage(stored), nil
 }
 
+// ListChatMessages returns all messages in a conversation up to limit.
 func (s *Store) ListChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -107,11 +113,12 @@ func (s *Store) ListChatMessages(ctx context.Context, conversationID string, lim
 	return out, nil
 }
 
+// ListRecentChatMessages returns the most recent completed messages for prompt history.
 func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	msgs := s.chatMessages[conversationID]
-	// complete のみ (失敗した turn を履歴として再生しない)。
+	// complete messages only (do not replay failed turns in prompt history)
 	complete := make([]*domain.ChatMessage, 0, len(msgs))
 	for _, msg := range msgs {
 		if msg.Status == domain.ChatMessageStatusComplete {
@@ -124,7 +131,7 @@ func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID strin
 	out := make([]*domain.ChatMessage, 0, len(complete))
 	for _, msg := range complete {
 		copied := copyChatMessage(msg)
-		copied.Sources = nil // 履歴には citation を載せない (postgres 実装と同じ)
+		copied.Sources = nil // do not include citations in conversation history context
 		out = append(out, copied)
 	}
 	return out, nil
@@ -237,20 +244,22 @@ func (s *Store) SearchChatSourceItems(ctx context.Context, workspaceID string, t
 	return out, nil
 }
 
+// CountChatSourceItems returns the total number of knowledge tree items in the workspace.
 func (s *Store) CountChatSourceItems(ctx context.Context, workspaceID string) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.items[workspaceID]), nil
 }
 
+// CountChatSourceDocuments returns the count of successfully processed documents available for citation.
 func (s *Store) CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.succeededDocumentIDsLocked(workspaceID)), nil
 }
 
-// succeededDocumentIDsLocked は処理が succeeded した document の id を返す。
-// 呼び出し側が s.mu を保持していること。
+// succeededDocumentIDsLocked returns IDs of documents that completed processing with state SUCCEEDED.
+// Caller must hold s.mu.
 func (s *Store) succeededDocumentIDsLocked(workspaceID string) []string {
 	succeeded := make(map[string]bool)
 	for _, job := range s.jobs {
@@ -267,19 +276,20 @@ func (s *Store) succeededDocumentIDsLocked(workspaceID string) []string {
 	return out
 }
 
-// chatNow は単調増加するタイムスタンプを返す。同一テスト内で連続して作られた
-// 会話 / メッセージが同じ秒に落ちて順序が壊れるのを避ける。
-// 呼び出し側が s.mu を保持していること。
+// chatNow returns a monotonically advancing timestamp for conversation and message ordering in tests.
+// Caller must hold s.mu.
 func (s *Store) chatNow() string {
 	s.chatClock++
 	return time.Unix(0, 0).UTC().Add(time.Duration(s.chatClock) * time.Second).Format(time.RFC3339)
 }
 
+// copyChatConversation performs a shallow copy of the ChatConversation struct.
 func copyChatConversation(conv *domain.ChatConversation) *domain.ChatConversation {
 	copied := *conv
 	return &copied
 }
 
+// copyChatMessage deep-copies a ChatMessage including its citation sources slice.
 func copyChatMessage(msg *domain.ChatMessage) *domain.ChatMessage {
 	copied := *msg
 	if msg.Sources != nil {

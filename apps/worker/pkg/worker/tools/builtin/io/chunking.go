@@ -12,17 +12,47 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// ChunkingArgs defines input text and identifiers for semantic document chunking.
+//
+// @property DocumentID - Source document identifier.
+// @property FileID - Source file identifier.
+// @property RawText - Extracted text to split into semantic sections.
 type ChunkingArgs struct {
+	// DocumentID identifies the source document whose text is being chunked.
 	DocumentID string `json:"document_id"`
-	FileID     string `json:"file_id"`
-	RawText    string `json:"raw_text"`
+	// FileID identifies the source file associated with the extracted text.
+	FileID string `json:"file_id"`
+	// RawText contains the extracted document text to split into semantic sections.
+	RawText string `json:"raw_text"`
 }
 
+// ChunkingResult returns parsed text chunks and an outline of extracted headings.
+//
+// @property Chunks - Lightweight chunk records for the caller.
+// @property Outline - Normalized headings in source order.
 type ChunkingResult struct {
-	Chunks  []domain.Chunk `json:"chunks"`
-	Outline []string       `json:"outline"`
+	// Chunks contains lightweight chunk records returned to the tool caller.
+	Chunks []domain.Chunk `json:"chunks"`
+	// Outline contains the normalized heading for each chunk in source order.
+	Outline []string `json:"outline"`
 }
 
+// NewChunkingTool builds the semantic_chunking tool for splitting raw text into structured chunks.
+//
+// The tool parses ChunkingArgs, delegates to ChunkAndSave, and serializes the
+// lightweight chunk and outline views into ChunkingResult. When a repository is
+// configured, ChunkAndSave also creates embeddings and persists document
+// chunks through the supplied context.
+//
+// Parameters:
+//   - b: worker dependencies used for optional embedding and persistence.
+//
+// Returns:
+//   - a configured semantic_chunking tool;
+//   - an error when the input/output schema cannot be generated.
+//
+// @param b - Worker dependencies used for optional embedding and persistence.
+// @return Configured semantic_chunking tool and optional schema-generation error.
 func NewChunkingTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[ChunkingArgs, ChunkingResult]()
 	if err != nil {
@@ -56,6 +86,26 @@ func NewChunkingTool(b *base.Context) (core.Tool, error) {
 //
 // Empty rawText yields no chunks (not an error): a media/image document may have
 // no extractable text. When b.Repo is set, b.Embedder must be configured.
+//
+// Parameters:
+//   - ctx: request context used for embedding and repository operations.
+//   - b: worker dependencies; nil or a nil repository disables persistence.
+//   - documentID: source document identifier used for persisted chunk IDs.
+//   - fileID: source file identifier stored with each persisted chunk.
+//   - rawText: extracted text to split and optionally embed.
+//
+// Returns:
+//   - chunks: lightweight chunk records for the tool response;
+//   - outline: normalized section headings in source order;
+//   - persisted: repository records when persistence is enabled, otherwise nil;
+//   - error: validation, embedding, or persistence failure.
+//
+// @param ctx - Request context used for embedding and repository operations.
+// @param b - Worker dependencies; nil or a nil repository disables persistence.
+// @param documentID - Source document identifier used for persisted chunk IDs.
+// @param fileID - Source file identifier stored with each persisted chunk.
+// @param rawText - Extracted text to split and optionally embed.
+// @return Lightweight chunks, outline, persisted records, and an optional error.
 func ChunkAndSave(ctx context.Context, b *base.Context, documentID, fileID, rawText string) ([]domain.Chunk, []string, []*domain.DocumentChunk, error) {
 	text := strings.TrimSpace(rawText)
 	if text == "" {

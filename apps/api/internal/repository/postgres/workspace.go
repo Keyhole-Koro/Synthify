@@ -24,6 +24,7 @@ var defaultFreePlan = struct {
 	MaxUploadsPerWeek: 100,
 }
 
+// proPlan defines the resource quotas and upload rate limits for pro/usage-based accounts.
 var proPlan = struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64
@@ -36,6 +37,8 @@ var proPlan = struct {
 	MaxUploadsPerWeek: 1000,
 }
 
+// GetOrCreateAccount retrieves the account associated with the given user ID,
+// or creates a new free-tier account if one does not exist yet.
 func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	// Return the existing account if present.
 	existing, err := s.GetAccountByUser(ctx, userID)
@@ -47,6 +50,8 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 	return s.CreateAccount(ctx, userID)
 }
 
+// GetAccountByUser retrieves the account associated with the specified user ID.
+// Returns domain.ErrNotFound if no account is found.
 func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
 	row, err := s.q().GetAccountByUser(ctx, userID)
 	if err != nil {
@@ -58,6 +63,8 @@ func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Ac
 	return s.GetAccount(ctx, row.AccountID)
 }
 
+// CreateAccount provisions a new account for the specified user with default free-tier quotas
+// and assigns the user as the account owner.
 func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	accountID := newID()
 	createdAt := nowTime()
@@ -85,6 +92,8 @@ func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Accou
 	return s.GetAccount(ctx, row.AccountID)
 }
 
+// GetAccount retrieves the account with the specified account ID.
+// Returns domain.ErrNotFound if the account does not exist.
 func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Account, error) {
 	account, err := s.scanAccount(ctx, `
 SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
@@ -103,6 +112,7 @@ WHERE account_id = $1
 	return account, nil
 }
 
+// IsAccountAccessible checks if the given user is a member of the specified account.
 func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
 	accessible, err := s.q().IsAccountAccessible(ctx, sqlcgen.IsAccountAccessibleParams{
 		AccountID: accountID,
@@ -114,6 +124,7 @@ func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID strin
 	return accessible, nil
 }
 
+// SetAccountStripeCustomerID associates a Stripe customer ID with the specified account.
 func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error {
 	res, err := s.db.ExecContext(ctx, `
 UPDATE accounts
@@ -133,6 +144,8 @@ WHERE account_id = $1
 	return nil
 }
 
+// ListStripeLinkedAccounts returns a list of accounts that have a non-empty Stripe customer ID,
+// ordered by update time ascending, up to the given limit.
 func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error) {
 	if limit <= 0 {
 		limit = 100
@@ -165,6 +178,7 @@ LIMIT $1
 	return accounts, nil
 }
 
+// ApplyBillingPlan updates an account's billing plan, resource limits, and Stripe details by account ID.
 func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
 	limits, err := billingLimits(plan)
 	if err != nil {
@@ -197,6 +211,7 @@ WHERE account_id = $1
 	return nil
 }
 
+// ApplyBillingPlanByStripeCustomerID updates an account's plan and quotas using its Stripe customer ID.
 func (s *Store) ApplyBillingPlanByStripeCustomerID(ctx context.Context, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
 	if stripeCustomerID == "" {
 		return domain.ErrNotFound
@@ -231,6 +246,8 @@ WHERE stripe_customer_id = $1
 	return nil
 }
 
+// RecordBillingWebhookEvent logs an incoming billing webhook event in billing_events for idempotency.
+// Returns true if this is a newly inserted event, or false if it was already recorded.
 func (s *Store) RecordBillingWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error) {
 	if event == nil || event.EventID == "" {
 		return true, nil
@@ -257,6 +274,7 @@ ON CONFLICT (provider, event_id) DO NOTHING
 	return rows > 0, nil
 }
 
+// MarkBillingWebhookEventProcessed updates the status and optional error message of a billing webhook event.
 func (s *Store) MarkBillingWebhookEventProcessed(ctx context.Context, provider, eventID, status, errorMessage string) error {
 	if eventID == "" {
 		return nil
@@ -274,6 +292,7 @@ WHERE provider = $1 AND event_id = $2
 	return err
 }
 
+// ApplyBillingEvent updates account billing status, subscription, pricing, and limits from a webhook event.
 func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error {
 	if event == nil {
 		return nil
@@ -339,6 +358,7 @@ WHERE `
 	return nil
 }
 
+// ListWorkspacesByUser returns all non-deleted workspaces accessible to the specified user.
 func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT w.workspace_id, w.account_id, w.name, w.created_at,
@@ -368,6 +388,8 @@ ORDER BY w.created_at DESC
 	return workspaces, nil
 }
 
+// GetWorkspace retrieves a workspace by its ID, including account quotas.
+// Returns domain.ErrNotFound if the workspace does not exist or has been soft-deleted.
 func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT w.workspace_id, w.account_id, w.name, w.created_at,
@@ -387,6 +409,8 @@ WHERE w.workspace_id = $1 AND w.deleted_at IS NULL
 	return ws, nil
 }
 
+// IsWorkspaceAccessible checks if the user has access to the specified workspace,
+// either via direct workspace membership or account ownership.
 func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (bool, error) {
 	accessible, err := s.q().IsWorkspaceAccessible(ctx, sqlcgen.IsWorkspaceAccessibleParams{
 		WorkspaceID: wsID,
@@ -398,6 +422,7 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 	return accessible, nil
 }
 
+// GetWorkspaceRole retrieves the user's role within the specified workspace.
 func (s *Store) GetWorkspaceRole(ctx context.Context, wsID, userID string) (domain.WorkspaceRole, error) {
 	role, err := s.q().GetWorkspaceRole(ctx, sqlcgen.GetWorkspaceRoleParams{
 		WorkspaceID: wsID,
@@ -409,6 +434,7 @@ func (s *Store) GetWorkspaceRole(ctx context.Context, wsID, userID string) (doma
 	return domain.WorkspaceRole(role), nil
 }
 
+// UpsertWorkspaceMember adds a user to a workspace or updates their role if already a member.
 func (s *Store) UpsertWorkspaceMember(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, invitedBy string) error {
 	if err := s.q().UpsertWorkspaceMember(ctx, sqlcgen.UpsertWorkspaceMemberParams{
 		WorkspaceID: wsID,
@@ -422,6 +448,7 @@ func (s *Store) UpsertWorkspaceMember(ctx context.Context, wsID, userID string, 
 	return nil
 }
 
+// ListWorkspaceMembers returns all members and their roles for the specified workspace.
 func (s *Store) ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error) {
 	rows, err := s.q().ListWorkspaceMembers(ctx, wsID)
 	if err != nil {
@@ -441,6 +468,8 @@ func (s *Store) ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domai
 	return members, nil
 }
 
+// RemoveWorkspaceMember removes a member from the specified workspace.
+// Returns domain.ErrNotFound if the member was not part of the workspace.
 func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error {
 	affected, err := s.q().RemoveWorkspaceMember(ctx, sqlcgen.RemoveWorkspaceMemberParams{
 		WorkspaceID: wsID,
@@ -455,6 +484,7 @@ func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) 
 	return nil
 }
 
+// CreateShareLink generates an invitation share link for a workspace with an expiration time.
 func (s *Store) CreateShareLink(ctx context.Context, link *domain.ShareLink) error {
 	expiresAt, err := parseBillingTime(link.ExpiresAt)
 	if err != nil {
@@ -473,6 +503,7 @@ func (s *Store) CreateShareLink(ctx context.Context, link *domain.ShareLink) err
 	return nil
 }
 
+// ListShareLinks returns all active and revoked share links for the workspace.
 func (s *Store) ListShareLinks(ctx context.Context, wsID string) ([]*domain.ShareLink, error) {
 	rows, err := s.q().ListShareLinks(ctx, wsID)
 	if err != nil {
@@ -485,6 +516,8 @@ func (s *Store) ListShareLinks(ctx context.Context, wsID string) ([]*domain.Shar
 	return links, nil
 }
 
+// RevokeShareLink marks a share link token as revoked.
+// Returns domain.ErrNotFound if no such token exists.
 func (s *Store) RevokeShareLink(ctx context.Context, wsID, token string, now time.Time) error {
 	affected, err := s.q().RevokeShareLink(ctx, sqlcgen.RevokeShareLinkParams{
 		WorkspaceID: wsID,
@@ -500,6 +533,8 @@ func (s *Store) RevokeShareLink(ctx context.Context, wsID, token string, now tim
 	return nil
 }
 
+// ResolveShareLink retrieves an unexpired, non-revoked share link by its token.
+// Returns domain.ErrNotFound if the token does not exist or has expired.
 func (s *Store) ResolveShareLink(ctx context.Context, token string, now time.Time) (*domain.ShareLink, error) {
 	row, err := s.q().ResolveShareLink(ctx, sqlcgen.ResolveShareLinkParams{
 		Token:     token,
@@ -514,6 +549,7 @@ func (s *Store) ResolveShareLink(ctx context.Context, token string, now time.Tim
 	return toDomainShareLink(row), nil
 }
 
+// toDomainShareLink converts a sqlcgen.WorkspaceShareLink row into a domain.ShareLink.
 func toDomainShareLink(row sqlcgen.WorkspaceShareLink) *domain.ShareLink {
 	return &domain.ShareLink{
 		Token:       row.Token,
@@ -526,9 +562,9 @@ func toDomainShareLink(row sqlcgen.WorkspaceShareLink) *domain.ShareLink {
 	}
 }
 
-// CreateWorkspace は workspaces 行と tree root item を 1 ペアで作成する。
-// 内部で tx を張らないため、atomic 性が必要なら呼び出し側を
-// Transactor.WithTx で包むこと。
+// CreateWorkspace inserts a workspace row.
+// It does not wrap the operation in a transaction; if atomicity is required,
+// wrap the caller in Transactor.WithTx.
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
 	createdAt := nowTime()
 	wsID := newID()
@@ -546,7 +582,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	// when a document is processed.
 	ws, err := s.GetWorkspace(ctx, wsID)
 	if err != nil {
-		// 作成直後の読み戻しが失敗した場合は、書き込んだ値を組み立てて返す。
+		// Return constructed domain object if reread fails immediately after write.
 		return &domain.Workspace{
 			WorkspaceID: wsID,
 			AccountID:   accountID,
@@ -557,6 +593,8 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	return ws, nil
 }
 
+// UpdateWorkspaceName updates the display name of a workspace.
+// Returns domain.ErrNotFound if the workspace does not exist.
 func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error) {
 	affected, err := s.q().UpdateWorkspaceName(ctx, sqlcgen.UpdateWorkspaceNameParams{
 		WorkspaceID: workspaceID,
@@ -572,6 +610,8 @@ func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name strin
 	return s.GetWorkspace(ctx, workspaceID)
 }
 
+// DeleteWorkspace marks a workspace as deleted via soft deletion.
+// Returns domain.ErrNotFound if the workspace does not exist.
 func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	affected, err := s.q().SoftDeleteWorkspace(ctx, sqlcgen.SoftDeleteWorkspaceParams{
 		WorkspaceID: workspaceID,
@@ -586,6 +626,7 @@ func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	return nil
 }
 
+// toAccount converts a sqlcgen.Account query row into a domain.Account entity.
 func toAccount(row sqlcgen.Account) *domain.Account {
 	return &domain.Account{
 		AccountID:            row.AccountID,
@@ -602,6 +643,7 @@ func toAccount(row sqlcgen.Account) *domain.Account {
 	}
 }
 
+// toWorkspace converts a sqlcgen.Workspace query row into a domain.Workspace entity.
 func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
 	return &domain.Workspace{
 		WorkspaceID: row.WorkspaceID,
@@ -611,14 +653,17 @@ func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
 	}
 }
 
+// scanner defines an abstraction over sql.Row and sql.Rows for scanning values.
 type scanner interface {
 	Scan(dest ...any) error
 }
 
+// scanAccount executes an account query and scans the result into a domain.Account.
 func (s *Store) scanAccount(ctx context.Context, query string, args ...any) (*domain.Account, error) {
 	return scanAccountRow(s.db.QueryRowContext(ctx, query, args...))
 }
 
+// scanAccountRow scans a single database row into a domain.Account struct.
 func scanAccountRow(row scanner) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32
@@ -657,6 +702,7 @@ func scanAccountRow(row scanner) (*domain.Account, error) {
 	return &account, nil
 }
 
+// scanWorkspace scans a single database row into a domain.Workspace struct.
 func scanWorkspace(row scanner) (*domain.Workspace, error) {
 	var ws domain.Workspace
 	var createdAt time.Time
@@ -682,6 +728,7 @@ func scanWorkspace(row scanner) (*domain.Workspace, error) {
 	return &ws, nil
 }
 
+// parseBillingTime converts an RFC3339 timestamp string into a nullable sql.NullTime.
 func parseBillingTime(value string) (sql.NullTime, error) {
 	if value == "" {
 		return sql.NullTime{}, nil
@@ -693,6 +740,7 @@ func parseBillingTime(value string) (sql.NullTime, error) {
 	return sql.NullTime{Time: parsed.UTC(), Valid: true}, nil
 }
 
+// formatNullTime formats a nullable sql.NullTime into an RFC3339 string, or returns empty string if null.
 func formatNullTime(value sql.NullTime) string {
 	if !value.Valid {
 		return ""
@@ -700,6 +748,7 @@ func formatNullTime(value sql.NullTime) string {
 	return value.Time.UTC().Format(time.RFC3339)
 }
 
+// billingLimits returns the default quota and rate limit configurations for the given billing plan.
 func billingLimits(plan domain.BillingPlan) (struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64

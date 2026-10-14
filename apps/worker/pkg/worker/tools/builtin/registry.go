@@ -107,7 +107,7 @@ func Build(b *base.Context) (Set, error) {
 // Factory builds one tool from the shared base context. Extra dependencies are
 // captured by the closure registered, not passed through this signature.
 //
-// The registry yields core.Tool values (道A); the orchestrator wraps
+// The registry yields unified core.Tool values; the orchestrator wraps
 // them with adkadapter.Wrap before handing them to llmagent.New. This keeps
 // the registry tool.Tool-free and the ADK type leak confined to the adapter.
 type Factory func(*base.Context) (core.Tool, error)
@@ -119,6 +119,9 @@ type Registry struct {
 	factories map[string]Factory
 }
 
+// NewRegistry creates an empty tool registry. Registrations belong to the
+// returned instance, so separate orchestrators do not share factories or
+// accidentally capture one another's runtime dependencies.
 func NewRegistry() *Registry {
 	return &Registry{factories: make(map[string]Factory)}
 }

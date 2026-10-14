@@ -12,8 +12,10 @@ import (
 type ToolScope string
 
 const (
+	// ToolScopeWorkspace confines the dynamic tool to its originating workspace.
 	ToolScopeWorkspace ToolScope = "workspace"
-	ToolScopeGlobal    ToolScope = "global"
+	// ToolScopeGlobal allows the dynamic tool to be resolved across all workspaces in the tenant.
+	ToolScopeGlobal ToolScope = "global"
 )
 
 // ToolStatus is the lifecycle state of a dynamic tool. The registry only

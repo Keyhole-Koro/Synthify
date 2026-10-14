@@ -8,18 +8,21 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
+// ItemService manages knowledge tree item lifecycle, evidence retrieval, and alias approvals.
 type ItemService struct {
 	repo       repository.ItemRepository
 	workspaces repository.WorkspaceRepository
 	logger     *slog.Logger
 }
 
+// ItemServiceDeps holds dependencies required to construct an ItemService.
 type ItemServiceDeps struct {
 	Repo       repository.ItemRepository
 	Workspaces repository.WorkspaceRepository
 	Logger     *slog.Logger
 }
 
+// NewItemService creates a new ItemService instance.
 func NewItemService(deps ItemServiceDeps) *ItemService {
 	return &ItemService{
 		repo:       deps.Repo,
@@ -28,6 +31,7 @@ func NewItemService(deps ItemServiceDeps) *ItemService {
 	}
 }
 
+// authorizeWorkspace ensures the user has read access to the workspace.
 func (s *ItemService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
 	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
 	if err != nil {
@@ -39,8 +43,7 @@ func (s *ItemService) authorizeWorkspace(ctx context.Context, workspaceID, userI
 	return nil
 }
 
-// authorizeWrite は書き込み操作の権限を確認する。viewer は read のみ許可され、
-// editor / owner だけが書き込める。非メンバーも Forbidden。
+// authorizeWrite verifies that the user holds editor or owner role in the workspace.
 func (s *ItemService) authorizeWrite(ctx context.Context, workspaceID, userID string) error {
 	role, err := s.workspaces.GetWorkspaceRole(ctx, workspaceID, userID)
 	if err != nil {
@@ -52,7 +55,7 @@ func (s *ItemService) authorizeWrite(ctx context.Context, workspaceID, userID st
 	return nil
 }
 
-// GetItem は item を取得する。workspace authz と item の workspace 帰属チェックを行う。
+// GetItem retrieves a single knowledge tree item, verifying workspace accessibility and item ownership.
 func (s *ItemService) GetItem(ctx context.Context, itemID, workspaceID, userID string) (*domain.Item, error) {
 	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
 		return nil, err
@@ -67,6 +70,7 @@ func (s *ItemService) GetItem(ctx context.Context, itemID, workspaceID, userID s
 	return item, nil
 }
 
+// GetItemEvidence retrieves source chunks and citation references backing a specific knowledge item.
 func (s *ItemService) GetItemEvidence(ctx context.Context, itemID, workspaceID, userID string) (*domain.ItemEvidence, error) {
 	item, err := s.GetItem(ctx, itemID, workspaceID, userID)
 	if err != nil {
@@ -86,6 +90,7 @@ func (s *ItemService) GetItemEvidence(ctx context.Context, itemID, workspaceID, 
 	}, nil
 }
 
+// CreateItem creates a new node in the knowledge tree under the given parent item.
 func (s *ItemService) CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error) {
 	if err := s.authorizeWrite(ctx, workspaceID, userID); err != nil {
 		return nil, err
@@ -93,6 +98,7 @@ func (s *ItemService) CreateItem(ctx context.Context, workspaceID, label, descri
 	return s.repo.CreateItem(ctx, workspaceID, label, description, parentID, userID)
 }
 
+// ApproveAlias approves an alias relationship between canonical and alias items.
 func (s *ItemService) ApproveAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error {
 	if err := s.authorizeWrite(ctx, workspaceID, userID); err != nil {
 		return err
@@ -100,6 +106,7 @@ func (s *ItemService) ApproveAlias(ctx context.Context, workspaceID, canonicalIt
 	return s.repo.ApproveAlias(ctx, workspaceID, canonicalItemID, aliasItemID)
 }
 
+// RejectAlias rejects a proposed alias relationship between canonical and alias items.
 func (s *ItemService) RejectAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error {
 	if err := s.authorizeWrite(ctx, workspaceID, userID); err != nil {
 		return err

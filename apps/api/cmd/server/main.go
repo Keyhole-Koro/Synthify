@@ -1,3 +1,4 @@
+// Package main serves as the entry point for the Synthify API HTTP server.
 package main
 
 import (
@@ -12,6 +13,8 @@ import (
 	"github.com/synthify/backend/internal/platform/observability"
 )
 
+// main initializes runtime configuration, observability, application services,
+// and starts the HTTP server listening on the configured address.
 func main() {
 	ctx := context.Background()
 	cfg := config.LoadAPI()

@@ -34,10 +34,13 @@ import (
 )
 
 var (
+	// ErrApprovalRequired indicates that an operation was halted pending human approval.
 	ErrApprovalRequired = domain.ErrApprovalRequired
-	ErrPlanRejected     = domain.ErrPlanRejected
+	// ErrPlanRejected indicates that the execution plan for the job was rejected.
+	ErrPlanRejected = domain.ErrPlanRejected
 )
 
+// Repository encapsulates data access capabilities required by the worker processing engine.
 type Repository interface {
 	repository.AccountRepository
 	repository.WorkspaceRepository
@@ -48,6 +51,7 @@ type Repository interface {
 	repository.DynamicToolRepository
 }
 
+// Worker executes multi-step document processing, extraction, taxonomy generation, and evaluation workflows.
 type Worker struct {
 	orchestrator *agents.Orchestrator
 	repo         Repository
@@ -60,6 +64,7 @@ type Worker struct {
 	agentBudget time.Duration
 }
 
+// ExecutePlanRequest is an alias for the domain ExecutePlanRequest.
 type ExecutePlanRequest = domain.ExecutePlanRequest
 
 // dynamicSource adapts the Repository's DynamicToolRepository surface to the
@@ -68,10 +73,12 @@ type dynamicSource struct {
 	repo repository.DynamicToolRepository
 }
 
+// ResolveActive fetches active dynamic tools for the specified workspace.
 func (d dynamicSource) ResolveActive(ctx context.Context, workspaceID string) ([]*domain.DynamicTool, error) {
 	return d.repo.ResolveActiveTools(ctx, workspaceID)
 }
 
+// NewWorkerWithNotifier constructs and wires a Worker with agent orchestrators, limiters, and status notification publisher.
 func NewWorkerWithNotifier(repo Repository, treeRepo Repository, notifier jobstatus.Notifier, m model.LLM, embedder base.Embedder, llmClient base.LLMClient, reporter llm.UsageReporter, fs *storage.FileSystem, logger *slog.Logger, nrApp *newrelic.Application, agentBudget time.Duration) (*Worker, error) {
 	usage := base.NewUsageLimiter(treeRepo, logger)
 	b := &base.Context{
@@ -134,6 +141,7 @@ func shouldSkipJobStatus(status appv1.JobLifecycleState) (bool, string) {
 	return false, ""
 }
 
+// Process orchestrates the end-to-end processing pipeline for a document plan execution request.
 func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 	if err := req.Validate(); err != nil {
 		return fmt.Errorf("invalid request: %w", err)
@@ -289,11 +297,8 @@ func (w *Worker) isBudgetAbort(parent, agentCtx context.Context) bool {
 // give those writes a fresh, short-lived ctx derived via WithoutCancel.
 const failJobTimeout = 30 * time.Second
 
-// billingAccountFor は usage を計上する account_id を決める。
-// 課金は job を要求した本人 (requestedBy) の account 負担が原則。本人 account を
-// 引けないとき (requestedBy が空 / "system" / 退会済み等) は workspace 所有者の
-// account にフォールバックする。どちらも引けなければ空文字を返し、呼び出し側で
-// usage を drop させる (job 自体は失敗させない)。
+// billingAccountFor resolves the billing account ID to charge for job token consumption.
+// Cost is charged to the requesting user's account by default, falling back to the workspace owner.
 func (w *Worker) billingAccountFor(ctx context.Context, requestedBy, workspaceID string) string {
 	if requestedBy != "" && requestedBy != "system" {
 		if acct, err := w.repo.GetAccountByUser(ctx, requestedBy); err == nil && acct != nil {
@@ -310,6 +315,7 @@ func (w *Worker) billingAccountFor(ctx context.Context, requestedBy, workspaceID
 	return ""
 }
 
+// failJob classifies and records job failure in the lifecycle controller and observability loggers.
 func (w *Worker) failJob(ctx context.Context, req ExecutePlanRequest, payload jobstatus.Payload, cause error) {
 	reason := classifyFailure(cause)
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
@@ -369,16 +375,19 @@ func classifyFailure(err error) jobstatus.FirestoreJobStatusReason {
 	return jobstatus.FirestoreJobStatusReasonInternal
 }
 
+// Planner generates structured execution steps and planning signals for incoming processing jobs.
 type Planner struct {
 	repo   Repository
 	llm    model.LLM
 	logger *slog.Logger
 }
 
+// NewPlanner creates a new Planner backed by the repository and language model.
 func NewPlanner(repo Repository, llm model.LLM, logger *slog.Logger) *Planner {
 	return &Planner{repo: repo, llm: llm, logger: logger}
 }
 
+// GenerateExecutionPlan inspects document signals and constructs a phased JobExecutionPlan.
 func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequest) (*domain.JobExecutionPlan, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
@@ -421,16 +430,19 @@ func (p *Planner) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequ
 	return plan, nil
 }
 
+// JobEvaluator evaluates the quality and accuracy of taxonomy items extracted from a document.
 type JobEvaluator struct {
 	agent  *agents.Evaluator
 	repo   Repository
 	logger *slog.Logger
 }
 
+// NewJobEvaluator constructs a new JobEvaluator with the given repository and evaluator agent.
 func NewJobEvaluator(repo Repository, llmClient llm.Client, logger *slog.Logger) *JobEvaluator {
 	return &JobEvaluator{repo: repo, agent: agents.NewEvaluator(llmClient), logger: logger}
 }
 
+// Evaluate runs semantic evaluation against the updated workspace taxonomy tree.
 func (e *JobEvaluator) Evaluate(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error) {
 	job, err := e.repo.GetProcessingJob(ctx, jobID)
 	if err != nil {
@@ -486,14 +498,17 @@ func (e *JobEvaluator) Evaluate(ctx context.Context, jobID string) (*domain.JobE
 	return result, nil
 }
 
+// HTTPDispatcher dispatches job execution and planning RPCs over HTTP to remote worker instances.
 type HTTPDispatcher struct {
 	baseURL string
 }
 
+// NewHTTPDispatcher creates a new HTTPDispatcher pointing to the given worker service base URL.
 func NewHTTPDispatcher(baseURL string) *HTTPDispatcher {
 	return &HTTPDispatcher{baseURL: baseURL}
 }
 
+// GenerateExecutionPlan triggers remote generation of an execution plan via Connect-RPC.
 func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequest) error {
 	httpClient, err := d.httpClient(ctx)
 	if err != nil {
@@ -515,6 +530,7 @@ func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req ExecuteP
 	return nil
 }
 
+// ExecuteApprovedPlan dispatches execution of an approved plan to the worker instance via Connect-RPC.
 func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req ExecutePlanRequest) error {
 	httpClient, err := d.httpClient(ctx)
 	if err != nil {
@@ -538,6 +554,7 @@ func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req ExecutePla
 	return err
 }
 
+// httpClient returns an HTTP client configured with OIDC ID tokens when contacting HTTPS endpoints.
 func (d *HTTPDispatcher) httpClient(ctx context.Context) (*http.Client, error) {
 	baseURL := strings.TrimRight(d.baseURL, "/")
 	if !strings.HasPrefix(baseURL, "https://") {

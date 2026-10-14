@@ -3,24 +3,30 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/synthify/backend/apps/api/internal/application"
 )
 
+// DevSeedUsecase defines the use-case behavior for development workspace seeding.
 type DevSeedUsecase interface {
 	SeedWorkspace(ctx context.Context, userID string) (*application.DevSeedResult, error)
 }
 
+// DevSeedHTTPHandler exposes an HTTP POST endpoint for initializing development test workspaces.
 type DevSeedHTTPHandler struct {
 	service DevSeedUsecase
 	enabled bool
+	logger  *slog.Logger
 }
 
-func NewDevSeedHTTPHandler(svc DevSeedUsecase, enabled bool) *DevSeedHTTPHandler {
-	return &DevSeedHTTPHandler{service: svc, enabled: enabled}
+// NewDevSeedHTTPHandler creates a new HTTP handler instance for development seeding.
+func NewDevSeedHTTPHandler(svc DevSeedUsecase, enabled bool, logger *slog.Logger) *DevSeedHTTPHandler {
+	return &DevSeedHTTPHandler{service: svc, enabled: enabled, logger: logger}
 }
 
+// ServeHTTP handles HTTP POST requests to seed the caller's workspace with demo items and documents.
 func (h *DevSeedHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !h.enabled {
 		http.NotFound(w, r)
@@ -40,12 +46,17 @@ func (h *DevSeedHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.service.SeedWorkspace(r.Context(), userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if h.logger != nil {
+			h.logger.Error("dev_seed.failed", "error", err.Error(), "user_id", userID)
+		}
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(result); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		if h.logger != nil {
+			h.logger.Error("dev_seed.response_encode_failed", "error", err.Error(), "user_id", userID)
+		}
 	}
 }

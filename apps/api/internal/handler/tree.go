@@ -9,20 +9,27 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// TreeUsecase defines the business operations required for querying workspace taxonomy trees.
 type TreeUsecase interface {
+	// GetTree retrieves all items comprising the taxonomy tree of the workspace.
 	GetTree(ctx context.Context, workspaceID, userID string) ([]*domain.Item, error)
+	// GetSubtree retrieves a subtree rooted at the specified item up to maxDepth.
 	GetSubtree(ctx context.Context, workspaceID, itemID, userID string, maxDepth int) ([]*domain.SubtreeItem, error)
+	// FindPaths discovers relationship paths between a source item and a target item.
 	FindPaths(ctx context.Context, workspaceID, sourceItemID, targetItemID, userID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error)
 }
 
+// TreeHandler implements Connect-RPC endpoints for workspace taxonomy trees and path traversal.
 type TreeHandler struct {
 	service TreeUsecase
 }
 
+// NewTreeHandler constructs a new TreeHandler backed by the given TreeUsecase.
 func NewTreeHandler(svc TreeUsecase) *TreeHandler {
 	return &TreeHandler{service: svc}
 }
 
+// GetTree returns the entire hierarchical item tree for a workspace.
 func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.GetTreeRequest]) (*connect.Response[appv1.GetTreeResponse], error) {
 	if req.Msg.GetWorkspaceId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id is required"))
@@ -42,6 +49,7 @@ func (h *TreeHandler) GetTree(ctx context.Context, req *connect.Request[appv1.Ge
 	return connect.NewResponse(&appv1.GetTreeResponse{Tree: tree}), nil
 }
 
+// GetSubtree returns the subtree rooted at a specific item up to a requested depth.
 func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1.GetSubtreeRequest]) (*connect.Response[appv1.GetSubtreeResponse], error) {
 	wsID := req.Msg.GetWorkspaceId()
 	if wsID == "" {
@@ -65,6 +73,7 @@ func (h *TreeHandler) GetSubtree(ctx context.Context, req *connect.Request[appv1
 	return connect.NewResponse(&appv1.GetSubtreeResponse{Items: protoItems}), nil
 }
 
+// FindPaths finds relationship paths between source and target items within a workspace.
 func (h *TreeHandler) FindPaths(ctx context.Context, req *connect.Request[appv1.FindPathsRequest]) (*connect.Response[appv1.FindPathsResponse], error) {
 	if req.Msg.GetSourceItemId() == "" || req.Msg.GetTargetItemId() == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("source_item_id and target_item_id are required"))

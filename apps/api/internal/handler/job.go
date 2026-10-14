@@ -14,6 +14,7 @@ import (
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
+// JobHandler implements Connect-RPC endpoints for job lifecycle management, approvals, and observability logs.
 type JobHandler struct {
 	jobs       repository.JobRepository
 	approvals  repository.JobApprovalRepository
@@ -22,6 +23,7 @@ type JobHandler struct {
 	documents  repository.DocumentRepository
 }
 
+// NewJobHandler constructs a new JobHandler with the specified repository dependencies.
 func NewJobHandler(
 	jobRepo repository.JobRepository,
 	approvalRepo repository.JobApprovalRepository,
@@ -40,6 +42,7 @@ func NewJobHandler(
 	}
 }
 
+// GetJobStatus retrieves the current lifecycle status and error messages of a processing job.
 func (h *JobHandler) GetJobStatus(ctx context.Context, req *connect.Request[appv1.GetJobStatusRequest]) (*connect.Response[appv1.GetJobStatusResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
@@ -48,6 +51,7 @@ func (h *JobHandler) GetJobStatus(ctx context.Context, req *connect.Request[appv
 	return connect.NewResponse(&appv1.GetJobStatusResponse{Job: toProtoJob(job)}), nil
 }
 
+// GetJobExecutionPlan retrieves the planned steps and execution summary for a job.
 func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Request[appv1.GetJobExecutionPlanRequest]) (*connect.Response[appv1.GetJobExecutionPlanResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
@@ -61,6 +65,7 @@ func (h *JobHandler) GetJobExecutionPlan(ctx context.Context, req *connect.Reque
 	}), nil
 }
 
+// ListJobApprovalRequests lists all pending and reviewed human-in-the-loop approval requests for a job.
 func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.Request[appv1.ListJobApprovalRequestsRequest]) (*connect.Response[appv1.ListJobApprovalRequestsResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
@@ -76,6 +81,7 @@ func (h *JobHandler) ListJobApprovalRequests(ctx context.Context, req *connect.R
 	return res, nil
 }
 
+// RequestJobApproval submits a new approval request for a job execution stage.
 func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Request[appv1.RequestJobApprovalRequest]) (*connect.Response[appv1.RequestJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
@@ -101,6 +107,7 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&appv1.RequestJobApprovalResponse{Request: toProtoApprovalRequest(approval)}), nil
 }
 
+// ApproveJobApproval approves a pending job approval request, unblocking pipeline execution.
 func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Request[appv1.ApproveJobApprovalRequest]) (*connect.Response[appv1.ApproveJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
@@ -128,6 +135,7 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 	return connect.NewResponse(&appv1.ApproveJobApprovalResponse{Status: "approved"}), nil
 }
 
+// RejectJobApproval rejects a pending job approval request, terminating or aborting the stage.
 func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request[appv1.RejectJobApprovalRequest]) (*connect.Response[appv1.RejectJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
@@ -155,6 +163,7 @@ func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request
 	return connect.NewResponse(&appv1.RejectJobApprovalResponse{Status: "rejected"}), nil
 }
 
+// ListJobMutationLogs returns state mutations produced during the execution of a job.
 func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Request[appv1.ListJobMutationLogsRequest]) (*connect.Response[appv1.ListJobMutationLogsResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
@@ -170,6 +179,7 @@ func (h *JobHandler) ListJobMutationLogs(ctx context.Context, req *connect.Reque
 	return res, nil
 }
 
+// ListJobLogs retrieves paginated execution logs for a specific job.
 func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[appv1.ListJobLogsRequest]) (*connect.Response[appv1.ListJobLogsResponse], error) {
 	if _, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId()); err != nil {
 		return nil, err
@@ -191,6 +201,7 @@ func (h *JobHandler) ListJobLogs(ctx context.Context, req *connect.Request[appv1
 	return res, nil
 }
 
+// SearchJobLogs searches structured execution logs matching query filters across workspaces or jobs.
 func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[appv1.SearchJobLogsRequest]) (*connect.Response[appv1.SearchJobLogsResponse], error) {
 	filter := domain.JobLogSearchFilter{
 		Query:         req.Msg.GetQuery(),
@@ -223,6 +234,7 @@ func (h *JobHandler) SearchJobLogs(ctx context.Context, req *connect.Request[app
 	return res, nil
 }
 
+// ListRelatedJobLogs retrieves related logs grouped hierarchically by job, document, or workspace scope.
 func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Request[appv1.ListRelatedJobLogsRequest]) (*connect.Response[appv1.ListRelatedJobLogsResponse], error) {
 	scope := domain.RelatedLogScope(strings.ToLower(req.Msg.GetScope().String()))
 	// Handle enum string mapping if needed, but RelatedLogScopeJob etc match the lowercase enum names in domain
@@ -257,6 +269,7 @@ func (h *JobHandler) ListRelatedJobLogs(ctx context.Context, req *connect.Reques
 	return res, nil
 }
 
+// ListAllJobs returns all jobs across workspaces (admin only).
 func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.ListAllJobsRequest]) (*connect.Response[appv1.ListAllJobsResponse], error) {
 	// 全 workspace 横断のため admin 権限を要求。
 	// monitor など読み取り専用ツールは API を経由せず Postgres を直接参照する設計に
@@ -275,6 +288,7 @@ func (h *JobHandler) ListAllJobs(ctx context.Context, _ *connect.Request[appv1.L
 	return res, nil
 }
 
+// authorizeAndLoadJob verifies user authorization and loads the requested processing job.
 func (h *JobHandler) authorizeAndLoadJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error) {
 	// 認証を先にチェック。job_id 空 / job not found を未認証ユーザーに返さないため。
 	if _, err := requireUserID(ctx); err != nil {
@@ -293,6 +307,7 @@ func (h *JobHandler) authorizeAndLoadJob(ctx context.Context, jobID string) (*do
 	return job, nil
 }
 
+// authorizeLogSearch validates that the requesting caller has access to the target workspace/document/job in the search filter.
 func (h *JobHandler) authorizeLogSearch(ctx context.Context, filter domain.JobLogSearchFilter) error {
 	switch {
 	case filter.JobID != "":
@@ -307,6 +322,7 @@ func (h *JobHandler) authorizeLogSearch(ctx context.Context, filter domain.JobLo
 	}
 }
 
+// authorizeRelatedLogSearch checks access permissions according to the target related log scope.
 func (h *JobHandler) authorizeRelatedLogSearch(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string) error {
 	switch scope {
 	case domain.RelatedLogScopeJob:
@@ -330,6 +346,7 @@ func (h *JobHandler) authorizeRelatedLogSearch(ctx context.Context, scope domain
 	}
 }
 
+// toProtoJob converts a domain DocumentProcessingJob to protobuf representation.
 func toProtoJob(job *domain.DocumentProcessingJob) *appv1.Job {
 	if job == nil {
 		return nil
@@ -346,6 +363,7 @@ func toProtoJob(job *domain.DocumentProcessingJob) *appv1.Job {
 	}
 }
 
+// toProtoApprovalRequest converts a domain JobApprovalRequest to protobuf representation.
 func toProtoApprovalRequest(req *domain.JobApprovalRequest) *appv1.JobApprovalRequest {
 	if req == nil {
 		return nil
@@ -365,6 +383,7 @@ func toProtoApprovalRequest(req *domain.JobApprovalRequest) *appv1.JobApprovalRe
 	}
 }
 
+// toProtoMutationLog converts a domain JobMutationLog to protobuf representation.
 func toProtoMutationLog(log *domain.JobMutationLog) *appv1.JobMutationLog {
 	if log == nil {
 		return nil
@@ -383,6 +402,7 @@ func toProtoMutationLog(log *domain.JobMutationLog) *appv1.JobMutationLog {
 	}
 }
 
+// toProtoExecutionPlan converts a domain JobExecutionPlan to protobuf representation.
 func toProtoExecutionPlan(plan *domain.JobExecutionPlan) *appv1.JobExecutionPlan {
 	if plan == nil {
 		return nil
@@ -399,6 +419,7 @@ func toProtoExecutionPlan(plan *domain.JobExecutionPlan) *appv1.JobExecutionPlan
 	}
 }
 
+// toProtoJobLog converts a domain JobLog entry to protobuf representation.
 func toProtoJobLog(log *domain.JobLog) *appv1.JobLog {
 	if log == nil {
 		return nil
@@ -417,6 +438,7 @@ func toProtoJobLog(log *domain.JobLog) *appv1.JobLog {
 	}
 }
 
+// toProtoJobLogJob maps a domain JobLogJob containing job logs to protobuf representation.
 func toProtoJobLogJob(job *domain.JobLogJob) *appv1.JobLogJob {
 	if job == nil {
 		return nil
@@ -433,6 +455,7 @@ func toProtoJobLogJob(job *domain.JobLogJob) *appv1.JobLogJob {
 	}
 }
 
+// toProtoJobLogGroup converts a grouped job log set to protobuf representation.
 func toProtoJobLogGroup(group *domain.JobLogGroup) *appv1.JobLogGroup {
 	if group == nil {
 		return nil

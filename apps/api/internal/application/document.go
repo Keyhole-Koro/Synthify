@@ -16,18 +16,19 @@ import (
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
+// WorkerDispatcher abstracts dispatching asynchronous job planning and execution tasks to workers.
 type WorkerDispatcher interface {
 	GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error
 	ExecuteApprovedPlan(ctx context.Context, req domain.ExecutePlanRequest) error
 }
 
+// ObjectMetadataFetcher retrieves storage object metadata such as content type and byte size.
 type ObjectMetadataFetcher interface {
 	GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error)
 }
 
-// DocumentUsecase は handler が依存する DocumentService の API 表面。
-// 各メソッドは userID を受け取り、内部で workspace authz を実施する。
-// 未認可は domain.ErrForbidden を返す。
+// DocumentUsecase defines the use-case interface for document lifecycle management, uploads, and processing.
+// Each method verifies workspace authorization using the user ID, returning domain.ErrForbidden on unauthorized access.
 type DocumentUsecase interface {
 	ListDocuments(ctx context.Context, workspaceID, userID string) ([]*domain.Document, error)
 	GetDocument(ctx context.Context, documentID, userID string) (*domain.Document, error)
@@ -44,12 +45,11 @@ const (
 	// stuckJobMinAge is how long a job may sit in QUEUED/RUNNING before it is
 	// treated as stuck. A job wedged in RUNNING (worker crash mid-run, or Cloud
 	// Tasks exhausting max_attempts and silently dropping the task) never emits
-	// a JobFailed event, so without this sweep it is invisible. The bound is
-	// generous: a legitimate agent run is capped by the worker's wall-clock
-	// budget plus a few Cloud Tasks redeliveries, well under this.
+	// a JobFailed event, so without this sweep it is invisible.
 	stuckJobMinAge = 30 * time.Minute
 )
 
+// DocumentService orchestrates document storage reservations, upload confirmations, and background worker jobs.
 type DocumentService struct {
 	repo             repository.DocumentRepository
 	jobs             repository.JobRepository
@@ -68,6 +68,7 @@ type DocumentService struct {
 	nrApp            *newrelic.Application
 }
 
+// DocumentServiceDeps defines dependencies required to instantiate a DocumentService.
 type DocumentServiceDeps struct {
 	Repo             repository.DocumentRepository
 	Jobs             repository.JobRepository
@@ -86,6 +87,7 @@ type DocumentServiceDeps struct {
 	NRApp            *newrelic.Application
 }
 
+// NewDocumentService creates a new DocumentService instance.
 func NewDocumentService(deps DocumentServiceDeps) *DocumentService {
 	return &DocumentService{
 		repo:             deps.Repo,
@@ -106,7 +108,7 @@ func NewDocumentService(deps DocumentServiceDeps) *DocumentService {
 	}
 }
 
-// authorizeWorkspace は userID が workspace にアクセスできるかチェックする。
+// authorizeWorkspace verifies that the specified user has access to the workspace.
 func (s *DocumentService) authorizeWorkspace(ctx context.Context, workspaceID, userID string) error {
 	ok, err := s.workspaces.IsWorkspaceAccessible(ctx, workspaceID, userID)
 	if err != nil {
@@ -118,17 +120,13 @@ func (s *DocumentService) authorizeWorkspace(ctx context.Context, workspaceID, u
 	return nil
 }
 
-// IssueImageURL は data-file-id マーカーを表示用の署名付き GET URL に解決する。
-// fileID から workspace を引いて認可し、所有 workspace の閲覧権がある場合のみ
-// 短命な署名付き URL を発行する。URL は表示のたびに発行され、保存 HTML には
-// 焼き込まれない。
+// IssueImageURL resolves an extracted file identifier into a short-lived signed image delivery URL.
 func (s *DocumentService) IssueImageURL(ctx context.Context, fileID, userID string) (repository.SignedURL, error) {
 	if s.imageURLIssuer == nil {
 		return repository.SignedURL{}, domain.ErrNotFound
 	}
 	loc, err := s.repo.GetDocumentFileForDelivery(ctx, fileID)
 	if err != nil {
-		// 不在も認可前に Forbidden を返し、file の存在を漏らさない。
 		if errors.Is(err, domain.ErrNotFound) {
 			return repository.SignedURL{}, domain.ErrForbidden
 		}
@@ -140,8 +138,7 @@ func (s *DocumentService) IssueImageURL(ctx context.Context, fileID, userID stri
 	return s.imageURLIssuer.IssueDocumentImageURL(ctx, loc.WorkspaceID, loc.DocumentID, loc.Path)
 }
 
-// authorizeWrite は書き込み・課金が生じる操作の権限を確認する。
-// viewer は read のみ。editor / owner だけが書き込め、非メンバーも Forbidden。
+// authorizeWrite verifies that the user holds editor or owner role in the workspace.
 func (s *DocumentService) authorizeWrite(ctx context.Context, workspaceID, userID string) error {
 	role, err := s.workspaces.GetWorkspaceRole(ctx, workspaceID, userID)
 	if err != nil {
@@ -153,18 +150,13 @@ func (s *DocumentService) authorizeWrite(ctx context.Context, workspaceID, userI
 	return nil
 }
 
-// ensureBudgetAvailable は課金が生じる処理の前に、操作する本人の account が
-// budget 超過していないかを確認する。usage は本人負担 (Phase 2) なので、超過
-// 判定も本人の account に対して行う。超過していれば ErrBillingBudgetExceeded。
-// accounts 依存が未配線 (nil) のときはチェックをスキップする (後方互換)。
+// ensureBudgetAvailable verifies that the user's account has not exceeded its monthly spending budget limit.
 func (s *DocumentService) ensureBudgetAvailable(ctx context.Context, userID string) error {
 	if s.accounts == nil {
 		return nil
 	}
 	account, err := s.accounts.GetAccountByUser(ctx, userID)
 	if err != nil {
-		// account を引けない場合は budget 不明。処理を止めず、計上側の
-		// exceeded 判定に委ねる (本人負担の最終ゲートは usage 計上時)。
 		return nil
 	}
 	if account.BudgetExceeded {
@@ -173,8 +165,7 @@ func (s *DocumentService) ensureBudgetAvailable(ctx context.Context, userID stri
 	return nil
 }
 
-// authorizeDocument は document を取得しつつ workspace authz をする。
-// document 不在も認可前に Forbidden を返す (存在を漏らさないため)。
+// authorizeDocument retrieves a document while verifying workspace read accessibility.
 func (s *DocumentService) authorizeDocument(ctx context.Context, documentID, userID string) (*domain.Document, error) {
 	doc, err := s.repo.GetDocument(ctx, documentID)
 	if err != nil {
@@ -189,8 +180,7 @@ func (s *DocumentService) authorizeDocument(ctx context.Context, documentID, use
 	return doc, nil
 }
 
-// authorizeDocumentWrite は authorizeDocument の write 版。
-// 課金が生じる処理 (StartProcessing 等) は editor / owner のみ許可する。
+// authorizeDocumentWrite retrieves a document while verifying workspace write accessibility.
 func (s *DocumentService) authorizeDocumentWrite(ctx context.Context, documentID, userID string) (*domain.Document, error) {
 	doc, err := s.repo.GetDocument(ctx, documentID)
 	if err != nil {
@@ -205,6 +195,7 @@ func (s *DocumentService) authorizeDocumentWrite(ctx context.Context, documentID
 	return doc, nil
 }
 
+// ListDocuments returns all documents in a workspace after verifying authorization.
 func (s *DocumentService) ListDocuments(ctx context.Context, workspaceID, userID string) ([]*domain.Document, error) {
 	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
 		return nil, err
@@ -212,10 +203,12 @@ func (s *DocumentService) ListDocuments(ctx context.Context, workspaceID, userID
 	return s.repo.ListDocuments(ctx, workspaceID)
 }
 
+// GetDocument retrieves a single document by its identifier after authorization.
 func (s *DocumentService) GetDocument(ctx context.Context, documentID, userID string) (*domain.Document, error) {
 	return s.authorizeDocument(ctx, documentID, userID)
 }
 
+// CreateDocument initializes a document record and temporary upload reservation after verifying quotas and allowed mime types.
 func (s *DocumentService) CreateDocument(ctx context.Context, wsID, userID, filename, mimeType string, fileSize int64) (*domain.Document, repository.DocumentUploadTarget, error) {
 	if err := s.authorizeWrite(ctx, wsID, userID); err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
@@ -231,6 +224,7 @@ func (s *DocumentService) CreateDocument(ctx context.Context, wsID, userID, file
 	return doc, target, err
 }
 
+// reportCreateDocumentRejection records a custom event in New Relic when an upload request is rejected due to policy violations.
 func (s *DocumentService) reportCreateDocumentRejection(workspaceID, userID, filename string, fileSize int64, cause error) {
 	if s.nrApp == nil {
 		return
@@ -259,6 +253,7 @@ func (s *DocumentService) reportCreateDocumentRejection(workspaceID, userID, fil
 	})
 }
 
+// ConfirmUpload confirms the successful upload of a document payload by validating object presence and storage size.
 func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID, userID string) (*domain.Document, error) {
 	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
@@ -270,6 +265,7 @@ func (s *DocumentService) ConfirmUpload(ctx context.Context, documentID, userID 
 	return s.repo.GetDocument(ctx, documentID)
 }
 
+// ExpireUploadReservations identifies expired pending reservations, transitions them to expired, and cleans up orphaned objects.
 func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time.Time) (int64, error) {
 	expired, err := s.repo.ExpireUploadReservations(ctx, now)
 	if err != nil {
@@ -285,10 +281,7 @@ func (s *DocumentService) ExpireUploadReservations(ctx context.Context, now time
 	return int64(len(expired)), nil
 }
 
-// deleteOrphanedObject はサイズ不一致や予約期限切れで「もう正規ルートでは
-// 使われなくなった」ドキュメントオブジェクトを GCS から消す。ベストエフォート:
-// 失敗してもクライアントには影響させず、ログと NR にだけ残して呼び出し元の
-// メイン経路を止めない。
+// deleteOrphanedObject deletes orphaned cloud storage objects on a best-effort basis without interrupting main workflows.
 func (s *DocumentService) deleteOrphanedObject(ctx context.Context, workspaceID, documentID, reason string) {
 	if s.objectStore == nil {
 		return
@@ -310,10 +303,7 @@ func (s *DocumentService) deleteOrphanedObject(ctx context.Context, workspaceID,
 	)
 }
 
-// reportUploadIncident はクオータ違反やサイズ不一致など、アップロード周辺で
-// 発生した「攻撃 / 誤用 / バグの兆候」を NR に流す。slog だけだと長期トレンドや
-// アカウント別分析が組めないので、NRQL 集計用に CustomEvent + NoticeError の
-// 両方に乗せる。NR 未設定のときは no-op。
+// reportUploadIncident records upload policy violations and anomalies to New Relic custom events and error notices.
 func (s *DocumentService) reportUploadIncident(eventName, workspaceID, documentID, reason string, cause error) {
 	if s.nrApp == nil {
 		return
@@ -339,6 +329,7 @@ func (s *DocumentService) reportUploadIncident(eventName, workspaceID, documentI
 	tx.End()
 }
 
+// StartProcessing initiates asynchronous document extraction and parsing by dispatching a job.
 func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error) {
 	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
@@ -365,6 +356,7 @@ func (s *DocumentService) StartProcessing(ctx context.Context, documentID, userI
 	return s.startProcessingJob(ctx, doc, userID, jobType, false)
 }
 
+// ResumeProcessing resumes a failed document processing job, incrementing its retry count.
 func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error) {
 	doc, err := s.authorizeDocumentWrite(ctx, documentID, userID)
 	if err != nil {
@@ -376,6 +368,7 @@ func (s *DocumentService) ResumeProcessing(ctx context.Context, documentID, user
 	return s.startProcessingJob(ctx, doc, userID, appv1.JobType_JOB_TYPE_REPROCESS_DOCUMENT, true)
 }
 
+// AutoResumeFailedJobs periodically retries eligible failed processing jobs that have not exceeded max retries.
 func (s *DocumentService) AutoResumeFailedJobs(ctx context.Context) (int, error) {
 	jobs, err := s.jobs.ListAllJobs(ctx)
 	if err != nil {
@@ -474,6 +467,7 @@ func (s *DocumentService) ReportStuckJobs(ctx context.Context) (int, error) {
 	return stuck, nil
 }
 
+// startProcessingJob provisions a processing job transactionally, publishes a queued event, and dispatches the worker execution plan.
 func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Document, requestedBy string, jobType appv1.JobType, resumeExisting bool) (*domain.DocumentProcessingJob, error) {
 	wsID := doc.WorkspaceID
 	documentID := doc.DocumentID
@@ -496,11 +490,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 	if err != nil {
 		return nil, err
 	}
-	// job_capabilities + processing_jobs を 1 tx で挿入。
-	// 旧実装は repo 内で tx を張りつつ全エラーを nil 化していたため、
-	// service には ErrNotFound として漏れ、原因不明の not_found が
-	// クライアントに返っていた。tx 境界を service に上げ、
-	// 本来のエラーを伝播する。
+	// Insert job_capabilities and processing_jobs in a single transaction.
 	var job *domain.DocumentProcessingJob
 	if err := s.transactor.WithTx(ctx, func(repos repository.Repositories) error {
 		var createErr error
@@ -539,6 +529,7 @@ func (s *DocumentService) startProcessingJob(ctx context.Context, doc *domain.Do
 	return job, nil
 }
 
+// confirmUploadedObject verifies document object existence and size against cloud storage metadata.
 func (s *DocumentService) confirmUploadedObject(ctx context.Context, doc *domain.Document) error {
 	if s.objectMetadata == nil {
 		return s.runConfirmAndHandleMismatch(ctx, doc, doc.FileSize)
@@ -558,14 +549,12 @@ func (s *DocumentService) confirmUploadedObject(ctx context.Context, doc *domain
 	return s.runConfirmAndHandleMismatch(ctx, doc, metadata.Size)
 }
 
+// runConfirmAndHandleMismatch checks for upload size mismatches and purges invalid artifacts on failure.
 func (s *DocumentService) runConfirmAndHandleMismatch(ctx context.Context, doc *domain.Document, actualSize int64) error {
 	err := s.repo.ConfirmDocumentUpload(ctx, doc.DocumentID, actualSize)
 	if err == nil {
 		return nil
 	}
-	// Content-Length 強制をすり抜けた、あるいは fake-gcs 上で意図的に申告サイズと
-	// 違うアップロードが入った場合、GCS には実体が残っているので消す。サイズ違反は
-	// 攻撃か計装バグの兆候なので NR にも投げて可視化する。
 	if errors.Is(err, domain.ErrUploadSizeMismatch) {
 		s.logger.Warn("document.upload_size_mismatch",
 			"document_id", doc.DocumentID,
@@ -579,6 +568,7 @@ func (s *DocumentService) runConfirmAndHandleMismatch(ctx context.Context, doc *
 	return err
 }
 
+// buildExecutePlanRequest populates the worker execution payload from document and job models.
 func (s *DocumentService) buildExecutePlanRequest(job *domain.DocumentProcessingJob, doc *domain.Document, wsID, treeID string) domain.ExecutePlanRequest {
 	return domain.ExecutePlanRequest{
 		JobID:       job.JobID,
@@ -592,6 +582,7 @@ func (s *DocumentService) buildExecutePlanRequest(job *domain.DocumentProcessing
 	}
 }
 
+// logJobQueued records an informational job log event indicating the job has entered the queue.
 func (s *DocumentService) logJobQueued(ctx context.Context, job *domain.DocumentProcessingJob, wsID, documentID string) {
 	joblog.FromContext(ctx).Log(ctx, joblog.Event{
 		JobID:       job.JobID,
@@ -604,6 +595,7 @@ func (s *DocumentService) logJobQueued(ctx context.Context, job *domain.Document
 	})
 }
 
+// handleDispatchFailure handles dispatcher communication errors by logging, failing the job, and updating status.
 func (s *DocumentService) handleDispatchFailure(ctx context.Context, job *domain.DocumentProcessingJob, payload jobstatus.Payload, wsID, documentID string, dispatchErr error, reloadLatest bool) *domain.DocumentProcessingJob {
 	s.logger.Error("job.dispatch_failed",
 		"error", dispatchErr.Error(),
@@ -630,6 +622,7 @@ func (s *DocumentService) handleDispatchFailure(ctx context.Context, job *domain
 	return job
 }
 
+// documentJobPayload constructs standard job status notification payload parameters.
 func documentJobPayload(job *domain.DocumentProcessingJob, documentID, wsID, treeID string) jobstatus.Payload {
 	return jobstatus.Payload{
 		JobID:       job.JobID,
@@ -640,6 +633,7 @@ func documentJobPayload(job *domain.DocumentProcessingJob, documentID, wsID, tre
 	}
 }
 
+// GetLatestProcessingJob fetches the most recent processing job metadata for a document.
 func (s *DocumentService) GetLatestProcessingJob(ctx context.Context, documentID string) (*domain.DocumentProcessingJob, error) {
 	job, err := s.jobs.GetLatestProcessingJob(ctx, documentID)
 	if err != nil {

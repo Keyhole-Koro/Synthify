@@ -14,27 +14,33 @@ import (
 // API spend. It is NOT a fallback for production: bootstrap selects it only in
 // non-production environments, and it labels its own output so a reader can
 // never mistake it for a generated answer.
+// ExtractiveAnswerer answers without a model, by quoting the retrieved chunks.
+//
+// It exists so local development and e2e runs exercise the real retrieval,
+// citation-validation, and persistence paths without a Gemini key or per-run
+// API spend. It is NOT a fallback for production: bootstrap selects it only in
+// non-production environments, and it labels its own output so a reader can
+// never mistake it for a generated answer.
 type ExtractiveAnswerer struct{}
 
+// NewExtractiveAnswerer creates a local extractive answerer without external LLM dependencies.
 func NewExtractiveAnswerer() *ExtractiveAnswerer { return &ExtractiveAnswerer{} }
 
 // ExtractiveAnswerNotice prefixes every extractive answer. Tests assert on it,
 // and the UI shows it verbatim, so it must stay recognisable.
 const ExtractiveAnswerNotice = "[ローカル開発用の抽出回答 / no model configured]"
 
+// Answer composes an answer by quoting up to 3 retrieved candidates directly.
 func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAnswerRequest) (application.ChatAnswer, error) {
 	if len(req.Candidates) == 0 {
-		// 出典ゼロでも回答自体は返す。サービス側が grounded=false として
-		// 記録し、UI が「資料に基づかない回答」と明示する。
+		// Return a response even with zero sources; service layer flags grounded=false.
 		return application.ChatAnswer{
 			Text: ExtractiveAnswerNotice + "\n\nこのワークスペースにはまだ参照できる資料もページもありません。" +
 				"モデルを設定すると、一般知識にもとづく回答を返せます。\n\n質問: " + req.Question,
 		}, nil
 	}
 
-	// 候補は retrieval が一致数の多い順に並べて渡してくるので、ここでは
-	// 並べ替えず先頭から採る。独自にトークン化し直すと、空白の無い日本語で
-	// 質問文全体が1トークンになり一致ゼロになる (retrieval 側と同じ罠)。
+	// Retrieval supplies candidates pre-ranked by match count; pick the top 3 directly.
 	matched := make([]int, 0, 3)
 	for i := range req.Candidates {
 		matched = append(matched, i)
@@ -64,6 +70,7 @@ func (a *ExtractiveAnswerer) Answer(ctx context.Context, req application.ChatAns
 	return application.ChatAnswer{Text: b.String(), SourceIDs: sourceIDs}, nil
 }
 
+// truncateRunes clamps string s to at most max runes, appending an ellipsis if truncated.
 func truncateRunes(s string, max int) string {
 	runes := []rune(strings.TrimSpace(s))
 	if len(runes) <= max {

@@ -27,8 +27,8 @@ func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description,
 	return s.createStructuredItemDirect(ctx, workspaceID, label, 0, description, "", createdBy, parentID)
 }
 
-// createStructuredItemDirect は items テーブルに 1 行挿入する。
-// atomic 性が必要なら呼び出し側を Transactor.WithTx で包むこと。
+// createStructuredItemDirect inserts a single row into the items table.
+// Wrap with Transactor.WithTx if atomic execution is needed.
 func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string) (*domain.Item, error) {
 	createdAt := nowTime()
 	item := &domain.Item{
@@ -59,7 +59,7 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 	}); err != nil {
 		return nil, fmt.Errorf("create item: %w", err)
 	}
-	// updated_at の touch は best-effort。失敗しても item 作成自体は成功扱い。
+	// Best-effort touch of parent tree timestamp; failure does not abort item creation.
 	_ = s.q().UpdateTreeTimestamp(ctx, sqlcgen.UpdateTreeTimestampParams{
 		ID:        item.ItemID,
 		UpdatedAt: nowTime(),
@@ -67,9 +67,8 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 	return item, nil
 }
 
-// CreateStructuredItemWithCapability は capability 検証 + item 挿入 + mutation log を行う。
-// capability 違反は domain.ErrForbidden を返す。atomic 性が必要なら呼び出し側を
-// Transactor.WithTx で包むこと。
+// CreateStructuredItemWithCapability performs capability verification, item insertion, and mutation logging.
+// Capability violations return domain.ErrForbidden. Wrap with Transactor.WithTx if atomic execution is needed.
 func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error) {
 	if !s.canMutateTree(capability, appv1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
 		return nil, fmt.Errorf("capability denies item creation: %w", domain.ErrForbidden)
@@ -300,6 +299,7 @@ func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasIte
 	return nil
 }
 
+// canMutateTree verifies whether capability allows performing the given tree mutation operation.
 func (s *Store) canMutateTree(capability *domain.JobCapability, op appv1.JobOperation, workspaceID, documentID string) bool {
 	if capability == nil || capability.IsExpired(nowTime()) {
 		return false
@@ -313,6 +313,7 @@ func (s *Store) canMutateTree(capability *domain.JobCapability, op appv1.JobOper
 	return capability.AllowsDocument(documentID)
 }
 
+// countJobMutations counts the number of mutations executed by a job on a given target type.
 func (s *Store) countJobMutations(ctx context.Context, jobID, targetType string) int {
 	count, err := s.q().CountJobMutationsByTarget(ctx, sqlcgen.CountJobMutationsByTargetParams{
 		JobID:      jobID,
@@ -324,16 +325,18 @@ func (s *Store) countJobMutations(ctx context.Context, jobID, targetType string)
 	return int(count)
 }
 
-// logMutation は mutation_logs に 1 行追記する。Store が Transactor.WithTx 経由で
-// tx-bound されていれば、その tx の queries が使われる。
+// logMutation appends a record to the mutation_logs table. If Store is bound to a
+// transaction via Transactor.WithTx, that transaction's queries are used.
 func (s *Store) logMutation(ctx context.Context, entry *domain.JobMutationLog) error {
 	return s.logMutationParams(ctx, s.q(), entry)
 }
 
+// logMutationTx appends a record to the mutation_logs table within the specified transaction.
 func (s *Store) logMutationTx(ctx context.Context, tx *sql.Tx, entry *domain.JobMutationLog) error {
 	return s.logMutationParams(ctx, s.q().WithTx(tx), entry)
 }
 
+// logMutationParams executes the database insertion for a job mutation log entry.
 func (s *Store) logMutationParams(ctx context.Context, q *sqlcgen.Queries, entry *domain.JobMutationLog) error {
 	createdAt, err := time.Parse(time.RFC3339, entry.CreatedAt)
 	if err != nil {
@@ -356,6 +359,7 @@ func (s *Store) logMutationParams(ctx context.Context, q *sqlcgen.Queries, entry
 	})
 }
 
+// mustJSON serializes an arbitrary value to a JSON string, returning "{}" on failure.
 func mustJSON(value any) string {
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -364,6 +368,7 @@ func mustJSON(value any) string {
 	return string(encoded)
 }
 
+// toItemFromItemRow maps a sqlc ListItemsByWorkspaceRow to a domain Item model.
 func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
@@ -382,6 +387,7 @@ func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 	}
 }
 
+// toItemFromGetRow maps a sqlc GetItemRow to a domain Item model.
 func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
@@ -400,6 +406,7 @@ func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 	}
 }
 
+// toItemFromChildRow maps a sqlc ListChildItemsRow to a domain Item model.
 func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
@@ -418,6 +425,7 @@ func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 	}
 }
 
+// parseGovernanceState converts a governance state database string to an enum value.
 func parseGovernanceState(s string) appv1.ItemGovernanceState {
 	switch s {
 	case "system_generated":

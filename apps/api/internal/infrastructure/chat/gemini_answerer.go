@@ -24,15 +24,20 @@ type GeminiAnswerer struct {
 	model  string
 }
 
+// GeminiAnswererConfig configures the Gemini API client.
 type GeminiAnswererConfig struct {
 	// APIKey uses the Gemini API backend when set; otherwise the client falls
 	// back to Vertex AI with Project / Location.
-	APIKey   string
-	Project  string
+	APIKey string
+	// Project is the Google Cloud project ID when using Vertex AI.
+	Project string
+	// Location is the Google Cloud region when using Vertex AI.
 	Location string
-	Model    string
+	// Model is the Gemini model identifier (e.g. gemini-2.5-flash).
+	Model string
 }
 
+// NewGeminiAnswerer creates a new GeminiAnswerer configured with Gemini API key or Vertex AI.
 func NewGeminiAnswerer(ctx context.Context, cfg GeminiAnswererConfig) (*GeminiAnswerer, error) {
 	var clientCfg *genai.ClientConfig
 	if cfg.APIKey != "" {
@@ -83,6 +88,7 @@ Rules:
 - Answer in the same language the question was asked in.
 - Be concise: a short paragraph unless the question needs more.`
 
+// Answer submits candidate sources and conversation history to Gemini and decodes structured JSON answers and citations.
 func (a *GeminiAnswerer) Answer(ctx context.Context, req application.ChatAnswerRequest) (application.ChatAnswer, error) {
 	if a.client == nil {
 		return application.ChatAnswer{}, fmt.Errorf("gemini client not initialized")
@@ -122,7 +128,7 @@ func (a *GeminiAnswerer) Answer(ctx context.Context, req application.ChatAnswerR
 	}
 
 	return application.ChatAnswer{
-		Text:           parsed.Answer,
+		Text:      parsed.Answer,
 		SourceIDs: parsed.SourceIDs,
 	}, nil
 }

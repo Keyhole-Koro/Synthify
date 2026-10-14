@@ -13,14 +13,17 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// SummaryArgs specifies the generated tree item to be converted into rich HTML.
 type SummaryArgs struct {
 	Item domain.GeneratedTreeItem `json:"item"`
 }
 
+// SummaryResult contains the generated rich HTML markup.
 type SummaryResult struct {
 	HTML string `json:"html"`
 }
 
+// NewSummaryTool creates a core.Tool for turning a knowledge tree item into a styled HTML summary.
 func NewSummaryTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[SummaryArgs, SummaryResult]()
 	if err != nil {

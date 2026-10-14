@@ -15,14 +15,17 @@ import (
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
+// DBLogger implements joblog.EventLogger by persisting structured events to the database repository.
 type DBLogger struct {
 	repo joblog.Repository
 }
 
+// NewDBLogger creates an event logger that writes to repo.
 func NewDBLogger(repo joblog.Repository) *DBLogger {
 	return &DBLogger{repo: repo}
 }
 
+// Log writes a job event to the underlying repository, ignoring write errors.
 func (l *DBLogger) Log(ctx context.Context, e joblog.Event) {
 	_ = l.repo.LogJobEvent(ctx, e)
 }
@@ -205,6 +208,7 @@ func (s *Store) ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogS
 	return groups, nextPageToken, rows.Err()
 }
 
+// unifiedJobLogsSourceSQL produces a subquery unioning raw job logs and mutation audit logs.
 func unifiedJobLogsSourceSQL() string {
 	return `
 SELECT
@@ -261,6 +265,7 @@ FROM job_mutation_logs m
 INNER JOIN document_processing_jobs j ON j.job_id = m.job_id`
 }
 
+// relatedJobsSQL constructs a query fetching related job records matching where conditions.
 func relatedJobsSQL(where string, limit, offset int) string {
 	return fmt.Sprintf(`
 SELECT j.job_id, j.document_id, j.workspace_id, j.status, j.created_at
@@ -270,6 +275,7 @@ ORDER BY j.created_at DESC
 LIMIT %d OFFSET %d`, where, limit, offset)
 }
 
+// inCondition formats an SQL IN clause with positional parameter placeholders.
 func inCondition(column string, args *[]any, values []string) string {
 	var placeholders []string
 	for _, value := range values {
@@ -279,11 +285,13 @@ func inCondition(column string, args *[]any, values []string) string {
 	return fmt.Sprintf("%s IN (%s)", column, joinStrings(placeholders, ", "))
 }
 
+// jobLogCursor encodes pagination position by timestamp and source ID.
 type jobLogCursor struct {
 	Timestamp time.Time
 	SourceID  string
 }
 
+// jobLogRow holds a raw scanned record from unified job logs queries.
 type jobLogRow struct {
 	Timestamp   time.Time
 	Level       string
@@ -297,14 +305,17 @@ type jobLogRow struct {
 	WorkspaceID string
 }
 
+// parseJobStatus parses a job lifecycle status string to an enum value.
 func parseJobStatus(s string) appv1.JobLifecycleState {
 	return jobstatus.LifecycleStateFromDB(s)
 }
 
+// encodeJobLogCursor encodes timestamp and sourceID into a pagination cursor token string.
 func encodeJobLogCursor(ts time.Time, sourceID string) string {
 	return ts.UTC().Format(time.RFC3339Nano) + "|" + sourceID
 }
 
+// decodeJobLogCursor decodes a pagination cursor token string into a jobLogCursor struct.
 func decodeJobLogCursor(token string) (jobLogCursor, error) {
 	parts := strings.SplitN(token, "|", 2)
 	if len(parts) != 2 {
@@ -317,6 +328,7 @@ func decodeJobLogCursor(token string) (jobLogCursor, error) {
 	return jobLogCursor{Timestamp: ts, SourceID: parts[1]}, nil
 }
 
+// paginateLogRows truncates rows to limit, reverses them to ascending chronological order, and emits a next page token.
 func paginateLogRows(rows []jobLogRow, limit int) ([]*domain.JobLog, string) {
 	nextPageToken := ""
 	if len(rows) > limit {
@@ -331,6 +343,7 @@ func paginateLogRows(rows []jobLogRow, limit int) ([]*domain.JobLog, string) {
 	return toDomainJobLogs(rows), nextPageToken
 }
 
+// joinStrings concatenates slice elements separated by sep.
 func joinStrings(values []string, sep string) string {
 	if len(values) == 0 {
 		return ""
@@ -342,6 +355,7 @@ func joinStrings(values []string, sep string) string {
 	return out
 }
 
+// scanJobLogRows scans query rows into a slice of jobLogRow structs.
 func scanJobLogRows(rows *sql.Rows) ([]jobLogRow, error) {
 	var logs []jobLogRow
 	for rows.Next() {
@@ -354,6 +368,7 @@ func scanJobLogRows(rows *sql.Rows) ([]jobLogRow, error) {
 	return logs, rows.Err()
 }
 
+// toDomainJobLogs converts scanned jobLogRow records to domain JobLog models.
 func toDomainJobLogs(rows []jobLogRow) []*domain.JobLog {
 	var logs []*domain.JobLog
 	for _, row := range rows {

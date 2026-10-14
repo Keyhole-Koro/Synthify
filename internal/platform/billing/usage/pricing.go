@@ -1,3 +1,4 @@
+// Package usage provides token pricing calculation, credit drawdown logic, and usage event recording.
 package usage
 
 import (

@@ -12,19 +12,25 @@ import (
 
 // WorkspaceChatUsecase is the application API required by WorkspaceChatHandler.
 type WorkspaceChatUsecase interface {
+	// ListConversations returns all conversations in the workspace and whether answerable sources exist.
 	ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, bool, error)
+	// ListMessages returns the ordered messages within a conversation.
 	ListMessages(ctx context.Context, workspaceID, conversationID, userID string) ([]*domain.ChatMessage, error)
+	// SendMessage sends a new user message and triggers generation of the assistant response.
 	SendMessage(ctx context.Context, workspaceID, conversationID, text, userID string) (*domain.ChatMessage, *domain.ChatMessage, error)
 }
 
+// WorkspaceChatHandler implements Connect-RPC endpoints for workspace AI chat conversations.
 type WorkspaceChatHandler struct {
 	service WorkspaceChatUsecase
 }
 
+// NewWorkspaceChatHandler constructs a new WorkspaceChatHandler.
 func NewWorkspaceChatHandler(service WorkspaceChatUsecase) *WorkspaceChatHandler {
 	return &WorkspaceChatHandler{service: service}
 }
 
+// ListWorkspaceChatConversations lists all chat conversations for a workspace.
 func (h *WorkspaceChatHandler) ListWorkspaceChatConversations(
 	ctx context.Context,
 	req *connect.Request[appv1.ListWorkspaceChatConversationsRequest],
@@ -50,6 +56,7 @@ func (h *WorkspaceChatHandler) ListWorkspaceChatConversations(
 	}), nil
 }
 
+// ListWorkspaceChatMessages lists all messages in a conversation.
 func (h *WorkspaceChatHandler) ListWorkspaceChatMessages(
 	ctx context.Context,
 	req *connect.Request[appv1.ListWorkspaceChatMessagesRequest],
@@ -72,6 +79,7 @@ func (h *WorkspaceChatHandler) ListWorkspaceChatMessages(
 	return connect.NewResponse(&appv1.ListWorkspaceChatMessagesResponse{Messages: out}), nil
 }
 
+// SendWorkspaceChatMessage sends a message from the user and returns both the user message and assistant reply.
 func (h *WorkspaceChatHandler) SendWorkspaceChatMessage(
 	ctx context.Context,
 	req *connect.Request[appv1.SendWorkspaceChatMessageRequest],
@@ -100,6 +108,7 @@ func (h *WorkspaceChatHandler) SendWorkspaceChatMessage(
 	}), nil
 }
 
+// toProtoChatConversation converts a domain chat conversation into its protobuf representation.
 func toProtoChatConversation(conv *domain.ChatConversation) *appv1.WorkspaceChatConversation {
 	return &appv1.WorkspaceChatConversation{
 		ConversationId: conv.ConversationID,
@@ -111,6 +120,7 @@ func toProtoChatConversation(conv *domain.ChatConversation) *appv1.WorkspaceChat
 	}
 }
 
+// toProtoChatMessage converts a domain chat message into its protobuf representation.
 func toProtoChatMessage(msg *domain.ChatMessage) *appv1.WorkspaceChatMessage {
 	if msg == nil {
 		return nil
@@ -138,6 +148,7 @@ func toProtoChatMessage(msg *domain.ChatMessage) *appv1.WorkspaceChatMessage {
 	}
 }
 
+// toProtoChatMessageStatus maps domain chat message status strings to protobuf enum values.
 func toProtoChatMessageStatus(status string) appv1.WorkspaceChatMessageStatus {
 	switch status {
 	case domain.ChatMessageStatusComplete:

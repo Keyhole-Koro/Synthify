@@ -28,19 +28,23 @@ type InternalDispatchHandler struct {
 	logger    *slog.Logger
 }
 
+// processor executes an approved plan for a document processing job.
 type processor interface {
 	Process(ctx context.Context, req ExecutePlanRequest) error
 }
 
+// planner generates a phased execution plan for a job.
 type planner interface {
 	GenerateExecutionPlan(ctx context.Context, req ExecutePlanRequest) (*domain.JobExecutionPlan, error)
 }
 
+// internalDispatchRequest defines the JSON payload delivered by Cloud Tasks to the internal dispatch endpoint.
 type internalDispatchRequest struct {
 	Procedure string                    `json:"procedure"`
 	Payload   domain.ExecutePlanRequest `json:"payload"`
 }
 
+// NewInternalDispatchHandler creates an HTTP handler for processing job tasks delivered by Cloud Tasks.
 func NewInternalDispatchHandler(p processor, pl planner, logger *slog.Logger) *InternalDispatchHandler {
 	return &InternalDispatchHandler{planner: pl, processor: p, logger: logger}
 }
@@ -77,7 +81,7 @@ func (h *InternalDispatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	case "GenerateExecutionPlan":
 		if _, err := h.planner.GenerateExecutionPlan(ctx, req.Payload); err != nil {
 			h.logger.Error("worker.internal_dispatch.generate_failed", "error", err.Error(), "job_id", req.Payload.JobID)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 	case "ExecuteApprovedPlan":
@@ -89,7 +93,7 @@ func (h *InternalDispatchHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 				return
 			}
 			h.logger.Error("worker.internal_dispatch.execute_failed", "error", err.Error(), "job_id", req.Payload.JobID)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 	default:

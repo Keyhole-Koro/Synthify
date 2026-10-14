@@ -10,6 +10,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
 )
 
+// toDynamicTool maps a sqlc DynamicTool row to the domain DynamicTool model.
 func toDynamicTool(r sqlcgen.DynamicTool) *domain.DynamicTool {
 	t := &domain.DynamicTool{
 		ToolID:            r.ToolID,
@@ -165,6 +166,7 @@ func (s *Store) IncrementUseCount(ctx context.Context, toolID string) error {
 	return requireAffected(n)
 }
 
+// requireAffected returns domain.ErrNotFound if no database rows were affected by an update or deletion.
 func requireAffected(n int64) error {
 	if n == 0 {
 		return domain.ErrNotFound

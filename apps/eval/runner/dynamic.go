@@ -17,6 +17,7 @@ type DynamicToolSource interface {
 	Resolve(ctx context.Context, name string) (domain.DynamicTool, bool, error)
 }
 
+// newDynamicTool constructs a Tool descriptor wrapping a dynamic user-promoted tool.
 func newDynamicTool(dt domain.DynamicTool, _ transform.Engine) Tool {
 	name := dt.Name
 	run := func(context.Context, json.RawMessage) (json.RawMessage, Usage, error) {

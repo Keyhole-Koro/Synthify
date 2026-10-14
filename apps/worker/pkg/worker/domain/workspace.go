@@ -1,5 +1,6 @@
 package domain
 
+// Account represents the top-level billing entity, quota holder, and subscription container.
 type Account struct {
 	AccountID            string `json:"account_id"`
 	Name                 string `json:"name"`
@@ -21,17 +22,18 @@ type Account struct {
 	BillingUpdatedAt     string `json:"billing_updated_at,omitempty"`
 
 	// Usage-Based Billing (Phase 2)
-	BudgetLimitMinor          int64  `json:"budget_limit_minor,omitempty"`
-	CurrentPeriodUsageMinor   int64  `json:"current_period_usage_minor,omitempty"`
-	CurrentPeriodStartedAt    string `json:"current_period_started_at,omitempty"`
-	BudgetExceeded            bool   `json:"budget_exceeded,omitempty"`
+	BudgetLimitMinor        int64  `json:"budget_limit_minor,omitempty"`
+	CurrentPeriodUsageMinor int64  `json:"current_period_usage_minor,omitempty"`
+	CurrentPeriodStartedAt  string `json:"current_period_started_at,omitempty"`
+	BudgetExceeded          bool   `json:"budget_exceeded,omitempty"`
 
 	// Credits
 	CreditBalanceMinor int64 `json:"credit_balance_minor,omitempty"`
 
-	CreatedAt            string `json:"created_at"`
+	CreatedAt string `json:"created_at"`
 }
 
+// AccountUser associates a user identity with an account and specifies their organizational role.
 type AccountUser struct {
 	AccountID string `json:"account_id"`
 	UserID    string `json:"user_id"`
@@ -39,6 +41,7 @@ type AccountUser struct {
 	JoinedAt  string `json:"joined_at"`
 }
 
+// Workspace represents an isolated workspace holding documents and knowledge taxonomy trees.
 type Workspace struct {
 	WorkspaceID        string `json:"workspace_id"`
 	AccountID          string `json:"account_id"`

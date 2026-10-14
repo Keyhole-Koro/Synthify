@@ -23,6 +23,7 @@ var defaultFreePlan = struct {
 	MaxUploadsPerWeek: 100,
 }
 
+// proPlan defines resource quota and upload rate limits for usage-based paid accounts.
 var proPlan = struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64
@@ -393,9 +394,9 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 	return accessible, nil
 }
 
-// CreateWorkspace は workspaces 行を作成する。tree の根は workspace 自身で
-// あり、workspace_root tree_item は作らない。ノードは document 処理時に
-// workspace 直下 (parent_id IS NULL) に挿入される。
+// CreateWorkspace creates a new workspace record. The root of the tree is the workspace itself;
+// no separate workspace_root tree item is created. Document processing inserts items directly
+// beneath the workspace with a nil parent_id.
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
 	createdAt := nowTime()
 	wsID := newID()
@@ -474,14 +475,17 @@ func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
 	}
 }
 
+// scanner abstracts database row scanning across sql.Row and sql.Rows.
 type scanner interface {
 	Scan(dest ...any) error
 }
 
+// scanAccount executes an account query and scans the result into an Account domain object.
 func (s *Store) scanAccount(ctx context.Context, query string, args ...any) (*domain.Account, error) {
 	return scanAccountRow(s.db.QueryRowContext(ctx, query, args...))
 }
 
+// scanAccountRow parses database columns into a populated domain Account.
 func scanAccountRow(row scanner) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32
@@ -520,6 +524,7 @@ func scanAccountRow(row scanner) (*domain.Account, error) {
 	return &account, nil
 }
 
+// scanWorkspace parses database columns into a populated domain Workspace.
 func scanWorkspace(row scanner) (*domain.Workspace, error) {
 	var ws domain.Workspace
 	var createdAt time.Time
@@ -545,6 +550,7 @@ func scanWorkspace(row scanner) (*domain.Workspace, error) {
 	return &ws, nil
 }
 
+// parseBillingTime parses an RFC3339 timestamp string into an sql.NullTime.
 func parseBillingTime(value string) (sql.NullTime, error) {
 	if value == "" {
 		return sql.NullTime{}, nil
@@ -556,6 +562,7 @@ func parseBillingTime(value string) (sql.NullTime, error) {
 	return sql.NullTime{Time: parsed.UTC(), Valid: true}, nil
 }
 
+// formatNullTime formats a valid sql.NullTime as an RFC3339 string, returning empty if null.
 func formatNullTime(value sql.NullTime) string {
 	if !value.Valid {
 		return ""
@@ -563,6 +570,7 @@ func formatNullTime(value sql.NullTime) string {
 	return value.Time.UTC().Format(time.RFC3339)
 }
 
+// billingLimits returns the quota and rate limit definitions corresponding to a billing plan.
 func billingLimits(plan domain.BillingPlan) (struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64

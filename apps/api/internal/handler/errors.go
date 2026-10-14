@@ -8,6 +8,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 )
 
+// toError converts standard application and domain errors into appropriate Connect-RPC errors with gRPC-compatible status codes.
 func toError(err error) error {
 	if err == nil {
 		return nil

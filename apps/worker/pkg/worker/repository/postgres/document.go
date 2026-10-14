@@ -256,6 +256,7 @@ WHERE status = 'reserved' AND expires_at <= $1
 	return res.RowsAffected()
 }
 
+// lockWorkspaceAccount queries and locks the account row corresponding to a workspace with FOR UPDATE.
 func lockWorkspaceAccount(ctx context.Context, tx *sql.Tx, workspaceID string) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32
@@ -293,6 +294,7 @@ FOR UPDATE OF a
 	return &account, nil
 }
 
+// activeReservedBytes sums byte sizes of all active unexpired upload reservations for an account.
 func activeReservedBytes(ctx context.Context, tx *sql.Tx, accountID string, now time.Time) (int64, error) {
 	var reserved sql.NullInt64
 	if err := tx.QueryRowContext(ctx, `
@@ -308,6 +310,7 @@ WHERE account_id = $1 AND status = 'reserved' AND expires_at > $2
 	return reserved.Int64, nil
 }
 
+// validateUploadSize checks whether a requested upload size is positive and within account file and quota limits.
 func validateUploadSize(account *domain.Account, fileSize int64) error {
 	if fileSize <= 0 {
 		return domain.ErrUploadSizeMismatch
@@ -688,10 +691,10 @@ func (s *Store) RejectJobApproval(ctx context.Context, jobID, approvalID, review
 	return tx.Commit()
 }
 
-// CreateProcessingJob は job_capabilities と processing_jobs に 1 件ずつ
-// 挿入する。atomic 性は呼び出し側 (Transactor.WithTx) の責務。
-// Store 自身は tx を開始しない: tx スコープ内で呼ばれていれば q() が
-// tx-bound queries を返すのでそのまま乗る。
+// CreateProcessingJob inserts one row each into job_capabilities and processing_jobs.
+// Atomicity is the caller's responsibility (Transactor.WithTx).
+// Store itself does not initiate a transaction: if called within an existing tx scope,
+// q() provides tx-bound queries and executes within that transaction.
 func (s *Store) CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error) {
 	createdAt := nowTime()
 	jobID := newID()
@@ -987,6 +990,7 @@ func (s *Store) SearchRelatedChunksByVector(ctx context.Context, workspaceID str
 	return res, nil
 }
 
+// toDocument converts a sqlc Document row to a domain Document model.
 func toDocument(row sqlcgen.Document) *domain.Document {
 	return &domain.Document{
 		DocumentID:  row.DocumentID,
@@ -999,6 +1003,7 @@ func toDocument(row sqlcgen.Document) *domain.Document {
 	}
 }
 
+// toJob converts a sqlc DocumentProcessingJob row to a domain DocumentProcessingJob model.
 func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	return &domain.DocumentProcessingJob{
 		JobID:            row.JobID,
@@ -1021,6 +1026,7 @@ func toJob(row sqlcgen.DocumentProcessingJob) *domain.DocumentProcessingJob {
 	}
 }
 
+// firstNonEmptyNonSQL returns v if trimmed non-empty, otherwise fallback.
 func firstNonEmptyNonSQL(v, fallback string) string {
 	if strings.TrimSpace(v) != "" {
 		return v

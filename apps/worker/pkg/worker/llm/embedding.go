@@ -8,8 +8,10 @@ import (
 	"google.golang.org/genai"
 )
 
+// embeddingModel is the default Gemini embedding model used for vector index generation.
 const embeddingModel = "gemini-embedding-2"
 
+// EmbedText generates a 768-dimensional dense vector representation of the provided text.
 func (c *GeminiClient) EmbedText(ctx context.Context, text string) (pgvector.Vector, error) {
 	if c.client == nil {
 		return pgvector.Vector{}, fmt.Errorf("gemini client not initialized")

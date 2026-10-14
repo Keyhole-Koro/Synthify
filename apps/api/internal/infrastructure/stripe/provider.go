@@ -18,29 +18,49 @@ import (
 	"github.com/synthify/backend/apps/api/internal/domain"
 )
 
+// Config holds runtime configuration settings and API keys for Stripe integration.
 type Config struct {
-	SecretKey        string
-	WebhookSecret    string
-	ProPriceIDJPY    string
-	ProPriceIDUSD    string
-	DefaultCurrency  string
-	SuccessURL       string
-	CancelURL        string
-	PortalReturnURL  string
-	APIBase          string
-	APIVersion       string
-	MeterInputEvent  string
+	// SecretKey is the secret Stripe API key used for HTTP basic auth.
+	SecretKey string
+	// WebhookSecret is the signing secret used to verify webhook HMAC signatures.
+	WebhookSecret string
+	// ProPriceIDJPY is the Stripe price ID (or comma-separated IDs) for JPY billing.
+	ProPriceIDJPY string
+	// ProPriceIDUSD is the Stripe price ID (or comma-separated IDs) for USD billing.
+	ProPriceIDUSD string
+	// DefaultCurrency specifies the default billing currency ("jpy" or "usd").
+	DefaultCurrency string
+	// SuccessURL is the redirection URL after successful checkout session completion.
+	SuccessURL string
+	// CancelURL is the redirection URL if the user cancels checkout.
+	CancelURL string
+	// PortalReturnURL is the URL users return to after exiting the Stripe Customer Portal.
+	PortalReturnURL string
+	// APIBase is the Stripe API base URL (defaults to https://api.stripe.com).
+	APIBase string
+	// APIVersion is the Stripe API version string sent in request headers.
+	APIVersion string
+	// MeterInputEvent is the Stripe Billing meter event name for LLM input tokens.
+	MeterInputEvent string
+	// MeterOutputEvent is the Stripe Billing meter event name for LLM output tokens.
 	MeterOutputEvent string
 }
 
+// Price represents a mapped Stripe price tied to a plan tier and currency.
 type Price struct {
-	Plan        domain.BillingPlan
-	Currency    domain.BillingCurrency
-	Interval    domain.BillingInterval
-	StripeID    string
+	// Plan is the billing plan tier (e.g. usage_based).
+	Plan domain.BillingPlan
+	// Currency is the 3-letter currency code.
+	Currency domain.BillingCurrency
+	// Interval is the recurring billing cadence (e.g. month).
+	Interval domain.BillingInterval
+	// StripeID is the price identifier in Stripe.
+	StripeID string
+	// AmountMinor is the price unit amount in minor currency units (e.g. cents/yen).
 	AmountMinor int64
 }
 
+// Provider implements repository.BillingProvider backed by Stripe's REST API and Webhooks.
 type Provider struct {
 	cfg             Config
 	pricesByKey     map[string][]Price
@@ -50,6 +70,7 @@ type Provider struct {
 	now             func() time.Time
 }
 
+// NewProvider constructs and validates a Stripe Provider instance.
 func NewProvider(cfg Config) (*Provider, error) {
 	if strings.TrimSpace(cfg.SecretKey) == "" {
 		return nil, domain.ErrBillingProviderNotConfigured
@@ -83,6 +104,7 @@ func NewProvider(cfg Config) (*Provider, error) {
 	}, nil
 }
 
+// buildPriceCatalog initializes the pricing tables indexed by plan/currency key and Stripe ID.
 func buildPriceCatalog(cfg Config) (map[string][]Price, map[string]Price, domain.BillingCurrency, error) {
 	defaultCurrency := domain.BillingCurrency(strings.ToLower(strings.TrimSpace(cfg.DefaultCurrency)))
 	if defaultCurrency == "" {
@@ -125,6 +147,7 @@ func buildPriceCatalog(cfg Config) (map[string][]Price, map[string]Price, domain
 	return byKey, byID, defaultCurrency, nil
 }
 
+// splitPriceIDs parses comma-separated price IDs into a trimmed slice.
 func splitPriceIDs(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -140,10 +163,12 @@ func splitPriceIDs(raw string) []string {
 	return out
 }
 
+// priceKey constructs a map lookup key combining billing plan and currency.
 func priceKey(plan domain.BillingPlan, currency domain.BillingCurrency) string {
 	return string(plan) + ":" + string(currency)
 }
 
+// EnsureCustomer creates a Stripe Customer record if one does not already exist on the account.
 func (p *Provider) EnsureCustomer(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error) {
 	if account.StripeCustomerID != "" {
 		return &domain.BillingCustomerRef{ExternalCustomerID: account.StripeCustomerID}, nil
@@ -163,6 +188,7 @@ func (p *Provider) EnsureCustomer(ctx context.Context, account *domain.Account) 
 	return &domain.BillingCustomerRef{ExternalCustomerID: res.ID}, nil
 }
 
+// CreateCheckoutSession generates a Stripe Checkout Session URL for subscribing to the usage-based plan.
 func (p *Provider) CreateCheckoutSession(ctx context.Context, account *domain.Account, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error) {
 	if plan != domain.BillingPlanUsageBased {
 		return nil, fmt.Errorf("%w: %s", domain.ErrBillingPlanInvalid, plan)
@@ -203,6 +229,7 @@ func (p *Provider) CreateCheckoutSession(ctx context.Context, account *domain.Ac
 	return &domain.BillingCheckoutSession{URL: res.URL}, nil
 }
 
+// resolvePrices retrieves configured prices for a plan and currency, defaulting if currency is blank.
 func (p *Provider) resolvePrices(plan domain.BillingPlan, currency domain.BillingCurrency) ([]Price, error) {
 	if currency == "" {
 		currency = p.defaultCurrency
@@ -217,6 +244,7 @@ func (p *Provider) resolvePrices(plan domain.BillingPlan, currency domain.Billin
 	return prices, nil
 }
 
+// CreatePortalSession creates a Stripe Customer Portal session URL for managing subscriptions and payment methods.
 func (p *Provider) CreatePortalSession(ctx context.Context, account *domain.Account) (*domain.BillingPortalSession, error) {
 	if account.StripeCustomerID == "" {
 		return nil, fmt.Errorf("%w: account has no Stripe customer", domain.ErrBillingProviderMisconfigured)
@@ -250,6 +278,7 @@ func (p *Provider) ReportTokenUsage(ctx context.Context, account *domain.Account
 	return p.reportMeterEvent(ctx, account.StripeCustomerID, p.cfg.MeterOutputEvent, outputTokens, identifier+":out")
 }
 
+// FetchBillingState synchronizes subscription status from Stripe by fetching the latest customer subscription.
 func (p *Provider) FetchBillingState(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error) {
 	if account == nil || account.StripeCustomerID == "" {
 		return nil, domain.ErrNotFound
@@ -348,6 +377,7 @@ func invoiceStatusFromStripe(status string) string {
 	}
 }
 
+// reportMeterEvent emits a Stripe Billing meter event for usage tracking.
 func (p *Provider) reportMeterEvent(ctx context.Context, customerID, eventName string, value int64, identifier string) error {
 	if strings.TrimSpace(eventName) == "" || value <= 0 {
 		return nil
@@ -366,6 +396,7 @@ func (p *Provider) reportMeterEvent(ctx context.Context, customerID, eventName s
 	return p.postForm(ctx, "/v1/billing/meter_events", form, "meter:"+identifier, &res)
 }
 
+// ParseWebhook verifies the HMAC signature and deserializes incoming Stripe webhook events.
 func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error) {
 	if strings.TrimSpace(p.cfg.WebhookSecret) == "" {
 		return nil, fmt.Errorf("%w: STRIPE_WEBHOOK_SECRET is required", domain.ErrBillingProviderMisconfigured)
@@ -412,7 +443,7 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, signature s
 		ev.PaymentMethodDeleted = obj.ID
 		return ev, nil
 	case "customer.updated":
-		// customer.updated の object は customer 本体なので顧客 ID は obj.ID。
+		// customer.updated carries the customer entity directly, so customer ID is obj.ID.
 		return &domain.ProviderWebhookEvent{
 			Provider:                "stripe",
 			EventID:                 event.ID,
@@ -443,6 +474,7 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, signature s
 	}
 }
 
+// providerEventFromPrice builds a canonical ProviderWebhookEvent populated with subscription and price fields.
 func (p *Provider) providerEventFromPrice(event stripeEvent, obj stripeObject, price Price, status domain.BillingStatus) *domain.ProviderWebhookEvent {
 	subscriptionID := firstNonEmpty(obj.Subscription, obj.Parent.SubscriptionDetails.Subscription)
 	if strings.HasPrefix(event.Type, "customer.subscription.") {
@@ -478,6 +510,7 @@ func (p *Provider) baseEvent(event stripeEvent, obj stripeObject) *domain.Provid
 	}
 }
 
+// invoiceOnlyEvent constructs an event wrapping an invoice status change without modifying subscription tier.
 func (p *Provider) invoiceOnlyEvent(event stripeEvent, obj stripeObject, status string) *domain.ProviderWebhookEvent {
 	ev := p.baseEvent(event, obj)
 	ev.Invoice = p.invoiceFromObject(obj, status)
@@ -485,7 +518,7 @@ func (p *Provider) invoiceOnlyEvent(event stripeEvent, obj stripeObject, status 
 }
 
 // invoiceFromObject maps a Stripe invoice object to a ProviderInvoice.
-// status は webhook 種別ごとに呼び出し側がマップした値 (paid/open/uncollectible/void)。
+// status is the caller-mapped status value (paid/open/uncollectible/void).
 func (p *Provider) invoiceFromObject(obj stripeObject, status string) *domain.ProviderInvoice {
 	amount := obj.AmountPaid
 	if amount == 0 {
@@ -506,6 +539,7 @@ func (p *Provider) invoiceFromObject(obj stripeObject, status string) *domain.Pr
 	}
 }
 
+// paymentMethodFromObject converts a raw Stripe payment method object into domain ProviderPaymentMethod.
 func paymentMethodFromObject(obj stripeObject) *domain.ProviderPaymentMethod {
 	return &domain.ProviderPaymentMethod{
 		StripePaymentMethodID: obj.ID,
@@ -516,6 +550,7 @@ func paymentMethodFromObject(obj stripeObject) *domain.ProviderPaymentMethod {
 	}
 }
 
+// priceFromObject resolves the matched Price from items or lines within a Stripe payload object.
 func (p *Provider) priceFromObject(obj stripeObject) Price {
 	priceID := firstNonEmpty(obj.Items.Data.firstPriceID(), obj.Lines.Data.firstPriceID())
 	price, ok := p.pricesByID[priceID]
@@ -528,6 +563,7 @@ func (p *Provider) priceFromObject(obj stripeObject) Price {
 	return price
 }
 
+// postForm executes an HTTP POST request to the Stripe API with form-encoded data and optional idempotency key.
 func (p *Provider) postForm(ctx context.Context, path string, form url.Values, idempotencyKey string, out any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(p.cfg.APIBase, "/")+path, strings.NewReader(form.Encode()))
 	if err != nil {
@@ -558,6 +594,7 @@ func (p *Provider) postForm(ctx context.Context, path string, form url.Values, i
 	return nil
 }
 
+// getForm executes an HTTP GET request to the Stripe API with query parameters.
 func (p *Provider) getForm(ctx context.Context, path string, params url.Values, out any) error {
 	u := strings.TrimRight(p.cfg.APIBase, "/") + path
 	if len(params) > 0 {
@@ -584,6 +621,7 @@ func (p *Provider) getForm(ctx context.Context, path string, params url.Values, 
 	return json.Unmarshal(body, out)
 }
 
+// verifySignature validates the Stripe-Signature header timestamp and HMAC SHA-256 signature against payload bytes.
 func (p *Provider) verifySignature(payload []byte, header string) error {
 	timestamp, signatures := parseSignatureHeader(header)
 	if timestamp == "" || len(signatures) == 0 {
@@ -611,6 +649,7 @@ func (p *Provider) verifySignature(payload []byte, header string) error {
 	return domain.ErrBillingWebhookSignatureInvalid
 }
 
+// parseSignatureHeader parses the Stripe-Signature header into timestamp and signature elements.
 func parseSignatureHeader(header string) (string, []string) {
 	var timestamp string
 	var signatures []string
@@ -629,6 +668,7 @@ func parseSignatureHeader(header string) (string, []string) {
 	return timestamp, signatures
 }
 
+// stripeError formats a non-2xx HTTP status and body from Stripe into an informative error.
 func stripeError(status int, body []byte) error {
 	var res struct {
 		Error struct {
@@ -669,7 +709,7 @@ type stripeObject struct {
 		} `json:"subscription_details"`
 	} `json:"parent"`
 
-	// invoice.* イベント用フィールド
+	// invoice.* event fields
 	Currency          string `json:"currency"`
 	HostedInvoiceURL  string `json:"hosted_invoice_url"`
 	InvoicePDF        string `json:"invoice_pdf"`
@@ -681,7 +721,7 @@ type stripeObject struct {
 		PaidAt int64 `json:"paid_at"`
 	} `json:"status_transitions"`
 
-	// payment_method.* イベント用フィールド
+	// payment_method.* event fields
 	Card struct {
 		Brand    string `json:"brand"`
 		Last4    string `json:"last4"`
@@ -689,7 +729,7 @@ type stripeObject struct {
 		ExpYear  int32  `json:"exp_year"`
 	} `json:"card"`
 
-	// customer.updated イベント用フィールド（default PM は通常 string id で届く）
+	// customer.updated event fields (default PM is sent as string id)
 	InvoiceSettings struct {
 		DefaultPaymentMethod string `json:"default_payment_method"`
 	} `json:"invoice_settings"`

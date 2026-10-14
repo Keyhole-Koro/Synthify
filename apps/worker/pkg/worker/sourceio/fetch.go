@@ -1,3 +1,4 @@
+// Package sourceio handles resolving, reading, and fetching source documents and image assets for worker pipelines.
 package sourceio
 
 import (

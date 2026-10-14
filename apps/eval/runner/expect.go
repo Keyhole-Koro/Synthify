@@ -8,17 +8,22 @@ import (
 	"strings"
 )
 
+// CaseExpect defines assertions and validation checks applied to an evaluation case output.
 type CaseExpect struct {
+	// SchemaValid requires output JSON to strictly conform to the tool's output schema.
 	SchemaValid bool         `yaml:"schema_valid" json:"schema_valid"`
+	// JSON defines semantic path-based assertion rules.
 	JSON        []JSONExpect `yaml:"json,omitempty" json:"json,omitempty"`
 }
 
+// JSONExpect specifies a path, operator, and expected value assertion against JSON output.
 type JSONExpect struct {
 	Path  string `yaml:"path" json:"path"`
 	Op    string `yaml:"op" json:"op"`
 	Value any    `yaml:"value" json:"value"`
 }
 
+// evaluateExpect validates schema compliance and evaluates all JSON expectation rules.
 func evaluateExpect(expect CaseExpect, output json.RawMessage, schemaValid bool) (bool, error) {
 	if expect.SchemaValid && !schemaValid {
 		return false, nil
@@ -116,6 +121,7 @@ func evaluateJSONRule(root any, rule JSONExpect) (bool, error) {
 	}
 }
 
+// selectJSONPath evaluates a simple dot-notation JSON path against a parsed JSON data structure.
 func selectJSONPath(root any, path string) ([]any, error) {
 	path = strings.TrimSpace(path)
 	if path == "$" {
@@ -138,6 +144,7 @@ func selectJSONPath(root any, path string) ([]any, error) {
 	return current, nil
 }
 
+// selectSegment resolves a field name or array index segment against candidate parent elements.
 func selectSegment(values []any, segment string) ([]any, error) {
 	name := segment
 	index := ""
@@ -182,6 +189,7 @@ func selectSegment(values []any, segment string) ([]any, error) {
 	return selected, nil
 }
 
+// intValue extracts an integer from various JSON-deserialized numeric types.
 func intValue(v any) (int, error) {
 	switch x := v.(type) {
 	case int:
@@ -201,6 +209,7 @@ func intValue(v any) (int, error) {
 	}
 }
 
+// stringSliceValue normalizes a slice of strings or untyped interface items into []string.
 func stringSliceValue(v any) ([]string, error) {
 	switch x := v.(type) {
 	case []string:
@@ -220,6 +229,7 @@ func stringSliceValue(v any) ([]string, error) {
 	}
 }
 
+// containsFold checks if any string in values contains want as a case-insensitive substring.
 func containsFold(values []string, want string) bool {
 	want = strings.ToLower(strings.TrimSpace(want))
 	if want == "" {
@@ -233,6 +243,7 @@ func containsFold(values []string, want string) bool {
 	return false
 }
 
+// treeDepth computes the maximum depth of a tree output, inspecting either level fields or parent IDs.
 func treeDepth(values []any) (int, error) {
 	if len(values) == 1 {
 		if a, ok := values[0].([]any); ok {

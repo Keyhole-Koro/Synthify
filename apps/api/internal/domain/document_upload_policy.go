@@ -19,6 +19,8 @@ var executableDocumentMIMEs = map[string]struct{}{
 	"application/x-msi": {}, "application/x-sharedlib": {},
 }
 
+// ValidateDocumentUploadType checks whether an uploaded file's extension or MIME type
+// matches prohibited executable or binary script types.
 func ValidateDocumentUploadType(filename, mimeType string) error {
 	ext := strings.ToLower(filepath.Ext(strings.TrimSpace(filename)))
 	mediaType := normalizeMediaType(mimeType)
@@ -32,6 +34,7 @@ func ValidateDocumentUploadType(filename, mimeType string) error {
 	return nil
 }
 
+// normalizeMediaType extracts and lowercases the primary media type from a Content-Type string.
 func normalizeMediaType(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
 	if value == "" {

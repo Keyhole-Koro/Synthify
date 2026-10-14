@@ -14,14 +14,17 @@ import (
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
+// BriefArgs specifies the section outline used to infer document themes and topic.
 type BriefArgs struct {
 	Outline []string `json:"outline"`
 }
 
+// BriefResult contains the synthesized document brief.
 type BriefResult struct {
 	Brief domain.DocumentBrief `json:"brief"`
 }
 
+// NewBriefTool creates a core.Tool for generating high-level document briefs and updating the suggested workspace title.
 func NewBriefTool(b *base.Context, mem *memory.Brief) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[BriefArgs, BriefResult]()
 	if err != nil {
@@ -57,6 +60,7 @@ func NewBriefTool(b *base.Context, mem *memory.Brief) (core.Tool, error) {
 	}, nil
 }
 
+// generateBrief prompts the LLM to infer the main topic, claim summary, key entities, and level01 hints from outline headings.
 func generateBrief(ctx context.Context, llmClient base.LLMClient, outline []string) (domain.DocumentBrief, error) {
 	if llmClient == nil {
 		return domain.DocumentBrief{}, fmt.Errorf("llm not configured")
@@ -93,6 +97,7 @@ Rules:
 	return brief, nil
 }
 
+// suggestedWorkspaceName produces a clean, length-bounded workspace title proposal from the brief topic or first heading.
 func suggestedWorkspaceName(brief domain.DocumentBrief) string {
 	title := strings.TrimSpace(brief.Topic)
 	if title == "" && len(brief.Outline) > 0 {
@@ -105,6 +110,7 @@ func suggestedWorkspaceName(brief domain.DocumentBrief) string {
 	return title
 }
 
+// fallbackBrief constructs a heuristic brief when the LLM brief generation fails.
 func fallbackBrief(outline []string) domain.DocumentBrief {
 	topic := "Document"
 	if len(outline) > 0 && strings.TrimSpace(outline[0]) != "" {

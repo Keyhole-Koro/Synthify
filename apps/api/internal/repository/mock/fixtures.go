@@ -9,19 +9,27 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// WorkspaceFixture bundles test resources commonly needed across test suites.
 type WorkspaceFixture struct {
-	UserID    string
+	// UserID is the test user ID.
+	UserID string
+	// AccountID is the created account ID.
 	AccountID string
+	// Workspace is the created test workspace entity.
 	Workspace *domain.Workspace
-	Tree      *domain.Tree
+	// Tree is the tree entity for the workspace.
+	Tree *domain.Tree
 	// RootNodeID is a node seeded directly under the workspace (parent_id
 	// IS NULL) by CreateWorkspaceWithTreeFixture. There is no workspace_root
 	// item anymore; this is just a convenient handle to an existing node.
 	RootNodeID string
-	Document   *domain.Document
-	Job        *domain.DocumentProcessingJob
+	// Document is the optional seeded document.
+	Document *domain.Document
+	// Job is the optional seeded processing job.
+	Job *domain.DocumentProcessingJob
 }
 
+// CreateUserWorkspaceFixture sets up a new account and empty workspace for a test user.
 func CreateUserWorkspaceFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
 	t.Helper()
 
@@ -57,6 +65,7 @@ func CreateWorkspaceWithTreeFixture(t testing.TB, ctx context.Context, store *St
 	return fixture
 }
 
+// CreateWorkspaceWithDocumentFixture creates a workspace fixture with a pre-seeded test document.
 func CreateWorkspaceWithDocumentFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
 	t.Helper()
 
@@ -67,6 +76,7 @@ func CreateWorkspaceWithDocumentFixture(t testing.TB, ctx context.Context, store
 	return fixture
 }
 
+// CreateWorkspaceWithProcessingJobFixture sets up a workspace, root node, document, and processing job fixture.
 func CreateWorkspaceWithProcessingJobFixture(t testing.TB, ctx context.Context, store *Store, userID string, jobType appv1.JobType) WorkspaceFixture {
 	t.Helper()
 

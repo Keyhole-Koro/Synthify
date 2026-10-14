@@ -10,11 +10,13 @@ import (
 	"github.com/synthify/backend/internal/platform/util"
 )
 
+// Job represents a generic background job identifier and status summary.
 type Job struct {
 	JobID  string `json:"job_id"`
 	Status string `json:"status"`
 }
 
+// DocumentProcessingJob represents a document ingestion and synthesis workflow task.
 type DocumentProcessingJob struct {
 	JobID            string                  `json:"job_id"`
 	DocumentID       string                  `json:"document_id"`
@@ -35,6 +37,7 @@ type DocumentProcessingJob struct {
 	UpdatedAt        string                  `json:"updated_at"`
 }
 
+// JobCapability defines granular operation limits and resource access permissions granted to a worker job.
 type JobCapability struct {
 	CapabilityID       string               `json:"capability_id"`
 	JobID              string               `json:"job_id"`
@@ -56,6 +59,7 @@ type JobCapability struct {
 	CreatedAt             string `json:"created_at,omitempty"`
 }
 
+// Allows checks if the specified operation is permitted by the job capability.
 func (c *JobCapability) Allows(op appv1.JobOperation) bool {
 	if c == nil {
 		return false
@@ -68,6 +72,7 @@ func (c *JobCapability) Allows(op appv1.JobOperation) bool {
 	return false
 }
 
+// AllowsDocument checks if the capability permits access to the target document.
 func (c *JobCapability) AllowsDocument(documentID string) bool {
 	if c == nil || documentID == "" {
 		return false
@@ -83,6 +88,7 @@ func (c *JobCapability) AllowsDocument(documentID string) bool {
 	return false
 }
 
+// AllowsItem checks if the capability permits mutation of the specified item.
 func (c *JobCapability) AllowsItem(itemID string) bool {
 	if c == nil || itemID == "" {
 		return false
@@ -98,6 +104,7 @@ func (c *JobCapability) AllowsItem(itemID string) bool {
 	return false
 }
 
+// IsExpired reports whether the capability lease has expired relative to the provided timestamp.
 func (c *JobCapability) IsExpired(now time.Time) bool {
 	if c == nil || c.ExpiresAt == "" {
 		return false
@@ -109,6 +116,7 @@ func (c *JobCapability) IsExpired(now time.Time) bool {
 	return now.After(expiresAt)
 }
 
+// JobExecutionPlan defines a multi-step graph transformation plan proposed by the agent.
 type JobExecutionPlan struct {
 	PlanID    string `json:"plan_id"`
 	JobID     string `json:"job_id"`
@@ -126,6 +134,7 @@ type jobExecutionPlanPayload struct {
 	} `json:"steps"`
 }
 
+// HighestRiskTier calculates the highest risk tier across all planned execution steps.
 func (p *JobExecutionPlan) HighestRiskTier() string {
 	if p == nil || strings.TrimSpace(p.PlanJSON) == "" {
 		return "tier_1"
@@ -144,6 +153,7 @@ func (p *JobExecutionPlan) HighestRiskTier() string {
 	return maxRisk
 }
 
+// RequiresApproval reports whether any step in the plan requires explicit user approval (tier 2 or above).
 func (p *JobExecutionPlan) RequiresApproval() bool {
 	return riskTierRank(p.HighestRiskTier()) >= riskTierRank("tier_2")
 }
@@ -159,6 +169,7 @@ func riskTierRank(value string) int {
 	}
 }
 
+// JobMutationLog records an audit log entry for a state mutation performed by an executing job.
 type JobMutationLog struct {
 	MutationID     string `json:"mutation_id"`
 	JobID          string `json:"job_id"`
@@ -175,6 +186,7 @@ type JobMutationLog struct {
 	CreatedAt      string `json:"created_at"`
 }
 
+// JobApprovalRequest tracks a user review request for a high-risk job execution plan.
 type JobApprovalRequest struct {
 	ApprovalID          string               `json:"approval_id"`
 	JobID               string               `json:"job_id"`
@@ -189,6 +201,7 @@ type JobApprovalRequest struct {
 	ReviewedAt          string               `json:"reviewed_at,omitempty"`
 }
 
+// ExecutePlanRequest parameters passed to worker dispatch to execute an approved job plan.
 type ExecutePlanRequest struct {
 	JobID       string `json:"job_id"`
 	JobType     string `json:"job_type"`
@@ -200,6 +213,7 @@ type ExecutePlanRequest struct {
 	MimeType    string `json:"mime_type"`
 }
 
+// Validate verifies that required identity fields are present on the execution plan request.
 func (req ExecutePlanRequest) Validate() error {
 	switch {
 	case req.JobID == "":
@@ -213,6 +227,7 @@ func (req ExecutePlanRequest) Validate() error {
 	}
 }
 
+// JobPlanningSignals contains domain metrics fed into plan synthesis to adjust risk assessments.
 type JobPlanningSignals struct {
 	DocumentID            string `json:"document_id,omitempty"`
 	WorkspaceID           string `json:"workspace_id,omitempty"`
@@ -221,6 +236,7 @@ type JobPlanningSignals struct {
 	ProtectedAliasCount   int    `json:"protected_alias_count,omitempty"`
 }
 
+// JobEvaluationResult contains quality and security evaluation scores for completed jobs.
 type JobEvaluationResult struct {
 	JobID         string   `json:"job_id"`
 	PlanID        string   `json:"plan_id,omitempty"`
@@ -232,10 +248,8 @@ type JobEvaluationResult struct {
 	MutationCount int32    `json:"mutation_count,omitempty"`
 }
 
-// DefaultJobCapability must stay byte-for-byte in sync with the worker copy
-// (apps/worker/pkg/worker/domain/job.go). The API writes the row at job
-// creation; the worker reads it back to enforce limits, so divergent defaults
-// would silently change enforcement. Update both together.
+// DefaultJobCapability constructs the baseline capability bounds for a new document processing job.
+// Must stay byte-for-byte in sync with the worker copy (apps/worker/pkg/worker/domain/job.go).
 func DefaultJobCapability(jobID, workspaceID, documentID string, createdAt time.Time) *JobCapability {
 	return &JobCapability{
 		CapabilityID:       "cap_" + jobID,

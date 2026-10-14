@@ -9,23 +9,60 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// SearchArgs specifies parameters for semantic search across workspace documents.
+//
+// @property WorkspaceID - Workspace scope for vector search.
+// @property Query - Natural-language query to embed.
+// @property Scope - Optional caller-provided narrower scope descriptor.
 type SearchArgs struct {
+	// WorkspaceID scopes vector search to a workspace.
 	WorkspaceID string `json:"workspace_id"`
-	Query       string `json:"query"`
-	Scope       string `json:"scope"`
+	// Query is the natural-language text to embed and search for.
+	Query string `json:"query"`
+	// Scope optionally describes a narrower search scope for callers; repository filtering currently uses WorkspaceID.
+	Scope string `json:"scope"`
 }
 
+// SearchResult contains the ordered list of semantic search result items.
+//
+// @property Results - Closest matching chunks in repository order.
 type SearchResult struct {
+	// Results contains the closest matching chunks in repository search order.
 	Results []SearchResultItem `json:"results"`
 }
 
+// SearchResultItem represents an individual text chunk matched by vector similarity.
+//
+// @property DocumentID - Source document identifier.
+// @property ChunkID - Matched persisted chunk identifier.
+// @property Text - Matched chunk content.
+// @property Score - Normalized display score based on result rank.
 type SearchResultItem struct {
-	DocumentID string  `json:"document_id"`
-	ChunkID    string  `json:"chunk_id"`
-	Text       string  `json:"text"`
-	Score      float64 `json:"score"`
+	// DocumentID identifies the source document containing the chunk.
+	DocumentID string `json:"document_id"`
+	// ChunkID identifies the matched persisted chunk.
+	ChunkID string `json:"chunk_id"`
+	// Text contains the matched chunk content.
+	Text string `json:"text"`
+	// Score is a normalized rank score derived from the repository result position.
+	Score float64 `json:"score"`
 }
 
+// NewSearchTool creates a core.Tool for semantic vector search across document chunks in a workspace.
+//
+// The tool embeds the query with the configured embedder and returns up to the
+// repository's configured result limit, preserving repository order while
+// assigning a normalized display score.
+//
+// Parameters:
+//   - b: worker dependencies used for embedding and vector repository queries.
+//
+// Returns:
+//   - a configured semantic_search tool;
+//   - an error when the input/output schema cannot be generated.
+//
+// @param b - Worker dependencies used for embedding and vector repository queries.
+// @return Configured semantic_search tool and optional schema-generation error.
 func NewSearchTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[SearchArgs, SearchResult]()
 	if err != nil {

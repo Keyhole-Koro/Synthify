@@ -25,13 +25,14 @@ import (
 )
 
 // HTTPDispatcher dispatches plan generation / execution to the worker
-// service over Connect. It satisfies service.WorkerDispatcher.
+// service over Connect RPC. It satisfies application.WorkerDispatcher.
 type HTTPDispatcher struct {
 	baseURL string
 	opts    []connect.ClientOption
 	logger  *slog.Logger
 }
 
+// NewHTTPDispatcher creates a new HTTPDispatcher targeting the worker service base URL.
 func NewHTTPDispatcher(baseURL string, logger *slog.Logger, opts ...connect.ClientOption) *HTTPDispatcher {
 	audience := strings.TrimRight(baseURL, "/")
 	logger.Info("worker.dispatcher_init",
@@ -42,6 +43,7 @@ func NewHTTPDispatcher(baseURL string, logger *slog.Logger, opts ...connect.Clie
 	return &HTTPDispatcher{baseURL: baseURL, opts: opts, logger: logger}
 }
 
+// GenerateExecutionPlan invokes the worker's GenerateExecutionPlan Connect RPC to create an execution plan for a document.
 func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
 	audience := strings.TrimRight(d.baseURL, "/")
 	httpClient, err := d.httpClient(ctx)
@@ -77,6 +79,7 @@ func (d *HTTPDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.E
 	return nil
 }
 
+// ExecuteApprovedPlan invokes the worker's ExecuteApprovedPlan Connect RPC to execute an approved document processing plan.
 func (d *HTTPDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
 	audience := strings.TrimRight(d.baseURL, "/")
 	httpClient, err := d.httpClient(ctx)
@@ -156,6 +159,7 @@ type authProbeTransport struct {
 	audience string
 }
 
+// RoundTrip executes the round trip and logs diagnostic information on transport or HTTP failure.
 func (t *authProbeTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	authHeader := req.Header.Get("Authorization")
 	resp, err := t.inner.RoundTrip(req)
@@ -183,6 +187,7 @@ func (t *authProbeTransport) RoundTrip(req *http.Request) (*http.Response, error
 	return resp, nil
 }
 
+// schemeOf extracts the authentication scheme prefix (e.g. "Bearer") from an Authorization header.
 func schemeOf(authHeader string) string {
 	if authHeader == "" {
 		return ""

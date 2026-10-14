@@ -1,5 +1,6 @@
 package domain
 
+// JobStageCheckpoint represents the persisted metadata pointer for a specific job stage.
 type JobStageCheckpoint struct {
 	JobID     string `json:"job_id"`
 	Stage     string `json:"stage"`
@@ -8,6 +9,7 @@ type JobStageCheckpoint struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// CheckpointEnvelope contains the full serializable state payload stored in Cloud Storage for job resumption.
 type CheckpointEnvelope struct {
 	SchemaVersion int            `json:"schema_version"`
 	Kind          string         `json:"kind"` // "synthify.worker_checkpoint"

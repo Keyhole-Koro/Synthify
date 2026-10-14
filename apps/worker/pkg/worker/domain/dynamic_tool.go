@@ -12,8 +12,10 @@ import (
 type ToolScope string
 
 const (
+	// ToolScopeWorkspace restricts tool resolution to its origin workspace.
 	ToolScopeWorkspace ToolScope = "workspace"
-	ToolScopeGlobal    ToolScope = "global"
+	// ToolScopeGlobal enables tool resolution across all workspaces.
+	ToolScopeGlobal ToolScope = "global"
 )
 
 // ToolStatus is the lifecycle state of a dynamic tool. The registry only
@@ -22,11 +24,16 @@ const (
 type ToolStatus string
 
 const (
+	// ToolStatusCandidate represents a synthesized tool recorded but not yet promoted.
 	ToolStatusCandidate ToolStatus = "candidate" // recorded, not yet promoted
-	ToolStatusActive    ToolStatus = "active"    // promoted, resolvable
-	ToolStatusHeld      ToolStatus = "held"      // awaiting human review (tier 3)
-	ToolStatusRejected  ToolStatus = "rejected"  // review declined
-	ToolStatusDisabled  ToolStatus = "disabled"  // emergency kill switch
+	// ToolStatusActive represents an approved, actively resolvable tool.
+	ToolStatusActive ToolStatus = "active" // promoted, resolvable
+	// ToolStatusHeld represents a tool awaiting human review due to tier_3 risk.
+	ToolStatusHeld ToolStatus = "held" // awaiting human review (tier 3)
+	// ToolStatusRejected represents a tool whose promotion was declined.
+	ToolStatusRejected ToolStatus = "rejected" // review declined
+	// ToolStatusDisabled represents an emergency disabled tool.
+	ToolStatusDisabled ToolStatus = "disabled" // emergency kill switch
 )
 
 // DynamicTool is transform code the LLM generated at runtime and that was

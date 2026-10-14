@@ -1,3 +1,4 @@
+// Package agents coordinates LLM-driven autonomous workflows, prompt execution, tool orchestration, and job quality evaluation.
 package agents
 
 import (

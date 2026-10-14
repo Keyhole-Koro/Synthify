@@ -17,14 +17,19 @@ import (
 	"google.golang.org/api/iterator"
 )
 
+// objectMetadataFetcher defines the interface for querying object attributes from cloud storage.
 type objectMetadataFetcher interface {
+	// GetObjectMetadata retrieves metadata (size, content type) for the specified document's uploaded object.
 	GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error)
 }
 
+// objectDeleter defines the interface for purging document files from cloud storage.
 type objectDeleter interface {
+	// DeleteDocumentObject deletes all storage objects associated with the specified document.
 	DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error
 }
 
+// NewObjectMetadataFetcher creates an objectMetadataFetcher backed by real GCS or fake-gcs based on baseURL.
 func NewObjectMetadataFetcher(baseURL, bucket string) objectMetadataFetcher {
 	if usesGoogleCloudStorage(baseURL) {
 		return NewGCSObjectMetadataFetcher(bucket, nil)
@@ -32,6 +37,7 @@ func NewObjectMetadataFetcher(baseURL, bucket string) objectMetadataFetcher {
 	return NewFakeGCSObjectMetadataFetcher(baseURL, bucket, nil)
 }
 
+// NewDocumentObjectStore creates an objectDeleter backed by real GCS or fake-gcs based on baseURL.
 func NewDocumentObjectStore(baseURL, bucket string) objectDeleter {
 	if usesGoogleCloudStorage(baseURL) {
 		return NewGCSDocumentObjectStore(bucket, nil)
@@ -48,6 +54,7 @@ type FakeGCSObjectMetadataFetcher struct {
 	client  *http.Client
 }
 
+// NewFakeGCSObjectMetadataFetcher creates a metadata fetcher targeting a fake-gcs emulator endpoint.
 func NewFakeGCSObjectMetadataFetcher(baseURL, bucket string, client *http.Client) *FakeGCSObjectMetadataFetcher {
 	if client == nil {
 		client = http.DefaultClient
@@ -59,6 +66,7 @@ func NewFakeGCSObjectMetadataFetcher(baseURL, bucket string, client *http.Client
 	}
 }
 
+// GetObjectMetadata queries the fake-gcs JSON API to retrieve uploaded document object size and contentType.
 func (f *FakeGCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error) {
 	// The original lives at {ws}/{doc}/source/original.{ext}; list the source/
 	// prefix and take the single object the uploader placed there.
@@ -102,15 +110,18 @@ func (f *FakeGCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, wo
 	}, nil
 }
 
+// GCSObjectMetadataFetcher retrieves document object metadata from Google Cloud Storage via the cloud.google.com/go/storage client.
 type GCSObjectMetadataFetcher struct {
 	bucket string
 	client *gcs.Client
 }
 
+// NewGCSObjectMetadataFetcher creates an object metadata fetcher using a GCS client for the specified bucket.
 func NewGCSObjectMetadataFetcher(bucket string, client *gcs.Client) *GCSObjectMetadataFetcher {
 	return &GCSObjectMetadataFetcher{bucket: bucket, client: client}
 }
 
+// GetObjectMetadata queries GCS for the object metadata of the uploaded document file.
 func (f *GCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, workspaceID, documentID string) (*domain.ObjectMetadata, error) {
 	client, err := f.clientOrDefault(ctx)
 	if err != nil {
@@ -134,6 +145,7 @@ func (f *GCSObjectMetadataFetcher) GetObjectMetadata(ctx context.Context, worksp
 	}, nil
 }
 
+// clientOrDefault returns the configured GCS client or lazily instantiates a new one with default credentials.
 func (f *GCSObjectMetadataFetcher) clientOrDefault(ctx context.Context) (*gcs.Client, error) {
 	if f.client != nil {
 		return f.client, nil
@@ -146,6 +158,7 @@ func (f *GCSObjectMetadataFetcher) clientOrDefault(ctx context.Context) (*gcs.Cl
 	return f.client, nil
 }
 
+// usesGoogleCloudStorage checks whether the configured base URL points to the production Google Cloud Storage service.
 func usesGoogleCloudStorage(rawBaseURL string) bool {
 	parsed, err := url.Parse(rawBaseURL)
 	if err != nil {
@@ -154,12 +167,14 @@ func usesGoogleCloudStorage(rawBaseURL string) bool {
 	return parsed.Host == "storage.googleapis.com"
 }
 
+// FakeGCSDocumentObjectStore deletes document objects via the fake-gcs JSON API.
 type FakeGCSDocumentObjectStore struct {
 	baseURL string
 	bucket  string
 	client  *http.Client
 }
 
+// NewFakeGCSDocumentObjectStore creates a document object store deleter targeting a fake-gcs emulator.
 func NewFakeGCSDocumentObjectStore(baseURL, bucket string, client *http.Client) *FakeGCSDocumentObjectStore {
 	if client == nil {
 		client = http.DefaultClient
@@ -167,6 +182,7 @@ func NewFakeGCSDocumentObjectStore(baseURL, bucket string, client *http.Client) 
 	return &FakeGCSDocumentObjectStore{baseURL: baseURL, bucket: bucket, client: client}
 }
 
+// DeleteDocumentObject lists and deletes all files belonging to the document subtree in fake-gcs.
 func (f *FakeGCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error {
 	// The document is a subtree now ({doc}/source/ + {doc}/extracted/); list and
 	// delete every object under {ws}/{doc}/.
@@ -216,15 +232,18 @@ func (f *FakeGCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, w
 	return nil
 }
 
+// GCSDocumentObjectStore deletes document objects directly from Google Cloud Storage.
 type GCSDocumentObjectStore struct {
 	bucket string
 	client *gcs.Client
 }
 
+// NewGCSDocumentObjectStore creates a document object store deleter targeting real GCS.
 func NewGCSDocumentObjectStore(bucket string, client *gcs.Client) *GCSDocumentObjectStore {
 	return &GCSDocumentObjectStore{bucket: bucket, client: client}
 }
 
+// DeleteDocumentObject lists and removes all objects under the document prefix from GCS.
 func (s *GCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, workspaceID, documentID string) error {
 	client, err := s.clientOrDefault(ctx)
 	if err != nil {
@@ -250,6 +269,7 @@ func (s *GCSDocumentObjectStore) DeleteDocumentObject(ctx context.Context, works
 	return nil
 }
 
+// clientOrDefault returns the configured GCS client or lazily instantiates a new one with default credentials.
 func (s *GCSDocumentObjectStore) clientOrDefault(ctx context.Context) (*gcs.Client, error) {
 	if s.client != nil {
 		return s.client, nil
@@ -262,6 +282,7 @@ func (s *GCSDocumentObjectStore) clientOrDefault(ctx context.Context) (*gcs.Clie
 	return s.client, nil
 }
 
+// parseObjectSize parses a numeric or string size value into an int64 byte count.
 func parseObjectSize(value any) (int64, error) {
 	switch typed := value.(type) {
 	case string:

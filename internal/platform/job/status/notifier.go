@@ -10,6 +10,7 @@ import (
 	firebase "firebase.google.com/go/v4"
 )
 
+// Payload carries document, workspace, and job identifiers needed to locate and update a job document.
 type Payload struct {
 	JobID       string
 	JobType     string
@@ -18,6 +19,7 @@ type Payload struct {
 	TreeID      string
 }
 
+// UpdateFields contains mutable fields that can be patched onto an active Firestore job status document.
 type UpdateFields struct {
 	CurrentStage                 *string
 	Progress                     *int
@@ -30,10 +32,12 @@ type UpdateFields struct {
 	CompletedAt                  *string
 }
 
+// String returns a pointer to the given string value (useful for populating optional UpdateFields).
 func String(value string) *string {
 	return &value
 }
 
+// Int returns a pointer to the given integer value (useful for populating optional UpdateFields).
 func Int(value int) *int {
 	return &value
 }
@@ -70,6 +74,7 @@ func (f UpdateFields) mapWithUpdatedAt() map[string]any {
 	return fields
 }
 
+// Notifier publishes job lifecycle transitions, progress updates, and completion/failure metadata to Firestore.
 type Notifier interface {
 	Queued(ctx context.Context, payload Payload) error
 	Running(ctx context.Context, payload Payload) error
@@ -120,6 +125,8 @@ type firestoreNotifier struct {
 	logger *slog.Logger
 }
 
+// NewNotifier creates and initializes a Firestore Notifier instance. If projectID is empty,
+// a noopNotifier is returned which silently succeeds for all notifications.
 func NewNotifier(ctx context.Context, projectID string, logger *slog.Logger) Notifier {
 	if projectID == "" {
 		return noopNotifier{}

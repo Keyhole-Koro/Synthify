@@ -10,6 +10,7 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
 )
 
+// CreateChatConversation inserts a new conversation thread record in PostgreSQL.
 func (s *Store) CreateChatConversation(ctx context.Context, workspaceID, createdBy, title string) (*domain.ChatConversation, error) {
 	row, err := s.q().CreateWorkspaceChatConversation(ctx, sqlcgen.CreateWorkspaceChatConversationParams{
 		ConversationID: newID(),
@@ -24,6 +25,7 @@ func (s *Store) CreateChatConversation(ctx context.Context, workspaceID, created
 	return toChatConversation(row), nil
 }
 
+// GetChatConversation retrieves a conversation thread record by its unique ID.
 func (s *Store) GetChatConversation(ctx context.Context, conversationID string) (*domain.ChatConversation, error) {
 	row, err := s.q().GetWorkspaceChatConversation(ctx, conversationID)
 	if err != nil {
@@ -35,6 +37,7 @@ func (s *Store) GetChatConversation(ctx context.Context, conversationID string) 
 	return toChatConversation(row), nil
 }
 
+// ListChatConversations queries conversation threads in a workspace ordered by updated_at descending.
 func (s *Store) ListChatConversations(ctx context.Context, workspaceID string, limit int) ([]*domain.ChatConversation, error) {
 	rows, err := s.q().ListWorkspaceChatConversations(ctx, sqlcgen.ListWorkspaceChatConversationsParams{
 		WorkspaceID: workspaceID,
@@ -50,6 +53,7 @@ func (s *Store) ListChatConversations(ctx context.Context, workspaceID string, l
 	return out, nil
 }
 
+// TouchChatConversation updates the updated_at timestamp of a conversation thread.
 func (s *Store) TouchChatConversation(ctx context.Context, conversationID string) error {
 	return s.q().TouchWorkspaceChatConversation(ctx, sqlcgen.TouchWorkspaceChatConversationParams{
 		ConversationID: conversationID,
@@ -57,8 +61,8 @@ func (s *Store) TouchChatConversation(ctx context.Context, conversationID string
 	})
 }
 
-// CreateChatMessage は message 行と、検証済みの sources を書き込む。
-// 呼び出し側が Transactor.WithTx で包めば message + sources が atomic になる。
+// CreateChatMessage inserts a message row and associated citation sources into PostgreSQL.
+// Callers should wrap within Transactor.WithTx for atomic commit.
 func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, retrievalSnapshot []byte) (*domain.ChatMessage, error) {
 	if len(retrievalSnapshot) == 0 {
 		retrievalSnapshot = []byte("{}")
@@ -91,8 +95,7 @@ func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, 
 		if err := s.q().CreateWorkspaceChatMessageSource(ctx, sqlcgen.CreateWorkspaceChatMessageSourceParams{
 			MessageID: messageID,
 			Ordinal:   int32(i),
-			// ツリー item 由来の出典には document が無い。空文字は FK 違反に
-			// なるので NULL を入れる。
+			// Tree item sources lack an associated document; set NULL to avoid FK error.
 			DocumentID: sql.NullString{String: src.DocumentID, Valid: src.DocumentID != ""},
 			ChunkID:    src.ChunkID,
 			ItemID:     src.ItemID,
@@ -116,6 +119,7 @@ func (s *Store) CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, 
 	}, nil
 }
 
+// ListChatMessages returns messages for the given conversation ID with associated sources.
 func (s *Store) ListChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error) {
 	rows, err := s.q().ListWorkspaceChatMessages(ctx, sqlcgen.ListWorkspaceChatMessagesParams{
 		ConversationID: conversationID,
@@ -128,7 +132,7 @@ func (s *Store) ListChatMessages(ctx context.Context, conversationID string, lim
 	if err != nil {
 		return nil, err
 	}
-	// sources は (message_id, ordinal) 順で返るので、message ごとにまとめ直す。
+	// Group sources by message ID.
 	byMessage := make(map[string][]domain.ChatSource, len(sourceRows))
 	for _, src := range sourceRows {
 		byMessage[src.MessageID] = append(byMessage[src.MessageID], domain.ChatSource{
@@ -157,8 +161,7 @@ func (s *Store) ListChatMessages(ctx context.Context, conversationID string, lim
 	return out, nil
 }
 
-// ListRecentChatMessages は最新 limit 件を取得し、時系列 (古い順) に直して返す。
-// SQL 側は新しい順に取るので、ここで反転させる。
+// ListRecentChatMessages retrieves the latest limit messages reversed into chronological (oldest-first) order for prompt history.
 func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error) {
 	rows, err := s.q().ListRecentWorkspaceChatMessages(ctx, sqlcgen.ListRecentWorkspaceChatMessagesParams{
 		ConversationID: conversationID,
@@ -185,13 +188,7 @@ func (s *Store) ListRecentChatMessages(ctx context.Context, conversationID strin
 	return out, nil
 }
 
-// SearchChatSourceCandidates は引用候補を返す。terms に一致した数が多い chunk
-// を先に返し、どれにも一致しなくても候補は返す (回答不能にしないため)。
-//
-// 現状は lexical 経路のみを使う。vector 経路 (SearchWorkspaceChatSourceChunks)
-// は pgvector が必要で、ローカル開発スタックの CockroachDB v24.2 には
-// vector_cosine_distance が無いため呼ばない。API 側に embedding client が
-// 無いことも併せて、embedding が実際に使えるようになった時点で切り替える。
+// SearchChatSourceCandidates retrieves candidate chunks from succeeded documents matching search terms lexical queries.
 func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error) {
 	rows, err := s.q().ListWorkspaceChatSourceChunksLexical(ctx, sqlcgen.ListWorkspaceChatSourceChunksLexicalParams{
 		WorkspaceID: workspaceID,
@@ -216,8 +213,7 @@ func (s *Store) SearchChatSourceCandidates(ctx context.Context, workspaceID stri
 	return out, nil
 }
 
-// SearchChatSourceItems はナレッジツリーの item を引用候補として返す。
-// document が1件も無い workspace でも回答できるのはこの経路があるため。
+// SearchChatSourceItems retrieves candidate knowledge tree items in the workspace matching search terms.
 func (s *Store) SearchChatSourceItems(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error) {
 	rows, err := s.q().ListWorkspaceChatSourceItems(ctx, sqlcgen.ListWorkspaceChatSourceItemsParams{
 		WorkspaceID: workspaceID,
@@ -229,8 +225,7 @@ func (s *Store) SearchChatSourceItems(ctx context.Context, workspaceID string, t
 	}
 	out := make([]domain.ChatSourceCandidate, 0, len(rows))
 	for _, row := range rows {
-		// item の本文は HTML なので、そのまま prompt に入れるとタグが
-		// 大半を占める。description を優先し、無ければ content を使う。
+		// Prefer description over HTML content for prompts.
 		text := row.Description
 		if text == "" {
 			text = row.Content
@@ -244,6 +239,7 @@ func (s *Store) SearchChatSourceItems(ctx context.Context, workspaceID string, t
 	return out, nil
 }
 
+// CountChatSourceItems returns the number of knowledge tree items in the workspace.
 func (s *Store) CountChatSourceItems(ctx context.Context, workspaceID string) (int, error) {
 	count, err := s.q().CountWorkspaceChatSourceItems(ctx, workspaceID)
 	if err != nil {
@@ -252,6 +248,7 @@ func (s *Store) CountChatSourceItems(ctx context.Context, workspaceID string) (i
 	return int(count), nil
 }
 
+// CountChatSourceDocuments returns the number of successfully processed documents available for citation.
 func (s *Store) CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error) {
 	count, err := s.q().CountWorkspaceChatSourceDocuments(ctx, workspaceID)
 	if err != nil {
@@ -260,6 +257,7 @@ func (s *Store) CountChatSourceDocuments(ctx context.Context, workspaceID string
 	return int(count), nil
 }
 
+// toChatConversation converts a sqlc WorkspaceChatConversation row into a domain ChatConversation entity.
 func toChatConversation(row sqlcgen.WorkspaceChatConversation) *domain.ChatConversation {
 	return &domain.ChatConversation{
 		ConversationID: row.ConversationID,

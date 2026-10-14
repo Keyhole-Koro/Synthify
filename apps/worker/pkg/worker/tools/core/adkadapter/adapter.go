@@ -1,4 +1,4 @@
-// Package adkadapter is the single bridge between the worker's 道A Tool
+// Package adkadapter is the single bridge between the worker's unified Tool
 // abstraction (core.Tool) and the ADK runtime that drives the agent
 // loop. The orchestrator builds tools as core.Tool, and only at the
 // boundary that hands the tool list to llmagent.New does it call Wrap to
@@ -13,7 +13,7 @@
 // That way the single source of truth is the Go struct used by the tool
 // (via jsonschema.For[T]) and the LLM sees exactly the schema the tool
 // validates against. Without this override the ADK-derived schema and the
-// 道A schema can drift and the LLM would call against one shape while the
+// core schema can drift and the LLM would call against one shape while the
 // tool validates the other.
 //
 // Usage handling: core.RunFn returns a Usage value, but the ADK handler
@@ -34,7 +34,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 )
 
-// Wrap converts a 道A core.Tool into an ADK tool.Tool. The handler
+// Wrap converts a core.Tool into an ADK tool.Tool. The handler
 // translates ADK's map[string]any args to JSON, delegates to the underlying
 // RunFn, and translates the JSON output back to a map for the ADK callback
 // chain.

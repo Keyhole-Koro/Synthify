@@ -1,3 +1,4 @@
+// Package main provides a database inspection and seeding verification utility for development environments.
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// main connects to the local PostgreSQL database and verifies seeded workspace items.
 func main() {
 	ctx := context.Background()
 	db, err := pgxpool.New(ctx, "postgres://synthify:synthify@127.0.0.1:5432/synthify?sslmode=disable")

@@ -1,5 +1,5 @@
 // Package transform runs LLM-generated transform code and computes its risk
-// tier. Stage 1 ("Starlark 踏み台", see docs/improvements/dynamic-tool-synthesis.md)
+// tier. Stage 1 ("Starlark stepping stone", see docs/improvements/dynamic-tool-synthesis.md)
 // implements the Starlark engine + static analyzer in-process; Python is a
 // later stage behind a separate executor service.
 package transform
@@ -52,7 +52,7 @@ type AnalysisResult struct {
 
 // Analyzer parses code and computes its floor tier without executing it.
 // Parsing happens once and serves both syntax validation and the AST walk
-// (see "判定パイプライン" step 0/a in the design doc).
+// (see judgement pipeline step 0/a in the design doc).
 type Analyzer interface {
 	Analyze(code string) AnalysisResult
 }

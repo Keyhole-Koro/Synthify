@@ -1,3 +1,4 @@
+// Package storage manages local filesystem access to mounted cloud storage volumes, intermediate caches, and pipeline checkpoints.
 package storage
 
 import (

@@ -72,11 +72,13 @@ func NewConnectReporterStrict(apiBaseURL, serviceToken string, opts ...connect.C
 	return &connectReporter{client: client, token: serviceToken}, nil
 }
 
+// connectReporter transmits usage events to the billing API via Connect RPC with service authentication.
 type connectReporter struct {
 	client appv1connect.BillingServiceClient
 	token  string
 }
 
+// RecordUsage sends a usage event with retry on transient failures.
 func (r *connectReporter) RecordUsage(ctx context.Context, ev domain.UsageEvent) error {
 	var lastErr error
 	for attempt := 1; attempt <= recordUsageMaxAttempts; attempt++ {
@@ -125,6 +127,8 @@ func isRetryableUsageError(err error) bool {
 	}
 }
 
+// noopReporter silently discards recorded usage events in environments without billing configuration.
 type noopReporter struct{}
 
+// RecordUsage discards the event and returns nil.
 func (noopReporter) RecordUsage(context.Context, domain.UsageEvent) error { return nil }

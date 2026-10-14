@@ -27,16 +27,19 @@ type DocumentMap struct {
 	chunks []*domain.DocumentChunk
 }
 
+// NewDocumentMap creates a new empty DocumentMap.
 func NewDocumentMap() *DocumentMap {
 	return &DocumentMap{}
 }
 
+// Set populates the document map with the extracted document chunks.
 func (d *DocumentMap) Set(chunks []*domain.DocumentChunk) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.chunks = chunks
 }
 
+// RenderForPrompt renders a Markdown overview of the chunk IDs, headings, and previews for prompt injection.
 func (d *DocumentMap) RenderForPrompt() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
