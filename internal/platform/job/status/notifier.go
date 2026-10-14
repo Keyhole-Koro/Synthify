@@ -114,11 +114,11 @@ func (noopNotifier) Stage(context.Context, Payload, string) error { return nil }
 func (noopNotifier) StageProgress(context.Context, Payload, string, int, string) error {
 	return nil
 }
-func (noopNotifier) UpdateFields(context.Context, string, string, UpdateFields) error      { return nil }
-func (noopNotifier) Failed(context.Context, Payload, string) error                          { return nil }
-func (noopNotifier) FailedWith(context.Context, Payload, FailureNotification) error         { return nil }
-func (noopNotifier) Completed(context.Context, Payload) error                               { return nil }
-func (noopNotifier) CompletedWith(context.Context, Payload, CompletionNotification) error   { return nil }
+func (noopNotifier) UpdateFields(context.Context, string, string, UpdateFields) error     { return nil }
+func (noopNotifier) Failed(context.Context, Payload, string) error                        { return nil }
+func (noopNotifier) FailedWith(context.Context, Payload, FailureNotification) error       { return nil }
+func (noopNotifier) Completed(context.Context, Payload) error                             { return nil }
+func (noopNotifier) CompletedWith(context.Context, Payload, CompletionNotification) error { return nil }
 
 type firestoreNotifier struct {
 	client *firestore.Client

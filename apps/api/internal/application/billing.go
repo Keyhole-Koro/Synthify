@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 	platformusage "github.com/synthify/backend/internal/platform/billing/usage"
 )
 
@@ -440,23 +440,23 @@ func (s *billingService) applyWebhookSideEffects(ctx context.Context, event *dom
 // provider-specific states without coupling the application layer to Stripe enums.
 type BillingReconciliationDiff struct {
 	// AccountID identifies the local account being reconciled.
-	AccountID          string
+	AccountID string
 	// LocalPlan is the plan currently stored by the application.
-	LocalPlan          string
+	LocalPlan string
 	// RemotePlan is the plan currently reported by the billing provider.
-	RemotePlan         string
+	RemotePlan string
 	// LocalStatus is the local subscription status.
-	LocalStatus        string
+	LocalStatus string
 	// RemoteStatus is the provider subscription status.
-	RemoteStatus       string
+	RemoteStatus string
 	// LocalSubscription is the local external subscription identifier.
-	LocalSubscription  string
+	LocalSubscription string
 	// RemoteSubscription is the provider's subscription identifier.
 	RemoteSubscription string
 	// LocalPriceID is the local price identifier.
-	LocalPriceID       string
+	LocalPriceID string
 	// RemotePriceID is the provider price identifier.
-	RemotePriceID      string
+	RemotePriceID string
 }
 
 func (s *billingService) ReconcileAccount(ctx context.Context, accountID string, apply bool) (*BillingReconciliationDiff, error) {

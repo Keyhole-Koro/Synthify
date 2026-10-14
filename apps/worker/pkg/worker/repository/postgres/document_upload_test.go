@@ -16,8 +16,8 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/internal/platform/job/log"
 )
 
@@ -286,15 +286,15 @@ func TestLogJobEvent_InsertsRowWithExpectedArgs(t *testing.T) {
 
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO job_logs")).
 		WithArgs(
-			sqlmock.AnyArg(),     // id (newID())
-			"job_1",              // job_id
-			"ws_1",               // workspace_id
-			"doc_1",              // document_id
-			sqlmock.AnyArg(),     // created_at (nowTime())
-			"INFO",               // level
-			"job.started",        // event
-			"job started",        // message
-			sqlmock.AnyArg(),     // detail_json (serialized)
+			sqlmock.AnyArg(), // id (newID())
+			"job_1",          // job_id
+			"ws_1",           // workspace_id
+			"doc_1",          // document_id
+			sqlmock.AnyArg(), // created_at (nowTime())
+			"INFO",           // level
+			"job.started",    // event
+			"job started",    // message
+			sqlmock.AnyArg(), // detail_json (serialized)
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 

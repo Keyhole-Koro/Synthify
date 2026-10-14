@@ -29,10 +29,10 @@ func main() {
 		if err := rows.Scan(&id, &accountID, &name); err != nil {
 			log.Fatal(err)
 		}
-		
+
 		var count int
 		db.QueryRow(ctx, "SELECT COUNT(*) FROM tree_items WHERE workspace_id = $1 AND title = 'Frontend UI'", id).Scan(&count)
-		
+
 		fmt.Printf("Workspace: %s (ID: %s, Account: %s) - Frontend UI count: %d\n", name, id, accountID, count)
 	}
 }

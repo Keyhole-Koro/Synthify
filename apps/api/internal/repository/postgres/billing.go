@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // GetModelPricing returns the pricing row for the given model.
@@ -378,14 +378,14 @@ func (s *Store) GrantCredit(ctx context.Context, grant *domain.CreditGrant) erro
 		grantedAt = nowTime()
 	}
 	return s.q().GrantCredit(ctx, sqlcgen.GrantCreditParams{
-		CreditID:   grant.CreditID,
-		AccountID:  grant.AccountID,
-		CreditType: string(grant.CreditType),
+		CreditID:    grant.CreditID,
+		AccountID:   grant.AccountID,
+		CreditType:  string(grant.CreditType),
 		AmountMinor: grant.AmountMinor,
-		Currency:   grant.Currency,
-		Note:       grant.Note,
-		GrantedBy:  grant.GrantedBy,
-		GrantedAt:  grantedAt,
+		Currency:    grant.Currency,
+		Note:        grant.Note,
+		GrantedBy:   grant.GrantedBy,
+		GrantedAt:   grantedAt,
 	})
 }
 

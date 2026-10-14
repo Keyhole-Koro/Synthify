@@ -196,15 +196,15 @@ func TestApplyBillingPlan_PassesArgsInExpectedOrder(t *testing.T) {
 	// SQL は $1=account_id, $2=plan, $3..$6=limits, $7=stripe_customer_id, $8=sub, $9=now
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE accounts\nSET plan = $2")).
 		WithArgs(
-			"acc_1",           // $1 account_id
-			"free",            // $2 plan
-			sqlmock.AnyArg(),  // $3 storage_quota_bytes (limits)
-			sqlmock.AnyArg(),  // $4 max_file_size_bytes
-			sqlmock.AnyArg(),  // $5 max_uploads_per_5h
-			sqlmock.AnyArg(),  // $6 max_uploads_per_1week
-			"cus_x",           // $7 stripe_customer_id
-			"sub_x",           // $8 stripe_subscription_id
-			sqlmock.AnyArg(),  // $9 now
+			"acc_1",          // $1 account_id
+			"free",           // $2 plan
+			sqlmock.AnyArg(), // $3 storage_quota_bytes (limits)
+			sqlmock.AnyArg(), // $4 max_file_size_bytes
+			sqlmock.AnyArg(), // $5 max_uploads_per_5h
+			sqlmock.AnyArg(), // $6 max_uploads_per_1week
+			"cus_x",          // $7 stripe_customer_id
+			"sub_x",          // $8 stripe_subscription_id
+			sqlmock.AnyArg(), // $9 now
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -243,14 +243,14 @@ func TestApplyBillingPlanByStripeCustomerID_PassesArgsInExpectedOrder(t *testing
 
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE accounts\nSET plan = $2")).
 		WithArgs(
-			"cus_x",           // $1 stripe_customer_id
-			"free",            // $2 plan
-			sqlmock.AnyArg(),  // $3 quota
-			sqlmock.AnyArg(),  // $4 max_file_size
-			sqlmock.AnyArg(),  // $5 per_5h
-			sqlmock.AnyArg(),  // $6 per_1week
-			"sub_x",           // $7 stripe_subscription_id
-			sqlmock.AnyArg(),  // $8 now
+			"cus_x",          // $1 stripe_customer_id
+			"free",           // $2 plan
+			sqlmock.AnyArg(), // $3 quota
+			sqlmock.AnyArg(), // $4 max_file_size
+			sqlmock.AnyArg(), // $5 per_5h
+			sqlmock.AnyArg(), // $6 per_1week
+			"sub_x",          // $7 stripe_subscription_id
+			sqlmock.AnyArg(), // $8 now
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -363,23 +363,23 @@ func TestApplyBillingEvent_AccountIDPath_PassesArgsInOrder(t *testing.T) {
 	// $1=AccountID, $2="" (placeholder for stripe_customer_id slot), $3=plan, ...
 	mock.ExpectExec(regexp.QuoteMeta("WHERE account_id = $1")).
 		WithArgs(
-			"acc_1",           // $1 account_id
-			"",                // $2 stripe_customer_id slot (unused for this path)
-			"free",            // $3 plan
-			sqlmock.AnyArg(),  // $4 quota
-			sqlmock.AnyArg(),  // $5 max_file_size
-			sqlmock.AnyArg(),  // $6 per_5h
-			sqlmock.AnyArg(),  // $7 per_1week
-			"cus_1",           // $8 stripe_customer_id (CASE)
-			"sub_1",           // $9 stripe_subscription_id
-			sqlmock.AnyArg(),  // $10 billing_status
-			"price_1",         // $11 stripe_price_id
-			"usd",             // $12 currency
-			int64(1000),       // $13 amount_minor
-			"month",           // $14 interval
-			sqlmock.AnyArg(),  // $15 current_period_end
-			false,             // $16 cancel_at_period_end
-			sqlmock.AnyArg(),  // $17 now
+			"acc_1",          // $1 account_id
+			"",               // $2 stripe_customer_id slot (unused for this path)
+			"free",           // $3 plan
+			sqlmock.AnyArg(), // $4 quota
+			sqlmock.AnyArg(), // $5 max_file_size
+			sqlmock.AnyArg(), // $6 per_5h
+			sqlmock.AnyArg(), // $7 per_1week
+			"cus_1",          // $8 stripe_customer_id (CASE)
+			"sub_1",          // $9 stripe_subscription_id
+			sqlmock.AnyArg(), // $10 billing_status
+			"price_1",        // $11 stripe_price_id
+			"usd",            // $12 currency
+			int64(1000),      // $13 amount_minor
+			"month",          // $14 interval
+			sqlmock.AnyArg(), // $15 current_period_end
+			false,            // $16 cancel_at_period_end
+			sqlmock.AnyArg(), // $17 now
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -406,23 +406,23 @@ func TestApplyBillingEvent_StripeCustomerPath_PassesArgsInOrder(t *testing.T) {
 	// $1="" (placeholder), $2=customer_id, $3=plan, ..., $8=customer_id (CASE)
 	mock.ExpectExec(regexp.QuoteMeta("WHERE stripe_customer_id = $2")).
 		WithArgs(
-			"",                // $1 account_id slot (unused)
-			"cus_1",           // $2 stripe_customer_id (WHERE match)
-			"free",            // $3 plan
-			sqlmock.AnyArg(),  // $4-$7 limits
+			"",               // $1 account_id slot (unused)
+			"cus_1",          // $2 stripe_customer_id (WHERE match)
+			"free",           // $3 plan
+			sqlmock.AnyArg(), // $4-$7 limits
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
-			"cus_1",           // $8 stripe_customer_id (CASE passthru)
-			"sub_1",           // $9 stripe_subscription_id
-			sqlmock.AnyArg(),  // $10 status
-			"price_1",         // $11
-			"usd",             // $12
-			int64(2000),       // $13
-			"year",            // $14
-			sqlmock.AnyArg(),  // $15
-			true,              // $16
-			sqlmock.AnyArg(),  // $17 now
+			"cus_1",          // $8 stripe_customer_id (CASE passthru)
+			"sub_1",          // $9 stripe_subscription_id
+			sqlmock.AnyArg(), // $10 status
+			"price_1",        // $11
+			"usd",            // $12
+			int64(2000),      // $13
+			"year",           // $14
+			sqlmock.AnyArg(), // $15
+			true,             // $16
+			sqlmock.AnyArg(), // $17 now
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 

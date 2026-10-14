@@ -16,8 +16,8 @@ import (
 // Compile-time check: *Store satisfies both the unit-of-work boundary
 // (Transactor) and the bundle of all repositories (Repositories).
 var (
-	_ repository.Transactor    = (*Store)(nil)
-	_ repository.Repositories  = (*Store)(nil)
+	_ repository.Transactor   = (*Store)(nil)
+	_ repository.Repositories = (*Store)(nil)
 )
 
 // Store provides the PostgreSQL implementation of repository.Repositories and repository.Transactor.
