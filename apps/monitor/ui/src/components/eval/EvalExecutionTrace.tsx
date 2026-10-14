@@ -5,9 +5,10 @@
  * @module
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { EvalCaseRow, EvalRunRow, EvalTraceEvent } from '@/lib/eval-queries';
-import { authFetch } from '@/lib/auth-client';
+import { evalTraceQuery } from '@/lib/api-queries';
 
 /** Category classification for a trace node event. */
 type TraceKind = 'case' | 'tool' | 'llm' | 'validation' | 'assertion';
@@ -145,25 +146,15 @@ export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases:
   const [caseKey, setCaseKey] = useState(cases[0] ? `${cases[0].runId}:${cases[0].caseName}` : '');
   const selectedCase = visibleCases.find((row) => `${row.runId}:${row.caseName}` === caseKey) ?? visibleCases[0] ?? cases[0];
 
-  const [trace, setTrace] = useState<EvalTraceEvent[] | null>(null);
-  const [traceLoading, setTraceLoading] = useState(false);
-
   const selectedRunId = selectedCase?.runId;
   const selectedCaseIndex = selectedCase?.caseIndex;
-
-  useEffect(() => {
-    if (!selectedRunId || selectedCaseIndex === undefined) { setTrace(null); return; }
-    let cancelled = false;
-    setTraceLoading(true);
-    setTrace(null);
-    const url = `/api/dashboards/eval/trace?runId=${encodeURIComponent(selectedRunId)}&caseIndex=${selectedCaseIndex}`;
-    authFetch(url)
-      .then((res) => (res.ok ? res.json() : { events: [] }))
-      .then((body: { events?: EvalTraceEvent[] }) => { if (!cancelled) setTrace(Array.isArray(body.events) ? body.events : []); })
-      .catch(() => { if (!cancelled) setTrace([]); })
-      .finally(() => { if (!cancelled) setTraceLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedRunId, selectedCaseIndex]);
+  const traceQuery = useQuery({
+    ...evalTraceQuery(selectedRunId ?? '', selectedCaseIndex ?? 0),
+    enabled: Boolean(selectedRunId) && selectedCaseIndex !== undefined,
+  });
+  // null until the selected case's trace has loaded (or when no case is selected).
+  const trace: EvalTraceEvent[] | null = traceQuery.data ?? null;
+  const traceLoading = traceQuery.isFetching;
 
   const hasRealTrace = Array.isArray(trace) && trace.length > 0;
   const nodes = useMemo(() => {

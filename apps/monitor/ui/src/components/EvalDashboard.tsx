@@ -6,9 +6,10 @@
  */
 
 import { Link } from '@tanstack/react-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { authFetch } from '@/lib/auth-client';
+import { evalDashboardQuery } from '@/lib/api-queries';
 import type { Period } from '@/lib/dashboard-queries';
 import type { EvalData } from '@/lib/eval-queries';
 import { EvalExecutionTrace } from './eval/EvalExecutionTrace';
@@ -99,27 +100,10 @@ function Section({ title, detail, children }: { title: string; detail?: string; 
  */
 export function EvalDashboard() {
   const [period, setPeriod] = useState<Period>('7d');
-  const [data, setData] = useState<EvalData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    authFetch(`/api/dashboards/eval?period=${period}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error((await response.text().catch(() => '')) || `Request failed: ${response.status}`);
-        return response.json() as Promise<Partial<EvalData>>;
-      })
-      .then((body) => { if (!cancelled) setData(normalize(body)); })
-      .catch((reason) => {
-        console.error(reason);
-        if (!cancelled) { setData(EMPTY_EVAL); setError(reason instanceof Error ? reason.message : 'Failed to load'); }
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [period]);
+  const query = useQuery({ ...evalDashboardQuery(period), select: normalize });
+  const loading = query.isPending;
+  const error = query.error ? query.error.message || 'Failed to load' : null;
+  const data: EvalData | null = query.isError ? EMPTY_EVAL : (query.data ?? null);
 
   const trend = (data?.trend ?? []).map((point) => ({ ...point, passRatePct: Number((point.passRate * 100).toFixed(1)) }));
   const llmCalls = data?.recentCases.length ?? 0;

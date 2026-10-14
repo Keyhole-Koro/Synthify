@@ -5,7 +5,7 @@
  * @module
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -25,7 +25,8 @@ import type {
   Period,
 } from '@/lib/dashboard-queries';
 import { AuditPage } from './AuditPage';
-import { authFetch } from '@/lib/auth-client';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardQuery, type DashboardName } from '@/lib/api-queries';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -61,18 +62,16 @@ function shortDate(iso: string): string {
 }
 
 /**
- * Fetches JSON payload from an authenticated dashboard API endpoint.
- *
- * @param url - Destination endpoint URL.
- * @returns Decoded JSON response.
+ * Loads one dashboard tab for a period. While loading, `data` is null; if the
+ * request fails, `data` is the tab's empty state and `error` holds the message.
  */
-async function fetchDashboardData<T>(url: string): Promise<T> {
-  const res = await authFetch(url);
-  if (!res.ok) {
-    const message = await res.text().catch(() => '');
-    throw new Error(message || `Request failed: ${res.status}`);
-  }
-  return res.json() as Promise<T>;
+function useDashboardTab<T>(name: DashboardName, period: Period, normalize: (body: Partial<T>) => T, empty: T) {
+  const query = useQuery({ ...dashboardQuery<T>(name, period), select: normalize });
+  return {
+    loading: query.isPending,
+    error: query.error ? query.error.message || 'Failed to load' : null,
+    data: query.isError ? empty : (query.data ?? null),
+  };
 }
 
 /** Default empty state for job health dashboard data. */
@@ -217,22 +216,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * stage errors, and retry hotspots.
  */
 function JobHealthTab({ period, onDrillDown }: { period: Period; onDrillDown?: (jobId: string) => void }) {
-  const [data, setData] = useState<JobHealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<JobHealthData>>(`/api/dashboards/job-health?period=${period}`)
-      .then((body) => setData(normalizeJobHealth(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_JOB_HEALTH);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<JobHealthData>('job-health', period, normalizeJobHealth, EMPTY_JOB_HEALTH);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -435,22 +419,7 @@ function JobHealthTab({ period, onDrillDown }: { period: Period; onDrillDown?: (
  * Tab panel displaying monetary and credit costs across models and high-consumption jobs.
  */
 function CostTab({ period }: { period: Period }) {
-  const [data, setData] = useState<CostData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<CostData>>(`/api/dashboards/cost?period=${period}`)
-      .then((body) => setData(normalizeCost(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_COST);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<CostData>('cost', period, normalizeCost, EMPTY_COST);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -533,22 +502,7 @@ function CostTab({ period }: { period: Period }) {
  * Tab panel showing active workspace numbers, dormant counts, and document creation throughput.
  */
 function WorkspaceTab({ period }: { period: Period }) {
-  const [data, setData] = useState<WorkspaceData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<WorkspaceData>>(`/api/dashboards/workspace?period=${period}`)
-      .then((body) => setData(normalizeWorkspace(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_WORKSPACE);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<WorkspaceData>('workspace', period, normalizeWorkspace, EMPTY_WORKSPACE);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -604,22 +558,7 @@ function WorkspaceTab({ period }: { period: Period }) {
  * Tab panel surfacing system error rates, burst notifications, and top error event patterns.
  */
 function ErrorsTab({ period }: { period: Period }) {
-  const [data, setData] = useState<ErrorsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<ErrorsData>>(`/api/dashboards/errors?period=${period}`)
-      .then((body) => setData(normalizeErrors(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_ERRORS);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<ErrorsData>('errors', period, normalizeErrors, EMPTY_ERRORS);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;

@@ -5,9 +5,10 @@
  * @module
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { JobTraceData, ToolCallEntry } from '@/lib/trace-queries';
-import { authFetch } from '@/lib/auth-client';
+import { jobTraceQuery } from '@/lib/api-queries';
 
 /**
  * Formats duration in milliseconds into a concise time string.
@@ -122,18 +123,9 @@ function ToolCallRow({ entry, index }: { entry: ToolCallEntry; index: number }) 
  * @returns Loading, empty, error, or trace detail UI for the selected job.
  */
 export function JobTrace({ jobId }: { jobId: string }) {
-  const [data, setData] = useState<JobTraceData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    setData(null);
-    authFetch(`/api/jobs/trace?jobId=${encodeURIComponent(jobId)}`)
-      .then((r) => r.json())
-      .then((d: JobTraceData) => setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [jobId]);
+  const query = useQuery(jobTraceQuery(jobId));
+  const loading = query.isPending;
+  const data: JobTraceData | null = query.data ?? null;
 
   if (loading) {
     return <div className="p-8 text-sm text-stone-400 text-center">Loading trace...</div>;

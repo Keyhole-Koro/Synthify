@@ -8,8 +8,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { createJobLogDataSource } from '@/lib/data-source';
 import { JobMonitor } from '../JobLogViewer';
 import { JobTrace } from './JobTrace';
-import type { JobSummary, ListJobsResponse } from '../types';
-import { authFetch } from '@/lib/auth-client';
+import type { JobSummary } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import { jobsQuery } from '@/lib/api-queries';
 
 /**
  * Props for the AuditPage component.
@@ -31,20 +32,13 @@ interface AuditPageProps {
  * @returns The monitor audit screen containing job search, log, and trace panels.
  */
 export function AuditPage({ embedded = false, forcedJobId, onJobSelect }: AuditPageProps) {
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
+  const jobsResult = useQuery(jobsQuery());
+  const jobs: JobSummary[] = jobsResult.data ?? [];
+  const loading = jobsResult.isPending;
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [mainTab, setMainTab] = useState<'logs' | 'trace'>('logs');
   const dataSource = useMemo(() => createJobLogDataSource(), []);
-
-  useEffect(() => {
-    authFetch('/api/jobs')
-      .then((r) => r.json())
-      .then((data: Partial<ListJobsResponse>) => setJobs(Array.isArray(data.jobs) ? data.jobs : []))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
 
   // Synchronize selection state when an external forcedJobId is provided
   useEffect(() => {
