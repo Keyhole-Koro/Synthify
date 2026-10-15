@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInitialAuthUser, signInWithGoogleSession, subscribeAuthUser, type AuthUser } from '@/features/auth/session';
 import { loadWorkspaceSnapshot, saveWorkspaceSnapshot } from '@/features/workspaces/cache/workspaceSnapshotCache';
 import { workspacesQueryOptions } from '@/features/workspaces/queries';
+import { provisionUserQueryOptions } from '@/features/auth/queries';
 import { log } from '@/lib/observability/log';
 
 /**
@@ -15,29 +16,37 @@ import { log } from '@/lib/observability/log';
  */
 export function useAuthState() {
   const queryClient = useQueryClient();
-  const [user, setUser] = useState<AuthUser | null>(getInitialAuthUser);
+  const [authUser, setUser] = useState<AuthUser | null>(getInitialAuthUser);
   const [authLoading, setAuthLoading] = useState(true);
   const [createdWorkspaceIds, setCreatedWorkspaceIds] = useState<Set<string>>(() => new Set());
   const [authError, setAuthError] = useState<Error | null>(null);
 
-  // TanStack Query でワークスペース一覧を取得・同期
+  // signInUser を先に済ませ、返ってきた課金アカウント ID をユーザーに付ける
+  const provision = useQuery(provisionUserQueryOptions(authUser?.id));
+  const accountId = provision.data?.user?.accountId;
+  const user = useMemo(
+    () => (authUser && accountId ? { ...authUser, accountId } : authUser),
+    [authUser, accountId],
+  );
+
+  // TanStack Query でワークスペース一覧を取得・同期。スナップショットは取得までの
+  // 仮表示（placeholderData）にとどめ、取得そのものは止めない
   const {
     data: workspaces = [],
-    isLoading: workspacesLoading,
     isFetched,
     error: queryError,
     refetch,
   } = useQuery({
-    ...workspacesQueryOptions(user?.id),
-    initialData: () => (user ? loadWorkspaceSnapshot(user) : []),
+    ...workspacesQueryOptions(authUser?.id, provision.isSuccess || provision.isError),
+    placeholderData: () => (authUser ? loadWorkspaceSnapshot(authUser) : []),
   });
 
   // キャッシュが更新されたらローカルスナップショットにも自動永続化
   useEffect(() => {
-    if (user && isFetched && workspaces.length > 0) {
-      saveWorkspaceSnapshot(user, workspaces);
+    if (authUser && isFetched && workspaces.length > 0) {
+      saveWorkspaceSnapshot(authUser, workspaces);
     }
-  }, [user, isFetched, workspaces]);
+  }, [authUser, isFetched, workspaces]);
 
   // 検証済みワークスペースIDは、API取得完了済みまたは手動マークされたIDから導出
   const verifiedWorkspaceIds = useMemo(() => {
@@ -58,6 +67,7 @@ export function useAuthState() {
         setCreatedWorkspaceIds(new Set());
         setAuthError(null);
         queryClient.removeQueries({ queryKey: ['workspaces'] });
+        queryClient.removeQueries({ queryKey: ['auth', 'provision'] });
       }
     });
   }, [queryClient]);
@@ -87,7 +97,7 @@ export function useAuthState() {
   }, []);
 
   const workspaceError = queryError ?? null;
-  const loading = authLoading || (Boolean(user) && workspacesLoading && workspaces.length === 0);
+  const loading = authLoading || (Boolean(authUser) && !isFetched && workspaces.length === 0);
 
   return {
     user,

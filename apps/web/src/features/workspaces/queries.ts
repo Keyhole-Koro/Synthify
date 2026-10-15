@@ -1,5 +1,4 @@
 import { queryOptions } from '@tanstack/react-query';
-import { signInUser } from '@/features/auth/userApi';
 import {
   listWorkspaces,
   getWorkspace,
@@ -41,26 +40,22 @@ export const shareLinksQueryKey = (workspaceId: string) => ['workspaces', worksp
 export const resolvedShareLinkQueryKey = (token: string) => ['share-link', token] as const;
 
 /**
- * TanStack query options for fetching the list of workspaces accessible to the user,
- * ensuring automatic provisioning via `signInUser` before fetching.
+ * TanStack query options for fetching the list of workspaces accessible to the user.
+ *
+ * ListWorkspaces depends on the account_users row that `signInUser` creates, so the
+ * caller passes `provisioned` once that call has settled; listing earlier races a
+ * first sign-in and returns nothing.
  *
  * @param userId - The active user's ID or null.
+ * @param provisioned - Whether the user provisioning call has settled.
  * @returns Configured TanStack query options object.
  */
-export function workspacesQueryOptions(userId?: string | null) {
+export function workspacesQueryOptions(userId: string | null | undefined, provisioned: boolean) {
   return queryOptions({
     queryKey: workspacesQueryKey(userId),
-    queryFn: async () => {
-      if (!userId) return [];
-      try {
-        await signInUser();
-      } catch {
-        // provision falls through to listWorkspaces
-      }
-      return await listWorkspaces();
-    },
+    queryFn: () => listWorkspaces(),
     staleTime: 30_000,
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && provisioned,
   });
 }
 
