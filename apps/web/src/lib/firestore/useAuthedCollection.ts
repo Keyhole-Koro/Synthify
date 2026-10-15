@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { onSnapshot, type Query, type FirestoreError } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { log } from '@/lib/observability/log';
+import type { UserFacingError } from '@/lib/errors';
+import { handleSnapshotError } from './snapshotError';
 
 /**
  * Result returned by the useAuthedCollection hook.
@@ -12,8 +13,8 @@ import { log } from '@/lib/observability/log';
 export interface UseAuthedCollectionResult<T> {
   /** Array of documents if query succeeded, or null if loading, unauthenticated, or empty ref. */
   data: T[] | null;
-  /** Snapshot subscription error if one occurred. */
-  error: FirestoreError | null;
+  /** Subscription error to show the user. Transient errors (connection drops, sign-out) stay null. */
+  error: UserFacingError | null;
 }
 
 /**
@@ -26,7 +27,7 @@ export interface UseAuthedCollectionResult<T> {
  */
 export function useAuthedCollection<T>(q: Query | null, label?: string): UseAuthedCollectionResult<T> {
   const [data, setData] = useState<T[] | null>(null);
-  const [error, setError] = useState<FirestoreError | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null)), []);
@@ -40,12 +41,8 @@ export function useAuthedCollection<T>(q: Query | null, label?: string): UseAuth
         setError(null);
       },
       (err: FirestoreError) => {
-        log.error('Firestore snapshot failed', {
-          source: 'firestore_snapshot',
-          code: err.code,
-          label: label ?? null,
-        }, err);
-        setError(err);
+        const shown = handleSnapshotError(err, label ?? 'collection');
+        if (shown) setError(shown);
       },
     );
   }, [uid, q, label]);

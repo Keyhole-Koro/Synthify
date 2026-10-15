@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { onSnapshot, type DocumentReference, type FirestoreError } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { log } from '@/lib/observability/log';
+import type { UserFacingError } from '@/lib/errors';
+import { handleSnapshotError } from './snapshotError';
 
 /**
  * Result returned by the useAuthedDoc hook.
@@ -12,8 +13,8 @@ import { log } from '@/lib/observability/log';
 export interface UseAuthedDocResult<T> {
   /** Document data if found, or null if loading, unauthenticated, or non-existent. */
   data: T | null;
-  /** Snapshot subscription error if one occurred. */
-  error: FirestoreError | null;
+  /** Subscription error to show the user. Transient errors (connection drops, sign-out) stay null. */
+  error: UserFacingError | null;
 }
 
 /**
@@ -27,7 +28,7 @@ export interface UseAuthedDocResult<T> {
  */
 export function useAuthedDoc<T>(ref: DocumentReference | null, label?: string): UseAuthedDocResult<T> {
   const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<FirestoreError | null>(null);
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
 
   useEffect(() => onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null)), []);
@@ -41,12 +42,8 @@ export function useAuthedDoc<T>(ref: DocumentReference | null, label?: string): 
         setError(null);
       },
       (err: FirestoreError) => {
-        log.error('Firestore snapshot failed', {
-          source: 'firestore_snapshot',
-          code: err.code,
-          label: label ?? ref.path,
-        }, err);
-        setError(err);
+        const shown = handleSnapshotError(err, label ?? ref.path);
+        if (shown) setError(shown);
       },
     );
   }, [uid, ref, label]);
