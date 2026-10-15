@@ -656,33 +656,6 @@ func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	return nil
 }
 
-// toAccount converts a sqlcgen.Account query row into a domain.Account entity.
-func toAccount(row sqlcgen.Account) *domain.Account {
-	return &domain.Account{
-		AccountID:            row.AccountID,
-		Name:                 row.Name,
-		Plan:                 row.Plan,
-		StorageQuotaBytes:    row.StorageQuotaBytes,
-		StorageUsedBytes:     row.StorageUsedBytes,
-		MaxFileSizeBytes:     row.MaxFileSizeBytes,
-		MaxUploadsPerFiveH:   int64(row.MaxUploadsPer5h),
-		MaxUploadsPerWeek:    int64(row.MaxUploadsPer1week),
-		StripeCustomerID:     row.StripeCustomerID,
-		StripeSubscriptionID: row.StripeSubscriptionID,
-		CreatedAt:            row.CreatedAt.UTC().Format(time.RFC3339),
-	}
-}
-
-// toWorkspace converts a sqlcgen.Workspace query row into a domain.Workspace entity.
-func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
-	return &domain.Workspace{
-		WorkspaceID: row.WorkspaceID,
-		AccountID:   row.AccountID,
-		Name:        row.Name,
-		CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
-	}
-}
-
 // scanner defines an abstraction over sql.Row and sql.Rows for scanning values.
 type scanner interface {
 	Scan(dest ...any) error

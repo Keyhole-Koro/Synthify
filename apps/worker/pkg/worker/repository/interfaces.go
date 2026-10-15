@@ -51,13 +51,6 @@ type AccountRepository interface {
 	// GetAccountByUser returns the account associated with the user, used for usage attribution.
 	GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error)
 	IsAccountAccessible(ctx context.Context, accountID, userID string) (ok bool, err error)
-	SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error
-	ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error)
-	ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error
-	ApplyBillingPlanByStripeCustomerID(ctx context.Context, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error
-	RecordBillingWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error)
-	MarkBillingWebhookEventProcessed(ctx context.Context, provider, eventID, status, errorMessage string) error
-	ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error
 }
 
 // WorkspaceRepository handles workspace lifecycle operations and tenant verification.

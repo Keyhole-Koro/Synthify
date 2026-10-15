@@ -77,12 +77,6 @@ func NewGenerateKnowledgeTreeTool(b *base.Context) (core.Tool, error) {
 	}, nil
 }
 
-// generateKnowledgeTree is an internal helper that calls GenerateKnowledgeTree discarding usage metrics.
-func generateKnowledgeTree(ctx context.Context, llmClient base.LLMClient, args GenerateKnowledgeTreeArgs) ([]domain.GeneratedTreeItem, error) {
-	items, _, err := GenerateKnowledgeTree(ctx, llmClient, args)
-	return items, err
-}
-
 // GenerateKnowledgeTree runs knowledge tree generation with the production
 // embedded prompt.
 func GenerateKnowledgeTree(ctx context.Context, llmClient base.LLMClient, args GenerateKnowledgeTreeArgs) ([]domain.GeneratedTreeItem, llm.Usage, error) {
