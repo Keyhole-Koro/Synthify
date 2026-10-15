@@ -214,3 +214,33 @@ func TestApproveAlias_Viewer_ReturnsForbidden(t *testing.T) {
 
 	assert.ErrorIs(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, alias.ItemID, "viewer"), domain.ErrForbidden)
 }
+
+func TestCreateItem_UnderParentInSameWorkspace_Succeeds(t *testing.T) {
+	ctx, _, svc, wsID, canonical, _ := newAliasFixture(t)
+
+	child, err := svc.CreateItem(ctx, wsID, "child", "", canonical.ItemID, "owner")
+	require.NoError(t, err)
+	assert.Equal(t, canonical.ItemID, child.ParentID)
+}
+
+// Children are listed by parent_id, so a parent from another workspace would
+// inject this item into that workspace's tree.
+func TestCreateItem_ParentFromOtherWorkspace_ReturnsForbidden(t *testing.T) {
+	ctx, repo, svc, wsID, _, _ := newAliasFixture(t)
+	otherAccount, err := repo.GetOrCreateAccount(ctx, "someone-else")
+	require.NoError(t, err)
+	otherWorkspace, err := repo.CreateWorkspace(ctx, otherAccount.AccountID, "other-workspace")
+	require.NoError(t, err)
+	foreignParent, err := repo.CreateItem(ctx, otherWorkspace.WorkspaceID, "foreign", "", "", "someone-else")
+	require.NoError(t, err)
+
+	_, err = svc.CreateItem(ctx, wsID, "injected", "", foreignParent.ItemID, "owner")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+func TestCreateItem_UnknownParent_ReturnsNotFound(t *testing.T) {
+	ctx, _, svc, wsID, _, _ := newAliasFixture(t)
+
+	_, err := svc.CreateItem(ctx, wsID, "orphan", "", "missing-parent", "owner")
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+}

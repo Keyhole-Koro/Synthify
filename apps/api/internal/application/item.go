@@ -95,6 +95,18 @@ func (s *ItemService) CreateItem(ctx context.Context, workspaceID, label, descri
 	if err := s.authorizeWrite(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
+	// The parent must be in the same workspace. Children are listed by
+	// parent_id alone, so a foreign parent would put this item into another
+	// workspace's tree.
+	if parentID != "" {
+		parent, err := s.repo.GetItem(ctx, parentID)
+		if err != nil {
+			return nil, err
+		}
+		if parent.WorkspaceID != workspaceID {
+			return nil, domain.ErrForbidden
+		}
+	}
 	return s.repo.CreateItem(ctx, workspaceID, label, description, parentID, userID)
 }
 
