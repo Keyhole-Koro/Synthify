@@ -25,8 +25,10 @@ test('creates a public read-only link and revokes access', async ({ browser, pag
 
   await page.getByRole('button', { name: 'リンク作成' }).click();
 
-  const linkCode = page.locator('code').last();
-  await expect(linkCode).toContainText('/view?token=');
+  // Match on the link itself: the router and query devtools render their own
+  // <code> elements, so a positional locator lands on one of theirs.
+  const linkCode = page.locator('code', { hasText: '/view?token=' }).last();
+  await expect(linkCode).toBeVisible();
   const shareURL = (await linkCode.textContent())?.trim();
   expect(shareURL).toBeTruthy();
 

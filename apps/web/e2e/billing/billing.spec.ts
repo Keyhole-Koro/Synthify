@@ -50,5 +50,5 @@ test('updates budget and exposes billing API failures', async ({ page }) => {
   await expect(page.getByText('保存しました')).toBeVisible();
   expect(budgetBody).toContain('75');
   await page.getByText('アップグレード', { exact: true }).first().click();
-  await expect(page.getByText('決済URLを取得できませんでした。')).toBeVisible();
+  await expect(page.getByText('通信環境を確認して、再度お試しください。')).toBeVisible();
 });

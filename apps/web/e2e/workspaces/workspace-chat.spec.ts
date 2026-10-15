@@ -85,8 +85,9 @@ test('keeps the conversation across a reload', async ({ page }) => {
   await openWorkspaceList(page);
   await page.getByText('Synthify Dev Seed', { exact: true }).first().click();
 
-  // 会話はサーバーに保存されているので、リロード後も履歴が戻る。
-  await expect(page.getByTestId('workspace-chat-message-user').filter({ hasText: '結論は何ですか' })).toBeVisible();
+  // 会話はサーバーに保存されているので、リロード後も履歴が戻る。seed workspace は
+  // テスト間で共有されて同じ質問が何度も残るので、最後の1件だけを見る。
+  await expect(page.getByTestId('workspace-chat-message-user').filter({ hasText: '結論は何ですか' }).last()).toBeVisible();
 });
 
 test('asks follow-up questions in the same conversation', async ({ page }) => {

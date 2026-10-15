@@ -71,6 +71,7 @@ export function WorkspaceHeader({
             }}
           >
             <input
+              aria-label="ワークスペース名"
               value={draftName}
               maxLength={64}
               disabled={savingName}

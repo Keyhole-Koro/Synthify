@@ -30,7 +30,7 @@ test('renames a workspace and keeps the new name after reload', async ({ page })
   await expect(workspaceHeading).toBeVisible();
   await workspaceHeading.click({ force: true });
 
-  const nameInput = page.getByRole('textbox').last();
+  const nameInput = page.getByRole('textbox', { name: 'ワークスペース名' });
   await expect(nameInput).toBeVisible();
   await nameInput.fill(renamed);
   await nameInput.press('Enter');
@@ -42,7 +42,7 @@ test('renames a workspace and keeps the new name after reload', async ({ page })
   await page.getByText(renamed, { exact: true }).first().click();
   const renamedWorkspaceHeading = page.getByRole('button', { name: renamed, exact: true }).last();
   await renamedWorkspaceHeading.click({ force: true });
-  const cancelNameInput = page.getByRole('textbox').last();
+  const cancelNameInput = page.getByRole('textbox', { name: 'ワークスペース名' });
   await cancelNameInput.fill('   ');
   await cancelNameInput.press('Enter');
   await expect(page.getByText('ワークスペース名を入力してください。', { exact: true })).toBeVisible();
