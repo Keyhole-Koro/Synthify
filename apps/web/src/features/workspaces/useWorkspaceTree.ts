@@ -112,8 +112,14 @@ export function useWorkspaceTree(
     map = openChild(ROOT_ID, WORKSPACES_ID, map);
     map = openChild(WORKSPACES_ID, workspaceId, map);
 
+    // Drop open children the tree no longer has, but only once the tree is
+    // loaded: before that every ID looks unknown, and filtering would wipe the
+    // open state restored from localStorage on reload.
+    const savedOpenIds = map.get(workspaceId)?.openChildIds ?? [];
     const allTreeItemIds = new Set(store.getTreeItems(workspaceId).keys());
-    const currentWorkspaceOpenIds = (map.get(workspaceId)?.openChildIds ?? []).filter((id) => allTreeItemIds.has(id));
+    const currentWorkspaceOpenIds = store.isFullyLoaded(workspaceId)
+      ? savedOpenIds.filter((id) => allTreeItemIds.has(id))
+      : savedOpenIds;
     const openChildIds = revealNewDocumentRoots
       ? Array.from(new Set([...currentWorkspaceOpenIds, ...newDocumentRootIds]))
       : currentWorkspaceOpenIds;
@@ -305,13 +311,16 @@ export function useWorkspaceTree(
       onFocusedNodeIdChange(workspaceId);
       return;
     }
-    store.markInitialized(workspaceId);
     setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
     updateWorkspaceExpansion(workspaceId);
     onFocusedNodeIdChange(workspaceId);
+    // On reload the cached list arrives before ListWorkspaces confirms access.
+    // Leave the workspace uninitialized until then, so useExpansionWatcher opens
+    // it again when the fetched list lands and the tree actually loads.
     if (!canReadWorkspaceTree(workspaceId)) {
       return;
     }
+    store.markInitialized(workspaceId);
     await refreshWorkspaceTree(workspaceId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildWsPaper, canReadWorkspaceTree, onFocusedNodeIdChange, refreshWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);

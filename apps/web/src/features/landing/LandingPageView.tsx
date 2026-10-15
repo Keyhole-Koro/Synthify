@@ -106,6 +106,38 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
   const pendingRevealNodeId = controller.pendingRevealNodeId;
   const clearPendingRevealNodeId = controller.clearPendingRevealNodeId;
 
+  // The canvas reads defaultOpenState once, at mount, and drops every open
+  // child whose paper is not in paperMap yet. On reload the workspace tree
+  // arrives after that, so the restored nested papers would stay closed.
+  // Remember the restored parent→child pairs and open each one once both
+  // papers exist; a pair is applied only once, so closing it later sticks.
+  const pendingRestoreRef = useRef<{ parentId: string; childId: string }[]>([]);
+  const paperMap = controller.paperMap;
+  useEffect(() => {
+    const pairs: { parentId: string; childId: string }[] = [];
+    for (const [parentId, entry] of controller.defaultOpenState?.expansionMap ?? []) {
+      for (const childId of entry.openChildIds) pairs.push({ parentId, childId });
+    }
+    pendingRestoreRef.current = pairs;
+  }, [controller.canvasKey, controller.defaultOpenState]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || pendingRestoreRef.current.length === 0) return;
+    const remaining: { parentId: string; childId: string }[] = [];
+    for (const pair of pendingRestoreRef.current) {
+      if (!paperMap.has(pair.parentId) || !paperMap.has(pair.childId)) {
+        remaining.push(pair);
+        continue;
+      }
+      const open = canvas.getState().expansionMap.get(pair.parentId)?.openChildIds ?? [];
+      if (!open.includes(pair.childId)) {
+        canvas.dispatch({ type: 'OPEN_NODE', parentId: pair.parentId, childId: pair.childId });
+      }
+    }
+    pendingRestoreRef.current = remaining;
+  }, [paperMap]);
+
   useEffect(() => {
     if (!pendingRevealNodeId || !canvasRef.current) return;
     if (!canvasRef.current.getState().paperMap.has(pendingRevealNodeId)) return;
