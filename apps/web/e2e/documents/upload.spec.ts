@@ -32,6 +32,26 @@ test('uploads to fake GCS, restores running progress, and renders fixture tree a
   await expect(page.frameLocator('iframe[title="workspace-root-content"]').getByRole('heading', { name: 'E2E Fixture Report' })).toBeVisible();
 });
 
+test('rejects an executable dropped on the home screen without creating a workspace', async ({ page }) => {
+  const createWorkspaceCalls: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/synthify.app.v1.WorkspaceService/CreateWorkspace')) {
+      createWorkspaceCalls.push(request.url());
+    }
+  });
+  await page.goto('/');
+
+  // The home screen's own upload area is the first one on the page.
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    page.getByText('ファイルをアップロード').first().click(),
+  ]);
+  await chooser.setFiles({ name: 'unsafe.exe', mimeType: 'application/x-msdownload', buffer: Buffer.from('not really executable') });
+
+  await expect(page.getByText('アップロードに失敗しました。実行ファイル形式はアップロードできません。', { exact: true })).toBeVisible();
+  expect(createWorkspaceCalls).toHaveLength(0);
+});
+
 test('rejects executable files without starting an upload', async ({ page }) => {
   await page.goto('/');
   await page.getByText('ワークスペース', { exact: true }).first().click();

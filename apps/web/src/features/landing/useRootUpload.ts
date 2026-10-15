@@ -1,5 +1,6 @@
 
 import { useCallback } from 'react';
+import { validateDocumentUploadFile } from '@/features/documents/uploadPolicy';
 import type { Workspace } from '@/features/workspaces/api';
 import { useCreateWorkspaceMutation } from '@/features/workspaces/mutations';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
@@ -34,6 +35,12 @@ export function useRootUpload({
   const createMutation = useCreateWorkspaceMutation();
 
   return useCallback(async (file: File) => {
+    // Reject before creating the workspace; otherwise a refused file leaves an
+    // empty "新規ワークスペース" behind. RootUploadPaper shows this message.
+    const validation = validateDocumentUploadFile(file);
+    if (!validation.ok) {
+      throw new UserFacingError(validation.error.message);
+    }
     const ws = await createMutation.mutateAsync(NEW_WORKSPACE_NAME);
     markWorkspaceVerified(ws.workspaceId);
     await handleOpenWorkspace(ws.workspaceId, ws);
