@@ -1,4 +1,3 @@
-'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DefaultOpenState, ExpansionMap } from '@keyhole-koro/paper-in-paper';
@@ -8,9 +7,15 @@ import type { Workspace } from '@/features/workspaces/api';
 import { clearOpenState, loadOpenState, saveOpenState } from '@/features/paperMap/expansionPersistence';
 import { computeDefaultOpenState } from '@/features/paperMap/defaultOpenState';
 
+/**
+ * Configuration options for the {@link usePersistentPaperOpenState} hook.
+ */
 interface UsePersistentPaperOpenStateOptions {
+  /** The currently authenticated user, or null if unauthenticated. */
   user: AuthUser | null;
+  /** Whether the user session or workspace query is loading. */
   loading: boolean;
+  /** List of workspaces loaded for the current user. */
   workspaces: Workspace[];
 }
 
@@ -22,6 +27,9 @@ interface UsePersistentPaperOpenStateOptions {
  *   (e.g. workspace-tree subtree fetcher), but never feed it back to PaperCanvas as a prop —
  *   that round-trip was the source of the open-state echo loop.
  * - User switch & explicit reset bump `canvasKey` to remount PaperCanvas with a fresh defaultOpenState.
+ *
+ * @param options - User state, loading status, and workspaces list.
+ * @returns State and updater handlers for managing canvas open state and focus persistence.
  */
 export function usePersistentPaperOpenState({
   user,

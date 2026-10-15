@@ -1,24 +1,29 @@
-'use client';
+import { useQuery } from '@tanstack/react-query';
+import { billingAccountQueryOptions } from './queries';
 
-import { useEffect, useState } from 'react';
-import { getBillingAccount, type BillingAccount } from './api';
-
+/**
+ * Props for the current plan paper.
+ */
 interface CurrentPlanPaperProps {
+  /** Target account identifier. */
   accountId: string;
 }
 
+/**
+ * Paper component detailing the user's active billing plan features, storage quota, and cancel status.
+ *
+ * @param props - Account identifier whose current plan should be loaded.
+ * @returns Current-plan detail paper with loading, error, and populated plan states.
+ */
 export function CurrentPlanPaper({ accountId }: CurrentPlanPaperProps) {
-  const [account, setAccount] = useState<BillingAccount | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: account, isLoading, error } = useQuery(billingAccountQueryOptions(accountId));
 
-  useEffect(() => {
-    getBillingAccount(accountId)
-      .then(setAccount)
-      .catch(() => setError('プラン情報を取得できませんでした。'));
-  }, [accountId]);
-
-  if (!account) {
-    return <p style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>{error ?? '読み込み中...'}</p>;
+  if (isLoading || !account) {
+    return (
+      <p style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+        {error ? 'プラン情報を取得できませんでした。' : '読み込み中...'}
+      </p>
+    );
   }
 
   const isUsageBased = account.plan === 'usage_based';
@@ -49,6 +54,9 @@ export function CurrentPlanPaper({ accountId }: CurrentPlanPaperProps) {
   );
 }
 
+/**
+ * Displays a single key-value metric line with border styling.
+ */
 function Row({ label, value, accent }: { label: string; value: string; accent?: 'warn' }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderBottom: '1px solid var(--link-border)', paddingBottom: 6 }}>
@@ -60,6 +68,9 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
   );
 }
 
+/**
+ * Formats a byte quantity into a human-readable string with units (B, KB, MB, GB, TB).
+ */
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

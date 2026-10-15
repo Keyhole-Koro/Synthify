@@ -1,19 +1,44 @@
-'use client';
+/**
+ * Detailed trace viewer component displaying the sequential timeline of tool calls
+ * and executions executed by worker jobs.
+ *
+ * @module
+ */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { JobTraceData, ToolCallEntry } from '@/lib/trace-queries';
-import { authFetch } from '@/lib/auth-client';
+import { jobTraceQuery } from '@/lib/api-queries';
 
+/**
+ * Formats duration in milliseconds into a concise time string.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns Formatted duration string (e.g. "45ms" or "2.3s").
+ */
 function fmtDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/**
+ * Formats an ISO timestamp to local time format `HH:MM:SS`.
+ *
+ * @param iso - ISO timestamp string.
+ * @returns Formatted time string.
+ */
 function fmtTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
+/**
+ * Parses and truncates JSON strings for inline display summaries.
+ *
+ * @param json - Raw JSON string.
+ * @param maxLen - Maximum character length before truncation.
+ * @returns Compact JSON string.
+ */
 function summarize(json: string, maxLen = 200): string {
   try {
     const parsed = JSON.parse(json);
@@ -24,6 +49,10 @@ function summarize(json: string, maxLen = 200): string {
   }
 }
 
+/**
+ * Renders an expandable row displaying a single tool invocation step,
+ * including duration, input JSON, and returned output or error payload.
+ */
 function ToolCallRow({ entry, index }: { entry: ToolCallEntry; index: number }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -87,19 +116,16 @@ function ToolCallRow({ entry, index }: { entry: ToolCallEntry; index: number }) 
   );
 }
 
+/**
+ * Displays the sequential tool call trace for a specified job.
+ *
+ * @param props - Object containing the job execution UUID to load.
+ * @returns Loading, empty, error, or trace detail UI for the selected job.
+ */
 export function JobTrace({ jobId }: { jobId: string }) {
-  const [data, setData] = useState<JobTraceData | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    setData(null);
-    authFetch(`/api/jobs/trace?jobId=${encodeURIComponent(jobId)}`)
-      .then((r) => r.json())
-      .then((d: JobTraceData) => setData(d))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [jobId]);
+  const query = useQuery(jobTraceQuery(jobId));
+  const loading = query.isPending;
+  const data: JobTraceData | null = query.data ?? null;
 
   if (loading) {
     return <div className="p-8 text-sm text-stone-400 text-center">Loading trace...</div>;

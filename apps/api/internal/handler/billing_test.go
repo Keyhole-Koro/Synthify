@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"buf.build/go/protovalidate"
 	"bytes"
 	"context"
 	"errors"
@@ -12,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/synthify/backend/apps/api/internal/auth"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -243,21 +244,18 @@ func TestBillingHandler_RecordUsage_ServiceToken_CallsService(t *testing.T) {
 	assert.Equal(t, "evt-usage-1", resp.Msg.GetEventId())
 }
 
-func TestBillingHandler_RecordUsage_ServiceTokenMissingEventID_ReturnsInvalidArgument(t *testing.T) {
-	// 目的: service token が正しくても、冪等性キー event_id がない usage 記録は拒否することを確認する。
-	// これにより DB 永続化直前で失敗するのではなく、handler 境界で入力不備として扱える。
-	svc := &billingHandlerTestUsecase{}
-	h := NewBillingHandler(svc)
-	ctx := auth.ContextWithPrincipal(context.Background(), auth.Principal{Kind: auth.PrincipalKindService, SubjectID: auth.InternalServiceSubjectID})
+func TestRecordUsageRequest_MissingEventID_FailsValidation(t *testing.T) {
+	// 目的: 冪等性キー event_id がない usage 記録は、handler に届く前に
+	// protovalidate のルール（contracts/connectrpc の billing.proto）で拒否されることを確認する。
+	validator, err := protovalidate.New()
+	require.NoError(t, err)
 
-	resp, err := h.RecordUsage(ctx, connect.NewRequest(&appv1.RecordUsageRequest{
+	err = validator.Validate(&appv1.RecordUsageRequest{
 		AccountId: "owner",
 		Model:     "gemini-2.5-pro",
-	}))
+	})
 
-	assert.Nil(t, resp)
-	assertConnectCode(t, err, connect.CodeInvalidArgument)
-	assert.Zero(t, svc.recordUsageCalls)
+	assert.Error(t, err)
 }
 
 func TestBillingWebhookHTTPHandler_MethodNotAllowed(t *testing.T) {

@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
+// GenerateKnowledgeTreeArgs specifies input parameters and context for synthesizing structured knowledge tree items.
 type GenerateKnowledgeTreeArgs struct {
 	JobID       string         `json:"job_id"`
 	DocumentID  string         `json:"document_id"`
@@ -26,10 +27,12 @@ type GenerateKnowledgeTreeArgs struct {
 	ExistingNodes []domain.ExistingNode `json:"existing_nodes,omitempty"`
 }
 
+// GenerateKnowledgeTreeResult contains the generated list of structured knowledge tree items.
 type GenerateKnowledgeTreeResult struct {
 	Items []domain.GeneratedTreeItem `json:"items"`
 }
 
+// NewGenerateKnowledgeTreeTool creates a core.Tool for turning document chunks into a structured hierarchical knowledge tree.
 func NewGenerateKnowledgeTreeTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[GenerateKnowledgeTreeArgs, GenerateKnowledgeTreeResult]()
 	if err != nil {
@@ -74,6 +77,7 @@ func NewGenerateKnowledgeTreeTool(b *base.Context) (core.Tool, error) {
 	}, nil
 }
 
+// generateKnowledgeTree is an internal helper that calls GenerateKnowledgeTree discarding usage metrics.
 func generateKnowledgeTree(ctx context.Context, llmClient base.LLMClient, args GenerateKnowledgeTreeArgs) ([]domain.GeneratedTreeItem, error) {
 	items, _, err := GenerateKnowledgeTree(ctx, llmClient, args)
 	return items, err
@@ -138,6 +142,7 @@ func GenerateKnowledgeTreeWithRenderer(ctx context.Context, llmClient base.LLMCl
 	return out.Items, usage, nil
 }
 
+// deterministicKnowledgeTree builds fallback knowledge tree items directly from chunk text when LLM generation fails.
 func deterministicKnowledgeTree(documentID string, chunks []domain.Chunk) []domain.GeneratedTreeItem {
 	items := make([]domain.GeneratedTreeItem, 0, len(chunks))
 	for _, chunk := range chunks {

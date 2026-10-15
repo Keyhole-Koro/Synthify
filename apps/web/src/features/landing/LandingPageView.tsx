@@ -1,16 +1,8 @@
-'use client';
-
-import dynamic from 'next/dynamic';
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
-import type { PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
+import { PaperCanvas, type PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
 import { getImageURL } from '@/features/documents/api';
-
-const PaperCanvas = dynamic(
-  () => import('@keyhole-koro/paper-in-paper').then((mod) => mod.PaperCanvas),
-  { ssr: false },
-);
 
 const FRAME_TRANSITION = [
   'left 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -22,6 +14,9 @@ const FRAME_TRANSITION = [
   'outline-color 0.32s ease',
 ].join(', ');
 
+/**
+ * Calculates dynamic CSS styling for the paper canvas viewport depending on fullscreen and window size.
+ */
 function getCanvasFrameStyle(isFullscreen: boolean, winSize: { w: number; h: number }): CSSProperties {
   if (isFullscreen || winSize.w === 0) {
     return {
@@ -55,6 +50,9 @@ function getCanvasFrameStyle(isFullscreen: boolean, winSize: { w: number; h: num
   };
 }
 
+/**
+ * Fullscreen loading placeholder displayed while canvas and session state initialize.
+ */
 function LoadingScreen() {
   return (
     <div className="h-screen w-screen bg-[#f0e6d3] flex items-center justify-center">
@@ -65,6 +63,9 @@ function LoadingScreen() {
   );
 }
 
+/**
+ * Top-left branding header with Synthify logo and subtitle.
+ */
 function BrandHeader() {
   return (
     <div className="absolute left-6 top-6 z-20 flex select-none items-center gap-2.5">
@@ -81,6 +82,9 @@ function BrandHeader() {
   );
 }
 
+/**
+ * Centered hero headline displayed above the paper canvas.
+ */
 function HeroCopy() {
   return (
     <div className="absolute left-1/2 top-[11%] z-10 -translate-x-1/2 text-center select-none whitespace-nowrap">
@@ -91,10 +95,48 @@ function HeroCopy() {
   );
 }
 
+/**
+ * Main landing page view component embedding the interactive PaperCanvas and surrounding UI controls.
+ *
+ * @param props - Controller state and callbacks returned by useLandingPageController.
+ * @returns Landing canvas, workspace controls, authentication UI, and upload/error overlays.
+ */
 export function LandingPageView({ controller }: { controller: LandingPageController }) {
   const canvasRef = useRef<PaperCanvasHandle | null>(null);
   const pendingRevealNodeId = controller.pendingRevealNodeId;
   const clearPendingRevealNodeId = controller.clearPendingRevealNodeId;
+
+  // The canvas reads defaultOpenState once, at mount, and drops every open
+  // child whose paper is not in paperMap yet. On reload the workspace tree
+  // arrives after that, so the restored nested papers would stay closed.
+  // Remember the restored parent→child pairs and open each one once both
+  // papers exist; a pair is applied only once, so closing it later sticks.
+  const pendingRestoreRef = useRef<{ parentId: string; childId: string }[]>([]);
+  const paperMap = controller.paperMap;
+  useEffect(() => {
+    const pairs: { parentId: string; childId: string }[] = [];
+    for (const [parentId, entry] of controller.defaultOpenState?.expansionMap ?? []) {
+      for (const childId of entry.openChildIds) pairs.push({ parentId, childId });
+    }
+    pendingRestoreRef.current = pairs;
+  }, [controller.canvasKey, controller.defaultOpenState]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || pendingRestoreRef.current.length === 0) return;
+    const remaining: { parentId: string; childId: string }[] = [];
+    for (const pair of pendingRestoreRef.current) {
+      if (!paperMap.has(pair.parentId) || !paperMap.has(pair.childId)) {
+        remaining.push(pair);
+        continue;
+      }
+      const open = canvas.getState().expansionMap.get(pair.parentId)?.openChildIds ?? [];
+      if (!open.includes(pair.childId)) {
+        canvas.dispatch({ type: 'OPEN_NODE', parentId: pair.parentId, childId: pair.childId });
+      }
+    }
+    pendingRestoreRef.current = remaining;
+  }, [paperMap]);
 
   useEffect(() => {
     if (!pendingRevealNodeId || !canvasRef.current) return;

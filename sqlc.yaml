@@ -19,45 +19,14 @@ sql:
       - "db/migrations/0019_workspace_members.up.sql"
       - "db/migrations/0020_workspace_share_links.up.sql"
       - "db/migrations/0021_item_source_refs.up.sql"
+      - "db/migrations/0026_workspace_chat.up.sql"
+      - "db/migrations/0027_workspace_chat_grounding.up.sql"
     queries:
       - "db/queries"
     gen:
       go:
         package: "sqlcgen"
-        out: "apps/api/internal/repository/postgres/sqlcgen"
-        sql_package: "database/sql"
-        overrides:
-          - column: "document_chunks.embedding"
-            go_type:
-              import: "github.com/pgvector/pgvector-go"
-              package: "pgvector"
-              type: "Vector"
-            nullable: true
-  - engine: "postgresql"
-    schema:
-      - "db/migrations/0001_accounts.up.sql"
-      - "db/migrations/0002_workspaces.up.sql"
-      - "db/migrations/0003_documents.up.sql"
-      - "db/migrations/0004_billing.up.sql"
-      - "db/migrations/0006_usage_billing.up.sql"
-      - "db/migrations/0007_jobs.up.sql"
-      - "db/migrations/0008_tree.up.sql"
-      - "db/migrations/0009_credits.up.sql"
-      - "db/migrations/0011_dynamic_tools.up.sql"
-      - "db/migrations/0012_users.up.sql"
-      - "db/migrations/0015_workspace_soft_delete.up.sql"
-      - "db/migrations/0016_tree_item_kind.up.sql"
-      - "db/migrations/0017_job_capability_transform_limits.up.sql"
-      - "db/migrations/0018_node_direct_tree.up.sql"
-      - "db/migrations/0019_workspace_members.up.sql"
-      - "db/migrations/0020_workspace_share_links.up.sql"
-      - "db/migrations/0021_item_source_refs.up.sql"
-    queries:
-      - "db/queries"
-    gen:
-      go:
-        package: "sqlcgen"
-        out: "apps/worker/pkg/worker/repository/postgres/sqlcgen"
+        out: "internal/db/sqlcgen"
         sql_package: "database/sql"
         overrides:
           - column: "document_chunks.embedding"

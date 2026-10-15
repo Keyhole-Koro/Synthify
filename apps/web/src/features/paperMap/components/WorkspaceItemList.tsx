@@ -1,11 +1,22 @@
-import React from 'react';
 import { type Workspace } from '@/features/workspaces/api';
 
+/**
+ * Props for the {@link WorkspaceItemList} component.
+ */
 interface WorkspaceItemListProps {
+  /** Array of workspaces belonging to the authenticated user. */
   workspaces: Workspace[];
+  /** Callback triggered when a user clicks/selects a workspace entry to open on canvas. */
   onOpenWorkspace: (workspaceId: string) => void;
 }
 
+/**
+ * Renders the vertical list of workspaces available to the current user,
+ * styled with hover highlights and arrow affordances for canvas navigation.
+ *
+ * @param props - Component properties.
+ * @returns The rendered list of workspace tiles, or null if no workspaces exist.
+ */
 export function WorkspaceItemList({ workspaces, onOpenWorkspace }: WorkspaceItemListProps) {
   if (workspaces.length === 0) return null;
 

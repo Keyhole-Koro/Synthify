@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // expectedSystemPrompt mirrors templates/knowledge_tree.system.tmpl. If they

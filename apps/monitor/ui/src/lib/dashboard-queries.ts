@@ -1,7 +1,19 @@
+/**
+ * PostgreSQL analytical database queries powering the Monitor operations dashboards.
+ *
+ * @module
+ */
 import type { Pool } from 'pg';
 
+/** Time range periods supported by dashboard queries. */
 export type Period = 'today' | '7d' | '30d';
 
+/**
+ * Returns the SQL timestamp condition string for the specified period.
+ *
+ * @param period Selected dashboard lookback duration.
+ * @returns SQL interval expression.
+ */
 export function periodInterval(period: Period): string {
   switch (period) {
     case 'today': return "date_trunc('day', NOW())";
@@ -12,6 +24,14 @@ export function periodInterval(period: Period): string {
 
 // ── Job Health ────────────────────────────────────────────────────────────────
 
+/**
+ * Daily or hourly breakdown of job execution statuses.
+ * @property date Bucket label in ISO date or hour format.
+ * @property succeeded Number of jobs completed successfully in the bucket.
+ * @property failed Number of jobs that failed in the bucket.
+ * @property running Number of jobs currently running in the bucket.
+ * @property queued Number of jobs waiting to run in the bucket.
+ */
 export interface JobStatusByDay {
   date: string;
   succeeded: number;
@@ -20,28 +40,58 @@ export interface JobStatusByDay {
   queued: number;
 }
 
+/**
+ * Stage failure count aggregate.
+ * @property stage Processing stage name.
+ * @property count Number of failures observed at that stage.
+ */
 export interface StageFailure {
   stage: string;
   count: number;
 }
 
+/**
+ * Job with high retry counts.
+ * @property jobId Job identifier.
+ * @property documentId Document associated with the job.
+ * @property retryCount Number of retries recorded for the job.
+ */
 export interface TopRetryJob {
   jobId: string;
   documentId: string;
   retryCount: number;
 }
 
+/**
+ * Frequency count of unique error messages.
+ * @property message Normalized error message text.
+ * @property count Number of jobs reporting the message.
+ */
 export interface ErrorMessage {
   message: string;
   count: number;
 }
 
+/**
+ * Failure metrics segmented by document MIME type.
+ * @property mimeType MIME type bucket.
+ * @property failed Number of failed jobs in the bucket.
+ * @property total Total jobs in the bucket.
+ */
 export interface MimeTypeFailure {
   mimeType: string;
   failed: number;
   total: number;
 }
 
+/**
+ * Record of an active or recent job failure with diagnostic details.
+ * @property jobId Failed job identifier.
+ * @property documentId Document associated with the failure.
+ * @property currentStage Last processing stage reached.
+ * @property errorMessage Most recent failure message.
+ * @property updatedAt ISO-8601 timestamp of the latest status update.
+ */
 export interface ActiveFailure {
   jobId: string;
   documentId: string;
@@ -50,6 +100,20 @@ export interface ActiveFailure {
   updatedAt: string;
 }
 
+/**
+ * Aggregate job health statistics and trend series.
+ * @property totalJobs Number of jobs in the selected period.
+ * @property successRate Successful jobs divided by total jobs, from 0 to 1.
+ * @property avgProcessingMs Average processing duration in milliseconds.
+ * @property p50ProcessingMs Median processing duration in milliseconds.
+ * @property p95ProcessingMs 95th-percentile processing duration in milliseconds.
+ * @property byDay Time-bucketed status counts.
+ * @property stageFailures Failure counts grouped by processing stage.
+ * @property topRetryJobs Jobs with the highest retry counts.
+ * @property errorMessages Most frequent failure messages.
+ * @property byMimeType Failure metrics grouped by document MIME type.
+ * @property activeFailures Active or recently failed jobs with details.
+ */
 export interface JobHealthData {
   totalJobs: number;
   successRate: number;
@@ -64,6 +128,13 @@ export interface JobHealthData {
   activeFailures: ActiveFailure[];
 }
 
+/**
+ * Queries job execution health, failure trends, and performance percentiles.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param period Lookback time period.
+ * @returns Promise resolving to JobHealthData.
+ */
 export async function queryJobHealth(pool: Pool, period: Period): Promise<JobHealthData> {
   const since = periodInterval(period);
 
@@ -193,11 +264,23 @@ export async function queryJobHealth(pool: Pool, period: Period): Promise<JobHea
 
 // ── Cost & Usage ──────────────────────────────────────────────────────────────
 
+/**
+ * Cost total for a specific calendar date in minor currency units (cents).
+ * @property date ISO calendar date for the cost bucket.
+ * @property costMinor Cost in the smallest currency unit, such as cents.
+ */
 export interface DailyCost {
   date: string;
   costMinor: number;
 }
 
+/**
+ * Cost and token consumption metrics grouped by LLM model.
+ * @property model Provider model identifier.
+ * @property costMinor Total cost in the smallest currency unit.
+ * @property inputTokens Input token count attributed to the model.
+ * @property outputTokens Output token count attributed to the model.
+ */
 export interface ModelCost {
   model: string;
   costMinor: number;
@@ -205,11 +288,25 @@ export interface ModelCost {
   outputTokens: number;
 }
 
+/**
+ * Top individual job cost record.
+ * @property jobId Job identifier.
+ * @property costMinor Job cost in the smallest currency unit.
+ */
 export interface TopJobCost {
   jobId: string;
   costMinor: number;
 }
 
+/**
+ * Cost and token usage overview statistics and trends.
+ * @property totalCostMinor Total calculated cost in the smallest currency unit.
+ * @property creditCostMinor Portion attributed to provider credits.
+ * @property stripeCostMinor Portion attributed to Stripe billing.
+ * @property dailyTrend Cost by date.
+ * @property byModel Cost and token totals by model.
+ * @property topJobs Highest-cost jobs.
+ */
 export interface CostData {
   totalCostMinor: number;
   creditCostMinor: number;
@@ -219,6 +316,13 @@ export interface CostData {
   topJobs: TopJobCost[];
 }
 
+/**
+ * Queries billing and token usage metrics grouped by date, model, and top jobs.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param period Lookback time period.
+ * @returns Promise resolving to CostData.
+ */
 export async function queryCost(pool: Pool, period: Period): Promise<CostData> {
   const since = periodInterval(period);
 
@@ -285,16 +389,33 @@ export async function queryCost(pool: Pool, period: Period): Promise<CostData> {
 
 // ── Workspace Activity ────────────────────────────────────────────────────────
 
+/**
+ * Number of documents created per day.
+ * @property date ISO date for the document-count bucket.
+ * @property count Number of documents created in the bucket.
+ */
 export interface DocsByDay {
   date: string;
   count: number;
 }
 
+/**
+ * Number of knowledge tree items created per day.
+ * @property date ISO date for the item-count bucket.
+ * @property count Number of knowledge-tree items created in the bucket.
+ */
 export interface ItemsByDay {
   date: string;
   count: number;
 }
 
+/**
+ * Overall workspace creation, activity, and document growth statistics.
+ * @property totalWorkspaces Total workspace count in the selected period.
+ * @property dormantWorkspaces Workspaces without recent activity.
+ * @property docsByDay Document creation counts by date.
+ * @property itemsByDay Knowledge-tree item creation counts by date.
+ */
 export interface WorkspaceData {
   totalWorkspaces: number;
   dormantWorkspaces: number;
@@ -302,6 +423,13 @@ export interface WorkspaceData {
   itemsByDay: ItemsByDay[];
 }
 
+/**
+ * Queries workspace population, dormant workspaces, and daily ingestion activity.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param period Lookback time period.
+ * @returns Promise resolving to WorkspaceData.
+ */
 export async function queryWorkspace(pool: Pool, period: Period): Promise<WorkspaceData> {
   const since = periodInterval(period);
 
@@ -343,16 +471,33 @@ export async function queryWorkspace(pool: Pool, period: Period): Promise<Worksp
 
 // ── Errors & Alerts ───────────────────────────────────────────────────────────
 
+/**
+ * Daily error event occurrence count.
+ * @property date ISO date for the error-count bucket.
+ * @property count Number of error events in the bucket.
+ */
 export interface ErrorsByDay {
   date: string;
   count: number;
 }
 
+/**
+ * Top recurring error event category.
+ * @property event Structured event name.
+ * @property count Number of occurrences.
+ */
 export interface TopErrorEvent {
   event: string;
   count: number;
 }
 
+/**
+ * Error occurrence statistics, bursts, and category rankings.
+ * @property totalErrors Total error events in the selected period.
+ * @property recentBurst Whether the recent event window crossed the burst threshold.
+ * @property byDay Error counts by date.
+ * @property topEvents Most frequent structured error events.
+ */
 export interface ErrorsData {
   totalErrors: number;
   recentBurst: boolean;
@@ -360,6 +505,13 @@ export interface ErrorsData {
   topEvents: TopErrorEvent[];
 }
 
+/**
+ * Queries error logs, identifying recent bursts and ranking failure categories.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param period Lookback time period.
+ * @returns Promise resolving to ErrorsData.
+ */
 export async function queryErrors(pool: Pool, period: Period): Promise<ErrorsData> {
   const since = periodInterval(period);
 

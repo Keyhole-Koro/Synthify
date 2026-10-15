@@ -1,3 +1,4 @@
+// Package config loads and validates runtime configuration for the worker service from environment variables.
 package config
 
 import (
@@ -12,6 +13,7 @@ import (
 	"github.com/synthify/backend/internal/platform/util"
 )
 
+// Worker encapsulates server, cloud storage, authentication, and execution timeout parameters for the worker.
 type Worker struct {
 	Port                     string
 	Env                      string
@@ -59,17 +61,20 @@ func (w Worker) RequiresBilling() bool {
 	}
 }
 
+// NewRelic holds APM telemetry and licensing parameters.
 type NewRelic struct {
 	AppName    string
 	LicenseKey string
 }
 
+// Store contains database connection pool configurations.
 type Store struct {
 	DatabaseDSN    string
 	DBMaxOpenConns int
 	DBMaxIdleConns int
 }
 
+// LLM holds configuration for Gemini and Vertex AI LLM client access.
 type LLM struct {
 	GeminiModel    string
 	APIKey         string
@@ -84,6 +89,7 @@ type LLM struct {
 // region unless explicitly overridden.
 const defaultVertexLocation = "global"
 
+// LoadWorker reads worker runtime settings from environment variables.
 func LoadWorker() Worker {
 	cfg := Worker{
 		Port:                     get("PORT", "8080"),
@@ -124,6 +130,7 @@ func getDurationSeconds(key string, fallback time.Duration) time.Duration {
 	return time.Duration(secs) * time.Second
 }
 
+// LoadStore loads database DSN and connection pool limits from environment variables.
 func LoadStore() Store {
 	return Store{
 		DatabaseDSN:    os.Getenv("DATABASE_DSN"),
@@ -132,6 +139,7 @@ func LoadStore() Store {
 	}
 }
 
+// LoadLLM loads LLM model identifiers, API keys, and Vertex project settings.
 func LoadLLM() LLM {
 	project := util.FirstNonEmpty(
 		os.Getenv("GCP_PROJECT"),
@@ -177,6 +185,7 @@ func detectProjectFromMetadata() string {
 	return ""
 }
 
+// get returns the environment variable value or fallback if not set.
 func get(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -184,6 +193,7 @@ func get(key, fallback string) string {
 	return fallback
 }
 
+// defaultNewRelicAppName generates the default New Relic application name according to the environment.
 func defaultNewRelicAppName(base string) string {
 	env := os.Getenv("ENV")
 	switch env {
@@ -209,6 +219,7 @@ func getInt(key string, def int) int {
 	return def
 }
 
+// mustBaseURL validates the provided base URL for Cloud Storage emulator uploads, panicking on invalid URLs.
 func mustBaseURL(name, value string) string {
 	if err := storage.ValidateBaseURL(value); err != nil {
 		panic(fmt.Sprintf("%s is invalid: %v", name, err))
@@ -216,6 +227,7 @@ func mustBaseURL(name, value string) string {
 	return value
 }
 
+// mustMountPath ensures the given directory path exists and is a directory for gcsfuse access.
 func mustMountPath(name, value string) string {
 	if value == "" {
 		panic(fmt.Sprintf("%s is required: the worker reads source files from the gcsfuse mount", name))

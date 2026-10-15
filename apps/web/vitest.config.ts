@@ -4,6 +4,8 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  envDir: path.resolve(import.meta.dirname, '../..'),
+  envPrefix: ['VITE_', 'NEXT_PUBLIC_'],
   test: {
     environment: 'jsdom',
     globals: true,
@@ -11,7 +13,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(import.meta.dirname, './src'),
     },
   },
 });

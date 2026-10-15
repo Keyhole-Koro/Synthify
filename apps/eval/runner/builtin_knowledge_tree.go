@@ -7,26 +7,26 @@ import (
 	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/process"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// ktInput defines the input payload schema for the knowledge tree generation tool.
 type ktInput struct {
 	DocumentID  string         `json:"document_id"`
 	Instruction string         `json:"instruction,omitempty"`
 	Chunks      []domain.Chunk `json:"chunks"`
 }
-
+// ktOutput defines the output structure holding generated tree items.
 type ktOutput struct {
 	Items []domain.GeneratedTreeItem `json:"items"`
 }
 
-// newKnowledgeTreeTool adapts the production process tool to the 道A Tool
-// shape. The renderer is captured here so RunFn remains meaningful for both
-// builtin and dynamic tools: it only receives JSON input and returns JSON
-// output.
+// newKnowledgeTreeTool adapts the production process tool to the Tool shape.
+// The renderer is captured here so RunFn remains meaningful for both builtin and dynamic tools:
+// it only receives JSON input and returns JSON output.
 func newKnowledgeTreeTool(llm base.LLMClient, renderer *prompts.Renderer) Tool {
 	ioSchema := knowledgeTreeIOSchema()
 	run := func(ctx context.Context, in json.RawMessage) (json.RawMessage, Usage, error) {
@@ -58,6 +58,7 @@ var (
 	knowledgeTreeSchemaErr  error
 )
 
+// knowledgeTreeIOSchema resolves and returns the input and output JSON schemas for knowledge tree evaluation.
 func knowledgeTreeIOSchema() IOSchema {
 	knowledgeTreeSchemaOnce.Do(func() {
 		input, err := resolvedSchemaFor[ktInput]()
@@ -78,6 +79,7 @@ func knowledgeTreeIOSchema() IOSchema {
 	return knowledgeTreeSchema
 }
 
+// resolvedSchemaFor generates and resolves JSON Schema definitions for a given type.
 func resolvedSchemaFor[T any]() (*jsonschema.Resolved, error) {
 	s, err := jsonschema.For[T](nil)
 	if err != nil {

@@ -19,6 +19,7 @@ type StarlarkEngine struct {
 	timeout time.Duration
 }
 
+// NewStarlarkEngine creates an in-process Starlark execution engine with the specified timeout.
 func NewStarlarkEngine(timeout time.Duration) *StarlarkEngine {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -26,8 +27,10 @@ func NewStarlarkEngine(timeout time.Duration) *StarlarkEngine {
 	return &StarlarkEngine{timeout: timeout}
 }
 
+// Language returns LangStarlark as the supported execution language.
 func (e *StarlarkEngine) Language() Language { return LangStarlark }
 
+// Execute evaluates transform code within the sandboxed thread and returns the execution result.
 func (e *StarlarkEngine) Execute(req ExecRequest) ExecResult {
 	thread := &starlark.Thread{Name: "transform"}
 

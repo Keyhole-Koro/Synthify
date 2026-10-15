@@ -91,24 +91,32 @@ Authoring rules:
 ### 1. データモデル
 
 `documents` テーブルに `knowledge_tree_prompt TEXT` カラムを追加。
-アップロード時に保存し、ジョブ開始時に `ProcessDocument` へ渡す。
+アップロード時に保存し、ジョブ開始時に NULL を空文字へ正規化して
+`document_processing_jobs.params_json` へ immutable snapshot として保存してから `ProcessDocument` へ
+渡す。retry・resume・eval は document の現在値ではなく job snapshot を正本とする。
+field validation、snapshot version、privacy、test gate の詳細は
+[model-and-style-selection-contract.md](../contracts/model-and-style-selection-contract.md) を参照する。
 
 ### 2. プロンプト注入
 
 `Orchestrator.ProcessDocument` に `synthPrompt string` 引数を追加。
-`BeforeModelCallback` で Working Memory に続けて注入する。
+`BeforeModelCallback` は ADK orchestrator の model request にしか適用されず、process tools が
+`llm.Client` へ直接送る request には適用されない。したがって `synthPrompt` は knowledge-tree の
+prompt renderer まで明示的に渡し、生成 request の system prompt に注入する。
 
 ```go
-// BeforeModelCallback 内
-systemInstruction := existingInstruction +
-    "\n\n" + workingMemory +
-    "\n\n## Knowledge Tree Generation Style Guide\n" + defaultPrompt +
-    "\n\n" + userPrompt  // userPromptが空なら省略
+// knowledge-tree prompt renderer 内
+systemPrompt := existingTemplate +
+    "\n\n## Knowledge Tree Generation Style Guide\n" + defaultPrompt
+if userPrompt != "" {
+    systemPrompt += "\n\n" + userPrompt
+}
 ```
 
-全ツール（brief・knowledge tree generation・critique）が同じシステムプロンプトを受け取るため、
-スタイルが一貫する。knowledge tree generation の `instruction` フィールドは引き続き
-「このチャンクに特化した追加指示」用として残す。
+スタイルを一貫させるため、brief・knowledge tree generation・critique の各 tool の direct
+`llm.Client` request に同じ style guide を明示的に渡す。ADK callback による暗黙の伝播を前提に
+しない。knowledge tree generation の `instruction` フィールドは引き続き「このチャンクに特化した
+追加指示」用として残す。
 
 ### 3. UI
 
@@ -127,10 +135,10 @@ Phase 5 が追加するモデル選択 UI と同じアップロードフォー�
 
 - **ユーザープロンプトのプリセット選択 UI**: プリセット chip + 自由入力の組み合わせにする。
   詳細は「ユーザー指定プロンプト」を参照。
+- **`knowledge_tree_prompt` の上限**: chip 追記分を含め 2000 Unicode code point。詳細な validation
+  semantics は [model-and-style-selection-contract.md](../contracts/model-and-style-selection-contract.md)。
 
 ## 未決事項
 
-- `knowledge_tree_prompt` カラムの文字数上限(とりあえず 2000 字程度を想定。chip 追記分もこの
-  上限に含める)
 - デフォルトプロンプトの多言語対応(日本語ドキュメントには日本語で生成させるか)
 - プリセットの一覧をこの4つで固定するか、利用ログを見て追加/削除する運用にするか

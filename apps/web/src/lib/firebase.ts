@@ -11,7 +11,7 @@ let db: Firestore;
 const isBrowser = typeof window !== 'undefined';
 const isEmulator = !!(env.firebase.firestoreEmulatorHost && env.firebase.firestoreEmulatorPort);
 
-// Singleton control to prevent double initialization during Next.js HMR (Hot Module Replacement).
+// Singleton control to prevent double initialization during Vite HMR (Hot Module Replacement).
 // Since the Firebase SDK does not allow multiple initializeApp calls for the same project ID,
 // we retrieve the existing instance using getApp() if it's already initialized.
 if (!getApps().length) {
@@ -63,7 +63,20 @@ if (!getApps().length) {
   }
 }
 
-export { app, auth, db };
+/**
+ * Initialized Firebase application instance.
+ */
+export { app };
+
+/**
+ * Firebase Auth instance configured for client authentication.
+ */
+export { auth };
+
+/**
+ * Firestore client instance configured with Long Polling emulator fallback or default streaming.
+ */
+export { db };
 
 // Playwright needs a deterministic way to establish a real Firebase session.
 // Keep the hook strictly limited to development builds backed by Auth Emulator;

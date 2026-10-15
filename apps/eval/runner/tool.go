@@ -33,7 +33,6 @@ type Tool struct {
 	IOSchema IOSchema
 	Run      RunFn
 }
-
 // RunFn runs one tool for one case: input JSON -> (output JSON, usage,
 // toolErr). builtin and dynamic share this exact signature — that sameness is
 // the point of 道A.
@@ -75,14 +74,17 @@ func resolveTool(table map[string]Tool, name string) (Tool, error) {
 	return t, nil
 }
 
+// errUnsupportedTool returns an error indicating that a tool name is not recognized.
 func errUnsupportedTool(name string) error {
 	return &unsupportedToolError{name: name}
 }
 
+// unsupportedToolError records the name of an unregistered tool.
 type unsupportedToolError struct {
 	name string
 }
 
+// Error formats the unsupported tool error message.
 func (e *unsupportedToolError) Error() string {
 	return "unsupported tool: " + e.name
 }

@@ -65,6 +65,7 @@ func NewPayloadLoggingCallback(enabled bool, logger *slog.Logger) llmagent.After
 	}
 }
 
+// responseModel safely extracts the model version string from an LLM response.
 func responseModel(resp *model.LLMResponse) string {
 	if resp == nil {
 		return ""

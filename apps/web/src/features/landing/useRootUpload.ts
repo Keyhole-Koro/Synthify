@@ -1,15 +1,15 @@
-'use client';
 
 import { useCallback } from 'react';
-import { createWorkspace, type Workspace } from '@/features/workspaces/api';
+import { validateDocumentUploadFile } from '@/features/documents/uploadPolicy';
+import type { Workspace } from '@/features/workspaces/api';
+import { useCreateWorkspaceMutation } from '@/features/workspaces/mutations';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
-import { toAppError } from '@/lib/error_normalize';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 
 const NEW_WORKSPACE_NAME = '新規ワークスペース';
 
 interface UseRootUploadArgs {
-  setWorkspaces: React.Dispatch<React.SetStateAction<Workspace[]>>;
   setPendingRevealNodeId: (id: string | null) => void;
   markWorkspaceVerified: (workspaceId: string) => void;
   handleOpenWorkspace: (workspaceId: string, overrideWorkspace?: Workspace) => Promise<void>;
@@ -17,23 +17,32 @@ interface UseRootUploadArgs {
   injectRuntimeState: (workspaceId: string, state: WorkspacePaperRuntimeState) => void;
 }
 
-// useRootUpload handles the "drop a file onto the workspaces area" flow:
-// create a fresh workspace, open it optimistically, then run the upload in
-// the background and stream its result through runtime state so the
-// workspace's progress UI lights up. Errors are surfaced through the same
-// runtime-state channel.
+/**
+ * Manages drag-and-drop document upload directly onto the root canvas: creates a fresh workspace,
+ * opens it optimistically, and dispatches the file upload and document parsing in the background.
+ *
+ * @param props - Workspace creation/opening callbacks, runtime-state injection, and upload pipeline.
+ * @returns A callback accepting a File and returning after workspace creation/optimistic opening;
+ *   the actual upload completion is reflected later through injected runtime state.
+ */
 export function useRootUpload({
-  setWorkspaces,
   setPendingRevealNodeId,
   markWorkspaceVerified,
   handleOpenWorkspace,
   uploadWorkspaceFile,
   injectRuntimeState,
 }: UseRootUploadArgs) {
+  const createMutation = useCreateWorkspaceMutation();
+
   return useCallback(async (file: File) => {
-    const ws = await createWorkspace(NEW_WORKSPACE_NAME);
+    // Reject before creating the workspace; otherwise a refused file leaves an
+    // empty "新規ワークスペース" behind. RootUploadPaper shows this message.
+    const validation = validateDocumentUploadFile(file);
+    if (!validation.ok) {
+      throw new UserFacingError(validation.error.message);
+    }
+    const ws = await createMutation.mutateAsync(NEW_WORKSPACE_NAME);
     markWorkspaceVerified(ws.workspaceId);
-    setWorkspaces((prev) => [ws, ...prev]);
     await handleOpenWorkspace(ws.workspaceId, ws);
     setPendingRevealNodeId(ws.workspaceId);
     injectRuntimeState(ws.workspaceId, { initialUploading: true, initialUploadMessage: null });
@@ -48,12 +57,17 @@ export function useRootUpload({
         });
       } catch (err) {
         log.error('Root upload failed after workspace creation', { source: 'root_upload', workspaceId: ws.workspaceId }, err);
-        const appError = toAppError(err);
+        let message = '通信環境またはファイル形式を確認してください。';
+        if (err instanceof UserFacingError) {
+          message = err.message;
+        } else if (isExpectedConnectError(err)) {
+          message = formatConnectErrorMessage(err, message);
+        }
         injectRuntimeState(ws.workspaceId, {
           initialUploading: false,
-          initialUploadMessage: `アップロードに失敗しました。${appError.message}`,
+          initialUploadMessage: `アップロードに失敗しました。${message}`,
         });
       }
     })();
-  }, [handleOpenWorkspace, injectRuntimeState, markWorkspaceVerified, setPendingRevealNodeId, setWorkspaces, uploadWorkspaceFile]);
+  }, [createMutation, handleOpenWorkspace, injectRuntimeState, markWorkspaceVerified, setPendingRevealNodeId, uploadWorkspaceFile]);
 }

@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package synthify.worker.v1;
 
+import "buf/validate/validate.proto";
+
 option go_package = "github.com/synthify/backend/internal/gen/synthify/worker/v1;workerv1";
 
 service WorkerService {
@@ -11,7 +13,7 @@ service WorkerService {
 }
 
 message GenerateExecutionPlanRequest {
-  string job_id = 1;
+  string job_id = 1 [(buf.validate.field).required = true];
   string job_type = 2;
   string document_id = 3;
   string workspace_id = 4;
@@ -44,7 +46,7 @@ message ExecuteApprovedPlanResponse {
 }
 
 message EvaluateJobArtifactRequest {
-  string job_id = 1;
+  string job_id = 1 [(buf.validate.field).required = true];
 }
 
 message EvaluateJobArtifactResponse {

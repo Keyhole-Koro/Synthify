@@ -1,6 +1,8 @@
-// monitor はクライアント側からは API (Connect/gRPC) を叩かず、
-// 同一 Next.js アプリの Route Handlers (/api/jobs/...) を経由して
-// サーバーサイドで Postgres を read-only ロールで直接参照する。
+/**
+ * Client-side JobLogDataSource factory communicating with Monitor Route Handlers.
+ *
+ * @module
+ */
 
 import type {
   JobLogDataSource,
@@ -12,6 +14,13 @@ import type {
 } from '../types';
 import { authFetch } from './auth-client';
 
+/**
+ * Creates an implementation of JobLogDataSource that queries the monitor BFF API endpoints using authFetch.
+ *
+ * @returns Configured JobLogDataSource instance. Non-2xx BFF responses are converted to
+ *   empty result pages so the viewer can render an inline empty/error state; auth/network
+ *   failures from `authFetch` are otherwise propagated.
+ */
 export function createJobLogDataSource(): JobLogDataSource {
   return {
     async listJobLogs(jobId, pageToken) {

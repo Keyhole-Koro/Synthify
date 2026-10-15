@@ -38,12 +38,14 @@ Synthify プロジェクトにおける各モジュールの責務、依存の�
 │  └─ Connect / gRPC proto source of truth
 │
 ├─ internal/
+│  ├─ db/sqlcgen/ # sqlc の生成コード（db/migrations と db/queries が正本。api と worker で共有）
+│  ├─ domain/     # api と worker が共有する業務の型・enum・domain error（型の定義はここだけ）
 │  ├─ gen/        # Go generated proto / Connect code
 │  └─ platform/   # 変化の少ない横断基盤 (applog, observability, util等)
 │
 ├─ apps/
 │  ├─ api/
-│  │  └─ internal/ # API 固有の domain, service, repository, bootstrap, middleware
+│  │  └─ internal/ # API 固有の service, repository, bootstrap, middleware
 │  ├─ worker/
 │  │  └─ pkg/worker/ # worker 固有の logic (eval から参照するため pkg 配下)
 │  ├─ monitor/
@@ -81,8 +83,7 @@ API 契約の唯一のソース (`contracts/connectrpc`) から生成された G
 ### 3.3 `apps/api/internal`
 
 API アプリケーションの全責任を持ちます。
-*   **domain:** API 向けのエンティティ・値オブジェクト
-*   **repository:** DB 実装 (SQLC 生成物含む)
+*   **repository:** DB 実装（SQLC 生成物は `internal/db/sqlcgen`）
 *   **service:** ユースケース実行
 *   **middleware:** Auth, CORS 等の API 固有処理
 
@@ -155,7 +156,7 @@ type ItemUsecase interface {
 
 ### 4.3 `domain` は業務上の意味と判断を持つ
 
-`apps/api/internal/domain` には、業務上の意味を持つ型と、その型だけで判断できるルールを置きます。
+`internal/domain` には、業務上の意味を持つ型と、その型だけで判断できるルールを置きます。api と worker はどちらもこの package を使い、同じ型をそれぞれに書かない。
 
 *   Entity
 *   Value Object

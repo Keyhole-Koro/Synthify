@@ -27,6 +27,7 @@ type repeatTracker struct {
 	nudged  map[string]bool // keys already nudged, so we nudge once per stuck key
 }
 
+// newRepeatTracker initializes a new repeatTracker with empty nudged states.
 func newRepeatTracker() *repeatTracker {
 	return &repeatTracker{nudged: make(map[string]bool)}
 }
@@ -69,6 +70,7 @@ func callKey(toolName string, args map[string]any) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
+// writeStableJSON writes deterministically serialized JSON with ordered map keys to h.
 func writeStableJSON(h interface{ Write([]byte) (int, error) }, v any) {
 	switch val := v.(type) {
 	case map[string]any:

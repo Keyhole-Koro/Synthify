@@ -1,15 +1,26 @@
-'use client';
 
 import React, { useRef, useState } from 'react';
 import { WorkspaceDropzone } from '@/features/workspaces/paper/components/WorkspaceDropzone';
-import { toAppError } from '@/lib/error_normalize';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 
+/**
+ * Props for the {@link RootUploadPaper} component.
+ */
 interface RootUploadPaperProps {
+  /** Whether interactions and file drops are currently disabled. */
   disabled: boolean;
+  /** Asynchronous callback triggered to process the dropped or selected file. */
   onUpload: (file: File) => Promise<void>;
 }
 
+/**
+ * Dropzone component rendered on the root canvas landing paper,
+ * allowing users to upload documents directly into the active or initial workspace.
+ *
+ * @param props - Component properties.
+ * @returns The rendered root upload dropzone area.
+ */
 export function RootUploadPaper({
   disabled,
   onUpload,
@@ -27,8 +38,15 @@ export function RootUploadPaper({
       await onUpload(file);
     } catch (err) {
       log.error('Root upload failed', { source: 'root_upload_paper' }, err);
-      const appError = toAppError(err);
-      setUploadMessage(`アップロードに失敗しました。${appError.message}`);
+      let message = '通信環境またはファイル形式を確認してください。';
+      if (err instanceof UserFacingError) {
+        message = err.message;
+      } else if (isExpectedConnectError(err)) {
+        message = formatConnectErrorMessage(err, message);
+      }
+      setUploadMessage(
+        `アップロードに失敗しました。${message}`,
+      );
     } finally {
       setUploading(false);
     }

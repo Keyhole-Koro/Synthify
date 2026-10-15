@@ -1,4 +1,3 @@
-'use client';
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
@@ -14,11 +13,26 @@ import { useExpansionWatcher } from './tree/useExpansionWatcher';
 import { createWorkspacePaperFactory } from './paper/workspacePaperFactory';
 export type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 
-// useWorkspaceTree is the orchestrator. It owns no data of its own — the
-// tree cache lives in workspaceTreeCache, API calls live in
-// workspaceTreeCommands, the paper factory in workspacePaperFactory, and the
-// expansion side effects in useExpansionWatcher. This hook wires those
-// boundaries together.
+/**
+ * Master orchestrator hook connecting workspace tree caching, network commands,
+ * canvas projection, expansion watching, and paper factory rendering.
+ *
+ * @param getWorkspaceName - Function returning the title for a workspace ID.
+ * @param expansionMap - The current map of expanded paper IDs on canvas.
+ * @param onExpansionMapChange - Callback invoked when child expansion state changes.
+ * @param onFocusedNodeIdChange - Callback to adjust the active canvas focus target.
+ * @param setWorkspacePapers - Callback to register generated papers for a workspace.
+ * @param clearWorkspacePapers - Callback to purge all workspace papers from canvas.
+ * @param workspaces - List of workspaces available to the user.
+ * @param onRenameWorkspace - Handler for updating a workspace name.
+ * @param onSuggestedWorkspaceName - Handler for AI-suggested title updates.
+ * @param onDeleteWorkspace - Handler for deleting a workspace.
+ * @param getWorkspacePaperRuntimeState - Accessor for active job/processing states.
+ * @param onWorkspaceRuntimeStateComplete - Callback triggered when background jobs complete.
+ * @param canFetchWorkspaceTree - Guard checking whether user has access to fetch tree nodes.
+ * @param loading - Whether initial workspace loading is in flight.
+ * @returns Commands and helpers to manage workspace tree data and user navigation.
+ */
 export function useWorkspaceTree(
   getWorkspaceName: (id: string) => string,
   expansionMap: ExpansionMap,
@@ -98,8 +112,14 @@ export function useWorkspaceTree(
     map = openChild(ROOT_ID, WORKSPACES_ID, map);
     map = openChild(WORKSPACES_ID, workspaceId, map);
 
+    // Drop open children the tree no longer has, but only once the tree is
+    // loaded: before that every ID looks unknown, and filtering would wipe the
+    // open state restored from localStorage on reload.
+    const savedOpenIds = map.get(workspaceId)?.openChildIds ?? [];
     const allTreeItemIds = new Set(store.getTreeItems(workspaceId).keys());
-    const currentWorkspaceOpenIds = (map.get(workspaceId)?.openChildIds ?? []).filter((id) => allTreeItemIds.has(id));
+    const currentWorkspaceOpenIds = store.isFullyLoaded(workspaceId)
+      ? savedOpenIds.filter((id) => allTreeItemIds.has(id))
+      : savedOpenIds;
     const openChildIds = revealNewDocumentRoots
       ? Array.from(new Set([...currentWorkspaceOpenIds, ...newDocumentRootIds]))
       : currentWorkspaceOpenIds;
@@ -291,13 +311,16 @@ export function useWorkspaceTree(
       onFocusedNodeIdChange(workspaceId);
       return;
     }
-    store.markInitialized(workspaceId);
     setWorkspacePapers(workspaceId, [buildWsPaper(workspaceId, [])]);
     updateWorkspaceExpansion(workspaceId);
     onFocusedNodeIdChange(workspaceId);
+    // On reload the cached list arrives before ListWorkspaces confirms access.
+    // Leave the workspace uninitialized until then, so useExpansionWatcher opens
+    // it again when the fetched list lands and the tree actually loads.
     if (!canReadWorkspaceTree(workspaceId)) {
       return;
     }
+    store.markInitialized(workspaceId);
     await refreshWorkspaceTree(workspaceId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildWsPaper, canReadWorkspaceTree, onFocusedNodeIdChange, refreshWorkspaceTree, runProjectWorkspacePapers, setWorkspacePapers, updateWorkspaceExpansion]);

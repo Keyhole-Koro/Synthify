@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // GetModelPricing returns the pricing row for the given model.
@@ -343,10 +343,12 @@ func formatMinorCost(minor int64, currency string) string {
 	return neg + itoa(whole) + "." + pad2(frac)
 }
 
+// itoa formats an int64 integer into a decimal string.
 func itoa(n int64) string {
 	return string(appendInt(nil, n))
 }
 
+// appendInt appends the decimal representation of n to b and returns the result.
 func appendInt(b []byte, n int64) []byte {
 	if n == 0 {
 		return append(b, '0')
@@ -361,6 +363,7 @@ func appendInt(b []byte, n int64) []byte {
 	return append(b, buf[pos:]...)
 }
 
+// pad2 formats a non-negative integer under 100 with zero padding to two digits.
 func pad2(n int64) string {
 	if n < 10 {
 		return "0" + string([]byte{byte('0' + n)})
@@ -375,14 +378,14 @@ func (s *Store) GrantCredit(ctx context.Context, grant *domain.CreditGrant) erro
 		grantedAt = nowTime()
 	}
 	return s.q().GrantCredit(ctx, sqlcgen.GrantCreditParams{
-		CreditID:   grant.CreditID,
-		AccountID:  grant.AccountID,
-		CreditType: string(grant.CreditType),
+		CreditID:    grant.CreditID,
+		AccountID:   grant.AccountID,
+		CreditType:  string(grant.CreditType),
 		AmountMinor: grant.AmountMinor,
-		Currency:   grant.Currency,
-		Note:       grant.Note,
-		GrantedBy:  grant.GrantedBy,
-		GrantedAt:  grantedAt,
+		Currency:    grant.Currency,
+		Note:        grant.Note,
+		GrantedBy:   grant.GrantedBy,
+		GrantedAt:   grantedAt,
 	})
 }
 

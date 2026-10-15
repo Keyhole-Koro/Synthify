@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "synthify-local-provider"
+version = "0.1.0"
+description = "Local ConnectRPC provider for Synthify"
+requires-python = ">=3.10"
+dependencies = [
+  "connectrpc==0.11.1",
+  "protobuf==7.36.0",
+  "protovalidate==1.2.0",
+  "pyqwest==0.10.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/buf", "src/synthify"]

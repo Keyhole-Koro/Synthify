@@ -1,3 +1,4 @@
+// Package database manages PostgreSQL / CockroachDB connection pooling and query tracing.
 package database
 
 import (

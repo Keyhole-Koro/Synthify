@@ -15,22 +15,37 @@ import { Workspace } from '@/features/workspaces/api';
 import { Paper, PaperMap } from '@keyhole-koro/paper-in-paper';
 import { AUTH_ID, ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 
-import { type AppError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 
+/**
+ * Properties passed to the {@link useLandingPaperMap} hook to construct the root PaperMap.
+ */
 interface UseLandingPaperMapProps {
+  /** The authenticated user, or null if unauthenticated. */
   user: AuthUser | null;
+  /** Whether authentication or workspace data is actively loading. */
   loading: boolean;
+  /** List of workspaces belonging to the authenticated user. */
   workspaces: Workspace[];
-  workspaceError: AppError | null;
-  authError: AppError | null;
+  /** Error encountered while fetching workspaces, if any. */
+  workspaceError: Error | null;
+  /** Error encountered during authentication or user session restoration, if any. */
+  authError: Error | null;
+  /** Map of workspace IDs to their corresponding pre-built paper lists. */
   workspacePaperGroups: Map<string, Paper[]>;
+  /** Callback triggered to begin Google OAuth login. */
   handleGoogleSubmit: () => void;
+  /** Callback triggered to log out the user. */
   handleLogout: () => void;
+  /** Callback triggered to create a new workspace with the given name. */
   handleCreateWorkspace: (name: string) => Promise<Workspace | void>;
+  /** Callback triggered to upload a document directly to the root landing paper. */
   handleRootUpload: (file: File) => Promise<void>;
+  /** Callback triggered to open a selected workspace in the paper canvas. */
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
+  /** Callback triggered to retry workspace loading on failure. */
   onRetryWorkspaces: () => void;
+  /** Factory function to build an individual workspace paper instance. */
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
 }
 
@@ -95,6 +110,9 @@ const panelStyle: CSSProperties = {
   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.72)',
 };
 
+/**
+ * Renders a titled section with an uppercase category eyebrow within a landing paper card.
+ */
 function PaperSection({
   eyebrow,
   title,
@@ -115,6 +133,9 @@ function PaperSection({
   );
 }
 
+/**
+ * Clickable card element that navigates to a child or related paper node on the canvas.
+ */
 function PaperLinkCard({
   id,
   title,
@@ -158,6 +179,9 @@ function PaperLinkCard({
   );
 }
 
+/**
+ * Renders a plain unordered list of summary or feature bullet points.
+ */
 function PlainList({ items }: { items: string[] }) {
   return (
     <ul style={{ margin: 0, paddingLeft: 17, display: 'grid', gap: 5 }}>
@@ -168,6 +192,9 @@ function PlainList({ items }: { items: string[] }) {
   );
 }
 
+/**
+ * Renders a compact key-value metric line with soft borders.
+ */
 function MetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div
@@ -185,6 +212,9 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Renders a highlighted overview card with high-level description and three key metrics.
+ */
 function HeroPanel({
   title,
   body,
@@ -221,6 +251,9 @@ function HeroPanel({
   );
 }
 
+/**
+ * Renders an ordered sequential step-by-step pipeline or workflow rail.
+ */
 function StageRail({ stages }: { stages: { label: string; title: string; body: string }[] }) {
   return (
     <div style={{ display: 'grid', gap: 7 }}>
@@ -262,6 +295,9 @@ function StageRail({ stages }: { stages: { label: string; title: string; body: s
   );
 }
 
+/**
+ * Renders a responsive grid of indicator or value signals.
+ */
 function SignalGrid({ items }: { items: { label: string; value: string }[] }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(118px, 1fr))', gap: 7 }}>
@@ -275,6 +311,9 @@ function SignalGrid({ items }: { items: { label: string; value: string }[] }) {
   );
 }
 
+/**
+ * Illustrative mockup panel displaying the anatomy of a paper node (assertion, evidence, counter, link).
+ */
 function NodePreview() {
   return (
     <div style={{ ...panelStyle, padding: 12, display: 'grid', gap: 9 }}>
@@ -299,6 +338,9 @@ function NodePreview() {
   );
 }
 
+/**
+ * Builds the top-level navigation cards rendered inside the root landing paper.
+ */
 function buildIntroCards(user: AuthUser | null, hasBilling: boolean) {
   return [
     { id: AUTH_ID, title: user ? 'アカウント' : 'ログイン', body: user ? '利用中のユーザーとセッション' : 'Google アカウントで開始', hue: CATEGORY_HUES.auth },
@@ -308,6 +350,9 @@ function buildIntroCards(user: AuthUser | null, hasBilling: boolean) {
   ];
 }
 
+/**
+ * Registers all static educational and architectural explainer papers into the target PaperMap.
+ */
 function addProductPapers(map: Map<string, Paper>) {
   const productPapers: Paper[] = [
     {
@@ -698,6 +743,14 @@ function addProductPapers(map: Map<string, Paper>) {
   }
 }
 
+/**
+ * React hook that constructs the comprehensive `PaperMap` for the landing canvas,
+ * encompassing the root overview paper, product explanation nodes, authentication card,
+ * user workspaces, and billing/subscription management papers.
+ *
+ * @param props - User session state, loaded workspaces, and interaction callbacks.
+ * @returns Object providing the compiled `paperMap`.
+ */
 export function useLandingPaperMap({
   user,
   loading,

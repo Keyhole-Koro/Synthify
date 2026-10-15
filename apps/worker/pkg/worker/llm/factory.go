@@ -56,6 +56,7 @@ func buildClientConfig(cfg config.LLM, logger *slog.Logger) *genai.ClientConfig 
 	return clientConfig(cfg)
 }
 
+// clientConfig constructs the genai.ClientConfig targeting either Gemini API or Vertex AI.
 func clientConfig(cfg config.LLM) *genai.ClientConfig {
 	if cfg.APIKey != "" {
 		return &genai.ClientConfig{

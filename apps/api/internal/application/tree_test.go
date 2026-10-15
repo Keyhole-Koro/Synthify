@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestTreeService_GetTree_ReturnsItems(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
 type knowledgeTreeFakeLLM struct {
@@ -48,7 +48,7 @@ func TestGenerateKnowledgeTree_ObjectResponseAndUsage(t *testing.T) {
 
 	items, usage, err := GenerateKnowledgeTree(context.Background(), fake, GenerateKnowledgeTreeArgs{
 		DocumentID: "doc_1",
-		Chunks: []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}},
+		Chunks:     []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}},
 	})
 	if err != nil {
 		t.Fatalf("GenerateKnowledgeTree returned error: %v", err)

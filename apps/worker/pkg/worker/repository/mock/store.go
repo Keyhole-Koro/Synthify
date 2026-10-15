@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/job/log"
 )
@@ -20,6 +20,7 @@ var (
 	_ repository.Repositories = (*Store)(nil)
 )
 
+// Store is an in-memory repository implementation that simulates all database storage interfaces for testing.
 type Store struct {
 	mu              sync.RWMutex
 	accounts        map[string]*domain.Account
@@ -47,6 +48,7 @@ type Store struct {
 	dynamicToolSeq  int
 }
 
+// uploadReservation tracks the metadata and expiration of a reserved document upload target.
 type uploadReservation struct {
 	AccountID    string
 	WorkspaceID  string
@@ -57,6 +59,7 @@ type uploadReservation struct {
 	ExpiresAt    time.Time
 }
 
+// NewStore instantiates an in-memory repository store with empty entity maps.
 func NewStore() *Store {
 	return &Store{
 		accounts:        make(map[string]*domain.Account),
@@ -80,19 +83,21 @@ func NewStore() *Store {
 	}
 }
 
+// SetUploadURLIssuer configures the document upload URL issuer used by CreateDocument.
 func (s *Store) SetUploadURLIssuer(issuer repository.DocumentUploadURLIssuer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.uploadURLIssuer = issuer
 }
 
+// CheckReadiness verifies store health (always returns nil for in-memory mock).
 func (s *Store) CheckReadiness(context.Context) error {
 	return nil
 }
 
-// WithTx は mock では実 tx を持たないため、callback をそのまま *Store で実行する。
-// callback が error を返した場合の rollback は行えないため、state を巻き戻したい
-// テストでは Store を作り直すこと。
+// WithTx runs the callback using the current Store instance. Since the mock does not
+// maintain real database transactions, any errors returned by the callback will not
+// roll back in-memory mutations. Tests requiring isolated rollbacks should create a new Store.
 func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) error) error {
 	return fn(s)
 }
@@ -130,8 +135,7 @@ func (s *Store) GetAccount(ctx context.Context, id string) (*domain.Account, err
 	return nil, domain.ErrNotFound
 }
 
-// GetAccountByUser は mock では account_id == user_id の単純化に従い、
-// userID をキーに account を返す。
+// GetAccountByUser retrieves an account using userID as the account key under mock conventions.
 func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -492,8 +496,10 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	return d, target, nil
 }
 
+// mockUploadURLIssuer provides synthetic signed upload targets for test executions.
 type mockUploadURLIssuer struct{}
 
+// IssueDocumentUploadURL generates a deterministic mock HTTP upload target URL.
 func (mockUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, wsID, docID, contentType string, _ int64) (repository.DocumentUploadTarget, error) {
 	return repository.DocumentUploadTarget{
 		URL:         "http://mock-upload-url/" + wsID + "/" + docID,

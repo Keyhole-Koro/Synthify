@@ -6,15 +6,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
-// UserUsecase は handler が依存する UserService の API 表面。
+// UserUsecase defines the use-case interface for user sign-in and provisioning.
 type UserUsecase interface {
 	SignInUser(ctx context.Context, userID, email, displayName string) (*SignInUserResult, error)
 }
 
+// UserService coordinates user profile persistence, account creation, and signup credit assignment.
 type UserService struct {
 	users    repository.UserRepository
 	accounts repository.AccountRepository
@@ -23,10 +24,12 @@ type UserService struct {
 	now      func() time.Time
 }
 
+// UserBillingUsecase specifies the billing actions needed during user provisioning.
 type UserBillingUsecase interface {
 	GrantFreeSignupCredit(ctx context.Context, accountID string) error
 }
 
+// UserServiceDeps defines dependencies required to instantiate a UserService.
 type UserServiceDeps struct {
 	Users    repository.UserRepository
 	Accounts repository.AccountRepository
@@ -34,6 +37,7 @@ type UserServiceDeps struct {
 	Logger   *slog.Logger
 }
 
+// NewUserService creates a new UserService instance.
 func NewUserService(deps UserServiceDeps) *UserService {
 	return &UserService{
 		users:    deps.Users,
@@ -44,20 +48,17 @@ func NewUserService(deps UserServiceDeps) *UserService {
 	}
 }
 
+// SignInUserResult contains the provisioned user entity and flags indicating whether an account was newly created.
 type SignInUserResult struct {
 	User *domain.User
-	// IsNewAccount は今回の呼び出しで account を新規作成したかどうか。
-	// 「users 行があるが accounts 行が無い」途中失敗からの自己回復ケースでも true になる。
+	// IsNewAccount indicates whether a new account was created during this sign-in call.
+	// Also true if recovering from an incomplete sign-up where the user existed without an account.
 	IsNewAccount bool
 }
 
-// SignInUser は Firebase 認証済みユーザーを我々の DB に provision する。
-// クライアントはサインインに成功するたびに呼ぶ:
-//  1. users 行を upsert (LastLoginAt を更新、無ければ作成)
-//  2. account が無ければ作成し、無料サインアップクレジットを付与
-//
-// 冪等。何度呼んでも安全。途中失敗 (users 行はあるが accounts が無い等) からも
-// 次回呼び出しで自動回復する。
+// SignInUser provisions or updates an authenticated user in the database.
+// It upserts the user row, ensures an associated account exists, and grants initial signup credits.
+// The operation is idempotent and automatically recovers from previous partial failures.
 func (s *UserService) SignInUser(ctx context.Context, userID, email, displayName string) (*SignInUserResult, error) {
 	if userID == "" {
 		return nil, errors.New("user_id is required")
@@ -82,8 +83,7 @@ func (s *UserService) SignInUser(ctx context.Context, userID, email, displayName
 	return &SignInUserResult{User: user, IsNewAccount: isNewAccount}, nil
 }
 
-// upsertUserRow は users 行を upsert する。毎回呼ばれる前提。
-// 既存行があれば CreatedAt を保持し、無ければ now で初期化する。
+// upsertUserRow inserts or updates the user profile, preserving the original CreatedAt timestamp if present.
 func (s *UserService) upsertUserRow(ctx context.Context, userID, email, displayName string) (*domain.User, error) {
 	existing, err := s.users.GetUser(ctx, userID)
 	isNew := false
@@ -110,8 +110,7 @@ func (s *UserService) upsertUserRow(ctx context.Context, userID, email, displayN
 	return s.users.UpsertUser(ctx, user)
 }
 
-// ensureAccount は account を取得し、無ければ作成する。
-// isNewAccount は今回の呼び出しで作成したかどうか。
+// ensureAccount retrieves an existing account for the user or provisions a new one if missing.
 func (s *UserService) ensureAccount(ctx context.Context, userID string) (*domain.Account, bool, error) {
 	existing, err := s.accounts.GetAccountByUser(ctx, userID)
 	if err == nil {
@@ -127,9 +126,7 @@ func (s *UserService) ensureAccount(ctx context.Context, userID string) (*domain
 	return created, true, nil
 }
 
-// grantSignupCreditIfFirstTime は無料サインアップクレジットを付与する。
-// billing 側で credit_id が "free-signup-<accountID>" 固定で冪等になっているため
-// 万一二重で呼ばれても問題ない。失敗時は sync 全体を失敗させずログのみ。
+// grantSignupCreditIfFirstTime attempts to allocate initial free credits to the newly created account.
 func (s *UserService) grantSignupCreditIfFirstTime(ctx context.Context, userID, accountID string) {
 	if s.billing == nil {
 		return

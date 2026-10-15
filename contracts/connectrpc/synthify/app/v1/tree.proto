@@ -4,6 +4,7 @@ package synthify.app.v1;
 
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
+import "buf/validate/validate.proto";
 import "synthify/app/v1/tree_types.proto";
 
 service TreeService {
@@ -14,7 +15,7 @@ service TreeService {
 }
 
 message GetTreeRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).required = true];
   string document_id = 2;
   repeated int32 level_filters = 3;
   int32 limit = 4;
@@ -27,9 +28,9 @@ message GetTreeResponse {
 }
 
 message FindPathsRequest {
-  string workspace_id = 1;
-  string source_item_id = 2;
-  string target_item_id = 3;
+  string workspace_id = 1 [(buf.validate.field).required = true];
+  string source_item_id = 2 [(buf.validate.field).required = true];
+  string target_item_id = 3 [(buf.validate.field).required = true];
   int32 max_depth = 4;
   int32 limit = 5;
   bool cross_document = 6;
@@ -52,8 +53,8 @@ message FindPathsResponse {
 }
 
 message GetSubtreeRequest {
-  string workspace_id = 1;
-  string item_id = 2;
+  string workspace_id = 1 [(buf.validate.field).required = true];
+  string item_id = 2 [(buf.validate.field).required = true];
   int32 max_depth = 3;
 }
 

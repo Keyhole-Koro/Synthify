@@ -6,10 +6,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
+// GetUser retrieves a user record by user ID from PostgreSQL.
 func (s *Store) GetUser(ctx context.Context, userID string) (*domain.User, error) {
 	row, err := s.q().GetUser(ctx, userID)
 	if err != nil {
@@ -21,6 +22,7 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*domain.User, error
 	return toDomainUser(row), nil
 }
 
+// GetUserByEmail retrieves a user record by email address from PostgreSQL.
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (*domain.User, error) {
 	row, err := s.q().GetUserByEmail(ctx, email)
 	if err != nil {
@@ -32,6 +34,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (*domain.User,
 	return toDomainUser(row), nil
 }
 
+// UpsertUser inserts or updates a user row in PostgreSQL with current timestamps.
 func (s *Store) UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error) {
 	createdAt, _ := time.Parse(time.RFC3339, user.CreatedAt)
 	if createdAt.IsZero() {
@@ -56,6 +59,7 @@ func (s *Store) UpsertUser(ctx context.Context, user *domain.User) (*domain.User
 	return toDomainUser(row), nil
 }
 
+// toDomainUser converts a sqlc User row into a domain User entity.
 func toDomainUser(row sqlcgen.User) *domain.User {
 	return &domain.User{
 		UserID:      row.UserID,

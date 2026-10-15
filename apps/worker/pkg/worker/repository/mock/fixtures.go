@@ -5,10 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// WorkspaceFixture bundles related domain entities commonly required for worker unit tests.
 type WorkspaceFixture struct {
 	UserID    string
 	AccountID string
@@ -18,6 +19,7 @@ type WorkspaceFixture struct {
 	Job       *domain.DocumentProcessingJob
 }
 
+// CreateUserWorkspaceFixture creates a test user account and an empty workspace.
 func CreateUserWorkspaceFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
 	t.Helper()
 
@@ -50,6 +52,7 @@ func CreateWorkspaceWithTreeFixture(t testing.TB, ctx context.Context, store *St
 	return fixture
 }
 
+// CreateWorkspaceWithDocumentFixture sets up a workspace and registers an initial document.
 func CreateWorkspaceWithDocumentFixture(t testing.TB, ctx context.Context, store *Store, userID string) WorkspaceFixture {
 	t.Helper()
 
@@ -60,6 +63,7 @@ func CreateWorkspaceWithDocumentFixture(t testing.TB, ctx context.Context, store
 	return fixture
 }
 
+// CreateWorkspaceWithProcessingJobFixture sets up a workspace, root tree, document, and an initial processing job.
 func CreateWorkspaceWithProcessingJobFixture(t testing.TB, ctx context.Context, store *Store, userID string, jobType appv1.JobType) WorkspaceFixture {
 	t.Helper()
 

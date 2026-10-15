@@ -1,3 +1,5 @@
+// Package store provides persistence routines for storing evaluation runs,
+// individual test case outcomes, and execution trace spans in a relational database.
 package store
 
 import (
@@ -14,6 +16,7 @@ import (
 	"github.com/synthify/backend/internal/platform/database"
 )
 
+// Run represents a complete evaluation run batch to be stored.
 type Run struct {
 	ID           string
 	PromptSource string
@@ -22,7 +25,7 @@ type Run struct {
 	CompletedAt  time.Time
 	Results      []runner.Result
 }
-
+// Summary holds computed aggregate statistics across all cases in an evaluation run.
 type Summary struct {
 	CaseCount    int64
 	PassedCount  int64
@@ -34,6 +37,7 @@ type Summary struct {
 	Status       string
 }
 
+// Summarize aggregates counts, pass rates, and token consumption metrics from evaluation results.
 func Summarize(results []runner.Result) Summary {
 	s := Summary{CaseCount: int64(len(results)), Status: "succeeded"}
 	models := make(map[string]struct{})
@@ -66,6 +70,7 @@ func Summarize(results []runner.Result) Summary {
 	return s
 }
 
+// Persist records an entire evaluation run, its case results, and tracing events to PostgreSQL.
 func Persist(ctx context.Context, dsn string, run Run) error {
 	if strings.TrimSpace(dsn) == "" {
 		return fmt.Errorf("database DSN is empty")
@@ -204,6 +209,7 @@ func insertTraceEvents(ctx context.Context, q *sqlcgen.Queries, runID uuid.UUID,
 	return nil
 }
 
+// rawJSONOrNil converts a raw JSON byte slice into a nullable database RawMessage.
 func rawJSONOrNil(raw json.RawMessage) (pqtype.NullRawMessage, error) {
 	if len(raw) == 0 {
 		return pqtype.NullRawMessage{}, nil
@@ -214,6 +220,7 @@ func rawJSONOrNil(raw json.RawMessage) (pqtype.NullRawMessage, error) {
 	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}, nil
 }
 
+// jsonOrNil marshals an arbitrary value to JSON, returning a nullable database RawMessage.
 func jsonOrNil(value any) (pqtype.NullRawMessage, error) {
 	if value == nil {
 		return pqtype.NullRawMessage{}, nil

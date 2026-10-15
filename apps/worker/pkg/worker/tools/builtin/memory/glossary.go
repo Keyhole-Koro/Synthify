@@ -9,20 +9,24 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 )
 
+// Entry represents a single glossary entry with a term and its definition.
 type Entry struct {
 	Term       string `json:"term"`
 	Definition string `json:"definition"`
 }
 
+// Glossary manages an in-memory dictionary of domain terms and their definitions.
 type Glossary struct {
 	mu      sync.RWMutex
 	entries map[string]string
 }
 
+// NewGlossary initializes an empty Glossary.
 func NewGlossary() *Glossary {
 	return &Glossary{entries: make(map[string]string)}
 }
 
+// RenderForPrompt formats the glossary terms and definitions as Markdown for prompt injection.
 func (g *Glossary) RenderForPrompt() string {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -41,15 +45,18 @@ func (g *Glossary) RenderForPrompt() string {
 	return sb.String()
 }
 
+// registerArgs specifies the term and definition to register in the glossary.
 type registerArgs struct {
 	Term       string `json:"term"`
 	Definition string `json:"definition"`
 }
 
+// registerResult contains confirmation of the registered glossary term.
 type registerResult struct {
 	Message string `json:"message"`
 }
 
+// NewRegisterTool creates a core.Tool that allows an agent to register domain terms into the glossary.
 func NewRegisterTool(g *Glossary) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[registerArgs, registerResult]()
 	if err != nil {
@@ -74,15 +81,18 @@ func NewRegisterTool(g *Glossary) (core.Tool, error) {
 	}, nil
 }
 
+// lookupArgs specifies the term to look up in the glossary.
 type lookupArgs struct {
 	Term string `json:"term"`
 }
 
+// lookupResult returns the definition if found, or an explanatory message if missing.
 type lookupResult struct {
 	Entry   *Entry `json:"entry,omitempty"`
 	Message string `json:"message"`
 }
 
+// NewLookupTool creates a core.Tool that allows an agent to look up defined terms from the glossary.
 func NewLookupTool(g *Glossary) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[lookupArgs, lookupResult]()
 	if err != nil {

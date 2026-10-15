@@ -1,0 +1,22 @@
+{
+  "name": "@insightify/agent-codex",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "generate:schema": "codex app-server generate-ts --out src/generated"
+  },
+  "dependencies": {
+    "@insightify/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

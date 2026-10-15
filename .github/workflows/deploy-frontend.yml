@@ -13,20 +13,19 @@ on:
           - prod
   push:
     branches:
-      - stage
+      - main
       - prod
 
 concurrency:
-  group: deploy-frontend-${{ github.event.inputs.environment || github.ref_name }}
+  group: deploy-frontend-${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }}
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # Resolve env from manual input, else from the pushed branch name
-    # (stage/prod). The GitHub Environment scopes secrets and vars so the
-    # same names resolve to per-env values.
-    environment: ${{ github.event.inputs.environment || github.ref_name }}
+    # Manual runs use the selected environment. Pushes to main deploy to stage;
+    # pushes to prod continue to deploy to prod.
+    environment: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }}
     permissions:
       contents: read
       id-token: write
@@ -34,7 +33,7 @@ jobs:
     # `environment:` above is the GitHub Environment — it scopes secrets, it is
     # not a shell variable. Steps that need the environment name need this.
     env:
-      ENVIRONMENT: ${{ github.event.inputs.environment || github.ref_name }}
+      ENVIRONMENT: ${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +48,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -141,6 +140,6 @@ jobs:
     with:
       status: failure
       workflow_name: Deploy Frontend
-      job_name: deploy (${{ github.event.inputs.environment || github.ref_name }})
+      job_name: deploy (${{ github.event.inputs.environment || (github.ref_name == 'main' && 'stage' || github.ref_name) }})
     secrets:
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

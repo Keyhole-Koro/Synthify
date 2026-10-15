@@ -1,23 +1,33 @@
-import React from 'react';
 
 import { useElapsedTime } from '@/features/jobs/useElapsedTime';
 
+/**
+ * Props for the {@link WorkspaceJobProgress} component.
+ */
 interface WorkspaceJobProgressProps {
+  /** Optional status or stage text reported by the worker. */
   message?: string | null;
+  /** Numeric completion percentage (0-100), or undefined if indeterminate. */
   progress?: number;
+  /** Whether the job terminated in an error state. */
   isFailed: boolean;
+  /** ISO-8601 timestamp string when the job started. */
   startedAt?: string;
+  /** ISO-8601 timestamp string when the job reached terminal state. */
   completedAt?: string;
+  /** Whether the job has reached a final state (succeeded, failed, cancelled). */
   isTerminal?: boolean;
+  /** Optional detail string describing the latest worker activity. */
   latestActivity?: string;
 }
 
-// WorkspaceJobProgress is the in-place status bar for the currently active
-// job on a workspace. It renders the stage label / percentage above a
-// horizontal bar. When the worker has not yet reported a numeric progress
-// (typeof progress !== 'number'), the bar fills the full width and shows an
-// animated diagonal stripe so the UI does not look frozen during early
-// stages — the stripe class lives in index.css.
+/**
+ * In-place progress bar component for the actively running job in a workspace.
+ * Renders stage messages, elapsed time counters, and animated progress bars.
+ *
+ * @param props - Component properties.
+ * @returns The rendered progress indicator element.
+ */
 export function WorkspaceJobProgress({
   message,
   progress,

@@ -1,3 +1,5 @@
+// Package artifact provides utilities for uploading evaluation run reports
+// and logs to cloud storage destinations such as Google Cloud Storage (GCS).
 package artifact
 
 import (
@@ -16,28 +18,36 @@ import (
 
 const jsonContentType = "application/json"
 
+// GCSConfig specifies upload destination settings, path segmentation, and clock/random sources.
 type GCSConfig struct {
+	// PrefixURI is the root GCS URI destination (e.g. "gs://bucket/prefix").
 	PrefixURI string
 	// PromptSource segments the object path so baseline and variant runs
 	// are separable from the URI alone (e.g. "production",
 	// "variant:concise-v1"). Empty falls back to "production".
 	PromptSource string
+	// Now returns the current timestamp, defaulting to time.Now if nil.
 	Now          func() time.Time
+	// Rand provides cryptographically secure entropy, defaulting to crypto/rand if nil.
 	Rand         io.Reader
 }
-
+// UploadResult contains the metadata and canonical URI of an uploaded artifact.
 type UploadResult struct {
+	// URI is the canonical gs:// path to the uploaded artifact.
 	URI string
 }
 
+// ObjectWriter abstracts writing raw bytes to an object store bucket.
 type ObjectWriter interface {
 	WriteObject(ctx context.Context, bucket, object, contentType string, data []byte) error
 }
 
+// GCSWriter implements ObjectWriter using the official Google Cloud Storage client.
 type GCSWriter struct {
 	Client *gcs.Client
 }
 
+// UploadGCS initializes a default GCS client and uploads the evaluation report bytes.
 func UploadGCS(ctx context.Context, cfg GCSConfig, report []byte) (UploadResult, error) {
 	client, err := gcs.NewClient(ctx)
 	if err != nil {
@@ -47,6 +57,7 @@ func UploadGCS(ctx context.Context, cfg GCSConfig, report []byte) (UploadResult,
 	return UploadGCSWithWriter(ctx, cfg, report, GCSWriter{Client: client})
 }
 
+// UploadGCSWithWriter uploads report data to GCS using the specified ObjectWriter.
 func UploadGCSWithWriter(ctx context.Context, cfg GCSConfig, report []byte, writer ObjectWriter) (UploadResult, error) {
 	if writer == nil {
 		return UploadResult{}, fmt.Errorf("gcs writer is required")
@@ -65,6 +76,7 @@ func UploadGCSWithWriter(ctx context.Context, cfg GCSConfig, report []byte, writ
 	return UploadResult{URI: "gs://" + bucket + "/" + object}, nil
 }
 
+// WriteObject writes data to the specified GCS bucket and object path with precondition checks.
 func (w GCSWriter) WriteObject(ctx context.Context, bucket, object, contentType string, data []byte) error {
 	if w.Client == nil {
 		return fmt.Errorf("gcs client is required")
@@ -79,6 +91,7 @@ func (w GCSWriter) WriteObject(ctx context.Context, bucket, object, contentType 
 	return writer.Close()
 }
 
+// ParseGCSPrefix parses and validates a GCS prefix URI (gs://bucket/prefix).
 func ParseGCSPrefix(raw string) (bucket, prefix string, err error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -100,6 +113,7 @@ func ParseGCSPrefix(raw string) (bucket, prefix string, err error) {
 	return parsed.Host, normalizePrefix(parsed.Path), nil
 }
 
+// BuildObjectName generates a timestamped and partitioned object path for an evaluation artifact.
 func BuildObjectName(prefix string, cfg GCSConfig) (string, error) {
 	now := time.Now
 	if cfg.Now != nil {
@@ -133,10 +147,12 @@ func promptSourceSegment(promptSource string) string {
 	return s
 }
 
+// normalizePrefix cleans and normalizes a storage prefix string without leading or trailing slashes.
 func normalizePrefix(prefix string) string {
 	return strings.Trim(path.Clean("/"+strings.TrimSpace(prefix)), "/")
 }
 
+// randomSuffix generates a 3-byte cryptographically random hex suffix.
 func randomSuffix(reader io.Reader) (string, error) {
 	if reader == nil {
 		reader = rand.Reader

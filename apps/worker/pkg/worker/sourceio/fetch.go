@@ -1,3 +1,4 @@
+// Package sourceio handles resolving, reading, and fetching source documents and image assets for worker pipelines.
 package sourceio
 
 import (
@@ -7,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // maxFetchBytes caps an external image download so a hostile or mistaken URL

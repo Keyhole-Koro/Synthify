@@ -1,6 +1,23 @@
+/**
+ * PostgreSQL search and pagination queries for job execution logs.
+ *
+ * @module
+ */
 import type { Pool } from 'pg';
 import type { JobLog } from '../types';
 
+/**
+ * Raw log record structure retrieved from database view.
+ * @property id Optional database log identifier.
+ * @property job_id Job identifier associated with the log.
+ * @property workspace_id Workspace identifier associated with the log.
+ * @property document_id Document identifier associated with the log.
+ * @property level Log severity level.
+ * @property event Structured event name.
+ * @property message Human-readable log message.
+ * @property detail_json Structured detail payload.
+ * @property created_at Log creation timestamp.
+ */
 export interface RawLogRow {
   id?: string;
   job_id: string;
@@ -13,6 +30,19 @@ export interface RawLogRow {
   created_at: Date | string;
 }
 
+/**
+ * Filter criteria for searching and paginating log entries.
+ * @property query Free-text search across event, message, and detail JSON.
+ * @property workspaceId Optional workspace scope.
+ * @property documentId Optional document scope.
+ * @property jobId Optional job scope; takes precedence over broader scopes.
+ * @property levels Severity levels to include.
+ * @property events Structured event names to include.
+ * @property fromTimestamp Inclusive lower timestamp bound.
+ * @property toTimestamp Inclusive upper timestamp bound.
+ * @property pageToken Cursor for the next page.
+ * @property limit Requested page size, clamped by the query implementation.
+ */
 export interface SearchFilters {
   query: string;
   workspaceId: string;
@@ -26,11 +56,23 @@ export interface SearchFilters {
   limit: number;
 }
 
+/**
+ * Paginated log search query result.
+ * @property logs Log rows matching the supplied filters.
+ * @property nextPageToken Cursor to pass to the next search, or an empty string when exhausted.
+ */
 export interface SearchResult {
   logs: RawLogRow[];
   nextPageToken: string;
 }
 
+/**
+ * Searches job logs based on entity scopes, full-text filters, severity levels, and time bounds.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param f Search filter parameters.
+ * @returns Promise resolving to matched logs and next page token.
+ */
 export async function searchLogs(pool: Pool, f: SearchFilters): Promise<SearchResult> {
   const limit = Math.min(Math.max(f.limit || 500, 1), 1000);
   const args: unknown[] = [];
@@ -91,6 +133,12 @@ export async function searchLogs(pool: Pool, f: SearchFilters): Promise<SearchRe
   return { logs, nextPageToken };
 }
 
+/**
+ * Converts a database RawLogRow into the OpenAPI-compatible JobLog wire model.
+ *
+ * @param r Raw database log row.
+ * @returns Serialized JobLog object.
+ */
 export function logRowToWireFormat(r: RawLogRow): JobLog {
   return {
     timestamp:

@@ -8,7 +8,7 @@ import (
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/api/internal/repository"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
 	"github.com/synthify/backend/internal/platform/database"
 	"github.com/synthify/backend/internal/platform/util"
 )
@@ -16,10 +16,11 @@ import (
 // Compile-time check: *Store satisfies both the unit-of-work boundary
 // (Transactor) and the bundle of all repositories (Repositories).
 var (
-	_ repository.Transactor    = (*Store)(nil)
-	_ repository.Repositories  = (*Store)(nil)
+	_ repository.Transactor   = (*Store)(nil)
+	_ repository.Repositories = (*Store)(nil)
 )
 
+// Store provides the PostgreSQL implementation of repository.Repositories and repository.Transactor.
 type Store struct {
 	db              *sql.DB
 	queries         *sqlcgen.Queries
@@ -28,6 +29,7 @@ type Store struct {
 	inTx            bool
 }
 
+// NewStore initializes a PostgreSQL database connection pool, checks connectivity with Ping, and returns a Store.
 func NewStore(ctx context.Context, dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
 	store, db, err := newStoreUnpinged(dsn, pool, uploadURLIssuer, logger, nrApp...)
 	if err != nil {
@@ -51,6 +53,7 @@ func NewStoreWithoutPing(dsn string, pool database.PoolConfig, uploadURLIssuer r
 	return store, err
 }
 
+// newStoreUnpinged opens the database connection pool with optional New Relic instrumentation.
 func newStoreUnpinged(dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, *sql.DB, error) {
 	var app *newrelic.Application
 	if len(nrApp) > 0 {
@@ -69,6 +72,7 @@ func newStoreUnpinged(dsn string, pool database.PoolConfig, uploadURLIssuer repo
 	}, db, nil
 }
 
+// Close closes the underlying PostgreSQL connection pool.
 func (s *Store) Close() error {
 	if s.db != nil {
 		return s.db.Close()
@@ -76,10 +80,12 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// CheckReadiness validates that PostgreSQL is reachable and accepting queries.
 func (s *Store) CheckReadiness(ctx context.Context) error {
 	return database.CheckReadiness(ctx, s.db)
 }
 
+// q returns the active sqlc Queries instance, initializing it if nil.
 func (s *Store) q() *sqlcgen.Queries {
 	if s.queries == nil {
 		s.queries = sqlcgen.New(s.db)
@@ -87,13 +93,10 @@ func (s *Store) q() *sqlcgen.Queries {
 	return s.queries
 }
 
-// WithTx は callback を単一 SQL transaction の中で実行する。
-// callback には tx スコープに束縛された Repositories (Store のクローン) が
-// 渡される。fn が nil を返せば commit、err を返せば rollback。
-//
-// 入れ子の WithTx はサポートしない (CockroachDB は SAVEPOINT を扱えるが
-// service 層からの不用意な入れ子は避ける方針)。inTx=true の Store で
-// WithTx を呼ぶと panic する。
+// WithTx executes the callback within a single SQL transaction.
+// A tx-scoped Repositories instance is passed to the callback.
+// If fn returns nil, the transaction commits; if it returns an error, it rolls back.
+// Nested WithTx calls are not supported and will panic.
 func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) error) error {
 	if s.inTx {
 		panic("postgres.Store.WithTx: nested transactions are not supported")
@@ -125,10 +128,12 @@ func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) err
 	return nil
 }
 
+// newID generates a new random monotonic ULID string.
 func newID() string {
 	return util.NewULID()
 }
 
+// nowTime returns current UTC timestamp.
 func nowTime() time.Time {
 	return util.NowUTC()
 }

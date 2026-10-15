@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// toProtoSubtreeItem converts a domain.SubtreeItem to the corresponding Protobuf representation.
 func toProtoSubtreeItem(item *domain.SubtreeItem) *appv1.SubtreeItem {
 	if item == nil {
 		return nil
@@ -15,6 +16,7 @@ func toProtoSubtreeItem(item *domain.SubtreeItem) *appv1.SubtreeItem {
 	}
 }
 
+// toProtoItem converts a domain.Item entity to its Protobuf message definition.
 func toProtoItem(item *domain.Item) *appv1.Item {
 	if item == nil {
 		return nil
@@ -34,6 +36,7 @@ func toProtoItem(item *domain.Item) *appv1.Item {
 	}
 }
 
+// toProtoItemEvidence converts domain item evidence to a Protobuf TreeEntityEvidence message.
 func toProtoItemEvidence(evidence *domain.ItemEvidence) *appv1.TreeEntityEvidence {
 	if evidence == nil {
 		return &appv1.TreeEntityEvidence{}
@@ -56,6 +59,7 @@ func toProtoItemEvidence(evidence *domain.ItemEvidence) *appv1.TreeEntityEvidenc
 	}
 }
 
+// toProtoItemSourceRefs maps a slice of domain item source references to Protobuf messages.
 func toProtoItemSourceRefs(sourceRefs []*domain.ItemSourceRef) []*appv1.ItemSourceRef {
 	refs := make([]*appv1.ItemSourceRef, 0, len(sourceRefs))
 	for _, source := range sourceRefs {
@@ -84,6 +88,7 @@ func toProtoItemSourceRefs(sourceRefs []*domain.ItemSourceRef) []*appv1.ItemSour
 	return refs
 }
 
+// toProtoUser converts a domain.User entity to a Protobuf User message.
 func toProtoUser(user *domain.User) *appv1.User {
 	if user == nil {
 		return nil

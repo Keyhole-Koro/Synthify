@@ -1,0 +1,41 @@
+{
+  "name": "@insightify/desktop",
+  "productName": "Insightify",
+  "version": "0.0.1",
+  "private": true,
+  "main": ".vite/build/main.js",
+  "scripts": {
+    "start": "node scripts/forge.mjs start",
+    "package": "node scripts/forge.mjs package",
+    "make": "node scripts/forge.mjs make",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "preview": "vite --config vite.preview.config.mts"
+  },
+  "dependencies": {
+    "@insightify/agent-antigravity-cli": "workspace:*",
+    "@insightify/agent-codex": "workspace:*",
+    "@insightify/agent-runtime": "workspace:*",
+    "@insightify/desktop-bridge": "workspace:*",
+    "@insightify/graph-domain": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "scheduler": "^0.27.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/core": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
+    "@electron-forge/plugin-vite": "^7.11.2",
+    "@electron-forge/shared-types": "^7.11.2",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "electron": "^43.4.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}

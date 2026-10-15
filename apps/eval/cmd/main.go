@@ -1,3 +1,5 @@
+// Package main implements the command-line evaluation harness for testing, benchmarking,
+// and grading LLM prompts, tool invocations, and agent workflows.
 package main
 
 import (
@@ -21,6 +23,7 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 )
 
+// main is the CLI entry point for executing evaluation test suites and uploading results.
 func main() {
 	casePath := flag.String("case", "", "YAML eval case path")
 	casesPath := flag.String("cases", "", "YAML eval case directory")
@@ -143,7 +146,7 @@ func main() {
 		os.Exit(1)
 	}
 }
-
+// resolveGCSOutputURI resolves the destination GCS prefix from flag or environment variable.
 func resolveGCSOutputURI(flagValue string) string {
 	if strings.TrimSpace(flagValue) != "" {
 		return strings.TrimSpace(flagValue)
@@ -151,6 +154,7 @@ func resolveGCSOutputURI(flagValue string) string {
 	return strings.TrimSpace(os.Getenv("EVAL_OUTPUT_GCS_URI"))
 }
 
+// databaseDSNFromEnv retrieves the database connection string from environment variables.
 func databaseDSNFromEnv() string {
 	if dsn := strings.TrimSpace(os.Getenv("EVAL_DATABASE_DSN")); dsn != "" {
 		return dsn
@@ -158,6 +162,7 @@ func databaseDSNFromEnv() string {
 	return strings.TrimSpace(os.Getenv("DATABASE_DSN"))
 }
 
+// allPassed returns true if every result in the slice passed evaluation.
 func allPassed(results []runner.Result) bool {
 	for _, res := range results {
 		if !res.Passed {
@@ -167,6 +172,7 @@ func allPassed(results []runner.Result) bool {
 	return true
 }
 
+// writeReportFile writes raw report bytes to disk, creating parent directories as necessary.
 func writeReportFile(path string, b []byte) error {
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "" {
@@ -177,6 +183,7 @@ func writeReportFile(path string, b []byte) error {
 	return os.WriteFile(path, b, 0o644)
 }
 
+// loadDotEnv parses and exports simple environment variable definitions from a dotenv file.
 func loadDotEnv(path string) error {
 	f, err := os.Open(path)
 	if err != nil {

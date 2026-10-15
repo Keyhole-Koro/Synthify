@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	"github.com/synthify/backend/internal/platform/job/log"
 )
@@ -21,6 +21,7 @@ var (
 	_ repository.Repositories = (*Store)(nil)
 )
 
+// Store is an in-memory thread-safe implementation of repository.Repositories and repository.Transactor for tests.
 type Store struct {
 	mu              sync.RWMutex
 	users           map[string]*domain.User
@@ -52,6 +53,11 @@ type Store struct {
 	uploadURLIssuer repository.DocumentUploadURLIssuer
 	dynamicTools    []*domain.DynamicTool // insertion-ordered; ToolID is the identity
 	dynamicToolSeq  int
+
+	chatConversations map[string]*domain.ChatConversation
+	chatMessages      map[string][]*domain.ChatMessage // conversationID -> messages (insertion order)
+	chatSeq           int
+	chatClock         int
 }
 
 type mockInvoice struct {
@@ -74,6 +80,7 @@ type uploadReservation struct {
 	ExpiresAt    time.Time
 }
 
+// NewStore initializes an empty in-memory test store.
 func NewStore() *Store {
 	return &Store{
 		users:           make(map[string]*domain.User),
@@ -100,23 +107,25 @@ func NewStore() *Store {
 		pricing:         make(map[string]domain.ModelPricing),
 		dailyCosts:      make(map[string]int64),
 		uploadURLIssuer: mockUploadURLIssuer{},
+
+		chatConversations: make(map[string]*domain.ChatConversation),
+		chatMessages:      make(map[string][]*domain.ChatMessage),
 	}
 }
 
+// SetUploadURLIssuer sets the DocumentUploadURLIssuer on the mock store.
 func (s *Store) SetUploadURLIssuer(issuer repository.DocumentUploadURLIssuer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.uploadURLIssuer = issuer
 }
 
+// CheckReadiness reports health/readiness status (always succeeds for mock store).
 func (s *Store) CheckReadiness(context.Context) error {
 	return nil
 }
 
-// WithTx は mock 環境では実 tx を持たないため、callback をそのまま *Store で
-// 実行する。callback が error を返した場合の rollback は行えないため、
-// state を巻き戻したいテストでは Store を作り直すこと。
-// (本物の挙動は postgres.Store.WithTx を参照)
+// WithTx executes fn directly with the store instance since in-memory store has no rollback.
 func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) error) error {
 	return fn(s)
 }

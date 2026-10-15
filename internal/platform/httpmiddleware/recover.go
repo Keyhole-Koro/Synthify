@@ -7,7 +7,9 @@ import (
 	"runtime/debug"
 )
 
-// Recover catches panics, logs the stack trace, and returns 500.
+// Recover returns an HTTP middleware that catches panics during request handling,
+// logs the panic error and stack trace using slog, and returns a 500 Internal Server Error
+// to the caller to prevent process crashes.
 func Recover(logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

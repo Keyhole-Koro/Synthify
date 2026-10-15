@@ -11,7 +11,8 @@ Antigravity SDK と配備形態の整理を統合したもの。旧 RFC の Phas
 
 - **Priority**: P3 / architecture proposal
 - **Decision**: Gemini は本番デフォルトのまま。provider boundary の背後に local provider を
-  追加し、まず個人/ローカル PoC で検証する。
+  追加し、まず個人/ローカル PoC で検証する。Worker ↔ local provider の契約は
+  Protobuf + Buf + ConnectRPC（validation は Protovalidate）で生成する。
 - **Target**: process-tool の LLM client を先に差し替え、ADK agent runtime の置換は別途判断。
 
 ## Product boundary
@@ -165,6 +166,10 @@ Gemini CLI は 2026-06-18 に個人向けサブスク経路（Login with Google�
 - GitHub Releases → 単一バイナリ（一般ユーザー向け）
 - PyPI → `pipx install`（開発者向け）
 
+Connect/Protovalidate/Antigravity の native dependency を含むため、PyInstaller artifact は「生成できた」
+だけで配布可としない。対応を宣言する OS/architecture ごとに起動、`Check`、validation error、終了時
+cleanup の smoke test を release gate にする。最初の PoC はこの matrix を持たない `pipx` 配布を優先する。
+
 **署名について**: バイナリにすると OS の実行ファイル検証の対象になる。未署名だと macOS は
 Gatekeeper、Windows は SmartScreen が警告を出す。対象が AI Pro 契約者（開発者寄り）なら、
 回避手順を案内して**未署名で始めるのが現実的**。後から署名を足しても配布形態は変わらない。
@@ -172,8 +177,9 @@ Gatekeeper、Windows は SmartScreen が警告を出す。対象が AI Pro 契�
 **更新**: 自動更新は実装しない。起動時にバージョンを確認し、新しければ通知して DL URL を
 出す程度で足りる（ローカルサーバーは常時起動する性質のものではない）。
 
-**API 互換性**: サーバー API が変わったとき古いローカルサーバーが壊れないよう、
-**サポート最低バージョンをサーバーから返す**仕組みを用意する。
+**API 互換性**: `synthify.localprovider.v1` の proto package と Buf breaking check を互換性の正本にする。
+compatible な変更は additive、breaking change は `v2` package とする。サーバーの semver は診断・更新通知
+には返すが、wire compatibility 判定には使わない。
 
 ### プロンプトテンプレートの配布(GCS)
 
@@ -215,6 +221,7 @@ llm.Client
 ```
 LLM_PROVIDER=gemini|antigravity|codex
 LOCAL_PROVIDER_ENDPOINT=http://127.0.0.1:PORT
+LOCAL_PROVIDER_TOKEN_FILE=/owner-only/path/to/token
 ```
 
 `gemini` 以外は**ローカル/個人 runtime として明示された場合のみ有効**。production / staging は
@@ -222,11 +229,23 @@ managed provider を要求し続ける（fail closed）。
 
 ### Phase 2: ローカル AI サーバー
 
-- HTTP + CORS の薄いサーバー
+- Worker 経路は generated Python handler による ConnectRPC unary service
+  (`Check` / `GetCapabilities` / `GenerateText` / `GenerateStructured` / `CancelGeneration`)
+- public API の capabilities は既存の `WorkerService` に additive RPC を追加して Worker から取得し、
+  API に local-provider endpoint/token を持たせない
+- Protobuf + Buf を契約の正本、Protovalidate を Go/Python 共通の入力制約にする
 - Antigravity SDK 呼び出し（`GenerateText` / `GenerateStructured` 相当）
 - structured output の検証
-- provider エラーの正規化
+- Connect code + typed protobuf detail への provider エラー正規化
+- generation ID による明示的な cancellation、request timeout watchdog、Worker crash 時の孤児回収
+- generation RPC の blind retry は禁止し、turn 開始前を保証できる明示的な rate-limit だけ bounded retry
 - プロセス終了時のクリーンアップ
+
+この非同期 job 経路ではブラウザは local provider を直接呼ばないため CORS は不要。(b) の同期的な
+ブラウザ → localhost 経路を別機能で提供する場合は、origin 制限を含む browser-facing transport を
+別途設計し、この worker contract と混在させない。Connect for Python が beta の間は version を固定し、
+release gate で許容できなければ同じ proto の server transport を `grpcio` に替え、Go client を gRPC
+protocol option で接続する。
 
 ### Phase 3: source files
 
@@ -240,6 +259,8 @@ GCS source → job 固有の一時ディレクトリ → 正規化/展開 → pr
 
 要件: job ごとに 1 ディレクトリ / ユーザー・workspace 間で再利用しない / 初回 PoC は read-only /
 許可されたルートパスのみ / 成功・失敗・キャンセルいずれでも確実に削除 / サイズとファイル数の上限。
+`SourceFile.relative_path` を有効にする前に、Worker と daemon の両方へ同じ job root を明示的に mount
+する。shared volume/bind mount がない Phase 1-2 は source files を未対応エラーで拒否する。
 
 ### Phase 4: provider 接続
 
@@ -265,12 +286,16 @@ documents.model_selection TEXT NULL
   -- NULL は LLM_PROVIDER の既定値にフォールバック
 ```
 
+`documents.model_selection` はアップロードフォームの既定値。`StartProcessing` で NULL ならその時点の
+deployment 既定値を適用し、requested/effective selection を `document_processing_jobs.params_json` に
+保存する。この immutable snapshot を、その job の実行・retry・resume・eval の正本にする。
+
 - **訂正**: 「Phase 4 の provider 接続があれば選択肢に出す」だけでは不十分。Cloud Run 上の
   worker はユーザー端末の `http://127.0.0.1:PORT` に到達できないため、SaaS 本番では
   provider 接続があっても非 Gemini モデルは選べてはならない。実際のゲート条件・UI の出し分け・
   API 側の拒否ロジックは
   [model-and-style-selection-design.md §2](../architecture/model-and-style-selection-design.md#2-デプロイ形態と有効化されるモデルの対応重要な訂正)
-  に集約した(self-hosted 配備であること AND provider 接続があること、の両方が必要)。
+  に集約した(self-hosted 配備、provider 接続、endpoint 到達性、capabilities allowlist が必要)。
 - production / staging で Gemini 以外を選んでも、Phase 1 の fail-closed ガード
   (`gemini` 以外はローカル/個人 runtime として明示された場合のみ有効)はサーバー側で維持する。
   UI の選択肢を絞ることはこのガードの代替にならない。
@@ -279,6 +304,12 @@ documents.model_selection TEXT NULL
   精度の断定的な主張はしない。
 - 選んだモデルは job のメタデータとして記録し、Phase 6 の eval runner がモデル別に結果を
   分けて比較できるようにする。
+- Phase 1-6 で切り替わるのは process tools の `llm.Client` のみ。ADK orchestrator の
+  `model.LLM` は Gemini のままなので、UI は「生成ツールのモデル」と明示し、local provider usage と
+  managed Gemini usage を分けて記録する。job 全体の provider 切り替えは Phase 7 より前には提供しない。
+- public API、job snapshot、local provider protocol、stable error、test gate は
+  [model-and-style-selection-contract.md](../contracts/model-and-style-selection-contract.md) を source of truth
+  とする。
 - [knowledge-tree-generation-spec.md](../core-domain/knowledge-tree-generation-spec.md) の
   スタイル選択(プリセット + 自由入力)とは独立した軸。UI 上は同じフォームに並べてよいが、
   データモデルは分離する(`model_selection` と `knowledge_tree_prompt` は別カラム)。
@@ -339,6 +370,7 @@ Synthify Cloud:
 
 - provider サーバーを信頼できないネットワークに直接公開しない。
 - provider の認証情報・認証ファイルをブラウザに送らない。
+- local provider は loopback にだけ bind し、全 RPC で owner-only file から共有した bearer token を要求する。
 - ユーザー/デバイス ID ごとに隔離された state ディレクトリを 1 つ。
 - job ごとに隔離された作業ディレクトリを 1 つ。
 - 既定は read-only サンドボックス。
@@ -358,16 +390,21 @@ Synthify Cloud:
 4. text と structured 生成のみ対応
 5. source files は当面「未対応」の明示エラー、または job ディレクトリへの staging が
    整ってから対応
-6. fake transport による unit test
-7. 環境変数でガードしたローカル限定の integration test
-8. **production の Terraform と既定値は Gemini のまま**
+6. generated Connect client に対する in-process fake handler の unit test
+7. generated Go client ↔ generated Python fake server の cross-language contract test
+8. 環境変数でガードした認証済みローカル integration test
+9. **production の Terraform と既定値は Gemini のまま**
 
 ## PoC の受け入れ条件
 
 - 既存の Gemini テストと本番起動挙動が変わらない。
 - ローカルで text 生成 fixture が 1 本通る。
 - structured 生成が schema 妥当な JSON を返す。
-- キャンセルで対応する turn とサブプロセスが停止する。
+- generated Go/Python 間で全 unary RPC、typed error detail、timeout が一致する。
+- missing/wrong bearer token が handler/SDK 呼び出し前に拒否され、token がログへ出ない。
+- ambiguous disconnect/deadline と quota/auth/invalid-output で generation RPC を自動再送しない。
+- Worker cancellation が対応する generation ID の `CancelGeneration` を短い独立 context で呼び、
+  daemon timeout/orphan watchdog と合わせて turn とサブプロセスを停止する。
 - 通常ログに認証情報・ソース内容が出ない。
 - 並行 job が互いの作業ディレクトリと provider state を読めない。
 - provider エラーが生の JSON-RPC ペイロードではなく型付き worker エラーとして表面化する。
@@ -385,7 +422,8 @@ Synthify Cloud:
 ## 解決済みの Open Question
 
 - **モデル選択を誰がするか**: ユーザーが選ぶ。Gemini は常時選択可能、Antigravity/Codex 系のモデルは
-  Phase 4 の provider 接続が確立している場合のみ選択肢に現れる。詳細は
+  self-hosted 配備、Phase 4 の provider 接続、worker からの endpoint 到達性、および capabilities
+  allowlist をすべて満たす場合のみ選択肢に現れる。詳細は
   [Phase 5: モデル選択 UI](#phase-5-モデル選択-ui)。
 - **`conversation_id` の resume 範囲**: **履歴は Google サーバー側に残る前提で設計する**。
   ローカルサーバーは `conversation_id` を不透明なハンドルとして扱うだけで、自前で履歴を
@@ -396,7 +434,9 @@ Synthify Cloud:
   Safari での動作確認・サポートはスコープ外とする。
 - **サブスク枠を使い切ったときの挙動**: **サーバー版(Gemini)へのフォールバックを提案する**。
   overage を `Never` にした場合の SDK エラーを型付き worker エラーへ正規化した上で、
-  Phase 5 のモデル選択 UI 側でフォールバック導線を出す。
+  job を `provider_quota_exhausted` error code 付きの terminal failure にする。Phase 5 のモデル選択 UI
+  は durable mutation がない場合だけ付く `retry_with_gemini` recovery action を読んで、元 job の
+  snapshot を変更せず Gemini override の新規 job を作る導線を出す。
 - **プロンプトの共有**: **GCS 経由で配布する**。詳細は
   [プロンプトテンプレートの配布(GCS)](#プロンプトテンプレートの配布gcs)。
 
@@ -413,4 +453,6 @@ Synthify Cloud:
   `content: ContentNode[]` は provider に依存しない
 - [paper-native-llm-interaction.md](paper-native-llm-interaction.md) — `ContentNode[]` と
   `Command` の構想。structured output の品質が provider 選定に効く
+- [model-and-style-selection-contract.md](../contracts/model-and-style-selection-contract.md) —
+  model/style 選択の API・job・provider・test 契約
 - [usage-based-billing.md](usage-based-billing.md) — サーバー版のコスト転嫁。本設計と補完関係

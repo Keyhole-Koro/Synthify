@@ -12,6 +12,16 @@
 
 ---
 
+### Secret version retention
+
+Cloud Run と Job は常に Secret Manager の `latest` version を参照する。各 secret
+には 14 日間の delayed destruction を設定し、`Prune Secret Versions` GitHub
+Actions workflow が平日に `latest` 以外を destruction scheduled にする。これに
+より、誤った rotation は 14 日間復元でき、猶予終了後は古い version が完全に破棄
+されて保管料の対象から外れる。手動実行はデフォルトで dry-run とする。
+
+---
+
 ## 2. 必要な環境変数一覧
 
 ### A. アプリケーション機密情報 (Secret Manager)

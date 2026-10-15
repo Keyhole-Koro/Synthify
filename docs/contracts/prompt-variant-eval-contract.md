@@ -33,7 +33,7 @@ tool 名・prompt・render の各レイヤーで同じ語を使い回さない�
 | :--- | :--- | :--- |
 | Prompt Renderer | `apps/worker/pkg/worker/prompts` | `go:embed` した production prompt template を render して返す（型は `prompts.Renderer`）。source of truth は repo file |
 | Prompt templates | `apps/worker/pkg/worker/prompts/templates` | `knowledge_tree.system.tmpl` / `knowledge_tree.user.tmpl`。production prompt の唯一の正本 |
-| Worker process tool | `apps/worker/pkg/worker/tools/process` | `GenerateKnowledgeTree` は hardcoded prompt をやめ、renderer が render した prompt を使う |
+| Worker process tool | `apps/worker/pkg/worker/tools/builtin/process` | `GenerateKnowledgeTree` は hardcoded prompt をやめ、renderer が render した prompt を使う |
 | Eval Runner | `apps/eval/runner` | `--variant` 指定時は variant prompt、未指定時は production prompt で `GenerateKnowledgeTree` を実行する。判定は output JSON の schema validation と JSON rule（道A、[llm-eval-runner.md](../improvements/llm-eval-runner.md)） |
 | Eval CLI | `apps/eval/cmd` | `--variant` flag を解釈し runner に渡す |
 | Variant store | `apps/eval/variants/{name}/` | 手書き variant template。production image に混入させない |
@@ -64,8 +64,11 @@ renderer は次の入力から system / user prompt を render する。入力�
 | `DocumentID` | `args.DocumentID` | user prompt の `document_id:` 行 |
 | `Instruction` | `args.Instruction`（空なら `none`） | user prompt の `Instruction:` 行 |
 | `Chunks` | `args.Chunks` | `[index] heading\ntext` 形式で連結し user prompt に埋める |
+| `StylePrompt` (planned) | job snapshot / eval `input.style_prompt` | default style guide の後へ追加。空なら追加しない |
 
-- 移行は出力同値を必須とする。template 化直後の system / user prompt は、現行 [knowledge_tree.go](../../apps/worker/pkg/worker/tools/process/knowledge_tree.go) の hardcoded 文字列とバイト一致する（chunk 連結フォーマット `[%d] %s\n%s\n\n` と空 instruction の `none` 既定を含む）。
+- 移行は出力同値を必須とする。template 化直後、および `StylePrompt` が空のときの system / user prompt
+  は、現行 [knowledge_tree.go](../../apps/worker/pkg/worker/tools/builtin/process/knowledge_tree.go) の hardcoded
+  文字列とバイト一致する（chunk 連結フォーマット `[%d] %s\n%s\n\n` と空 instruction の `none` 既定を含む）。
 - prompt の意味的変更はこの移行 PR では行わない。挙動変更は variant または別 PR で行う。
 
 ### 2.3 Worker / Eval 双方の利用契約

@@ -1,6 +1,13 @@
+/**
+ * PostgreSQL analytical queries for the Evaluation dashboard, benchmarking metrics,
+ * and per-case execution traces.
+ *
+ * @module
+ */
 import type { Pool } from 'pg';
 import type { Period } from './dashboard-queries';
 
+/** Formats SQL interval string for the selected period. */
 function periodInterval(period: Period): string {
   switch (period) {
     case 'today': return "date_trunc('day', NOW())";
@@ -9,6 +16,14 @@ function periodInterval(period: Period): string {
   }
 }
 
+/**
+ * Point in time for evaluation pass rates and run trends.
+ * @property date ISO date or hour bucket.
+ * @property runs Number of evaluation runs in the bucket.
+ * @property cases Number of evaluation cases in the bucket.
+ * @property passed Number of passing cases in the bucket.
+ * @property passRate Passing cases divided by total cases, from 0 to 1.
+ */
 export interface EvalTrendPoint {
   date: string;
   runs: number;
@@ -17,6 +32,16 @@ export interface EvalTrendPoint {
   passRate: number;
 }
 
+/**
+ * Performance and accuracy metrics grouped by prompt source variant.
+ * @property promptSource Prompt or instruction source identifier.
+ * @property runs Number of runs using the source.
+ * @property cases Number of cases evaluated.
+ * @property passRate Passing cases divided by total cases, from 0 to 1.
+ * @property avgDurationMs Average case duration in milliseconds.
+ * @property inputTokens Total input tokens consumed.
+ * @property outputTokens Total output tokens generated.
+ */
 export interface EvalPromptSourceRow {
   promptSource: string;
   runs: number;
@@ -27,6 +52,16 @@ export interface EvalPromptSourceRow {
   outputTokens: number;
 }
 
+/**
+ * Performance and accuracy metrics grouped by LLM model.
+ * @property model Model identifier.
+ * @property cases Number of cases evaluated by the model.
+ * @property passRate Passing cases divided by total cases, from 0 to 1.
+ * @property avgDurationMs Average case duration in milliseconds.
+ * @property p95DurationMs 95th-percentile case duration in milliseconds.
+ * @property inputTokens Total input tokens consumed.
+ * @property outputTokens Total output tokens generated.
+ */
 export interface EvalModelRow {
   model: string;
   cases: number;
@@ -37,6 +72,23 @@ export interface EvalModelRow {
   outputTokens: number;
 }
 
+/**
+ * Individual evaluation run summary record.
+ * @property runId Evaluation run identifier.
+ * @property promptSource Prompt or instruction source identifier.
+ * @property status Whether the run completed successfully or failed.
+ * @property caseCount Number of cases in the run.
+ * @property passedCount Number of passing cases.
+ * @property failedCount Number of failing cases.
+ * @property passRate Passing cases divided by total cases, from 0 to 1.
+ * @property durationMs Total run duration in milliseconds.
+ * @property model Model used for the run.
+ * @property inputTokens Total input tokens consumed.
+ * @property outputTokens Total output tokens generated.
+ * @property artifactUri Optional URI for persisted evaluation artifacts.
+ * @property startedAt ISO-8601 run start timestamp.
+ * @property completedAt ISO-8601 run completion timestamp.
+ */
 export interface EvalRunRow {
   runId: string;
   promptSource: string;
@@ -54,6 +106,24 @@ export interface EvalRunRow {
   completedAt: string;
 }
 
+/**
+ * Evaluation case execution result row.
+ * @property runId Parent evaluation run identifier.
+ * @property caseIndex Zero-based case position in the run.
+ * @property caseName Human-readable case name.
+ * @property tool Tool exercised by the case.
+ * @property passed Whether the case assertions passed.
+ * @property schemaValid Whether the model output matched the expected schema.
+ * @property model Model used for the case.
+ * @property durationMs Case duration in milliseconds.
+ * @property inputTokens Input tokens consumed.
+ * @property outputTokens Output tokens generated.
+ * @property error Execution or assertion error message, when present.
+ * @property output Parsed case output, when available.
+ * @property failedInput Input captured for a failed case, when available.
+ * @property promptSource Prompt or instruction source identifier.
+ * @property createdAt ISO-8601 case creation timestamp.
+ */
 export interface EvalCaseRow {
   runId: string;
   caseIndex: number;
@@ -72,6 +142,16 @@ export interface EvalCaseRow {
   createdAt: string;
 }
 
+/**
+ * Funnel stage metrics tracking execution, schema validation, and assertion passes.
+ * @property totalCases Total cases considered by the funnel.
+ * @property executionCompleted Cases whose execution completed.
+ * @property schemaValid Cases with schema-valid output.
+ * @property passed Cases passing all assertions.
+ * @property executionErrors Cases failing during execution.
+ * @property schemaInvalid Cases producing schema-invalid output.
+ * @property assertionFailures Cases failing assertions after execution.
+ */
 export interface EvalFunnelData {
   totalCases: number;
   executionCompleted: number;
@@ -82,6 +162,24 @@ export interface EvalFunnelData {
   assertionFailures: number;
 }
 
+/**
+ * Full evaluation dashboard payload containing metrics, funnels, and recent cases.
+ * @property totalRuns Number of evaluation runs in the period.
+ * @property totalCases Number of evaluation cases in the period.
+ * @property passRate Overall passing-case ratio, from 0 to 1.
+ * @property avgRunDurationMs Average run duration in milliseconds.
+ * @property p95CaseDurationMs 95th-percentile case duration in milliseconds.
+ * @property inputTokens Total input tokens consumed.
+ * @property outputTokens Total output tokens generated.
+ * @property funnel Funnel counts across execution and validation stages.
+ * @property trend Time-series pass-rate points.
+ * @property byPromptSource Metrics grouped by prompt source.
+ * @property byModel Metrics grouped by model.
+ * @property recentRuns Most recent run summaries.
+ * @property recentCases Most recent case results.
+ * @property recentFailures Most recent failed cases.
+ * @property slowestCases Cases with the longest execution duration.
+ */
 export interface EvalData {
   totalRuns: number;
   totalCases: number;
@@ -100,6 +198,13 @@ export interface EvalData {
   slowestCases: EvalCaseRow[];
 }
 
+/**
+ * Queries evaluation dashboard metrics, trends, model comparisons, and recent case results.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param period Lookback time period.
+ * @returns Promise resolving to EvalData.
+ */
 export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
   const since = periodInterval(period);
   const dateTrunc = period === 'today' ? 'hour' : 'day';
@@ -360,29 +465,50 @@ export async function queryEval(pool: Pool, period: Period): Promise<EvalData> {
 }
 
 // ── Eval execution trace ────────────────────────────────────────────────────
-//
-// Per-case ordered LLM/tool/validation/assertion spans persisted by the eval
-// runner (db/migrations/0023_eval_trace_events). Unlike the reconstructed
-// nodes, these are real recorded events: prompt/response payloads, tokens and
-// per-call duration.
 
+/**
+ * Individual ordered execution span event (tool, LLM call, validation, or assertion)
+ * persisted during an evaluation case run.
+ */
 export interface EvalTraceEvent {
+  /** Trace event identifier. */
   eventId: string;
+  /** Parent event identifier, or an empty value for a root event. */
   parentEventId: string;
+  /** Monotonic event sequence within the trace. */
   sequence: number;
+  /** Operation category represented by the event. */
   kind: 'tool' | 'llm' | 'validation' | 'assertion';
+  /** Human-readable operation name. */
   name: string;
+  /** ISO-8601 event start timestamp. */
   startedAt: string;
+  /** ISO-8601 event completion timestamp. */
   completedAt: string;
+  /** Event duration in milliseconds. */
   durationMs: number;
+  /** Model involved in the event, when applicable. */
   model: string;
+  /** Input tokens consumed, when applicable. */
   inputTokens: number;
+  /** Output tokens generated, when applicable. */
   outputTokens: number;
+  /** Input payload captured for the event. */
   input: unknown;
+  /** Output payload captured for the event. */
   output: unknown;
+  /** Error message, or an empty string when the event succeeded. */
   error: string;
 }
 
+/**
+ * Queries the ordered execution trace events recorded for a specific case in an evaluation run.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param runId Evaluation run UUID.
+ * @param caseIndex Numeric index of the evaluated case within the run.
+ * @returns Promise resolving to an ordered list of EvalTraceEvent spans.
+ */
 export async function queryEvalCaseTrace(
   pool: Pool,
   runId: string,

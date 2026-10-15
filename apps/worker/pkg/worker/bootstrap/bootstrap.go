@@ -1,3 +1,4 @@
+// Package bootstrap provides storage initialization and notification wiring for the worker runtime.
 package bootstrap
 
 import (
@@ -14,11 +15,13 @@ import (
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )
 
+// AppContext packages the core data store and job status notification publisher.
 type AppContext struct {
 	Store    Store
 	Notifier jobstatus.Notifier
 }
 
+// Bootstrap connects to the database store and instantiates the job status notifier.
 func Bootstrap(ctx context.Context, firebaseProjectID string, logger *slog.Logger, nrApp *newrelic.Application) *AppContext {
 	store := InitStore(ctx, logger, nrApp)
 	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID, logger)
@@ -28,6 +31,7 @@ func Bootstrap(ctx context.Context, firebaseProjectID string, logger *slog.Logge
 	}
 }
 
+// Store composite interface combines all repositories needed by the worker execution engine.
 type Store interface {
 	repository.AccountRepository
 	repository.WorkspaceRepository
@@ -40,6 +44,7 @@ type Store interface {
 	repository.DynamicToolRepository
 }
 
+// InitStore establishes a pooled connection to PostgreSQL or provides an in-memory mock store.
 func InitStore(ctx context.Context, logger *slog.Logger, nrApp *newrelic.Application) Store {
 	storeCfg := config.LoadStore()
 	if dsn := storeCfg.DatabaseDSN; dsn != "" {

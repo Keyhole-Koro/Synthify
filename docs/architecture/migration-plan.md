@@ -6,7 +6,7 @@
 
 - **prod に本番ユーザーは居ない**。データはいつでも reset 可能。
 - スキーマ変更は migrate-up 一発で完結させる。dual-write / バックフィル期間は設けない。
-- 各 PR は **stage で動作確認 → 通れば main マージ → 自動デプロイで prod 反映** の単線。
+- 各 PR は **main にマージ → stage へ自動デプロイ → stage で動作確認 → 問題なければ prod ブランチへ反映** の単線。
 - 失敗した PR は `git revert` か reset-prod-db でやり直し。
 
 この前提があるため、本ドキュメントの構造は非常にシンプルになる。dual-write / read-fallback / 段階削除のような移行パターンは登場しない。
@@ -354,7 +354,7 @@
 
 ## 完了条件
 
-すべての PR が main にマージされ stage と prod に反映され、以下が満たされたら本移行は完了:
+すべての PR が main から stage に自動デプロイされ、確認後に prod ブランチへ反映されて stage と prod の両方に反映され、以下が満たされたら本移行は完了:
 
 1. `apps/{api,worker}/internal/job/lifecycle/` が **存在しない** (`internal/platform/job/lifecycle/` のみ)
 2. `tree_items.kind` を見れば item の役割が分かる

@@ -3,12 +3,18 @@ package middleware
 import "net/http"
 
 const (
-	headerContentTypeOptions   = "X-Content-Type-Options"
-	headerReferrerPolicy       = "Referrer-Policy"
-	headerStrictTransport      = "Strict-Transport-Security"
-	contentTypeOptionsNoSniff  = "nosniff"
+	// headerContentTypeOptions is the header key for MIME-type sniffing mitigation.
+	headerContentTypeOptions = "X-Content-Type-Options"
+	// headerReferrerPolicy is the header key controlling the Referer header in outbound requests.
+	headerReferrerPolicy = "Referrer-Policy"
+	// headerStrictTransport is the header key for HTTP Strict Transport Security.
+	headerStrictTransport = "Strict-Transport-Security"
+	// contentTypeOptionsNoSniff prevents the browser from MIME-sniffing away from declared content-type.
+	contentTypeOptionsNoSniff = "nosniff"
+	// referrerPolicyStrictOrigin sends full referrer only for same-origin, origin only for cross-origin HTTPS.
 	referrerPolicyStrictOrigin = "strict-origin-when-cross-origin"
-	strictTransportOneYear     = "max-age=31536000; includeSubDomains"
+	// strictTransportOneYear enforces HTTPS for one year including subdomains.
+	strictTransportOneYear = "max-age=31536000; includeSubDomains"
 )
 
 // SecurityHeaders adds baseline security response headers for API responses.

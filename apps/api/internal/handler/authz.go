@@ -9,15 +9,13 @@ import (
 	"github.com/synthify/backend/apps/api/internal/repository"
 )
 
-// requireUserID は認証済みユーザーの ID を返す。未認証なら Unauthenticated を返す。
-// ID 以外を必要としない handler はこちらを使う (大半のケース)。
+// requireUserID extracts the authenticated user ID from context, returning connect.CodeUnauthenticated if missing.
 func requireUserID(ctx context.Context) (string, error) {
 	return apiauth.RequireUserID(ctx)
 }
 
-// requireUserIDOrShareToken は read RPC 用の認可入口。認証ユーザーなら user ID を、
-// 未認証でも公開リンク token が context にあれば空 user ID を返す (service 側が
-// token -> workspace の認可を行う)。どちらも無ければ Unauthenticated。
+// requireUserIDOrShareToken extracts a user ID or verifies that a public share token is present in context.
+// Returns an empty userID if a share token is present, or returns connect.CodeUnauthenticated if neither exists.
 func requireUserIDOrShareToken(ctx context.Context) (string, error) {
 	userID, err := requireUserID(ctx)
 	if err == nil {
@@ -29,23 +27,22 @@ func requireUserIDOrShareToken(ctx context.Context) (string, error) {
 	return "", err
 }
 
-// requireUserPrincipal は Principal 全体 (SubjectID + Email) を必要とする handler 用。
-// 現状は SyncUser のみが利用する。
+// requireUserPrincipal validates and extracts the full authenticated user principal.
 func requireUserPrincipal(ctx context.Context) (apiauth.Principal, error) {
 	return apiauth.RequireUserPrincipal(ctx)
 }
 
+// requireServicePrincipal validates that the request carries a valid backend service principal token.
 func requireServicePrincipal(ctx context.Context) (apiauth.Principal, error) {
 	return apiauth.RequireServicePrincipal(ctx)
 }
 
+// requireAdminPrincipal validates that the request carries an administrative principal token.
 func requireAdminPrincipal(ctx context.Context) (apiauth.Principal, error) {
 	return apiauth.RequireAdminPrincipal(ctx)
 }
 
-// authorizeWorkspace / authorizeDocument は現状 job handler だけが残存利用している。
-// JobUsecase を新設すれば撤去できる (TODO: docs/improvements/api-layering-cleanup.md 参照)。
-
+// authorizeWorkspace verifies workspace accessibility directly against the workspace repository.
 func authorizeWorkspace(ctx context.Context, repo repository.WorkspaceRepository, workspaceID string) error {
 	userID, err := requireUserID(ctx)
 	if err != nil {
@@ -61,6 +58,7 @@ func authorizeWorkspace(ctx context.Context, repo repository.WorkspaceRepository
 	return nil
 }
 
+// authorizeDocument verifies document presence and workspace ownership for the calling user.
 func authorizeDocument(
 	ctx context.Context,
 	workspaceRepo repository.WorkspaceRepository,
@@ -68,8 +66,6 @@ func authorizeDocument(
 	documentID string,
 	expectedWorkspaceID string,
 ) error {
-	// 認証を先にチェック。未認証ユーザーに「document が存在するか」を NotFound 経由で
-	// 漏らさないため。
 	if _, err := requireUserID(ctx); err != nil {
 		return err
 	}

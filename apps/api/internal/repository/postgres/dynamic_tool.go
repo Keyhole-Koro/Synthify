@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
+// toDynamicTool converts a sqlc DynamicTool row into a domain DynamicTool entity.
 func toDynamicTool(r sqlcgen.DynamicTool) *domain.DynamicTool {
 	t := &domain.DynamicTool{
 		ToolID:            r.ToolID,
@@ -165,6 +166,7 @@ func (s *Store) IncrementUseCount(ctx context.Context, toolID string) error {
 	return requireAffected(n)
 }
 
+// requireAffected verifies that at least one database row was affected by an UPDATE/DELETE, returning domain.ErrNotFound otherwise.
 func requireAffected(n int64) error {
 	if n == 0 {
 		return domain.ErrNotFound

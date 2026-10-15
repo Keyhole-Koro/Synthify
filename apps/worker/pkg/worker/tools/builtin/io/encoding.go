@@ -17,14 +17,23 @@ import (
 	"golang.org/x/text/transform"
 )
 
+// RepairArgs defines the input text to test and repair for character encoding corruptions.
+//
+// @property Text - UTF-8 text that may contain mojibake or replacement characters.
 type RepairArgs struct {
+	// Text contains UTF-8 text that may include mojibake or replacement characters.
 	Text string `json:"text"`
 }
 
+// RepairResult contains the reconstructed valid UTF-8 text.
+//
+// @property RepairedText - Best UTF-8 reconstruction produced by the repair heuristics.
 type RepairResult struct {
+	// RepairedText contains the best UTF-8 reconstruction found by the repair heuristics.
 	RepairedText string `json:"repaired_text"`
 }
 
+// candidateEncodings lists regional legacy encodings tested when recovering garbled text.
 var candidateEncodings = []encoding.Encoding{
 	japanese.ShiftJIS,
 	japanese.EUCJP,
@@ -37,6 +46,7 @@ var candidateEncodings = []encoding.Encoding{
 	charmap.ISO8859_1,
 }
 
+// repairEncoding attempts decoding raw text against candidate legacy encodings until valid UTF-8 without mojibake is achieved.
 func repairEncoding(text string) string {
 	if utf8.ValidString(text) && !looksLikeMojibake(text) {
 		return text
@@ -64,6 +74,7 @@ func repairEncoding(text string) string {
 	return buf.String()
 }
 
+// looksLikeMojibake heuristically checks whether a string contains excessive replacement or garbled sequences.
 func looksLikeMojibake(s string) bool {
 	if len(s) == 0 {
 		return false
@@ -72,6 +83,17 @@ func looksLikeMojibake(s string) bool {
 	return float64(replacements)/float64(utf8.RuneCountInString(s)) > 0.1
 }
 
+// NewRepairTool creates the repair_encoding tool for detecting and fixing character encoding issues.
+//
+// The returned tool accepts RepairArgs and tries common Japanese, Chinese,
+// Korean, and Western legacy encodings before falling back to removal of
+// invalid UTF-8 bytes.
+//
+// Returns:
+//   - a configured repair_encoding tool;
+//   - an error when the input/output schema cannot be generated.
+//
+// @return Configured repair_encoding tool and optional schema-generation error.
 func NewRepairTool() (core.Tool, error) {
 	schema, err := core.IOSchemaFor[RepairArgs, RepairResult]()
 	if err != nil {
