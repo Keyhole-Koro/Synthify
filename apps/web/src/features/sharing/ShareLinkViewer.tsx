@@ -62,9 +62,10 @@ export function ShareLinkViewer({ token }: ShareLinkViewerProps) {
     }
 
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-center text-sm text-red-700">
-          {message}
+      <main className="flex min-h-screen items-center justify-center px-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-lg font-semibold text-slate-900">リンクを開けません</h1>
+          <p className="mt-2 text-sm text-slate-600">{message}</p>
         </div>
       </main>
     );
