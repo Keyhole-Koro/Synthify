@@ -11,9 +11,9 @@ import (
 // CaseExpect defines assertions and validation checks applied to an evaluation case output.
 type CaseExpect struct {
 	// SchemaValid requires output JSON to strictly conform to the tool's output schema.
-	SchemaValid bool         `yaml:"schema_valid" json:"schema_valid"`
+	SchemaValid bool `yaml:"schema_valid" json:"schema_valid"`
 	// JSON defines semantic path-based assertion rules.
-	JSON        []JSONExpect `yaml:"json,omitempty" json:"json,omitempty"`
+	JSON []JSONExpect `yaml:"json,omitempty" json:"json,omitempty"`
 }
 
 // JSONExpect specifies a path, operator, and expected value assertion against JSON output.

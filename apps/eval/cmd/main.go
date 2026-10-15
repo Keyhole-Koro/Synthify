@@ -146,6 +146,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 // resolveGCSOutputURI resolves the destination GCS prefix from flag or environment variable.
 func resolveGCSOutputURI(flagValue string) string {
 	if strings.TrimSpace(flagValue) != "" {

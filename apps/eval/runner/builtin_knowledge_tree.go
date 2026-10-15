@@ -7,10 +7,10 @@ import (
 	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/builtin/process"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // ktInput defines the input payload schema for the knowledge tree generation tool.
@@ -19,6 +19,7 @@ type ktInput struct {
 	Instruction string         `json:"instruction,omitempty"`
 	Chunks      []domain.Chunk `json:"chunks"`
 }
+
 // ktOutput defines the output structure holding generated tree items.
 type ktOutput struct {
 	Items []domain.GeneratedTreeItem `json:"items"`

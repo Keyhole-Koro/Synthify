@@ -27,10 +27,11 @@ type GCSConfig struct {
 	// "variant:concise-v1"). Empty falls back to "production".
 	PromptSource string
 	// Now returns the current timestamp, defaulting to time.Now if nil.
-	Now          func() time.Time
+	Now func() time.Time
 	// Rand provides cryptographically secure entropy, defaulting to crypto/rand if nil.
-	Rand         io.Reader
+	Rand io.Reader
 }
+
 // UploadResult contains the metadata and canonical URI of an uploaded artifact.
 type UploadResult struct {
 	// URI is the canonical gs:// path to the uploaded artifact.

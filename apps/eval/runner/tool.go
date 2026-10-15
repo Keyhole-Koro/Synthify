@@ -33,6 +33,7 @@ type Tool struct {
 	IOSchema IOSchema
 	Run      RunFn
 }
+
 // RunFn runs one tool for one case: input JSON -> (output JSON, usage,
 // toolErr). builtin and dynamic share this exact signature — that sameness is
 // the point of 道A.

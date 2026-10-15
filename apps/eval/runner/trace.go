@@ -28,6 +28,7 @@ type TraceEvent struct {
 	Output        json.RawMessage `json:"output,omitempty"`
 	Error         string          `json:"error,omitempty"`
 }
+
 // TraceCollector collects events for the currently executing case. Eval cases
 // are intentionally executed sequentially, so a single collector can be reused.
 //

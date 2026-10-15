@@ -25,6 +25,7 @@ type Run struct {
 	CompletedAt  time.Time
 	Results      []runner.Result
 }
+
 // Summary holds computed aggregate statistics across all cases in an evaluation run.
 type Summary struct {
 	CaseCount    int64

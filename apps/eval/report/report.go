@@ -26,6 +26,7 @@ func Write(w io.Writer, format string, results []runner.Result) error {
 		return fmt.Errorf("unsupported format %q: use table or json", format)
 	}
 }
+
 // writeTable formats a slice of evaluation results into an aligned tab-separated table.
 func writeTable(w io.Writer, results []runner.Result) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
