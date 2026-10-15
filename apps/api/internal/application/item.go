@@ -103,6 +103,9 @@ func (s *ItemService) ApproveAlias(ctx context.Context, workspaceID, canonicalIt
 	if err := s.authorizeWrite(ctx, workspaceID, userID); err != nil {
 		return err
 	}
+	if err := s.ensureAliasPair(ctx, workspaceID, canonicalItemID, aliasItemID); err != nil {
+		return err
+	}
 	return s.repo.ApproveAlias(ctx, workspaceID, canonicalItemID, aliasItemID)
 }
 
@@ -111,5 +114,27 @@ func (s *ItemService) RejectAlias(ctx context.Context, workspaceID, canonicalIte
 	if err := s.authorizeWrite(ctx, workspaceID, userID); err != nil {
 		return err
 	}
+	if err := s.ensureAliasPair(ctx, workspaceID, canonicalItemID, aliasItemID); err != nil {
+		return err
+	}
 	return s.repo.RejectAlias(ctx, workspaceID, canonicalItemID, aliasItemID)
+}
+
+// ensureAliasPair checks that an alias decision links two distinct items of
+// workspaceID. Write access to one workspace must not let a caller record
+// aliases that point at another workspace's items.
+func (s *ItemService) ensureAliasPair(ctx context.Context, workspaceID, canonicalItemID, aliasItemID string) error {
+	if canonicalItemID == aliasItemID {
+		return domain.ErrInvalidArgument
+	}
+	for _, itemID := range []string{canonicalItemID, aliasItemID} {
+		item, err := s.repo.GetItem(ctx, itemID)
+		if err != nil {
+			return err
+		}
+		if item.WorkspaceID != workspaceID {
+			return domain.ErrForbidden
+		}
+	}
+	return nil
 }

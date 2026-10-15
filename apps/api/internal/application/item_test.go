@@ -154,3 +154,63 @@ func TestGetItem_OtherWorkspaceID_ReturnsForbidden(t *testing.T) {
 	// 'owner' は ws-bogus の member ではないので Forbidden が先に出る
 	assert.ErrorIs(t, err, domain.ErrForbidden)
 }
+
+func newAliasFixture(t *testing.T) (context.Context, *mock.Store, *ItemService, string, *domain.Item, *domain.Item) {
+	t.Helper()
+	ctx := context.Background()
+	repo := mock.NewStore()
+	svc := NewItemService(ItemServiceDeps{Repo: repo, Workspaces: repo})
+	fixture := mock.CreateUserWorkspaceFixture(t, ctx, repo, "owner")
+	wsID := fixture.Workspace.WorkspaceID
+	canonical, err := repo.CreateItem(ctx, wsID, "canonical", "", "", "owner")
+	require.NoError(t, err)
+	alias, err := repo.CreateItem(ctx, wsID, "alias", "", "", "owner")
+	require.NoError(t, err)
+	return ctx, repo, svc, wsID, canonical, alias
+}
+
+func TestApproveAlias_ItemsInWorkspace_Succeeds(t *testing.T) {
+	ctx, _, svc, wsID, canonical, alias := newAliasFixture(t)
+
+	require.NoError(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, alias.ItemID, "owner"))
+	require.NoError(t, svc.RejectAlias(ctx, wsID, canonical.ItemID, alias.ItemID, "owner"))
+}
+
+// Write access to one's own workspace must not allow recording an alias that
+// points at another workspace's item.
+func TestApproveAlias_ItemFromOtherWorkspace_ReturnsForbidden(t *testing.T) {
+	ctx, repo, svc, wsID, canonical, alias := newAliasFixture(t)
+	// The mock derives workspace IDs from the name, so the other workspace needs
+	// its own name; CreateUserWorkspaceFixture would overwrite the first one.
+	otherAccount, err := repo.GetOrCreateAccount(ctx, "someone-else")
+	require.NoError(t, err)
+	otherWorkspace, err := repo.CreateWorkspace(ctx, otherAccount.AccountID, "other-workspace")
+	require.NoError(t, err)
+	require.NotEqual(t, wsID, otherWorkspace.WorkspaceID)
+	foreign, err := repo.CreateItem(ctx, otherWorkspace.WorkspaceID, "foreign", "", "", "someone-else")
+	require.NoError(t, err)
+	// The caller can still write to their own workspace; only the pair is wrong.
+	require.NoError(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, alias.ItemID, "owner"))
+
+	assert.ErrorIs(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, foreign.ItemID, "owner"), domain.ErrForbidden)
+	assert.ErrorIs(t, svc.RejectAlias(ctx, wsID, foreign.ItemID, canonical.ItemID, "owner"), domain.ErrForbidden)
+}
+
+func TestApproveAlias_UnknownItem_ReturnsNotFound(t *testing.T) {
+	ctx, _, svc, wsID, canonical, _ := newAliasFixture(t)
+
+	assert.ErrorIs(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, "missing-item", "owner"), domain.ErrNotFound)
+}
+
+func TestApproveAlias_SameItem_ReturnsInvalidArgument(t *testing.T) {
+	ctx, _, svc, wsID, canonical, _ := newAliasFixture(t)
+
+	assert.ErrorIs(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, canonical.ItemID, "owner"), domain.ErrInvalidArgument)
+}
+
+func TestApproveAlias_Viewer_ReturnsForbidden(t *testing.T) {
+	ctx, repo, svc, wsID, canonical, alias := newAliasFixture(t)
+	require.NoError(t, repo.UpsertWorkspaceMember(ctx, wsID, "viewer", domain.WorkspaceRoleViewer, "owner"))
+
+	assert.ErrorIs(t, svc.ApproveAlias(ctx, wsID, canonical.ItemID, alias.ItemID, "viewer"), domain.ErrForbidden)
+}
