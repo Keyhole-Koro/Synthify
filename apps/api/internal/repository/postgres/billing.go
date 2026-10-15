@@ -35,8 +35,8 @@ func (s *Store) GetModelPricing(ctx context.Context, model string) (*domain.Mode
 
 // RecordUsageAccounting persists the raw usage event and updates the daily
 // rollup and account accumulator atomically. Returns (eventID, budgetExceeded, error).
-// The budget is considered exceeded when budget_limit_minor > 0 and the account's
-// accumulated cost exceeds it after this event.
+// The budget is considered exceeded when budget_limit_minor > 0 and the cost in
+// the current budget period (domain.BudgetPeriodStart) exceeds it after this event.
 func (s *Store) RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent, date string) (string, bool, error) {
 	now := nowTime()
 	if ev.CreatedAt == "" {
@@ -94,26 +94,27 @@ func (s *Store) RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent
 		return "", false, err
 	}
 
-	// 3. Update account accumulator and check budget.
-	var budgetLimitMinor int64
-	var exceeded bool
+	// 3. Check the budget against this period's cost. The row lock from
+	// GetAccountBudgetForUsage keeps concurrent records for the account serial.
+	exceeded := false
 	budgetRow, err := qtx.GetAccountBudgetForUsage(ctx, ev.AccountID)
-	// If the UPDATE returns no rows (account missing) or budget columns not returned, ignore.
 	if err != nil && err != sql.ErrNoRows {
 		return "", false, err
 	}
-
-	if err == nil {
-		budgetLimitMinor = budgetRow.BudgetLimitMinor
-		exceeded = budgetRow.BudgetExceeded
-	}
-	if budgetLimitMinor > 0 {
-		// Sum all costs for the account to check budget.
-		totalMinor, sumErr := qtx.SumUsageCostByAccount(ctx, ev.AccountID)
-		if sumErr == nil && totalMinor > budgetLimitMinor {
-			exceeded = true
-			_ = qtx.MarkAccountBudgetExceeded(ctx, ev.AccountID)
+	if err == nil && budgetRow.BudgetLimitMinor > 0 {
+		periodStart := domain.BudgetPeriodStart(
+			formatNullTime(budgetRow.CurrentPeriodStartedAt),
+			formatNullTime(budgetRow.CurrentPeriodEnd),
+			now,
+		)
+		periodMinor, err := qtx.SumUsageCostByAccountSince(ctx, sqlcgen.SumUsageCostByAccountSinceParams{
+			AccountID: ev.AccountID,
+			CreatedAt: periodStart,
+		})
+		if err != nil {
+			return "", false, err
 		}
+		exceeded = domain.BudgetExceeded(budgetRow.BudgetLimitMinor, periodMinor)
 	}
 
 	if err := tx.Commit(); err != nil {

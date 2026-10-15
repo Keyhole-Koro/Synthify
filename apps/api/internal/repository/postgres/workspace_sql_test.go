@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -36,6 +37,7 @@ func accountRowCols() []string {
 		"billing_amount_minor", "billing_interval",
 		"current_period_end", "cancel_at_period_end", "billing_updated_at",
 		"created_at",
+		"budget_limit_minor", "current_period_started_at",
 	}
 }
 
@@ -49,6 +51,7 @@ func sampleAccountRow(now time.Time) []driver.Value {
 		int64(2000), "month",
 		now, false, now,
 		now,
+		int64(0), nil,
 	}
 }
 
@@ -161,6 +164,7 @@ func TestGetAccount_Found_ReturnsAccount(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT account_id, name, plan")).
 		WithArgs("acc_1").
 		WillReturnRows(sqlmock.NewRows(accountRowCols()).AddRow(sampleAccountRow(now)...))
+	expectPeriodUsage(mock, "acc_1", 0)
 
 	got, err := store.GetAccount(context.Background(), "acc_1")
 	require.NoError(t, err)
@@ -170,6 +174,49 @@ func TestGetAccount_Found_ReturnsAccount(t *testing.T) {
 	assert.Equal(t, "active", got.BillingStatus)
 	assert.Equal(t, int64(2000), got.BillingAmountMinor)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func expectPeriodUsage(mock sqlmock.Sqlmock, accountID string, costMinor int64) {
+	mock.ExpectQuery(regexp.QuoteMeta("FROM usage_events\nWHERE account_id = $1 AND created_at >= $2")).
+		WithArgs(accountID, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"coalesce"}).AddRow(costMinor))
+}
+
+// The budget is read from the account and compared with this period's cost,
+// not with all-time spend or a stored flag.
+func TestGetAccount_BudgetUsesCurrentPeriodCost(t *testing.T) {
+	cases := []struct {
+		name         string
+		limitMinor   int64
+		periodMinor  int64
+		wantExceeded bool
+	}{
+		{name: "over budget", limitMinor: 1000, periodMinor: 1500, wantExceeded: true},
+		{name: "within budget", limitMinor: 1000, periodMinor: 1000, wantExceeded: false},
+		{name: "no budget", limitMinor: 0, periodMinor: 99999, wantExceeded: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store, mock, cleanup := newStoreWithMock(t)
+			defer cleanup()
+
+			now := time.Now().UTC()
+			row := sampleAccountRow(now)
+			row[len(row)-2] = tc.limitMinor
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT account_id, name, plan")).
+				WithArgs("acc_1").
+				WillReturnRows(sqlmock.NewRows(accountRowCols()).AddRow(row...))
+			expectPeriodUsage(mock, "acc_1", tc.periodMinor)
+
+			got, err := store.GetAccount(context.Background(), "acc_1")
+			require.NoError(t, err)
+			assert.Equal(t, tc.limitMinor, got.BudgetLimitMinor)
+			assert.Equal(t, tc.periodMinor, got.CurrentPeriodUsageMinor)
+			assert.Equal(t, tc.wantExceeded, got.BudgetExceeded)
+			assert.NotEmpty(t, got.CurrentPeriodStartedAt, "the effective period start is reported")
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
 }
 
 // ── SetAccountStripeCustomerID ────────────────────────────────────────────────
@@ -404,27 +451,28 @@ func TestApplyBillingEvent_AccountIDPath_PassesArgsInOrder(t *testing.T) {
 	store, mock, cleanup := newStoreWithMock(t)
 	defer cleanup()
 
-	// account_id 経路: WHERE account_id = $1。
-	// $1=AccountID, $2="" (placeholder for stripe_customer_id slot), $3=plan, ...
+	// $1 is the lookup key alone; every other placeholder is referenced in SET.
+	// An unreferenced placeholder makes CockroachDB reject the statement
+	// ("could not determine data type of placeholder").
 	mock.ExpectExec(regexp.QuoteMeta("WHERE account_id = $1")).
 		WithArgs(
-			"acc_1",          // $1 account_id
-			"",               // $2 stripe_customer_id slot (unused for this path)
-			"free",           // $3 plan
-			sqlmock.AnyArg(), // $4 quota
-			sqlmock.AnyArg(), // $5 max_file_size
-			sqlmock.AnyArg(), // $6 per_5h
-			sqlmock.AnyArg(), // $7 per_1week
-			"cus_1",          // $8 stripe_customer_id (CASE)
-			"sub_1",          // $9 stripe_subscription_id
-			sqlmock.AnyArg(), // $10 billing_status
-			"price_1",        // $11 stripe_price_id
-			"usd",            // $12 currency
-			int64(1000),      // $13 amount_minor
-			"month",          // $14 interval
-			sqlmock.AnyArg(), // $15 current_period_end
-			false,            // $16 cancel_at_period_end
-			sqlmock.AnyArg(), // $17 now
+			"acc_1",          // $1 account_id (lookup key)
+			"free",           // $2 plan
+			sqlmock.AnyArg(), // $3 quota
+			sqlmock.AnyArg(), // $4 max_file_size
+			sqlmock.AnyArg(), // $5 per_5h
+			sqlmock.AnyArg(), // $6 per_1week
+			"cus_1",          // $7 stripe_customer_id (CASE)
+			"sub_1",          // $8 stripe_subscription_id
+			sqlmock.AnyArg(), // $9 billing_status
+			"price_1",        // $10 stripe_price_id
+			"usd",            // $11 currency
+			int64(1000),      // $12 amount_minor
+			"month",          // $13 interval
+			sqlmock.AnyArg(), // $14 current_period_end
+			false,            // $15 cancel_at_period_end
+			sqlmock.AnyArg(), // $16 now
+			sqlmock.AnyArg(), // $17 current_period_started_at
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -447,27 +495,26 @@ func TestApplyBillingEvent_StripeCustomerPath_PassesArgsInOrder(t *testing.T) {
 	store, mock, cleanup := newStoreWithMock(t)
 	defer cleanup()
 
-	// stripe_customer_id 経路 (AccountID==""): WHERE stripe_customer_id = $2。
-	// $1="" (placeholder), $2=customer_id, $3=plan, ..., $8=customer_id (CASE)
-	mock.ExpectExec(regexp.QuoteMeta("WHERE stripe_customer_id = $2")).
+	// Without an account ID the customer ID is the lookup key in $1.
+	mock.ExpectExec(regexp.QuoteMeta("WHERE stripe_customer_id = $1")).
 		WithArgs(
-			"",               // $1 account_id slot (unused)
-			"cus_1",          // $2 stripe_customer_id (WHERE match)
-			"free",           // $3 plan
-			sqlmock.AnyArg(), // $4-$7 limits
+			"cus_1",          // $1 stripe_customer_id (lookup key)
+			"free",           // $2 plan
+			sqlmock.AnyArg(), // $3-$6 limits
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
-			"cus_1",          // $8 stripe_customer_id (CASE passthru)
-			"sub_1",          // $9 stripe_subscription_id
-			sqlmock.AnyArg(), // $10 status
-			"price_1",        // $11
-			"usd",            // $12
-			int64(2000),      // $13
-			"year",           // $14
-			sqlmock.AnyArg(), // $15
-			true,             // $16
-			sqlmock.AnyArg(), // $17 now
+			"cus_1",          // $7 stripe_customer_id (CASE passthru)
+			"sub_1",          // $8 stripe_subscription_id
+			sqlmock.AnyArg(), // $9 status
+			"price_1",        // $10
+			"usd",            // $11
+			int64(2000),      // $12
+			"year",           // $13
+			sqlmock.AnyArg(), // $14
+			true,             // $15
+			sqlmock.AnyArg(), // $16 now
+			sqlmock.AnyArg(), // $17 current_period_started_at
 		).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
@@ -483,6 +530,32 @@ func TestApplyBillingEvent_StripeCustomerPath_PassesArgsInOrder(t *testing.T) {
 		CancelAtPeriodEnd:      true,
 	})
 	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Every $n in the statement must be used; CockroachDB rejects a placeholder it
+// cannot type, which used to fail every billing webhook.
+func TestApplyBillingEvent_UsesEveryPlaceholder(t *testing.T) {
+	var captured string
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(sqlmock.QueryMatcherFunc(func(_, actual string) error {
+		captured = actual
+		return nil
+	})))
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+	store := &Store{db: db, logger: discardLogger()}
+
+	for _, event := range []*domain.ProviderWebhookEvent{
+		{AccountID: "acc_1", Plan: domain.BillingPlanFree},
+		{ExternalCustomerID: "cus_1", Plan: domain.BillingPlanFree},
+	} {
+		mock.ExpectExec("UPDATE accounts").WillReturnResult(sqlmock.NewResult(0, 1))
+		require.NoError(t, store.ApplyBillingEvent(context.Background(), event))
+		for n := 1; n <= 17; n++ {
+			assert.Regexp(t, fmt.Sprintf(`\$%d\b`, n), captured, "placeholder $%d is never used", n)
+		}
+		assert.NotRegexp(t, `\$18\b`, captured)
+	}
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

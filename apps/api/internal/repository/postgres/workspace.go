@@ -99,7 +99,8 @@ func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Accou
 SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
        max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
        billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
-       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at,
+       budget_limit_minor, current_period_started_at
 FROM accounts
 WHERE account_id = $1
 `, accountID)
@@ -109,7 +110,28 @@ WHERE account_id = $1
 	if err != nil {
 		return nil, err
 	}
+	if err := s.applyBudgetPeriodUsage(ctx, account); err != nil {
+		return nil, err
+	}
 	return account, nil
+}
+
+// applyBudgetPeriodUsage fills in the cost of the current budget period and
+// whether it is over the budget. Both are derived from usage_events on read, so
+// they follow the period boundary without a stored flag to reset.
+func (s *Store) applyBudgetPeriodUsage(ctx context.Context, account *domain.Account) error {
+	periodStart := domain.BudgetPeriodStart(account.CurrentPeriodStartedAt, account.CurrentPeriodEnd, nowTime())
+	periodMinor, err := s.q().SumUsageCostByAccountSince(ctx, sqlcgen.SumUsageCostByAccountSinceParams{
+		AccountID: account.AccountID,
+		CreatedAt: periodStart,
+	})
+	if err != nil {
+		return fmt.Errorf("sum usage for budget period: %w", err)
+	}
+	account.CurrentPeriodStartedAt = periodStart.Format(time.RFC3339)
+	account.CurrentPeriodUsageMinor = periodMinor
+	account.BudgetExceeded = domain.BudgetExceeded(account.BudgetLimitMinor, periodMinor)
+	return nil
 }
 
 // IsAccountAccessible checks if the given user is a member of the specified account.
@@ -154,7 +176,8 @@ func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*dom
 SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
        max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
        billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
-       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at,
+       budget_limit_minor, current_period_started_at
 FROM accounts
 WHERE stripe_customer_id <> ''
 ORDER BY updated_at ASC
@@ -315,36 +338,43 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 			status = string(domain.BillingStatusActive)
 		}
 	}
+	periodStart, err := parseBillingTime(event.CurrentPeriodStart)
+	if err != nil {
+		return err
+	}
 	periodEnd, err := parseBillingTime(event.CurrentPeriodEnd)
 	if err != nil {
 		return err
 	}
 	now := nowTime()
+	// $1 is the lookup key (account_id or stripe_customer_id). Every placeholder
+	// must be referenced: CockroachDB and PostgreSQL reject a statement with a
+	// parameter whose type they cannot infer.
 	query := `
 UPDATE accounts
-SET plan = CASE WHEN $3 = '' THEN plan ELSE $3 END,
-    storage_quota_bytes = CASE WHEN $3 = '' THEN storage_quota_bytes ELSE $4 END,
-    max_file_size_bytes = CASE WHEN $3 = '' THEN max_file_size_bytes ELSE $5 END,
-    max_uploads_per_5h = CASE WHEN $3 = '' THEN max_uploads_per_5h ELSE $6 END,
-    max_uploads_per_1week = CASE WHEN $3 = '' THEN max_uploads_per_1week ELSE $7 END,
-    stripe_customer_id = CASE WHEN $8 = '' THEN stripe_customer_id ELSE $8 END,
-    stripe_subscription_id = CASE WHEN $9 = '' AND $3 <> 'free' THEN stripe_subscription_id ELSE $9 END,
-    billing_status = $10,
-    stripe_price_id = $11,
-    billing_currency = $12,
-    billing_amount_minor = $13,
-    billing_interval = $14,
-    current_period_end = $15,
-    cancel_at_period_end = $16,
-    billing_updated_at = $17,
-    updated_at = $17
+SET plan = CASE WHEN $2 = '' THEN plan ELSE $2 END,
+    storage_quota_bytes = CASE WHEN $2 = '' THEN storage_quota_bytes ELSE $3 END,
+    max_file_size_bytes = CASE WHEN $2 = '' THEN max_file_size_bytes ELSE $4 END,
+    max_uploads_per_5h = CASE WHEN $2 = '' THEN max_uploads_per_5h ELSE $5 END,
+    max_uploads_per_1week = CASE WHEN $2 = '' THEN max_uploads_per_1week ELSE $6 END,
+    stripe_customer_id = CASE WHEN $7 = '' THEN stripe_customer_id ELSE $7 END,
+    stripe_subscription_id = CASE WHEN $8 = '' AND $2 <> 'free' THEN stripe_subscription_id ELSE $8 END,
+    billing_status = $9,
+    stripe_price_id = $10,
+    billing_currency = $11,
+    billing_amount_minor = $12,
+    billing_interval = $13,
+    current_period_end = COALESCE($14, current_period_end),
+    current_period_started_at = COALESCE($17, current_period_started_at),
+    cancel_at_period_end = $15,
+    billing_updated_at = $16,
+    updated_at = $16
 WHERE `
-	var res sql.Result
-	if event.AccountID != "" {
-		res, err = s.db.ExecContext(ctx, query+"account_id = $1", event.AccountID, "", string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now)
-	} else {
-		res, err = s.db.ExecContext(ctx, query+"stripe_customer_id = $2", "", event.ExternalCustomerID, string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now)
+	keyColumn, key := "account_id", event.AccountID
+	if event.AccountID == "" {
+		keyColumn, key = "stripe_customer_id", event.ExternalCustomerID
 	}
+	res, err := s.db.ExecContext(ctx, query+keyColumn+" = $1", key, string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now, periodStart)
 	if err != nil {
 		return err
 	}
@@ -669,6 +699,7 @@ func scanAccountRow(row scanner) (*domain.Account, error) {
 	var maxUploadsPer5h int32
 	var maxUploadsPerWeek int32
 	var currentPeriodEnd sql.NullTime
+	var currentPeriodStartedAt sql.NullTime
 	var billingUpdatedAt sql.NullTime
 	var createdAt time.Time
 	if err := row.Scan(
@@ -691,12 +722,15 @@ func scanAccountRow(row scanner) (*domain.Account, error) {
 		&account.CancelAtPeriodEnd,
 		&billingUpdatedAt,
 		&createdAt,
+		&account.BudgetLimitMinor,
+		&currentPeriodStartedAt,
 	); err != nil {
 		return nil, err
 	}
 	account.MaxUploadsPerFiveH = int64(maxUploadsPer5h)
 	account.MaxUploadsPerWeek = int64(maxUploadsPerWeek)
 	account.CurrentPeriodEnd = formatNullTime(currentPeriodEnd)
+	account.CurrentPeriodStartedAt = formatNullTime(currentPeriodStartedAt)
 	account.BillingUpdatedAt = formatNullTime(billingUpdatedAt)
 	account.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	return &account, nil

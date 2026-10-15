@@ -53,18 +53,22 @@ const getAccountBudgetForUsage = `-- name: GetAccountBudgetForUsage :one
 UPDATE accounts
 SET storage_used_bytes = storage_used_bytes
 WHERE account_id = $1
-RETURNING budget_limit_minor, budget_exceeded
+RETURNING budget_limit_minor, current_period_started_at, current_period_end
 `
 
 type GetAccountBudgetForUsageRow struct {
-	BudgetLimitMinor int64
-	BudgetExceeded   bool
+	BudgetLimitMinor       int64
+	CurrentPeriodStartedAt sql.NullTime
+	CurrentPeriodEnd       sql.NullTime
 }
 
+// The no-op UPDATE locks the account row, so concurrent usage records for the
+// same account see each other's totals. Returns what the budget check needs;
+// the period decides where the monthly budget starts (domain.BudgetPeriodStart).
 func (q *Queries) GetAccountBudgetForUsage(ctx context.Context, accountID string) (GetAccountBudgetForUsageRow, error) {
 	row := q.db.QueryRowContext(ctx, getAccountBudgetForUsage, accountID)
 	var i GetAccountBudgetForUsageRow
-	err := row.Scan(&i.BudgetLimitMinor, &i.BudgetExceeded)
+	err := row.Scan(&i.BudgetLimitMinor, &i.CurrentPeriodStartedAt, &i.CurrentPeriodEnd)
 	return i, err
 }
 
@@ -451,15 +455,6 @@ func (q *Queries) ListUsageByModel(ctx context.Context, arg ListUsageByModelPara
 	return items, nil
 }
 
-const markAccountBudgetExceeded = `-- name: MarkAccountBudgetExceeded :exec
-UPDATE accounts SET budget_exceeded = TRUE WHERE account_id = $1
-`
-
-func (q *Queries) MarkAccountBudgetExceeded(ctx context.Context, accountID string) error {
-	_, err := q.db.ExecContext(ctx, markAccountBudgetExceeded, accountID)
-	return err
-}
-
 const setDefaultPaymentMethodByCustomer = `-- name: SetDefaultPaymentMethodByCustomer :exec
 UPDATE payment_methods pm
 SET is_default = (pm.stripe_payment_method_id = $1),
@@ -482,14 +477,20 @@ func (q *Queries) SetDefaultPaymentMethodByCustomer(ctx context.Context, arg Set
 	return err
 }
 
-const sumUsageCostByAccount = `-- name: SumUsageCostByAccount :one
+const sumUsageCostByAccountSince = `-- name: SumUsageCostByAccountSince :one
 SELECT COALESCE(SUM(cost_minor), 0)::bigint
 FROM usage_events
-WHERE account_id = $1
+WHERE account_id = $1 AND created_at >= $2
 `
 
-func (q *Queries) SumUsageCostByAccount(ctx context.Context, accountID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, sumUsageCostByAccount, accountID)
+type SumUsageCostByAccountSinceParams struct {
+	AccountID string
+	CreatedAt time.Time
+}
+
+// Usage cost in the current budget period (idx_usage_events_account_created).
+func (q *Queries) SumUsageCostByAccountSince(ctx context.Context, arg SumUsageCostByAccountSinceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, sumUsageCostByAccountSince, arg.AccountID, arg.CreatedAt)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

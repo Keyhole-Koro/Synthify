@@ -228,8 +228,8 @@ type UsageRepository interface {
 
 `RecordUsageAccounting` 戻り値: `(eventID, budgetExceeded, error)`。
 - `eventID` は冪等性確認用（duplicate なら既存 ID を返す）。
-- `budgetExceeded == true` は `accounts.budget_limit_minor > 0` かつ累計コストが
-  これを超えた瞬間のみ。それ以降の event でも `true` を返し続ける。
+- `budgetExceeded == true` は `accounts.budget_limit_minor > 0` かつ、今の予算期間
+  （5.6）のコストがこれを超えているとき。期間が替われば `false` に戻る。
 
 ### 3.4 `repository.AccountRepository` (billing 関連抜粋)
 
@@ -351,8 +351,16 @@ input 側を切り上げる理由: 極小 mixed event で `0 input token` を送
 
 ### 5.6 Budget Exceeded フラグ
 
-- `accounts.budget_limit_minor > 0` のとき、`SumUsageCostByAccount` の累計が
-  budget を超えたら `accounts.budget_exceeded = true` を立てる。
+- 予算期間は `domain.BudgetPeriodStart` が決める。Stripe の請求期間
+  （`current_period_started_at`〜`current_period_end`、`customer.subscription.*` の
+  Webhook で保存）が今を含んでいればその開始から、無ければ（無料アカウント・更新
+  Webhook 待ち）日本時間の暦月の 1 日から。予算を請求書の金額と揃えるため。
+- `accounts.budget_limit_minor > 0` のとき、その期間の `usage_events.cost_minor` の
+  合計（`SumUsageCostByAccountSince`）が budget を超えていれば超過。保存したフラグは
+  使わず、読むたびに計算する（期間が替わったときに戻し忘れが起きない）。
+  `accounts.budget_exceeded` / `current_period_usage_minor` の列は使っていない。
+- アップロード時の確認（`ensureBudgetAvailable`）と課金画面の「今月の使用額」も
+  同じ期間・同じ合計を使う。
 - `UsageRecordResult.BudgetExceeded = exceeded || credit_stopped`。
 - worker はこのフラグが立った時点で **次の LLM コールを呼ばない**。
   処理中のものは完走させる。

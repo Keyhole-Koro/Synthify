@@ -353,7 +353,12 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 	account.BillingCurrency = string(event.Currency)
 	account.BillingAmountMinor = event.AmountMinor
 	account.BillingInterval = string(event.Interval)
-	account.CurrentPeriodEnd = event.CurrentPeriodEnd
+	if event.CurrentPeriodEnd != "" {
+		account.CurrentPeriodEnd = event.CurrentPeriodEnd
+	}
+	if event.CurrentPeriodStart != "" {
+		account.CurrentPeriodStartedAt = event.CurrentPeriodStart
+	}
 	account.CancelAtPeriodEnd = event.CancelAtPeriodEnd
 	account.BillingUpdatedAt = time.Now().Format(time.RFC3339)
 	return nil

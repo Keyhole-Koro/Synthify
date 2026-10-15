@@ -477,8 +477,10 @@ func (p *Provider) ParseWebhook(ctx context.Context, payload []byte, signature s
 // providerEventFromPrice builds a canonical ProviderWebhookEvent populated with subscription and price fields.
 func (p *Provider) providerEventFromPrice(event stripeEvent, obj stripeObject, price Price, status domain.BillingStatus) *domain.ProviderWebhookEvent {
 	subscriptionID := firstNonEmpty(obj.Subscription, obj.Parent.SubscriptionDetails.Subscription)
+	var periodStart, periodEnd int64
 	if strings.HasPrefix(event.Type, "customer.subscription.") {
 		subscriptionID = obj.ID
+		periodStart, periodEnd = subscriptionPeriod(obj)
 	}
 	return &domain.ProviderWebhookEvent{
 		Provider:               "stripe",
@@ -493,9 +495,27 @@ func (p *Provider) providerEventFromPrice(event stripeEvent, obj stripeObject, p
 		Currency:               price.Currency,
 		AmountMinor:            price.AmountMinor,
 		Interval:               price.Interval,
-		CurrentPeriodEnd:       unixToRFC3339(obj.CurrentPeriodEnd),
+		CurrentPeriodStart:     unixToRFC3339(periodStart),
+		CurrentPeriodEnd:       unixToRFC3339(periodEnd),
 		CancelAtPeriodEnd:      obj.CancelAtPeriodEnd,
 	}
+}
+
+// subscriptionPeriod returns the billing period of a subscription object: from
+// the subscription itself on API versions before basil, otherwise from its
+// first item that has one. Invoice objects have neither; their line periods
+// describe what was billed (for metered prices, the previous period), not the
+// current one, so they are not used.
+func subscriptionPeriod(obj stripeObject) (start, end int64) {
+	if obj.CurrentPeriodEnd > 0 {
+		return obj.CurrentPeriodStart, obj.CurrentPeriodEnd
+	}
+	for _, item := range obj.Items.Data {
+		if item.CurrentPeriodEnd > 0 {
+			return item.CurrentPeriodStart, item.CurrentPeriodEnd
+		}
+	}
+	return 0, 0
 }
 
 // baseEvent builds an event carrying only identity + customer, for side-effect-only
@@ -696,6 +716,7 @@ type stripeObject struct {
 	Subscription        string            `json:"subscription"`
 	Status              string            `json:"status"`
 	Metadata            map[string]string `json:"metadata"`
+	CurrentPeriodStart  int64             `json:"current_period_start"`
 	CurrentPeriodEnd    int64             `json:"current_period_end"`
 	CancelAtPeriodEnd   bool              `json:"cancel_at_period_end"`
 	SubscriptionDetails struct {
@@ -742,8 +763,12 @@ type stripeList struct {
 type stripeLineItems []stripeLineItem
 
 type stripeLineItem struct {
-	Price  stripePrice `json:"price"`
-	Period struct {
+	Price stripePrice `json:"price"`
+	// Subscription items carry the billing period from API version 2025-03-31
+	// (basil) onward, when it was removed from the subscription itself.
+	CurrentPeriodStart int64 `json:"current_period_start"`
+	CurrentPeriodEnd   int64 `json:"current_period_end"`
+	Period             struct {
 		Start int64 `json:"start"`
 		End   int64 `json:"end"`
 	} `json:"period"`

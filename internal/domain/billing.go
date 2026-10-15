@@ -144,8 +144,11 @@ type ProviderWebhookEvent struct {
 	Currency               BillingCurrency `json:"currency,omitempty"`
 	AmountMinor            int64           `json:"amount_minor,omitempty"`
 	Interval               BillingInterval `json:"interval,omitempty"`
-	CurrentPeriodEnd       string          `json:"current_period_end,omitempty"`
-	CancelAtPeriodEnd      bool            `json:"cancel_at_period_end,omitempty"`
+	// CurrentPeriodStart and CurrentPeriodEnd are the subscription's billing
+	// period. Only subscription events carry them; empty means "unchanged".
+	CurrentPeriodStart string `json:"current_period_start,omitempty"`
+	CurrentPeriodEnd   string `json:"current_period_end,omitempty"`
+	CancelAtPeriodEnd  bool   `json:"cancel_at_period_end,omitempty"`
 
 	// The following are side-effect payloads for syncing cached invoices and payment methods.
 	// Processed independently from account billing state updates (only non-nil entries applied).

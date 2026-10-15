@@ -157,6 +157,12 @@ func (s *DocumentService) ensureBudgetAvailable(ctx context.Context, userID stri
 	}
 	account, err := s.accounts.GetAccountByUser(ctx, userID)
 	if err != nil {
+		// Fail open: a transient read error should not block uploads, and the
+		// usage is still recorded and checked when the job runs. Log it so a
+		// persistent failure (budget never enforced) is visible.
+		if !errors.Is(err, domain.ErrNotFound) && s.logger != nil {
+			s.logger.Warn("document.budget_check_skipped", "user_id", userID, "error", err.Error())
+		}
 		return nil
 	}
 	if account.BudgetExceeded {
