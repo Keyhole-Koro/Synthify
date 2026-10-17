@@ -1,0 +1,10 @@
+{
+  "name": "synthify-siwc-local-poc",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Local-only Sign in with ChatGPT proof of concept for Synthify",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": { "test": "node --test *.test.mjs" },
+  "dependencies": { "jose": "^6.1.0" }
+}

@@ -1,0 +1,23 @@
+name: SIWC local PoC
+on:
+  pull_request:
+    paths:
+      - 'tools/siwc-local-poc/**'
+      - '.github/workflows/siwc-local-poc.yml'
+  push:
+    paths:
+      - 'tools/siwc-local-poc/**'
+      - '.github/workflows/siwc-local-poc.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run offline OAuth/SSE unit tests
+        working-directory: tools/siwc-local-poc
+        run: node --test *.test.mjs
