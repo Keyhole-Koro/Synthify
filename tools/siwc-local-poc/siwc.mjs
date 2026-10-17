@@ -115,11 +115,12 @@ async function login() {
   const url = authorizationUrl({ clientId, hostId, redirectUri, state, nonce, challenge: pkceChallenge(verifier) });
   console.log('Opening Continue with ChatGPT in your browser. If it does not open, paste this URL:');
   console.log(url.href); // This flow deliberately omits id_token_hint, which must never be logged.
-  openBrowser(url.href);
+  let timer;
   try {
+    openBrowser(url.href);
     const params = await Promise.race([
       completed,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('OAuth callback timed out')), 180000)),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('OAuth callback timed out')), 180000); }),
     ]);
     if (params.get('state') !== state) throw new Error('OAuth state mismatch');
     if (params.has('error')) throw new Error('Authorization denied or failed');
@@ -138,7 +139,7 @@ async function login() {
       accessToken: tokens.access_token, refreshToken: tokens.refresh_token ?? null,
       expiresAt: Date.now() + (Number(tokens.expires_in ?? 0) * 1000), scope: tokens.scope });
     console.log('Signed in as', identity.email || identity.sub);
-  } finally { server.close(); }
+  } finally { clearTimeout(timer); server.close(); }
 }
 
 async function session() {
