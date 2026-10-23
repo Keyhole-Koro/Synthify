@@ -67,6 +67,43 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 	return item, nil
 }
 
+// CreateImportedItem は import された item を 1 行挿入する。
+// capability チェックがないのは、これが job ではなく人間の操作だから:
+// workspace の write 権限は service 層で検証済み。governance_state は
+// STIF が宣言した値をそのまま入れる (既定は human_curated)。
+func (s *Store) CreateImportedItem(ctx context.Context, item *domain.Item) (*domain.Item, error) {
+	if item == nil {
+		return nil, fmt.Errorf("item is required")
+	}
+	createdAt := nowTime()
+	created := *item
+	created.ItemID = newID()
+	created.CreatedAt = createdAt.Format(time.RFC3339)
+
+	if err := s.q().CreateStructuredItem(ctx, sqlcgen.CreateStructuredItemParams{
+		ID:          created.ItemID,
+		WorkspaceID: created.WorkspaceID,
+		ParentID: sql.NullString{
+			String: created.ParentID,
+			Valid:  created.ParentID != "",
+		},
+		Title:           created.Title,
+		Level:           int32(created.Level),
+		Description:     created.Description,
+		Content:         created.Content,
+		OverrideCss:     created.OverrideCSS,
+		CreatedBy:       created.CreatedBy,
+		GovernanceState: domain.ItemGovernanceStateName(created.GovernanceState),
+		// No job produced this row, so there is no mutation to point back at.
+		LastMutationJobID: "",
+		CrossDocument:     created.CrossDocument,
+		CreatedAt:         createdAt,
+	}); err != nil {
+		return nil, fmt.Errorf("create imported item: %w", err)
+	}
+	return &created, nil
+}
+
 // CreateStructuredItemWithCapability は capability 検証 + item 挿入 + mutation log を行う。
 // capability 違反は domain.ErrForbidden を返す。atomic 性が必要なら呼び出し側を
 // Transactor.WithTx で包むこと。
@@ -443,16 +480,5 @@ func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 }
 
 func parseGovernanceState(s string) appv1.ItemGovernanceState {
-	switch s {
-	case "system_generated":
-		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_SYSTEM_GENERATED
-	case "pending_review":
-		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_PENDING_REVIEW
-	case "human_curated":
-		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED
-	case "locked":
-		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED
-	default:
-		return appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_UNSPECIFIED
-	}
+	return domain.ItemGovernanceStateFromName(s)
 }

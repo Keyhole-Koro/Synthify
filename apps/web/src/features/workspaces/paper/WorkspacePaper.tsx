@@ -11,6 +11,7 @@ import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { getWorkspace, WorkspaceRole, type Workspace } from '@/features/workspaces/api';
 import { getInitialAuthUser } from '@/features/auth/session';
 import { SharePanel } from '@/features/sharing/SharePanel';
+import { StifImportPanel } from '@/features/stif/StifImportPanel';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
 
@@ -43,6 +44,9 @@ interface WorkspacePaperProps extends WorkspacePaperRuntimeState {
   onDeleteWorkspace: () => Promise<void>;
   onSuggestedWorkspaceName: (name: string) => Promise<void> | void;
   onProcessingComplete?: (jobId: string) => Promise<void> | void;
+  // onTreeChanged refreshes the tree after a mutation that did not go through a
+  // job — a STIF import writes items straight into the tree.
+  onTreeChanged?: () => Promise<void> | void;
 }
 
 export function WorkspacePaper(props: WorkspacePaperProps) {
@@ -61,6 +65,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     onDeleteWorkspace,
     onSuggestedWorkspaceName,
     onProcessingComplete,
+    onTreeChanged,
   } = props;
 
   const {
@@ -101,6 +106,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -122,6 +128,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const openShare = useCallback(() => {
     setIsSharing(true);
   }, []);
+
+  // The panel stays open after a commit so the result stays on screen; only the
+  // tree behind it is refreshed.
+  const handleImported = useCallback(async () => {
+    await onTreeChanged?.();
+  }, [onTreeChanged]);
 
   const handleDeleteWorkspace = useCallback(async () => {
     setDeleting(true);
@@ -214,6 +226,17 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             削除
           </button>
         ))}
+        {canWrite && <button
+          type="button"
+          onClick={() => setIsImporting((open) => !open)}
+          className="flex h-7 items-center gap-1.5 rounded-md border border-stone-200 bg-white px-2.5 text-[12px] font-medium text-stone-500 transition-colors hover:border-indigo-300 hover:text-indigo-500"
+          title="STIF をインポート"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16" />
+          </svg>
+          インポート
+        </button>}
         {canManage && <button
           type="button"
           onClick={openShare}
@@ -231,6 +254,13 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
         <SharePanel
           workspaceId={workspaceId}
           onClose={() => setIsSharing(false)}
+        />
+      )}
+      {isImporting && canWrite && (
+        <StifImportPanel
+          workspaceId={workspaceId}
+          onClose={() => setIsImporting(false)}
+          onImported={handleImported}
         />
       )}
 

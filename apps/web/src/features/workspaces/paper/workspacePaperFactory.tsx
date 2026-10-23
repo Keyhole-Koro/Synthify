@@ -21,6 +21,8 @@ export interface WorkspacePaperFactoryDeps {
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void> | void;
   onDeleteWorkspace: (workspaceId: string) => Promise<void>;
   onProcessingComplete: (workspaceId: string) => Promise<void> | void;
+  // onTreeChanged refreshes the tree after a non-job mutation (STIF import).
+  onTreeChanged: (workspaceId: string) => Promise<void> | void;
 }
 
 // WorkspaceRootNode carries the workspace's single root node so the paper can
@@ -113,6 +115,7 @@ export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
           onDeleteWorkspace={() => deps.onDeleteWorkspace(workspaceId)}
           onSuggestedWorkspaceName={(name) => deps.onSuggestedWorkspaceName(workspaceId, name)}
           onProcessingComplete={() => deps.onProcessingComplete(workspaceId)}
+          onTreeChanged={() => deps.onTreeChanged(workspaceId)}
         />
       ),
     };

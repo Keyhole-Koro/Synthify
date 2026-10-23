@@ -203,6 +203,11 @@ type ItemRepository interface {
 	// expired) は domain.ErrForbidden を返す。atomic 性が必要なら呼び出し側を
 	// Transactor.WithTx で包むこと。
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error)
+	// CreateImportedItem は import (STIF) で作られた item を 1 行挿入する。
+	// worker 経路と違い job capability を持たないため、呼び出し側が workspace の
+	// write 権限を検証済みであることが前提。item.ItemID は採番して返す。
+	// atomic 性が必要なら呼び出し側を Transactor.WithTx で包むこと。
+	CreateImportedItem(ctx context.Context, item *domain.Item) (*domain.Item, error)
 	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
 	UpsertItemSourceRef(ctx context.Context, source *domain.ItemSourceRef) error
 	ListItemSources(ctx context.Context, itemID string) ([]*domain.ItemSource, error)

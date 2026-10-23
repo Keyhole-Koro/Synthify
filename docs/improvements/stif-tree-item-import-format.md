@@ -1,7 +1,14 @@
 # STIF: tree item import format
 
-**Status:** Draft
+**Status:** Phase 1 実装済み
 **Purpose:** Codex / Claude / Gemini などにある整理済み情報を、Synthify の workspace tree item として import できる独自ファイル形式にする。
+
+実装の入口:
+
+- parser / validator / sanitizer: `apps/api/internal/stif/`
+- import service: `apps/api/internal/application/tree_import.go`
+- RPC: `TreeImportService.ImportStif` (`contracts/connectrpc/synthify/app/v1/tree_import.proto`)
+- import UI: `apps/web/src/features/stif/`（workspace paper の「インポート」ボタン）
 
 ## やりたいこと
 
@@ -237,11 +244,11 @@ CSS は iframe 内で隔離表示される前提。初期実装では危険な C
 
 ## import 方針
 
-Phase 1:
+Phase 1 (**実装済み**):
 
 - `.stif` を parse する。
 - `#STIF/1` と item block の構文検証をする。
-- `append` のみ対応する。
+- `append` のみ対応する。`replace` / `merge` は error diagnostic で拒否する。
 - `local_path` の重複を拒否する。
 - `parent` が存在しない場合は reject する。
 - cycle を reject する。
@@ -249,16 +256,89 @@ Phase 1:
 - `created_by` は import 実行者にする。
 - `state` 省略時は `human_curated` にする。
 - `scope` 省略時は `canonical` にする。
-- `source` は parse / validate して保存する。外部取得は import の必須処理にしない。
+- `source` は parse / validate して `item_source_refs` に保存する。外部取得は import の必須処理にしない。
+- HTML / CSS を allowlist で sanitize する。
+- import preview (dry run) を返す。
 
 Phase 2:
 
 - `merge_key` による既存 item 更新。
 - `replace` mode。
-- import preview UI。
 - GitHub source の interactive preview / open in GitHub。
 - GitHub source の snapshot commit SHA / content hash 保存。
 - export to STIF。
+
+## Phase 1 の実装仕様
+
+### エラー方針
+
+parse / validation の問題は RPC error ではなく **diagnostic** として返す。import UI は 1 回の往復で全ての問題を出したいので、最初の 1 件しか運べない error code には載せない。
+
+- `ERROR` が 1 件でもあれば **何も書き込まない**。部分 import は親が居ない item を作るので、全部入るか全部入らないかのどちらかにする。
+- `WARNING` は import を止めない。sanitize による除去、未知の metadata key、`merge_key` の無効化などが該当する。
+
+### preview は server 側 dry run
+
+`ImportStif` の `dry_run` で parse / validate / sanitize だけ行い、書き込まない。parser を web 側にも置くと preview と commit が食い違いうるので、parser は Go 側 1 本にした（未決定事項の 1 つ目への回答）。
+
+commit 時にも server は再 parse する。preview を通っていない document や、preview 後に書き換えられた document は、commit 側で改めて拒否される。
+
+### import API の置き場所
+
+`ItemService` に足さず `TreeImportService` を新設した（未決定事項の 2 つ目への回答）。import は今後 `replace` / `merge` mode や export to STIF など独自の語彙を持つ想定で、単一 item の CRUD とは別物のため。
+
+認証は既定どおり必須。share token では叩けない（書き込み RPC のため）。`workspace_id` に対する editor / owner 権限を要求し、dry run も同じ権限を要求する。
+
+### `order` の保存方法
+
+`tree_items` に order 列は足していない（未決定事項の 4 つ目への回答）。兄弟の順序は `created_at ASC` で決まるので、parser が items を「親が先・兄弟は `order` 昇順（同値は文書順）」に並べ替えて返し、importer がその順に insert する。`order` 未指定は 0 として扱う。
+
+### `scope` は永続化されない
+
+`tree_items` に scope 列がないため、`scope` は parse / 検証はするが保存されない。preview の応答には含まれる。scope を実際に効かせるにはスキーマ変更が要る。
+
+### sanitize policy
+
+（未決定事項の 3 つ目への回答）content は iframe 内に描画されるが、その iframe は自前の bootstrap script を動かすので、iframe 境界だけでは足りない。**保存時**に sanitize する（描画時ではない）ので、preview が見せたものと DB に入るものが同一になる。
+
+HTML:
+
+- `golang.org/x/net/html` で parse し、allowlist で filter して **再 render** する。文字列置換ではないので、壊れた markup でタグを密輸できない。
+- `script` / `style` / `iframe` / `object` / `embed` / `form` / `svg` などは subtree ごと削除する。
+- allowlist 外のその他の要素は unwrap（中身のテキストは残す）。
+- `on*` 属性は全て削除する。
+- `href` / `src` / `cite` は `http` / `https` / `mailto` / 相対 / `data:image/*` のみ許可する。`javascript:` `vbscript:` `data:text/html` は削除する。
+- `data-*` / `aria-*` は保持する。paper renderer が `data-paper-id`（子 paper へのリンク）と `data-file-id`（画像の遅延読み込み）を使うため。
+
+CSS（`::css` block と `style` 属性の両方）:
+
+- `@import` / `expression(` / `behavior` / `-moz-binding` / `javascript:` を含む宣言・at-rule を落とす。落とすのは宣言単位なので、1 行が原因で stylesheet 全体を失わない。
+- `url()` は `data:image/*` と `https:` のみ許可する。remote `url()` は rule が match した瞬間に request を出す side channel になるため。
+
+### `source` の parse
+
+独自 parser で扱っている（未決定事項の 5 つ目への回答）。metadata 部分だけ YAML parser に渡す構成は取らなかった。`type` は必須で、省略すると error diagnostic になる（`item_source_refs.source_type` の CHECK 制約と同じ集合）。
+
+### parser の寛容さ
+
+実運用で LLM 出力をそのまま貼れるように、以下は受け入れる:
+
+- 先頭の BOM、`#STIF/1` の前の空行。
+- 文書全体を包む Markdown code fence（```` ```stif ````）。
+- CRLF 改行。
+- `parent` 省略時は `local_path` の親パスから推測する（`/overview/api` → `/overview`）。推測先が文書内に無ければ root item として import し、warning を出す。
+
+### 制限
+
+1 回の import の `source` は 1 MiB まで。
+
+## 未決定事項（Phase 1 で解消されなかったもの）
+
+- `order` を DB 列として持つべきか。現状は insert 順に畳み込んでいるので、import 後に item を並べ替える UI が来ると再考が要る。
+- `scope` を `tree_items` に持たせるか。
+- GitHub source retrieval を backend 経由にするか、web 側 connector 経由にするか。
+- private repository の token scope / permission model。
+- STIF JSON 表現（Phase 3）。
 
 Phase 3:
 
@@ -360,12 +440,4 @@ GitHub 情報が分からない場合は、`type: local_file`, `path` を使っ�
 ファイルパス、URL、line number は入力に含まれるものだけを使い、存在しない値は作らないでください。
 ```
 
-## 未決定事項
-
-- `.stif` の parser を Go 側に置くか、web 側 preview parser と共通にするか。
-- import API を `ItemService` に置くか、新しい `TreeImportService` を切るか。
-- HTML sanitize の厳密な policy。
-- `order` を DB にどう保存するか。現状の `child_ids` 順だけで十分か。
-- `source` の YAML-like metadata を独自 parser で扱うか、metadata 部分だけ YAML parser を使うか。
-- GitHub source retrieval を backend 経由にするか、web 側 connector 経由にするか。
-- private repository の token scope / permission model。
+（旧「未決定事項」節は Phase 1 で解消済み。回答は上の「Phase 1 の実装仕様」、残件は「未決定事項（Phase 1 で解消されなかったもの）」を参照。）
