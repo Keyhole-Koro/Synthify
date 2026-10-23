@@ -60,6 +60,22 @@ module "eval_scheduler_service_account" {
   depends_on = [google_project_service.required]
 }
 
+# Identity Cloud Scheduler uses to drive the API's periodic housekeeping sweep
+# (auto-resume + stuck-job detection). The API service is publicly invocable, so
+# unlike the eval job this is not gated by run.invoker: the API validates the
+# OIDC token and checks the caller email against this address.
+module "maintenance_scheduler_service_account" {
+  source = "../../modules/service_account"
+
+  project_id = var.project_id
+  # Kept short on purpose: account_id maxes out at 30 chars and
+  # "synthify-maintenance-scheduler-<env>" overflows it.
+  account_id   = "synthify-maint-sched-${var.environment}"
+  display_name = "Synthify Maintenance Scheduler (${var.environment})"
+
+  depends_on = [google_project_service.required]
+}
+
 module "monitor_service_account" {
   source = "../../modules/service_account"
 

@@ -35,6 +35,10 @@
 | `eval_image` | LLM eval Cloud Run Job の container image | CD が `-var` で SHA tag image を渡す |
 | `eval_schedule` | LLM eval Cloud Run Job を起動する cron | `0 4 * * *` |
 | `eval_time_zone` | eval Scheduler の timezone | `Asia/Tokyo` |
+| `maintenance_schedule` | API の定期 sweep (job auto-resume / stuck job 検知) を起動する cron | `*/5 * * * *`。New Relic の `JobStuck` アラートが 5 分窓を前提にしているので、変えるなら `stuck_jobs` condition の `aggregation_window` も合わせる |
+| `maintenance_time_zone` | maintenance Scheduler の timezone | `Asia/Tokyo` |
+| `SYNTHIFY_MAINTENANCE_OIDC_AUDIENCE` | sweep 用 OIDC token の audience | Terraform が `services/api` の locals で生成し、Scheduler 側と同じ値を注入する。手で設定するものではない |
+| `SYNTHIFY_MAINTENANCE_SCHEDULER_SERVICE_ACCOUNTS` | sweep を叩ける呼び出し元 SA (カンマ区切り) | Terraform が `synthify-maint-sched-<env>` を注入する。**空だと API は sweep endpoint を mount しない** (fail closed) ので、sweep が止まったらまずここを見る |
 | `CORS_ALLOWED_ORIGINS` | フロントエンドの URL | `https://synthify.keyhole.work` |
 | `STRIPE_PRO_PRICE_ID_JPY` | JPY 建て Stripe 価格 ID（カンマ区切りで複数可） | `price_...` |
 | `STRIPE_PRO_PRICE_ID_USD` | USD 建て Stripe 価格 ID（カンマ区切りで複数可） | `price_...` |

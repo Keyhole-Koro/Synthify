@@ -101,6 +101,10 @@ module "api" {
   allowed_user_emails               = var.allowed_user_emails
   log_llm_payload                   = var.log_llm_payload
   deletion_protection               = local.deletion_protection
+
+  maintenance_scheduler_service_account_email = module.bootstrap.maintenance_scheduler_service_account_email
+  maintenance_schedule                        = var.maintenance_schedule
+  maintenance_time_zone                       = var.maintenance_time_zone
 }
 
 module "monitor" {

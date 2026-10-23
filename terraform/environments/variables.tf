@@ -84,6 +84,17 @@ variable "eval_time_zone" {
   default = "Asia/Tokyo"
 }
 
+variable "maintenance_schedule" {
+  description = "Cron expression for the API job auto-resume / stuck-job sweep."
+  type        = string
+  default     = "*/5 * * * *"
+}
+
+variable "maintenance_time_zone" {
+  type    = string
+  default = "Asia/Tokyo"
+}
+
 variable "stripe_pro_price_id" {
   type    = string
   default = ""
