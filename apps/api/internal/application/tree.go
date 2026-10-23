@@ -79,6 +79,12 @@ func (s *TreeService) authorizeShareToken(ctx context.Context, workspaceID strin
 }
 
 // GetTree は workspace 配下の全 item を返す。
+//
+// item の本文 (Content / OverrideCSS) は root node のぶんだけ含む。root content
+// は workspace の表紙レポートとして即座に描画されるが、それ以外の node の本文は
+// paper を開いたときに GetSubtree で取れば足りる。全 node ぶん載せると response
+// が node 数に比例して膨らみ、5,000 node で JSON 14 MiB / client 側 decode 110ms
+// に達していた (docs/improvements/client-item-load-testing.md)。
 func (s *TreeService) GetTree(ctx context.Context, workspaceID, userID string) ([]*domain.Item, error) {
 	if workspaceID == "" {
 		return nil, errors.New("workspace_id is required")
@@ -86,7 +92,7 @@ func (s *TreeService) GetTree(ctx context.Context, workspaceID, userID string) (
 	if err := s.authorizeWorkspace(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
-	return s.tree.GetTreeByWorkspace(ctx, workspaceID)
+	return s.tree.GetTreeOutlineByWorkspace(ctx, workspaceID)
 }
 
 // GetSubtree は itemID をルートとする部分木を返す。

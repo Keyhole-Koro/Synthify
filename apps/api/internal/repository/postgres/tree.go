@@ -42,6 +42,24 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	return items, nil
 }
 
+// GetTreeOutlineByWorkspace returns the same tree as GetTreeByWorkspace, but
+// carries `Content` / `OverrideCSS` only for root nodes. It backs GetTree,
+// where the bodies of every node would otherwise dominate the response — see
+// the ListItemOutlinesByWorkspace query for the numbers. Callers that need a
+// non-root node's body fetch it through GetSubtree.
+func (s *Store) GetTreeOutlineByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {
+	rows, err := s.q().ListItemOutlinesByWorkspace(ctx, wsID)
+	if err != nil {
+		return nil, fmt.Errorf("list item outlines by workspace: %w", err)
+	}
+	var items []*domain.Item
+	for _, r := range rows {
+		items = append(items, toItemFromItemOutlineRow(r))
+	}
+	s.populateChildIDs(ctx, items)
+	return items, nil
+}
+
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	items, err := s.GetTreeByWorkspace(ctx, wsID)
 	if err != nil || len(items) == 0 {

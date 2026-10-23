@@ -5,6 +5,25 @@ FROM tree_items
 WHERE workspace_id = $1
 ORDER BY created_at ASC;
 
+-- name: ListItemOutlinesByWorkspace :many
+-- The workspace tree without node bodies. `content` / `override_css` are
+-- returned only for root nodes, whose content is the workspace cover report and
+-- is rendered immediately; every other node's body is fetched by GetSubtree when
+-- its paper opens.
+--
+-- Bodies are LLM-authored HTML of a few KiB each, so carrying them for every
+-- node made GetTree grow without bound in the node count: 5,000 nodes came to
+-- 14 MiB of JSON and ~110 ms of client-side decode, against 0.8 MiB and ~14 ms
+-- without the bodies. Measurements and method in
+-- docs/improvements/client-item-load-testing.md.
+SELECT id, workspace_id, parent_id, title, level, description,
+       CASE WHEN parent_id IS NULL THEN content ELSE '' END::TEXT AS content,
+       CASE WHEN parent_id IS NULL THEN override_css ELSE '' END::TEXT AS override_css,
+       created_by, governance_state, cross_document, created_at
+FROM tree_items
+WHERE workspace_id = $1
+ORDER BY created_at ASC;
+
 -- name: ListRootItemsByWorkspace :many
 -- Root nodes of the workspace tree: the items sitting directly under the
 -- workspace (parent_id IS NULL). Replaces the old workspace_root lookup.

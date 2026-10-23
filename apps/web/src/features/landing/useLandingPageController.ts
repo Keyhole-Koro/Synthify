@@ -8,6 +8,7 @@ import { WorkspaceSchema } from '@/gen/proto/synthify/app/v1/workspace_pb';
 import { useAuthState } from '@/features/auth/useAuthState';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
+import type { InjectMockWorkspaceTreeArgs } from '@/features/workspaces/tree/workspaceTreeTypes';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
 import { useLandingPaperMap } from '@/features/paperMap/hooks/useLandingPaperMap';
 import { usePersistentPaperOpenState } from '@/features/paperMap/hooks/usePersistentPaperOpenState';
@@ -37,15 +38,9 @@ declare global {
         args?: { workspaceName?: string; paperTitle?: string; paperDescription?: string },
       ) => Promise<unknown>;
       createMockWorkspace: (
-        args?: {
-          workspaceName?: string;
-          documentCount?: number;
-          nodesPerDocument?: number;
-          documentTitles?: string[];
-          rootContent?: string;
-          rootOverrideCss?: string;
-        },
+        args?: { workspaceName?: string } & InjectMockWorkspaceTreeArgs,
       ) => unknown;
+      reprojectWorkspace: (workspaceId: string, iterations?: number) => unknown;
     };
   }
 }
@@ -267,37 +262,39 @@ export function useLandingPageController() {
         const dump = await debugApi.dumpWorkspace(workspace.workspaceId);
         return { workspace, injected, dump };
       },
-      // createMockWorkspace builds a complete workspace (ws + N documents, each
-      // with M nodes) entirely on the frontend — no backend API, no auth, no
-      // emulators. Lets you preview WorkspacePaper UI states from the console.
+      // createMockWorkspace builds a complete workspace tree entirely on the
+      // frontend — no backend API, no auth, no emulators. Lets you preview
+      // WorkspacePaper UI states from the console, and lets the load test give
+      // the client an arbitrary number of items:
+      //
+      //   __synthifyDebug.createMockWorkspace({ totalItems: 2000, depth: 4,
+      //     branching: 6, contentBytes: 2048, openDepth: 2 })
+      //
+      // See docs/improvements/client-item-load-testing.md for the knobs.
       createMockWorkspace: (
-        args: {
-          workspaceName?: string;
-          documentCount?: number;
-          nodesPerDocument?: number;
-          documentTitles?: string[];
-          rootContent?: string;
-          rootOverrideCss?: string;
-        } = {},
+        args: { workspaceName?: string } & InjectMockWorkspaceTreeArgs = {},
       ) => {
+        const { workspaceName, ...treeArgs } = args;
         const workspaceId = `debug_ws_${Date.now().toString(36)}`;
         const workspace = create(WorkspaceSchema, {
           workspaceId,
-          name: args.workspaceName?.trim() || 'Mock workspace',
+          name: workspaceName?.trim() || 'Mock workspace',
           ownerId: user?.id ?? 'debug-user',
         });
         setWorkspaces((prev) => [...prev, workspace]);
         markWorkspaceVerified(workspaceId);
-        const result = tree.injectMockWorkspaceTree(workspace, {
-          documentCount: args.documentCount,
-          nodesPerDocument: args.nodesPerDocument,
-          documentTitles: args.documentTitles,
-          rootContent: args.rootContent,
-          rootOverrideCss: args.rootOverrideCss,
-        });
+        const result = tree.injectMockWorkspaceTree(workspace, treeArgs);
         setPendingRevealNodeId(workspaceId);
         console.info('[synthify-debug] mock workspace created [SYNC-MARKER-A1]', { workspace, result });
         return { workspace, result };
+      },
+      // reprojectWorkspace re-runs the full paper projection — the same work
+      // every subtree expansion triggers — and reports its cost. Run it with
+      // several iterations to get a stable median.
+      reprojectWorkspace: (workspaceId: string, iterations = 1) => {
+        const result = tree.reprojectWorkspace(workspaceId, iterations);
+        console.info('[synthify-debug] reprojected workspace', { workspaceId, ...result });
+        return result;
       },
     };
 

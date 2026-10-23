@@ -191,6 +191,10 @@ type JobLogRepository interface {
 type TreeRepository interface {
 	GetTree(ctx context.Context, wsID string) (*domain.Tree, error)
 	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error)
+	// GetTreeOutlineByWorkspace is GetTreeByWorkspace with node bodies omitted
+	// on everything but root nodes. Backs GetTree, whose response would
+	// otherwise carry every node's HTML.
+	GetTreeOutlineByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error)
 	FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error)
 	GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
 }

@@ -406,6 +406,27 @@ func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 	}
 }
 
+// toItemFromItemOutlineRow maps an outline row (bodies present only on root
+// nodes). The row shape matches ListItemsByWorkspaceRow, but Go has no
+// structural typing, so it needs its own mapper.
+func toItemFromItemOutlineRow(row sqlcgen.ListItemOutlinesByWorkspaceRow) *domain.Item {
+	return &domain.Item{
+		ItemID:          row.ID,
+		WorkspaceID:     row.WorkspaceID,
+		ParentID:        row.ParentID.String,
+		Title:           row.Title,
+		Level:           int(row.Level),
+		Description:     row.Description,
+		Content:         row.Content,
+		OverrideCSS:     row.OverrideCss,
+		CreatedBy:       row.CreatedBy,
+		GovernanceState: parseGovernanceState(row.GovernanceState),
+		CrossDocument:   row.CrossDocument,
+		CreatedAt:       row.CreatedAt.UTC().Format(time.RFC3339),
+		Scope:           appv1.TreeProjectionScope_TREE_PROJECTION_SCOPE_DOCUMENT,
+	}
+}
+
 func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
