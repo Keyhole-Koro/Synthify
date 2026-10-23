@@ -7,12 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	taskspb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
 	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/platform/observability"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -130,7 +132,7 @@ func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, re
 			HttpRequest: &taskspb.HttpRequest{
 				HttpMethod: taskspb.HttpMethod_POST,
 				Url:        d.dispatchURL,
-				Headers:    map[string]string{"Content-Type": "application/json"},
+				Headers:    cloudTaskHeaders(ctx),
 				Body:       body,
 				AuthorizationHeader: &taskspb.HttpRequest_OidcToken{
 					OidcToken: &taskspb.OidcToken{
@@ -168,6 +170,20 @@ func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, re
 		"task_name", taskName,
 	)
 	return nil
+}
+
+func cloudTaskHeaders(ctx context.Context) map[string]string {
+	httpHeaders := make(http.Header)
+	httpHeaders.Set("Content-Type", "application/json")
+	observability.InjectTraceContext(ctx, httpHeaders)
+
+	taskHeaders := make(map[string]string, len(httpHeaders))
+	for key, values := range httpHeaders {
+		if len(values) > 0 {
+			taskHeaders[key] = values[0]
+		}
+	}
+	return taskHeaders
 }
 
 // taskID is the Cloud Tasks dedup key. Task names must match
