@@ -34,6 +34,7 @@
 
 ## P3 — 仕様ドラフト（実装前に設計が必要）
 
+- [codex-provider-migration.md](codex-provider-migration.md) — Geminiを本番デフォルトのまま維持し、個人/ローカルPoCからCodex App Serverを段階導入する設計。Firebase認証との分離、ファイル隔離、課金境界、ADK置換判断までを定義
 - [usage-based-billing.md](usage-based-billing.md) — LLM 従量課金への移行設計（usage metering、予算アラート、Worker 緊急停止、Stripe Meters 連携）
 - [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) — 複数ドキュメント処理時の tree 統合・更新ライフサイクル（Phase 1〜3）
 - [workspace-sharing.md](workspace-sharing.md) — ワークスペース共有（メンバー招待 + 公開リンク、role 別権限）。認可ゲート `IsWorkspaceAccessible` 1 点を拡張すれば全リソースに波及。proto は招待 RPC 定義済み・handler は未実装。Phase 1（招待）から
