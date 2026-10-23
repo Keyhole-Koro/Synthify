@@ -63,12 +63,19 @@ jobs:
         working-directory: apps/web
         run: bun run build
 
-  # Compile the API and worker once, up front, instead of letting every e2e
-  # shard's Docker Compose boot rebuild them from a cold cache. In-container the
-  # golang image's build cache lives in a named volume that starts empty on each
-  # runner, so every shard paid a ~4-minute `go build` floor. Building static
-  # (CGO_ENABLED=0) binaries here — cached natively by setup-go — and injecting
-  # them into the compose stack removes that floor from both shards.
+  # Build everything the e2e stack runs, once, instead of letting every shard's
+  # Docker Compose rebuild it from a cold cache.
+  #
+  # For Go: in-container the golang image's build cache lives in a named volume
+  # that starts empty on each runner, so every shard paid a ~4-minute `go build`
+  # floor. Static (CGO_ENABLED=0) binaries built here — cached natively by
+  # setup-go — remove that floor from both shards.
+  #
+  # For web: the shards used to run `next dev`, which compiles each route on
+  # first request. That is both slower and not what ships (apps/web is an
+  # `output: 'export'` static site on Firebase Hosting), and the compile latency
+  # showed up as flaky navigation timeouts. Export it once here and let the
+  # shards serve the result.
   binaries:
     runs-on: ubuntu-latest
     steps:
@@ -81,6 +88,18 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Cache bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Build API and worker binaries
         env:
           CGO_ENABLED: "0"
@@ -91,11 +110,37 @@ jobs:
           go build -buildvcs=false -o .e2e-bin/synthify-api ./apps/api/cmd/server
           go build -buildvcs=false -o .e2e-bin/synthify-worker ./apps/worker/cmd/server
 
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # NEXT_PUBLIC_* are baked into the bundle at build time, so this build has
+      # to reproduce the environment the shards' compose stack would have given
+      # `next dev`. The workflow-level env above covers most of it, but compose
+      # also defaults these three (compose.yaml, frontend.environment) and they
+      # are not optional: without them the bundle points the Firebase SDK at
+      # real Firebase instead of the emulator and every signed-in spec fails.
+      # Keep them in step with compose.yaml's defaults.
+      - name: Build web static export
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_URL: http://127.0.0.1:9099
+          NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_HOST: 127.0.0.1
+          NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT: "8282"
+        run: bun run build
+
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
           name: e2e-binaries
           path: .e2e-bin
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload web export
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-web-export
+          path: apps/web/out
           include-hidden-files: true
           retention-days: 1
 
@@ -156,6 +201,14 @@ jobs:
       - name: Make binaries executable
         run: chmod +x .e2e-bin/*
 
+      # The prebuilt static export (see the binaries job). E2E_WEB_EXPORT below
+      # makes the compose frontend serve this instead of running `next dev`.
+      - name: Download web export
+        uses: actions/download-artifact@v4
+        with:
+          name: e2e-web-export
+          path: apps/web/out
+
       # The compose frontend container runs as ${LOCAL_UID:-1000}, but the
       # runner's workspace is owned by uid 1001 — align them or the bind
       # mount is read-only to the container.
@@ -168,6 +221,10 @@ jobs:
         working-directory: apps/web
         env:
           E2E_WORKER_FIXTURE: "true"
+          # Serve the production build, not `next dev`. Playwright starts the
+          # compose stack from this step (see webServer in playwright.config.ts),
+          # so compose reads it from here.
+          E2E_WEB_EXPORT: "true"
         run: |
           shard="--shard=${{ matrix.shard }}/${{ strategy.job-total }}"
           if [ "${{ github.event_name }}" = "pull_request" ]; then

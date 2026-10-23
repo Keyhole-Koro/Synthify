@@ -1,6 +1,12 @@
 name: synthify-dev
 
 services:
+  # Runs `next dev` by default, which is what you want while developing.
+  # E2E_WEB_EXPORT=true instead serves a prebuilt static export through
+  # scripts/serve-web-export.mjs — the same shape production has (apps/web sets
+  # output: 'export' and ships to Firebase Hosting). CI uses that mode so the
+  # suite exercises what actually ships and stops paying dev's on-demand
+  # compilation, which is a standing source of timing flake.
   frontend:
     image: oven/bun:1
     user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
@@ -11,6 +17,14 @@ services:
         if [ ! -f /workspace/apps/web/package.json ]; then
           echo "apps/web/package.json not found. Waiting for web implementation...";
           sleep infinity;
+        fi;
+        if [ "${E2E_WEB_EXPORT:-}" = "true" ]; then
+          if [ ! -f /workspace/apps/web/out/index.html ]; then
+            echo "E2E_WEB_EXPORT=true but apps/web/out is missing. Refusing to fall back to the dev server." >&2;
+            exit 1;
+          fi;
+          echo "serving prebuilt static export";
+          exec bun /workspace/scripts/serve-web-export.mjs /workspace/apps/web/out;
         fi;
         if [ ! -x /workspace/apps/web/node_modules/.bin/next ]; then
           cd /workspace;
