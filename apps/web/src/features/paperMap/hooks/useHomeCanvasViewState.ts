@@ -8,23 +8,19 @@ import { AUTH_ID, ROOT_ID } from '@/features/paperMap/defaultOpenState';
 const FULLSCREEN_EXCLUDED_ROOT_CHILDREN: ReadonlySet<PaperId> = new Set([AUTH_ID]);
 
 /**
- * Derives whether the canvas view should transition into fullscreen mode based on
- * explicit user toggle or whether papers other than the auth/login card are currently opened.
+ * Derives whether the canvas view should transition into fullscreen mode: it does as soon as
+ * papers other than the auth/login card are open.
  *
  * @param expansionMap - The current map of opened paper nodes.
- * @param canvasFullscreen - Explicit toggle state controlling fullscreen mode.
  * @returns An object containing the computed `isFullscreen` boolean flag.
  */
-export function useHomeCanvasViewState(
-  expansionMap: ExpansionMap,
-  canvasFullscreen: boolean,
-) {
+export function useHomeCanvasViewState(expansionMap: ExpansionMap) {
   const rootOpenIds = expansionMap.get(ROOT_ID)?.openChildIds ?? [];
   const hasMeaningfulOpen = rootOpenIds.some(
     (id) => !FULLSCREEN_EXCLUDED_ROOT_CHILDREN.has(id),
   );
 
   return useMemo(() => ({
-    isFullscreen: canvasFullscreen || hasMeaningfulOpen,
-  }), [canvasFullscreen, hasMeaningfulOpen]);
+    isFullscreen: hasMeaningfulOpen,
+  }), [hasMeaningfulOpen]);
 }

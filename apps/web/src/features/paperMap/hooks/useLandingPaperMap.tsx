@@ -806,33 +806,6 @@ export function useLandingPaperMap({
           )}
         </PaperSection>
       ),
-      layout: ({ openChildIds, focusedNodeId, paperMap: pm }) => {
-        const focusInWorkspaces = (() => {
-          if (!focusedNodeId) return false;
-          let cursor: string | null = focusedNodeId;
-          while (cursor) {
-            if (cursor === WORKSPACES_ID) return true;
-            cursor = pm.get(cursor)?.parentId ?? null;
-          }
-          return false;
-        })();
-
-        if (openChildIds.includes(WORKSPACES_ID)) {
-          const contentShare = 0.06;
-          const workspacesShare = focusInWorkspaces ? 0.64 : 0.52;
-          const others = openChildIds.filter((id) => id !== WORKSPACES_ID);
-          const evenOther = others.length > 0 ? (1 - workspacesShare - contentShare) / others.length : 0;
-          const childShares: Record<string, number> = { [WORKSPACES_ID]: workspacesShare };
-          for (const id of others) childShares[id] = evenOther;
-          return { contentShare, childShares };
-        }
-
-        const contentShare = openChildIds.length > 0 ? 0.08 : 1;
-        const childShare = openChildIds.length > 0 ? (1 - contentShare) / openChildIds.length : 0;
-        const childShares: Record<string, number> = {};
-        for (const id of openChildIds) childShares[id] = childShare;
-        return { contentShare, childShares };
-      },
     });
 
     addProductPapers(map);

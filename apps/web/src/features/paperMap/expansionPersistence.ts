@@ -41,6 +41,29 @@ function saveExpansionMap(map: ExpansionMap, scope: string) {
   }
 }
 
+/** Upper bound on restored entries, so stale state from deleted items cannot pile up forever. */
+const MAX_RESTORED_ENTRIES = 500;
+
+/**
+ * Keeps only well-formed `[parentId, { openChildIds: string[] }]` entries. The canvas ignores
+ * entries that do not match the tree, but anything else in storage (edited by hand, written by
+ * an older version) should not reach it at all.
+ */
+function sanitizeEntries(entries: unknown): ExpansionMap {
+  const map: ExpansionMap = new Map();
+  if (!Array.isArray(entries)) return map;
+  for (const entry of entries) {
+    if (map.size >= MAX_RESTORED_ENTRIES) break;
+    if (!Array.isArray(entry) || entry.length !== 2) continue;
+    const [parentId, value] = entry as [unknown, unknown];
+    const openChildIds = (value as { openChildIds?: unknown } | null)?.openChildIds;
+    if (typeof parentId !== 'string' || !Array.isArray(openChildIds)) continue;
+    const ids = openChildIds.filter((id): id is string => typeof id === 'string' && id !== parentId);
+    if (ids.length > 0) map.set(parentId, { openChildIds: Array.from(new Set(ids)) });
+  }
+  return map;
+}
+
 /**
  * Reads and deserializes the paper expansion map from browser localStorage.
  */
@@ -49,8 +72,7 @@ function loadExpansionMap(scope: string): ExpansionMap | null {
   try {
     const serialized = localStorage.getItem(storageKey(STORAGE_KEY, scope));
     if (!serialized) return null;
-    const entries = JSON.parse(serialized);
-    return new Map(entries);
+    return sanitizeEntries(JSON.parse(serialized));
   } catch (e) {
     log.error('Failed to load expansion map from localStorage', { source: 'expansion_persistence' }, e);
     return null;

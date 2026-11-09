@@ -54,6 +54,9 @@ export default defineConfig(({ mode }) => {
       devSecurityHeaders(isProduction, cspMode),
     ],
     resolve: {
+      // The vendored library may have its own node_modules (when it is developed in place);
+      // React must still resolve to this app's single copy.
+      dedupe: ['react', 'react-dom'],
       alias: {
         '@': path.resolve(__dirname, 'src'),
         '@keyhole-koro/paper-in-paper': path.resolve(__dirname, 'vender/paper-in-paper/src/lib/index.ts'),

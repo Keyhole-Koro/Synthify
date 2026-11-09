@@ -72,7 +72,6 @@ export function useLandingPageController() {
     handleGoogleSubmit,
     retryWorkspaces,
   } = useAuthState();
-  const [canvasFullscreen, setCanvasFullscreen] = useState(false);
   const [workspacePaperGroups, setWorkspacePaperGroups] = useState<Map<string, Paper[]>>(new Map());
   const [pendingRevealNodeId, setPendingRevealNodeId] = useState<string | null>(null);
   const { hasMounted, winSize } = useViewportSize();
@@ -182,7 +181,7 @@ export function useLandingPageController() {
     injectRuntimeState: runtimeState.injectRuntimeState,
   });
 
-  const { isFullscreen } = useHomeCanvasViewState(expansionMap, canvasFullscreen);
+  const { isFullscreen } = useHomeCanvasViewState(expansionMap);
 
   const { paperMap } = useLandingPaperMap({
     user,
@@ -325,7 +324,6 @@ export function useLandingPageController() {
     expansionMap,
     focusedNodeId,
     pendingRevealNodeId,
-    setCanvasFullscreen,
     handleExpansionMapChange,
     handleFocusedNodeIdChange,
     clearPendingRevealNodeId,

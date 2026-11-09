@@ -1,6 +1,36 @@
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import type { SubtreeItem } from '@/features/tree/api';
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Field-by-field equality, comparing arrays element-wise. */
+function samePaper(a: Paper, b: Paper): boolean {
+  const left = a as unknown as Record<string, unknown>;
+  const right = b as unknown as Record<string, unknown>;
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    const x = left[key];
+    const y = right[key];
+    if (Object.is(x, y)) continue;
+    if (Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, i) => Object.is(v, y[i]))) continue;
+    return false;
+  }
+  return true;
+}
+
+/**
+ * The papers last projected per workspace. Reusing the previous object for an unchanged item
+ * lets the canvas re-render only the papers that actually changed.
+ */
+const lastProjection = new Map<string, Map<string, Paper>>();
+
 
 /**
  * Converts a cached SubtreeItem into a renderable Paper object for the canvas,
@@ -27,7 +57,7 @@ function buildProjectedPaper(
 
   return {
     ...it,
-    content: it.content || `<p>${it.description}</p>`,
+    content: it.content || `<p>${escapeHtml(it.description)}</p>`,
     hue: 220,
     parentId: projectedParentId,
     childIds: projectedChildIds,
@@ -82,9 +112,18 @@ export function projectWorkspacePapers(
     ? { id: rootItem.id, content: rootItem.content, overrideCss: rootItem.overrideCss }
     : undefined;
 
-  const projectedPapers: Paper[] = Array.from(treeItems.keys())
-    .map((itemId) => buildProjectedPaper(itemId, treeItems, workspaceId))
-    .filter((paper): paper is Paper => paper != null);
+  const previous = lastProjection.get(workspaceId);
+  const current = new Map<string, Paper>();
+  const projectedPapers: Paper[] = [];
+  for (const itemId of treeItems.keys()) {
+    const next = buildProjectedPaper(itemId, treeItems, workspaceId);
+    if (!next) continue;
+    const kept = previous?.get(itemId);
+    const paper = kept && samePaper(kept, next) ? kept : next;
+    current.set(itemId, paper);
+    projectedPapers.push(paper);
+  }
+  lastProjection.set(workspaceId, current);
 
   return [...projectedPapers, buildWsPaper(workspaceId, childPapers, rootNode)];
 }

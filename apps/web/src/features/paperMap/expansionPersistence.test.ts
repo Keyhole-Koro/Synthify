@@ -29,6 +29,17 @@ describe('expansion persistence', () => {
     expect(loadOpenState(null)).toBeNull();
   });
 
+  it('drops malformed entries but keeps the well-formed ones', () => {
+    localStorage.setItem('synthify_expansion_map:user_1', JSON.stringify([
+      ['root', { openChildIds: ['workspaces', 'workspaces', 7, 'root'] }],
+      ['bad', 'nope'],
+      [42, { openChildIds: ['x'] }],
+      ['empty', { openChildIds: [] }],
+      'garbage',
+    ]));
+    expect(loadOpenState({ id: 'user_1' })?.expansionMap).toEqual(new Map([['root', { openChildIds: ['workspaces'] }]]));
+  });
+
   it('returns null for malformed stored state', () => {
     localStorage.setItem('synthify_expansion_map:user_1', '{bad json');
     expect(loadOpenState({ id: 'user_1' })).toBeNull();

@@ -5,7 +5,6 @@ import { RouterProvider } from '@tanstack/react-router';
 import { createAppRouter, queryClient } from '@/client/router';
 import { initNewRelicBrowser } from '@/lib/newrelic/browser';
 import '@/index.css';
-import '@/paper-in-paper.css';
 
 try {
   initNewRelicBrowser();

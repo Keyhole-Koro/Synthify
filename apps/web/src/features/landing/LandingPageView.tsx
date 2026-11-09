@@ -1,8 +1,33 @@
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
-import { PaperCanvas, type PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
+import {
+  PaperCanvas,
+  type PaperCanvasHandle,
+  type PaperCanvasLabels,
+  type PaperMoveRequest,
+} from '@keyhole-koro/paper-in-paper';
 import { getImageURL } from '@/features/documents/api';
+
+/** The canvas UI strings in Japanese. A module constant, so the canvas never sees a new object. */
+const CANVAS_LABELS: Partial<PaperCanvasLabels> = {
+  closePaper: '閉じる',
+  pinPaper: 'ピン留め',
+  unpinPaper: 'ピン留めを解除',
+  addChild: '子ペーパーを追加',
+  relatedLinks: '関連ノード',
+  collapseTo: (parentTitle) => `${parentTitle} に戻る`,
+  paperTitleHint: 'Alt + 矢印キーで並べ替え',
+  contentBlocked: 'このコンテンツは別のページを開こうとしたため、表示を止めました。',
+};
+
+/**
+ * The server has no API to move a node to another parent, so papers may only be reordered
+ * within their room (which is open-state, saved with the rest of it).
+ */
+function canDrop({ sourceParentId, targetParentId }: PaperMoveRequest) {
+  return sourceParentId === targetParentId;
+}
 
 const FRAME_TRANSITION = [
   'left 0.32s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -106,38 +131,6 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
   const pendingRevealNodeId = controller.pendingRevealNodeId;
   const clearPendingRevealNodeId = controller.clearPendingRevealNodeId;
 
-  // The canvas reads defaultOpenState once, at mount, and drops every open
-  // child whose paper is not in paperMap yet. On reload the workspace tree
-  // arrives after that, so the restored nested papers would stay closed.
-  // Remember the restored parent→child pairs and open each one once both
-  // papers exist; a pair is applied only once, so closing it later sticks.
-  const pendingRestoreRef = useRef<{ parentId: string; childId: string }[]>([]);
-  const paperMap = controller.paperMap;
-  useEffect(() => {
-    const pairs: { parentId: string; childId: string }[] = [];
-    for (const [parentId, entry] of controller.defaultOpenState?.expansionMap ?? []) {
-      for (const childId of entry.openChildIds) pairs.push({ parentId, childId });
-    }
-    pendingRestoreRef.current = pairs;
-  }, [controller.canvasKey, controller.defaultOpenState]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || pendingRestoreRef.current.length === 0) return;
-    const remaining: { parentId: string; childId: string }[] = [];
-    for (const pair of pendingRestoreRef.current) {
-      if (!paperMap.has(pair.parentId) || !paperMap.has(pair.childId)) {
-        remaining.push(pair);
-        continue;
-      }
-      const open = canvas.getState().expansionMap.get(pair.parentId)?.openChildIds ?? [];
-      if (!open.includes(pair.childId)) {
-        canvas.dispatch({ type: 'OPEN_NODE', parentId: pair.parentId, childId: pair.childId });
-      }
-    }
-    pendingRestoreRef.current = remaining;
-  }, [paperMap]);
-
   useEffect(() => {
     if (!pendingRevealNodeId || !canvasRef.current) return;
     if (!canvasRef.current.getState().paperMap.has(pendingRevealNodeId)) return;
@@ -167,13 +160,14 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
           key={controller.canvasKey}
           paperMap={controller.paperMap}
           rootId={ROOT_ID}
+          // Open state naming papers that load later (a workspace tree fetched after a
+          // reload) takes effect when they arrive; no replay is needed.
           defaultOpenState={controller.defaultOpenState}
-          isFullscreen={controller.isFullscreen}
-          debug={false}
+          labels={CANVAS_LABELS}
+          canDrop={canDrop}
           loadImageUrl={getImageURL}
           onExpansionMapChange={controller.handleExpansionMapChange}
           onFocusedNodeIdChange={controller.handleFocusedNodeIdChange}
-          onFullscreenChange={controller.setCanvasFullscreen}
         />
       </div>
     </div>

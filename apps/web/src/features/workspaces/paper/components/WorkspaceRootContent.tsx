@@ -1,12 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { usePaperDispatch } from '@keyhole-koro/paper-in-paper';
-import { getImageURL } from '@/features/documents/api';
+import { useMemo } from 'react';
+import { PaperHtmlContent } from '@keyhole-koro/paper-in-paper';
 
 /**
  * Props for the {@link WorkspaceRootContent} sandboxed report iframe.
  */
 interface WorkspaceRootContentProps {
-  /** The workspace paper's node ID, used to dispatch OPEN_NODE events. */
+  /** The workspace paper's node ID: links open relative to it and images load for it. */
   nodeId: string;
   /** The root node's rich HTML content (synthesised cover report). */
   content: string;
@@ -17,45 +16,15 @@ interface WorkspaceRootContentProps {
 }
 
 /**
- * Appends unmentioned child node links to the end of the HTML report content,
- * ensuring all workspace knowledge nodes remain navigable.
- *
- * @param content - Raw HTML content of the cover report.
- * @param childItems - Array of child paper records.
- * @returns Combined HTML string with appended related links block.
+ * Report styles: a transparent page on the room's background, the app's Japanese font stack,
+ * and the indigo paper-link pills. They replace paper-in-paper's default content styles.
  */
-function appendRelatedLinks(content: string, childItems: { id: string; title: string }[]): string {
-  const unmentioned = childItems.filter((c) => !content.includes(`data-paper-id="${c.id}"`));
-  if (unmentioned.length === 0) return content;
-  const links = unmentioned
-    .map((c) => `<a data-paper-id="${c.id}">${c.title || '無題のノード'}</a>`)
-    .join('');
-  return `${content}<hr/><div class="related"><p class="related-label">関連ノード</p><p class="related-links">${links}</p></div>`;
-}
-
-/**
- * Renders the workspace cover report inside a CSS-isolated, sandboxed iframe.
- * Communicates via window postMessage to dynamically size its height, request signed image URLs,
- * and relay `data-paper-id` clicks back to the parent paper canvas dispatcher.
- *
- * @param props - Component properties.
- * @returns The rendered sandboxed iframe element.
- */
-export function WorkspaceRootContent({ nodeId, content, overrideCss, childItems = [] }: WorkspaceRootContentProps) {
-  const dispatch = usePaperDispatch();
-  const frameRef = useRef<HTMLIFrameElement>(null);
-  const [height, setHeight] = useState(160);
-
-  const srcDoc = useMemo(() => {
-    const finalContent = appendRelatedLinks(content, childItems);
-    // Minimal reset + the node's override CSS, then the content. The bootstrap
-    // script posts the rendered height back (so the iframe can size to its
-    // content) and forwards data-paper-id clicks to the host.
-    return `<!doctype html><html><head><meta charset="utf-8" />
-<style>
+const REPORT_CSS = `
   :root { color-scheme: light; }
-  html, body { margin: 0; padding: 0; }
-  body { font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans JP", sans-serif; color: #1c1917; padding: 16px 20px; line-height: 1.6; background: transparent; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    color: #1c1917; padding: 16px 20px; line-height: 1.6; background: transparent;
+  }
   img, table, pre { max-width: 100%; }
   a { color: #4f46e5; }
   a[data-paper-id] {
@@ -66,104 +35,34 @@ export function WorkspaceRootContent({ nodeId, content, overrideCss, childItems 
   }
   a[data-paper-id]::after { content: '↗'; font-size: 0.82em; opacity: 0.7; }
   a[data-paper-id]:hover { background: #e0e7ff; }
-  .related { margin-top: 16px; }
-  .related-label { text-transform: uppercase; letter-spacing: 0.18em; font-size: 10px; font-weight: 700; color: #a8a29e; margin-bottom: 6px; }
-  .related-links { display: flex; flex-wrap: wrap; gap: 6px; }
-${overrideCss ?? ''}
-</style></head>
-<body>${finalContent}
-<script>
-  function report() {
-    parent.postMessage({ __synthifyRootContentHeight: document.body.scrollHeight }, '*');
-  }
-  window.addEventListener('load', report);
-  new ResizeObserver(report).observe(document.body);
-  document.addEventListener('click', function (e) {
-    var el = e.target.closest('[data-paper-id]');
-    if (!el) return;
-    e.preventDefault();
-    parent.postMessage({ __synthifyOpenPaperId: el.getAttribute('data-paper-id') }, '*');
-  });
-  // Images are embedded as <img data-file-id> markers with no src: ask the host
-  // to load each file id into a short-lived signed URL, then set it. The host
-  // replies with __synthifyImageUrl. Re-report height once an image loads so the
-  // iframe grows to fit it.
-  function requestImages() {
-    var imgs = document.querySelectorAll('img[data-file-id]:not([data-requested])');
-    for (var i = 0; i < imgs.length; i++) {
-      imgs[i].setAttribute('data-requested', '1');
-      parent.postMessage({ __synthifyLoadImage: imgs[i].getAttribute('data-file-id') }, '*');
-    }
-  }
-  window.addEventListener('message', function (e) {
-    var d = e.data || {};
-    if (d.__synthifyImageUrl && d.__synthifyImageFileId) {
-      var sel = 'img[data-file-id="' + (window.CSS && CSS.escape ? CSS.escape(d.__synthifyImageFileId) : d.__synthifyImageFileId) + '"]';
-      var nodes = document.querySelectorAll(sel);
-      for (var i = 0; i < nodes.length; i++) {
-        nodes[i].addEventListener('load', report);
-        nodes[i].src = d.__synthifyImageUrl;
-      }
-    }
-  });
-  window.addEventListener('load', requestImages);
-  requestImages();
-</script>
-</body></html>`;
-  }, [content, overrideCss, childItems]);
+  a[data-paper-id]:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+  .pip-related { margin-top: 16px; }
+  .pip-related .eyebrow { text-transform: uppercase; letter-spacing: 0.18em; font-size: 10px; font-weight: 700; color: #a8a29e; margin: 0 0 6px; }
+  .pip-related-links { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+`;
 
-  React.useEffect(() => {
-    function onMessage(e: MessageEvent) {
-      // Only act on messages from this component's own iframe, so one root
-      // content's image resolution never answers another's.
-      if (frameRef.current && e.source !== frameRef.current.contentWindow) return;
-      const data = e.data as {
-        __synthifyRootContentHeight?: number;
-        __synthifyOpenPaperId?: string;
-        __synthifyLoadImage?: string;
-      };
-      const h = data?.__synthifyRootContentHeight;
-      if (typeof h === 'number' && h > 0 && Math.abs(h - height) > 4) {
-        // Size the iframe to its full content height so it never scrolls
-        // internally; the surrounding paper room handles overflow instead.
-        setHeight(h);
-      }
-      const childId = data?.__synthifyOpenPaperId;
-      if (typeof childId === 'string' && childId) {
-        dispatch({ type: 'OPEN_NODE', parentId: nodeId, childId });
-      }
-      const fileId = data?.__synthifyLoadImage;
-      if (typeof fileId === 'string' && fileId) {
-        // Load the data-file-id marker into a short-lived signed URL and hand it
-        // back to the iframe. Failures are swallowed: a missing image simply
-        // stays blank rather than breaking the whole report.
-        getImageURL(fileId)
-          .then((url) => {
-            frameRef.current?.contentWindow?.postMessage(
-              { __synthifyImageUrl: url, __synthifyImageFileId: fileId },
-              '*',
-            );
-          })
-          .catch(() => {});
-      }
-    }
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [height, dispatch, nodeId]);
+/**
+ * Renders the workspace cover report inside paper-in-paper's sandboxed content frame: scripts
+ * in the (LLM-authored) HTML do not run, `data-paper-id` links open the child paper (or reveal
+ * any other paper where it lives), images marked with `data-file-id` load through the canvas's
+ * `loadImageUrl`, and children the report does not link to are appended as related links.
+ */
+export function WorkspaceRootContent({ nodeId, content, overrideCss, childItems = [] }: WorkspaceRootContentProps) {
+  const relatedLinks = useMemo(
+    () => childItems.map((child) => ({ id: child.id, title: child.title || '無題のノード' })),
+    [childItems],
+  );
 
   return (
-    <iframe
-      ref={frameRef}
-      title="workspace-root-content"
-      // sandbox allows the resize/click script but blocks top navigation, forms,
-      // popups, and same-origin access — untrusted LLM HTML stays contained.
-      sandbox="allow-scripts"
-      srcDoc={srcDoc}
-      // Transparent body + transparent iframe: the host paper's room background
-      // shows through, so the content blends into the room with no seam. Content
-      // that wants its own background (e.g. a hero block) still paints it.
+    <PaperHtmlContent
+      nodeId={nodeId}
+      html={content}
+      title="ワークスペースのレポート"
+      relatedLinks={relatedLinks}
+      baseCss={REPORT_CSS}
+      overrideCss={overrideCss ?? undefined}
       className="w-full border-0 bg-transparent"
-      style={{ height }}
+      data-testid="workspace-root-content"
     />
   );
 }

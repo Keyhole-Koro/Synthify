@@ -12,8 +12,13 @@ export default defineConfig({
     exclude: ['**/node_modules/**', '**/vender/**', 'e2e/**'],
   },
   resolve: {
+    // The vendored library may have its own node_modules (when it is developed in place);
+    // React must still resolve to this app's single copy.
+    dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),
+      // Same as vite.config.ts: the vendored library is consumed from source.
+      '@keyhole-koro/paper-in-paper': path.resolve(import.meta.dirname, 'vender/paper-in-paper/src/lib/index.ts'),
     },
   },
 });
