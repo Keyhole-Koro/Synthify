@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 	joblifecycle "github.com/synthify/backend/internal/platform/job/lifecycle"
 	jobstatus "github.com/synthify/backend/internal/platform/job/status"
 )

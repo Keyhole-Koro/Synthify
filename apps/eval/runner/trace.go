@@ -43,6 +43,7 @@ type TraceCollector struct {
 	stack    []string // open parent span IDs, innermost last
 }
 
+// BeginCase resets the collector sequence, event list, and span stack for a new evaluation case.
 func (c *TraceCollector) BeginCase() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -51,6 +52,7 @@ func (c *TraceCollector) BeginCase() {
 	c.stack = nil
 }
 
+// Record appends an individual trace event to the collector.
 func (c *TraceCollector) Record(event TraceEvent) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -141,6 +143,7 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
+// Events returns a copy of all trace events captured for the current case.
 func (c *TraceCollector) Events() []TraceEvent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -149,15 +152,18 @@ func (c *TraceCollector) Events() []TraceEvent {
 	return out
 }
 
+// tracingLLM intercepts LLM requests and records structured execution spans into TraceCollector.
 type tracingLLM struct {
 	next      base.LLMClient
 	collector *TraceCollector
 }
 
+// NewTracingLLM wraps a base LLMClient to record per-invocation trace events into collector.
 func NewTracingLLM(next base.LLMClient, collector *TraceCollector) base.LLMClient {
 	return &tracingLLM{next: next, collector: collector}
 }
 
+// GenerateStructured issues a structured generation request while recording input/output spans.
 func (t *tracingLLM) GenerateStructured(ctx context.Context, req llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {
 	started := time.Now().UTC()
 	out, usage, err := t.next.GenerateStructured(ctx, req)
@@ -181,6 +187,7 @@ func (t *tracingLLM) GenerateStructured(ctx context.Context, req llm.StructuredR
 	return out, usage, err
 }
 
+// GenerateText issues a plaintext generation request while recording input/output spans.
 func (t *tracingLLM) GenerateText(ctx context.Context, req llm.TextRequest) (string, llm.Usage, error) {
 	started := time.Now().UTC()
 	out, usage, err := t.next.GenerateText(ctx, req)

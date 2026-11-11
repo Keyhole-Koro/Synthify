@@ -1,78 +1,83 @@
-'use client';
-
-import { useCallback, useEffect, useState } from 'react';
-import { listWorkspaces, type Workspace } from '@/features/workspaces/api';
-import { signInUser } from '@/features/auth/userApi';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getInitialAuthUser, signInWithGoogleSession, subscribeAuthUser, type AuthUser } from '@/features/auth/session';
 import { loadWorkspaceSnapshot, saveWorkspaceSnapshot } from '@/features/workspaces/cache/workspaceSnapshotCache';
-import { type AppError } from '@/lib/errors';
-import { toAppError } from '@/lib/error_normalize';
+import { workspacesQueryOptions } from '@/features/workspaces/queries';
+import { provisionUserQueryOptions } from '@/features/auth/queries';
 import { log } from '@/lib/observability/log';
 
+/**
+ * React hook managing authentication state, reactive user subscriptions,
+ * workspace synchronizations, and Google sign-in dispatch.
+ *
+ * @returns Authentication and workspace state plus actions for retrying the
+ *   workspace query, marking a newly created workspace as verified, and
+ *   starting Google sign-in.
+ */
 export function useAuthState() {
-  const [user, setUser] = useState<AuthUser | null>(getInitialAuthUser);
-  const [loading, setLoading] = useState(true);
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [verifiedWorkspaceIds, setVerifiedWorkspaceIds] = useState<Set<string>>(() => new Set());
-  const [workspaceError, setWorkspaceError] = useState<AppError | null>(null);
-  const [authError, setAuthError] = useState<AppError | null>(null);
+  const queryClient = useQueryClient();
+  const [authUser, setUser] = useState<AuthUser | null>(getInitialAuthUser);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [createdWorkspaceIds, setCreatedWorkspaceIds] = useState<Set<string>>(() => new Set());
+  const [authError, setAuthError] = useState<Error | null>(null);
 
-  const fetchWorkspaces = useCallback(async (
-    owner: AuthUser | null = null,
-    options: { clearError?: boolean } = {},
-  ) => {
-    if (options.clearError ?? true) {
-      setWorkspaceError(null);
+  // signInUser を先に済ませ、返ってきた課金アカウント ID をユーザーに付ける
+  const provision = useQuery(provisionUserQueryOptions(authUser?.id));
+  const accountId = provision.data?.user?.accountId;
+  const user = useMemo(
+    () => (authUser && accountId ? { ...authUser, accountId } : authUser),
+    [authUser, accountId],
+  );
+
+  // TanStack Query でワークスペース一覧を取得・同期。スナップショットは取得までの
+  // 仮表示（placeholderData）にとどめ、取得そのものは止めない
+  const {
+    data: workspaces = [],
+    isFetched,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    ...workspacesQueryOptions(authUser?.id, provision.isSuccess || provision.isError),
+    placeholderData: () => (authUser ? loadWorkspaceSnapshot(authUser) : []),
+  });
+
+  // キャッシュが更新されたらローカルスナップショットにも自動永続化
+  useEffect(() => {
+    if (authUser && isFetched && workspaces.length > 0) {
+      saveWorkspaceSnapshot(authUser, workspaces);
     }
-    try {
-      // signInUser provisions users/accounts/account_users. ListWorkspaces and
-      // TreeService authz both depend on account_users, so keep this serialized
-      // to avoid a reload/cold-start race where the workspace exists but the
-      // current user is not attached to an account yet.
-      const provision = await signInUser();
-      const ws = await listWorkspaces();
-      
-      const accountId = provision.user?.accountId;
-      if (accountId) {
-        setUser((prev) => prev ? { ...prev, accountId } : null);
+  }, [authUser, isFetched, workspaces]);
+
+  // 検証済みワークスペースIDは、API取得完了済みまたは手動マークされたIDから導出
+  const verifiedWorkspaceIds = useMemo(() => {
+    const ids = new Set(createdWorkspaceIds);
+    if (isFetched) {
+      for (const ws of workspaces) {
+        ids.add(ws.workspaceId);
       }
-      
-      setWorkspaces(ws);
-      setVerifiedWorkspaceIds(new Set(ws.map((workspace) => workspace.workspaceId)));
-      saveWorkspaceSnapshot(owner, ws);
-      setWorkspaceError(null);
-    } catch (err) {
-      log.error('Failed to provision/list workspaces', { source: 'auth_fetch_workspaces' }, err);
-      setVerifiedWorkspaceIds(new Set());
-      setWorkspaceError(toAppError(err));
     }
-  }, []);
+    return ids;
+  }, [createdWorkspaceIds, isFetched, workspaces]);
 
   useEffect(() => {
-    return subscribeAuthUser(async (nextUser) => {
+    return subscribeAuthUser((nextUser) => {
       setUser(nextUser);
+      setAuthLoading(false);
       if (!nextUser) {
-        setWorkspaces([]);
-        setVerifiedWorkspaceIds(new Set());
-        setLoading(false);
+        setCreatedWorkspaceIds(new Set());
         setAuthError(null);
-        return;
+        queryClient.removeQueries({ queryKey: ['workspaces'] });
+        queryClient.removeQueries({ queryKey: ['auth', 'provision'] });
       }
-
-      setLoading(true);
-      setVerifiedWorkspaceIds(new Set());
-      setWorkspaces(loadWorkspaceSnapshot(nextUser));
-      await fetchWorkspaces(nextUser);
-      setLoading(false);
     });
-  }, [fetchWorkspaces]);
+  }, [queryClient]);
 
   const retryWorkspaces = useCallback(async () => {
-    await fetchWorkspaces(user, { clearError: false });
-  }, [fetchWorkspaces, user]);
+    await refetch();
+  }, [refetch]);
 
   const markWorkspaceVerified = useCallback((workspaceId: string) => {
-    setVerifiedWorkspaceIds((prev) => {
+    setCreatedWorkspaceIds((prev) => {
       if (prev.has(workspaceId)) return prev;
       const next = new Set(prev);
       next.add(workspaceId);
@@ -81,16 +86,18 @@ export function useAuthState() {
   }, []);
 
   const handleGoogleSubmit = useCallback(async () => {
-    setLoading(true);
+    setAuthLoading(true);
     setAuthError(null);
-    try {
-      await signInWithGoogleSession();
-    } catch (err) {
-      log.error('Google sign-in failed', { source: 'auth_google_signin' }, err);
-      setAuthError(toAppError(err));
-      setLoading(false);
+    const result = await signInWithGoogleSession();
+    if (!result.ok) {
+      log.error('Google sign-in failed', { source: 'auth_google_signin' }, result.error);
+      setAuthError(new Error(result.error.message));
     }
+    setAuthLoading(false);
   }, []);
+
+  const workspaceError = queryError ?? null;
+  const loading = authLoading || (Boolean(authUser) && !isFetched && workspaces.length === 0);
 
   return {
     user,
@@ -98,7 +105,6 @@ export function useAuthState() {
     workspaces,
     workspaceError,
     authError,
-    setWorkspaces,
     verifiedWorkspaceIds,
     markWorkspaceVerified,
     handleGoogleSubmit,

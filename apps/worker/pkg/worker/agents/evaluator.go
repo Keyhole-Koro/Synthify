@@ -8,16 +8,20 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 )
 
+// evaluationPassScore is the minimum quality score required for a generated tree to pass review.
 const evaluationPassScore = 70
 
+// Evaluator assesses the structural and semantic quality of generated knowledge trees using an LLM.
 type Evaluator struct {
 	llm llm.Client
 }
 
+// NewEvaluator instantiates an Evaluator with the specified LLM client.
 func NewEvaluator(client llm.Client) *Evaluator {
 	return &Evaluator{llm: client}
 }
 
+// evaluationOutput represents the schema of an LLM tree quality evaluation.
 type evaluationOutput struct {
 	Score    int      `json:"score"`
 	Passed   bool     `json:"passed"`
@@ -25,6 +29,7 @@ type evaluationOutput struct {
 	Findings []string `json:"findings"`
 }
 
+// EvaluateTree scores a serialized knowledge tree for coverage, grounding, and hierarchical coherence.
 func (e *Evaluator) EvaluateTree(ctx context.Context, treeData string) (*evaluationOutput, error) {
 	if e.llm == nil {
 		return &evaluationOutput{Score: 0, Passed: false, Summary: "LLM not configured"}, nil

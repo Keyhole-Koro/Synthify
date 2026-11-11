@@ -1,4 +1,3 @@
-'use client';
 
 import {
   GoogleAuthProvider,
@@ -10,7 +9,17 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { log } from '@/lib/observability/log';
+import { ok, err, type Result } from '@/shared/result';
+import { toAuthFailure, type AuthFailure } from './authError';
 
+/**
+ * Normalized user profile stored in application state.
+ *
+ * @property id Firebase UID used as the stable user key.
+ * @property email Primary email address, empty when Firebase does not provide one.
+ * @property name Display name, falling back to email and then `Anonymous User`.
+ * @property accountId Optional billing/account identifier loaded by the API layer.
+ */
 export type AuthUser = {
   id: string;
   email: string;
@@ -18,6 +27,12 @@ export type AuthUser = {
   accountId?: string;
 };
 
+/**
+ * Maps a Firebase User instance to the application AuthUser shape.
+ *
+ * @param user - Firebase user or null.
+ * @returns Mapped AuthUser or null.
+ */
 function fromFirebaseUser(user: User | null): AuthUser | null {
   if (!user) return null;
   return {
@@ -27,22 +42,36 @@ function fromFirebaseUser(user: User | null): AuthUser | null {
   };
 }
 
+/**
+ * Returns the currently signed-in Firebase user synchronously if already initialized.
+ *
+ * @returns Current AuthUser or null. This does not wait for Firebase Auth initialization;
+ *   callers needing eventual state should use subscribeAuthUser.
+ */
 export function getInitialAuthUser(): AuthUser | null {
   return fromFirebaseUser(auth.currentUser);
 }
 
-// onAuthStateChanged が走るまで Firebase のセッションが存在するかは分からないが、
-// 「直前のロードで authed だったか」は同期的に判定したい場面がある (例: SSR-like
-// 初期描画で anonymous default を出すか、loading を待つかの判断)。Firebase の
-// IndexedDB を覗くより、ログイン/ログアウトに同期して localStorage のマーカーを
-// 更新する方が単純で確実なため、このフラグを用意している。
+// Key for persisting a fast synchronous session hint in localStorage.
+// Allows initial UI rendering to know whether an authenticated session existed on last load.
 const SESSION_HINT_KEY = 'synthify:has_session';
 
+/**
+ * Checks whether an active session was previously recorded in local storage.
+ *
+ * @returns True if the browser contains the local session hint; always false during SSR
+ *   or when no authenticated session was recorded.
+ */
 export function hasPersistedSessionHint(): boolean {
   if (typeof window === 'undefined') return false;
   return window.localStorage.getItem(SESSION_HINT_KEY) === '1';
 }
 
+/**
+ * Updates or removes the session hint in local storage.
+ *
+ * @param present - Whether an authenticated user is present.
+ */
 function writeSessionHint(present: boolean) {
   if (typeof window === 'undefined') return;
   if (present) {
@@ -52,6 +81,12 @@ function writeSessionHint(present: boolean) {
   }
 }
 
+/**
+ * Subscribes to Firebase Auth state changes, updating localStorage session hints on change.
+ *
+ * @param callback - Listener called with the updated AuthUser or null.
+ * @returns Unsubscribe function.
+ */
 export function subscribeAuthUser(callback: (user: AuthUser | null) => void): Unsubscribe {
   return onAuthStateChanged(auth, (user) => {
     writeSessionHint(user !== null);
@@ -59,15 +94,37 @@ export function subscribeAuthUser(callback: (user: AuthUser | null) => void): Un
   });
 }
 
-export async function signInWithGoogleSession(): Promise<void> {
-  const provider = new GoogleAuthProvider();
-  await signInWithPopup(auth, provider);
+/**
+ * Initiates Google OAuth popup sign-in, returning a Result with AuthFailure on error.
+ *
+ * @returns A successful empty Result after Firebase resolves the popup, or an AuthFailure
+ *   Result when the user cancels or Firebase rejects the sign-in.
+ */
+export async function signInWithGoogleSession(): Promise<Result<void, AuthFailure>> {
+  try {
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    return ok(undefined);
+  } catch (caught) {
+    return err(toAuthFailure(caught));
+  }
 }
 
+/**
+ * Signs the user out of Firebase Auth and clears Firebase's active user state.
+ *
+ * @returns Promise fulfilled after Firebase has completed sign-out.
+ */
 export async function signOutSession(): Promise<void> {
   await signOut(auth);
 }
 
+/**
+ * Obtains an Authorization header containing the current user's Firebase ID token.
+ *
+ * @returns Authorization header map with a fresh Bearer token, or an empty object when no
+ *   user is currently signed in. Token acquisition errors are propagated to the caller.
+ */
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   if (!auth.currentUser) {
     log.warn('getAuthHeaders called with no currentUser', { source: 'auth_headers' });

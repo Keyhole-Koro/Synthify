@@ -2,10 +2,9 @@ package handler
 
 import (
 	"context"
-	"errors"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
@@ -13,25 +12,30 @@ import (
 // The consumer owns this interface so the application layer does not need to
 // define an interface for its own concrete implementation.
 type ItemUsecase interface {
+	// GetItem retrieves a single taxonomy item by ID.
 	GetItem(ctx context.Context, itemID, workspaceID, userID string) (*domain.Item, error)
+	// GetItemEvidence retrieves evidence records supporting the specified item.
 	GetItemEvidence(ctx context.Context, itemID, workspaceID, userID string) (*domain.ItemEvidence, error)
+	// CreateItem creates a new taxonomy item under an optional parent item.
 	CreateItem(ctx context.Context, workspaceID, label, description, parentID, userID string) (*domain.Item, error)
+	// ApproveAlias confirms an alias association with a canonical item.
 	ApproveAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
+	// RejectAlias rejects an alias suggestion for a canonical item.
 	RejectAlias(ctx context.Context, workspaceID, canonicalItemID, aliasItemID, userID string) error
 }
 
+// ItemHandler implements Connect-RPC endpoints for managing taxonomy items and aliases.
 type ItemHandler struct {
 	service ItemUsecase
 }
 
+// NewItemHandler creates a new ItemHandler with the given ItemUsecase service.
 func NewItemHandler(service ItemUsecase) *ItemHandler {
 	return &ItemHandler{service: service}
 }
 
+// GetTreeEntityDetail retrieves detailed information and evidence for a specific tree entity/item.
 func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Request[appv1.GetTreeEntityDetailRequest]) (*connect.Response[appv1.GetTreeEntityDetailResponse], error) {
-	if req.Msg.GetTargetRef() == nil || req.Msg.GetTargetRef().GetId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("target_ref.id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -57,10 +61,8 @@ func (h *ItemHandler) GetTreeEntityDetail(ctx context.Context, req *connect.Requ
 	return connect.NewResponse(&appv1.GetTreeEntityDetailResponse{Detail: detail}), nil
 }
 
+// CreateItem creates a new taxonomy node/item in the workspace.
 func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1.CreateItemRequest]) (*connect.Response[appv1.CreateItemResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetLabel() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id and label are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -72,10 +74,8 @@ func (h *ItemHandler) CreateItem(ctx context.Context, req *connect.Request[appv1
 	return connect.NewResponse(&appv1.CreateItemResponse{Item: toProtoItem(item)}), nil
 }
 
+// ApproveAlias approves a proposed alias relationship between two items.
 func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[appv1.ApproveAliasRequest]) (*connect.Response[appv1.ApproveAliasResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalItemId() == "" || req.Msg.GetAliasItemId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_item_id, and alias_item_id are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -90,10 +90,8 @@ func (h *ItemHandler) ApproveAlias(ctx context.Context, req *connect.Request[app
 	}), nil
 }
 
+// RejectAlias rejects a proposed alias relationship between two items.
 func (h *ItemHandler) RejectAlias(ctx context.Context, req *connect.Request[appv1.RejectAliasRequest]) (*connect.Response[appv1.RejectAliasResponse], error) {
-	if req.Msg.GetWorkspaceId() == "" || req.Msg.GetCanonicalItemId() == "" || req.Msg.GetAliasItemId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("workspace_id, canonical_item_id, and alias_item_id are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err

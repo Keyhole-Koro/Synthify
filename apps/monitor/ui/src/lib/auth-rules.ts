@@ -1,14 +1,26 @@
-// 認可判定の純粋ロジック。Next / Firebase / env に依存しないのでそのまま単体
-// テストできる。auth-server.ts (Firebase 検証 + NextResponse) から利用する。
+/**
+ * Pure authorization and token parsing helper functions independent of runtime frameworks.
+ *
+ * @module
+ */
 
-// Authorization ヘッダから Bearer トークンを取り出す。無効なら空文字。
+/**
+ * Extracts the bearer token string from an Authorization header value.
+ *
+ * @param header Raw Authorization header string (e.g. "Bearer <token>").
+ * @returns The extracted token string, or an empty string if malformed or missing.
+ */
 export function parseBearer(header: string | null | undefined): string {
   const [scheme, token] = (header ?? '').split(' ');
   if (!token || scheme?.toLowerCase() !== 'bearer') return '';
   return token.trim();
 }
-
-// admin メールの CSV を、trim + lowercase + 空要素除去した Set にする。
+/**
+ * Parses a comma-separated list of admin email addresses into a normalized lowercase set.
+ *
+ * @param csv Comma-separated admin email list.
+ * @returns Set of normalized, trimmed lowercase email strings.
+ */
 export function parseAdminEmails(csv: string): Set<string> {
   return new Set(
     csv
@@ -18,7 +30,14 @@ export function parseAdminEmails(csv: string): Set<string> {
   );
 }
 
-// email が admin 集合に含まれるか。admin が空なら常に false = fail-closed。
+/**
+ * Evaluates whether an email address belongs to the authorized admin set.
+ * Fails closed by returning false if the admin set is empty or the email is omitted.
+ *
+ * @param email User email address to evaluate.
+ * @param admins Normalized set of allowed admin emails.
+ * @returns True if the email is present in the admin set.
+ */
 export function isAdmin(email: string | null | undefined, admins: Set<string>): boolean {
   const normalized = (email ?? '').trim().toLowerCase();
   return admins.size > 0 && normalized !== '' && admins.has(normalized);

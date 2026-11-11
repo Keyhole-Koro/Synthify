@@ -50,6 +50,7 @@ func JobTypeFromDB(s string) appv1.JobType {
 	return dbToJobType[s]
 }
 
+// reverseStateMap inverts a map of JobLifecycleState to string.
 func reverseStateMap(m map[appv1.JobLifecycleState]string) map[string]appv1.JobLifecycleState {
 	out := make(map[string]appv1.JobLifecycleState, len(m))
 	for k, v := range m {
@@ -58,6 +59,7 @@ func reverseStateMap(m map[appv1.JobLifecycleState]string) map[string]appv1.JobL
 	return out
 }
 
+// reverseTypeMap inverts a map of JobType to string.
 func reverseTypeMap(m map[appv1.JobType]string) map[string]appv1.JobType {
 	out := make(map[string]appv1.JobType, len(m))
 	for k, v := range m {

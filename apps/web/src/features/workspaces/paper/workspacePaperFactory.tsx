@@ -1,40 +1,52 @@
-import React from 'react';
 import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { WorkspacePaper, WORKSPACE_PAPER_HUE } from '@/features/workspaces/paper/WorkspacePaper';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
 import { WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import type { Workspace } from '@/features/workspaces/api';
 
+/**
+ * External dependencies and callbacks required to construct workspace paper definitions.
+ */
 export interface WorkspacePaperFactoryDeps {
-  // getWorkspace looks up the workspace by id from whatever source the
-  // orchestrator considers authoritative (the official list, falling back
-  // to the optimistic newly-created cache).
+  /** Accessor to look up the authoritative workspace record by ID. */
   getWorkspace: (workspaceId: string) => Workspace | undefined;
-  // isLoading reports whether the workspace list is still being fetched. While
-  // it is, a getWorkspace miss is expected (the list just hasn't arrived yet),
-  // so we render an empty placeholder instead of the "not found" message.
+  /** Accessor reporting whether workspace data is currently loading. */
   isLoading: () => boolean;
+  /** Accessor to get a fallback display name for a workspace ID. */
   getWorkspaceName: (id: string) => string;
+  /** Accessor for the active runtime/job state of a workspace. */
   getRuntimeState: (workspaceId: string) => WorkspacePaperRuntimeState;
+  /** Callback to upload a document to the workspace. */
   onUploadFile: (workspaceId: string, file: File) => Promise<{ jobId: string; documentId: string }>;
+  /** Callback to rename the workspace. */
   onRenameWorkspace: (workspaceId: string, name: string) => Promise<Workspace>;
+  /** Callback to update workspace name based on AI suggestions. */
   onSuggestedWorkspaceName: (workspaceId: string, suggestedName: string) => Promise<void> | void;
+  /** Callback to delete the workspace. */
   onDeleteWorkspace: (workspaceId: string) => Promise<void>;
+  /** Callback invoked when an active processing job completes. */
   onProcessingComplete: (workspaceId: string) => Promise<void> | void;
 }
 
-// WorkspaceRootNode carries the workspace's single root node so the paper can
-// render its content (the workspace's cover report) as a CSS-isolated iframe.
+/**
+ * Root node projection data representing the synthesized workspace summary report.
+ */
 export interface WorkspaceRootNode {
+  /** Node identifier. */
   id: string;
+  /** Synthesized HTML content. */
   content: string;
+  /** Optional custom CSS stylesheet. */
   overrideCss?: string;
 }
 
-// createWorkspacePaperFactory returns the synchronous Paper builder used by
-// projectWorkspacePapers and handleOpenWorkspace. It is a pure function over
-// its deps so the orchestrator can memoize it once at hook setup time. The
-// runtime state lookup is deferred to render time so refs stay live.
+/**
+ * Creates a synchronous Paper builder function for generating workspace container papers
+ * on the PaperCanvas.
+ *
+ * @param deps - Factory dependencies and event handlers.
+ * @returns A builder function accepting `workspaceId`, `childPapers`, and optional `rootNode`.
+ */
 export function createWorkspacePaperFactory(deps: WorkspacePaperFactoryDeps) {
   return function buildWsPaper(
     workspaceId: string,

@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // GetModelPricing returns the pricing row for the given model.
@@ -35,8 +35,8 @@ func (s *Store) GetModelPricing(ctx context.Context, model string) (*domain.Mode
 
 // RecordUsageAccounting persists the raw usage event and updates the daily
 // rollup and account accumulator atomically. Returns (eventID, budgetExceeded, error).
-// The budget is considered exceeded when budget_limit_minor > 0 and the account's
-// accumulated cost exceeds it after this event.
+// The budget is considered exceeded when budget_limit_minor > 0 and the cost in
+// the current budget period (domain.BudgetPeriodStart) exceeds it after this event.
 func (s *Store) RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent, date string) (string, bool, error) {
 	now := nowTime()
 	if ev.CreatedAt == "" {
@@ -94,26 +94,27 @@ func (s *Store) RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent
 		return "", false, err
 	}
 
-	// 3. Update account accumulator and check budget.
-	var budgetLimitMinor int64
-	var exceeded bool
+	// 3. Check the budget against this period's cost. The row lock from
+	// GetAccountBudgetForUsage keeps concurrent records for the account serial.
+	exceeded := false
 	budgetRow, err := qtx.GetAccountBudgetForUsage(ctx, ev.AccountID)
-	// If the UPDATE returns no rows (account missing) or budget columns not returned, ignore.
 	if err != nil && err != sql.ErrNoRows {
 		return "", false, err
 	}
-
-	if err == nil {
-		budgetLimitMinor = budgetRow.BudgetLimitMinor
-		exceeded = budgetRow.BudgetExceeded
-	}
-	if budgetLimitMinor > 0 {
-		// Sum all costs for the account to check budget.
-		totalMinor, sumErr := qtx.SumUsageCostByAccount(ctx, ev.AccountID)
-		if sumErr == nil && totalMinor > budgetLimitMinor {
-			exceeded = true
-			_ = qtx.MarkAccountBudgetExceeded(ctx, ev.AccountID)
+	if err == nil && budgetRow.BudgetLimitMinor > 0 {
+		periodStart := domain.BudgetPeriodStart(
+			formatNullTime(budgetRow.CurrentPeriodStartedAt),
+			formatNullTime(budgetRow.CurrentPeriodEnd),
+			now,
+		)
+		periodMinor, err := qtx.SumUsageCostByAccountSince(ctx, sqlcgen.SumUsageCostByAccountSinceParams{
+			AccountID: ev.AccountID,
+			CreatedAt: periodStart,
+		})
+		if err != nil {
+			return "", false, err
 		}
+		exceeded = domain.BudgetExceeded(budgetRow.BudgetLimitMinor, periodMinor)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -343,10 +344,12 @@ func formatMinorCost(minor int64, currency string) string {
 	return neg + itoa(whole) + "." + pad2(frac)
 }
 
+// itoa formats an int64 integer into a decimal string.
 func itoa(n int64) string {
 	return string(appendInt(nil, n))
 }
 
+// appendInt appends the decimal representation of n to b and returns the result.
 func appendInt(b []byte, n int64) []byte {
 	if n == 0 {
 		return append(b, '0')
@@ -361,6 +364,7 @@ func appendInt(b []byte, n int64) []byte {
 	return append(b, buf[pos:]...)
 }
 
+// pad2 formats a non-negative integer under 100 with zero padding to two digits.
 func pad2(n int64) string {
 	if n < 10 {
 		return "0" + string([]byte{byte('0' + n)})
@@ -375,14 +379,14 @@ func (s *Store) GrantCredit(ctx context.Context, grant *domain.CreditGrant) erro
 		grantedAt = nowTime()
 	}
 	return s.q().GrantCredit(ctx, sqlcgen.GrantCreditParams{
-		CreditID:   grant.CreditID,
-		AccountID:  grant.AccountID,
-		CreditType: string(grant.CreditType),
+		CreditID:    grant.CreditID,
+		AccountID:   grant.AccountID,
+		CreditType:  string(grant.CreditType),
 		AmountMinor: grant.AmountMinor,
-		Currency:   grant.Currency,
-		Note:       grant.Note,
-		GrantedBy:  grant.GrantedBy,
-		GrantedAt:  grantedAt,
+		Currency:    grant.Currency,
+		Note:        grant.Note,
+		GrantedBy:   grant.GrantedBy,
+		GrantedAt:   grantedAt,
 	})
 }
 

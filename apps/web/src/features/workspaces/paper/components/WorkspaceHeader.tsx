@@ -1,22 +1,45 @@
-import React from 'react';
 
+/**
+ * Props for the {@link WorkspaceHeader} component.
+ */
 interface WorkspaceHeaderProps {
+  /** Current display name of the workspace. */
   workspaceName: string;
+  /** Temporary name string currently being edited. */
   draftName: string;
+  /** Whether the inline renaming input field is active. */
   editingName: boolean;
+  /** Whether a rename submission is in flight. */
   savingName: boolean;
+  /** Total count of child documents or root nodes belonging to the workspace. */
   childItemsCount: number;
+  /** Whether an analysis job is currently active. */
   isRunning: boolean;
+  /** Whether the latest job ended in failure. */
   isFailed: boolean;
+  /** Percentage progress of the active job. */
   jobProgress?: number;
+  /** Whether the latest job completed in the immediate past. */
   isJustCompleted: boolean;
+  /** Callback to enter renaming mode. */
   onStartRename: () => void;
+  /** Callback fired as the user types in the rename input. */
   onDraftNameChange: (name: string) => void;
+  /** Callback to commit the renamed draft name. */
   onCommitName: () => void;
+  /** Callback to abort renaming and revert draft changes. */
   onCancelRename: () => void;
+  /** Whether the user has permission to edit the workspace name. */
   canEdit?: boolean;
 }
 
+/**
+ * Renders the top title header, document count, and live job status indicator
+ * for a workspace paper that contains tree nodes or documents.
+ *
+ * @param props - Component properties.
+ * @returns The rendered workspace header.
+ */
 export function WorkspaceHeader({
   workspaceName,
   draftName,
@@ -48,6 +71,7 @@ export function WorkspaceHeader({
             }}
           >
             <input
+              aria-label="ワークスペース名"
               value={draftName}
               maxLength={64}
               disabled={savingName}

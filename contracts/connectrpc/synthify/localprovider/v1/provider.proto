@@ -1,0 +1,171 @@
+syntax = "proto3";
+
+package synthify.localprovider.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/synthify/backend/internal/gen/synthify/localprovider/v1;localproviderv1";
+
+service LocalProviderService {
+  rpc Check(CheckRequest) returns (CheckResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+  rpc GenerateText(GenerateTextRequest) returns (GenerateTextResponse);
+  rpc GenerateStructured(GenerateStructuredRequest) returns (GenerateStructuredResponse);
+  rpc CancelGeneration(CancelGenerationRequest) returns (CancelGenerationResponse) {
+    option idempotency_level = IDEMPOTENT;
+  }
+}
+
+message CheckRequest {}
+
+message CheckResponse {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_READY = 1;
+    STATUS_NOT_READY = 2;
+  }
+
+  Status status = 1 [(buf.validate.field).enum = {
+    in: [1, 2]
+  }];
+}
+
+message GetCapabilitiesRequest {}
+
+message ModelCapability {
+  string id = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+  bool supports_structured = 2;
+}
+
+message GetCapabilitiesResponse {
+  string server_version = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 64
+  }];
+  string default_model_id = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+  repeated ModelCapability models = 3 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 64
+  }];
+}
+
+message SourceFile {
+  // The handler also rejects absolute paths, parent traversal, and symlink escapes.
+  string relative_path = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 1024
+  }];
+  string filename = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 255
+  }];
+  string mime_type = 3 [(buf.validate.field).string.max_bytes = 255];
+}
+
+message GenerateTextRequest {
+  string generation_id = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+  string model_id = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+  string system_prompt = 3 [(buf.validate.field).string.max_bytes = 1048576];
+  string user_prompt = 4 [(buf.validate.field).string.max_bytes = 1048576];
+  repeated SourceFile source_files = 5 [(buf.validate.field).repeated.max_items = 32];
+}
+
+message Usage {
+  string model = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+  }];
+  int64 input_tokens = 2 [(buf.validate.field).int64.gte = 0];
+  int64 output_tokens = 3 [(buf.validate.field).int64.gte = 0];
+}
+
+message GenerateTextResponse {
+  string text = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 16777216
+  }];
+  Usage usage = 2 [(buf.validate.field).required = true];
+}
+
+message GenerateStructuredRequest {
+  string generation_id = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+  string model_id = 2 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+  string system_prompt = 3 [(buf.validate.field).string.max_bytes = 1048576];
+  string user_prompt = 4 [(buf.validate.field).string.max_bytes = 1048576];
+  repeated SourceFile source_files = 5 [(buf.validate.field).repeated.max_items = 32];
+  bytes json_schema = 6 [(buf.validate.field).bytes = {
+    min_len: 2
+    max_len: 1048576
+  }];
+}
+
+message GenerateStructuredResponse {
+  bytes json_payload = 1 [(buf.validate.field).bytes = {
+    min_len: 2
+    max_len: 16777216
+  }];
+  Usage usage = 2 [(buf.validate.field).required = true];
+}
+
+message CancelGenerationRequest {
+  string generation_id = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  }];
+}
+
+message CancelGenerationResponse {
+  // False means already completed or unknown; both are successful idempotent outcomes.
+  bool found = 1;
+}
+
+message LocalProviderErrorDetail {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_PROVIDER_QUOTA_EXHAUSTED = 1;
+    REASON_RATE_LIMITED = 2;
+    REASON_AUTHENTICATION_REQUIRED = 3;
+    REASON_INVALID_STRUCTURED_OUTPUT = 4;
+    REASON_INTERNAL = 5;
+  }
+
+  Reason reason = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: 0
+  }];
+  // A rate-limited generation is retryable only when this is false.
+  bool turn_started = 2;
+  int64 retry_after_ms = 3 [(buf.validate.field).int64 = {
+    gte: 0
+    lte: 60000
+  }];
+}

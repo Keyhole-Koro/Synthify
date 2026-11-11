@@ -1,4 +1,3 @@
-'use client';
 
 import { useMemo } from 'react';
 import { doc } from 'firebase/firestore';
@@ -8,6 +7,13 @@ import type { FirestoreJobStatus } from '@/features/jobs/firestore/firestoreJobS
 
 export type { FirestoreJobStatus } from '@/features/jobs/firestore/firestoreJobStatus.generated';
 
+/**
+ * Subscribes in real time to the Firestore status document of a specific background processing job.
+ *
+ * @param workspaceId - Workspace containing the job.
+ * @param jobId - Job ULID identifier, or null.
+ * @returns Status document data and snapshot error.
+ */
 export function useJobStatus(workspaceId: string, jobId: string | null) {
   const ref = useMemo(
     () => (workspaceId && jobId ? doc(db, 'workspaces', workspaceId, 'jobs', jobId) : null),

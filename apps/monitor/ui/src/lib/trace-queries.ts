@@ -1,5 +1,20 @@
+/**
+ * PostgreSQL query helpers for reconstructing job tool call execution traces.
+ *
+ * @module
+ */
 import type { Pool } from 'pg';
 
+/**
+ * Record of an individual tool call mutation span within a job.
+ * @property mutationId Mutation-log record identifier.
+ * @property toolName Tool or target name associated with the mutation.
+ * @property durationMs Recorded duration in milliseconds, or 0 when unavailable.
+ * @property inputJson JSON payload before the tool call.
+ * @property outputJson JSON payload after the tool call.
+ * @property isError Whether the output contains a tool error.
+ * @property createdAt ISO-8601 creation timestamp.
+ */
 export interface ToolCallEntry {
   mutationId: string;
   toolName: string;
@@ -10,11 +25,23 @@ export interface ToolCallEntry {
   createdAt: string;
 }
 
+/**
+ * Complete tool invocation trace sequence for a job execution.
+ * @property jobId Job identifier used for the query.
+ * @property toolCalls Tool calls ordered by their creation timestamp.
+ */
 export interface JobTraceData {
   jobId: string;
   toolCalls: ToolCallEntry[];
 }
 
+/**
+ * Queries tool call mutation records for a given job, reconstructing execution timeline and input/output payloads.
+ *
+ * @param pool PostgreSQL client pool.
+ * @param jobId Target job UUID.
+ * @returns Promise resolving to JobTraceData.
+ */
 export async function queryJobTrace(pool: Pool, jobId: string): Promise<JobTraceData> {
   const { rows } = await pool.query(
     `SELECT mutation_id, target_id, before_json, after_json, provenance_json, created_at
@@ -44,6 +71,7 @@ export async function queryJobTrace(pool: Pool, jobId: string): Promise<JobTrace
   return { jobId, toolCalls };
 }
 
+/** Safely parses a JSON string into an object, returning null on syntax errors. */
 function parseJson(s: string): Record<string, unknown> | null {
   try {
     return JSON.parse(s) as Record<string, unknown>;

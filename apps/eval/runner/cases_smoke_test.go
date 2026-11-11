@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // chunkHeadingLLM is a prompt-driven fake: it echoes the chunk headings the
@@ -46,7 +46,7 @@ func (chunkHeadingLLM) GenerateText(context.Context, llm.TextRequest) (string, l
 }
 
 func itoa(i int) string {
-	return string(rune('0'+i%10)) // single-digit ids are enough for the fixtures
+	return string(rune('0' + i%10)) // single-digit ids are enough for the fixtures
 }
 
 // TestCommittedCasesPassWithFakeLLM runs every real case in apps/eval/cases

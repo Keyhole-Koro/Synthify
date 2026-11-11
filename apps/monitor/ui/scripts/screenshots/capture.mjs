@@ -4,7 +4,7 @@
 //   で素通りさせる (本番ビルドでは効かない)。
 // - 画面データは実 DB ではなく fixtures/*.json をネットワークインターセプトで返す。
 //
-// 使い方: `bun run screenshots` (next dev を別で起動しておくか、runner が起動する)。
+// 使い方: `bun run screenshots` (vite dev を別で起動しておくか、runner が起動する)。
 // 単体実行: BASE_URL=http://127.0.0.1:5174 node scripts/screenshots/capture.mjs
 
 import { chromium } from 'playwright-core';
@@ -58,7 +58,7 @@ async function installMocks(page) {
 
 async function hideDevTools(page) {
   await page.addStyleTag({
-    content: `nextjs-portal, [data-nextjs-dev-tools-button], #__next-dev-tools-indicator { display: none !important; }`,
+    content: `[data-tsr-devtools], .tsqd-parent-container { display: none !important; }`,
   });
 }
 

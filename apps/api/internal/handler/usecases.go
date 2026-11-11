@@ -3,8 +3,8 @@ package handler
 import (
 	"context"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // BillingUsecase is the application behavior required by BillingHandler.

@@ -152,7 +152,7 @@ check_frontend() {
     return 1
   fi
 
-  if ! grep -Eiq '<html|<!doctype html|__next|<script' "$body"; then
+  if ! grep -Eiq '<html|<!doctype html|<script' "$body"; then
     echo "smoke-test: frontend response did not look like an HTML app shell" >&2
     sed -n '1,40p' "$body" >&2 || true
     rm -f "$body"

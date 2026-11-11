@@ -6,6 +6,11 @@ import { useEffect, useState } from 'react';
  * While the job runs it ticks every second off `startedAt`. Once the job is
  * terminal (succeeded/failed) it freezes at `completedAt - startedAt`. Returns
  * null until `startedAt` is known (e.g. while still queued).
+ *
+ * @param startedAt - ISO-8601 start timestamp, or undefined while the job is queued.
+ * @param completedAt - ISO-8601 terminal timestamp, or undefined while the job is running.
+ * @param isTerminal - Whether the caller has observed a terminal job state.
+ * @returns Elapsed duration formatted as `M:SS`, or null when no valid start timestamp exists.
  */
 export function useElapsedTime(
   startedAt: string | undefined,
@@ -36,6 +41,9 @@ export function useElapsedTime(
   return formatElapsed(seconds);
 }
 
+/**
+ * Formats a total duration in seconds as "M:SS".
+ */
 function formatElapsed(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;

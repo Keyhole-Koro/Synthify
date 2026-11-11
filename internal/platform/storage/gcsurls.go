@@ -1,3 +1,4 @@
+// Package storage provides Google Cloud Storage (GCS) URL generation, validation, and object naming utilities.
 package storage
 
 import (
@@ -40,6 +41,8 @@ func DocumentPrefix(documentID string) string {
 	return documentID + "/"
 }
 
+// ValidateBaseURL checks that the provided GCS base URL is valid, having a scheme
+// and host, but without query parameters, fragments, or path components.
 func ValidateBaseURL(raw string) error {
 	parsed, err := url.Parse(strings.TrimSpace(raw))
 	if err != nil {
@@ -58,11 +61,15 @@ func ValidateBaseURL(raw string) error {
 	return nil
 }
 
+// BuildDocumentUploadURL constructs the GCS upload endpoint URL for direct media upload
+// of a document under the specified workspace and object name.
 func BuildDocumentUploadURL(baseURL, bucket, workspaceID, objectName string) string {
 	root := strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/upload/storage/v1/b/%s/o?uploadType=media&name=%s/%s", root, bucket, workspaceID, objectName)
 }
 
+// BuildDocumentSourceURL constructs the media download URL for the original document
+// under the specified workspace and document ID.
 func BuildDocumentSourceURL(baseURL, bucket, workspaceID, documentID string) string {
 	root := strings.TrimRight(baseURL, "/")
 	return fmt.Sprintf("%s/storage/v1/b/%s/o/%s%%2F%s?alt=media", root, bucket, workspaceID, documentID)

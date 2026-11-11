@@ -16,7 +16,7 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 //go:embed templates/*.tmpl
@@ -78,6 +78,7 @@ func FromDir(dir string) (*Renderer, error) {
 	return fromFS(nil, dir)
 }
 
+// fromFS reads system and user prompt templates from an embedded or filesystem directory and compiles them.
 func fromFS(efs fs.FS, dir string) (*Renderer, error) {
 	read := func(name string) ([]byte, error) {
 		if efs != nil {

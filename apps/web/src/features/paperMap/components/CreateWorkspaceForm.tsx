@@ -1,11 +1,24 @@
 import React from 'react';
 
+/**
+ * Props for the {@link CreateWorkspaceForm} button component.
+ */
 interface CreateWorkspaceFormProps {
+  /** Indicates if a workspace creation request is currently in progress. */
   creating: boolean;
+  /** Indicates if initial or workspace listing data is currently loading. */
   loading: boolean;
+  /** Callback invoked when the user triggers workspace creation. */
   onCreate: () => void;
 }
 
+/**
+ * Renders a dashed action button allowing users to quickly initialize
+ * a new workspace in the paper canvas navigation view.
+ *
+ * @param props - Component properties.
+ * @returns The rendered workspace creation trigger button.
+ */
 export function CreateWorkspaceForm({
   creating,
   loading,

@@ -27,7 +27,7 @@ import (
 // job so dynamic tools (DB-resolved, workspace-scoped) can merge with the
 // static builtin set without leaking across jobs. For builtin-only runs (no
 // DynamicSource, or empty workspace) the agent's Tools set is identical to
-// what the pre-道A wiring produced.
+// what the pre-dynamic tool wiring produced.
 // Repo is the persistence surface the orchestrator needs: checkpoint state for
 // resume/save and per-tool-call logging. Worker passes its full Repository
 // composite, which already satisfies both.
@@ -36,6 +36,7 @@ type Repo interface {
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 }
 
+// Orchestrator coordinates LLM agent execution, memory management, and tool invocations.
 type Orchestrator struct {
 	currentJobID atomic.Pointer[string]
 	// dynamicToolNames is the set of dynamic (transform-backed) tool names for
@@ -47,7 +48,7 @@ type Orchestrator struct {
 	// loop before it burns the whole request budget. Rebuilt per job.
 	repeatGuard atomic.Pointer[repeatTracker]
 	// htmlSummaryCount counts generate_html_summary completions within a job so
-	// the per-item progress message ("N件目...") advances without rewinding the
+	// the per-item progress message ("item N...") advances without rewinding the
 	// fixed stage percent. Reset per job.
 	htmlSummaryCount atomic.Int64
 	// lastActivityWrite is the unix-nano timestamp of the last latestActivity
@@ -197,6 +198,7 @@ func NewOrchestrator(m model.LLM, b *base.Context, repo Repo, fs *storage.FileSy
 	return orch, nil
 }
 
+// ProcessDocument runs the full knowledge extraction and synthesis pipeline for a document.
 func (o *Orchestrator) ProcessDocument(ctx context.Context, jobID, documentID, workspaceID, fileURI, filename, mimeType string) error {
 	if o.base != nil {
 		o.base.BeginJob(ctx, jobID, workspaceID, documentID)
@@ -286,7 +288,7 @@ func (o *Orchestrator) prepareDocumentMap(ctx context.Context, documentID, fileU
 // reportStageProgress writes the pipeline stage's progress to Firestore on stage
 // completion. stage is the fixed stage name (per-item suffix already stripped).
 // For the per-item html_summary stage the percent stays fixed and only the
-// message advances ("N件目...") so the bar does not rewind. Fire-and-forget:
+// message advances ("item N...") so the bar does not rewind. Fire-and-forget:
 // notifier failures are non-fatal to the job.
 func (o *Orchestrator) reportStageProgress(ctx context.Context, stage string) {
 	if o.base == nil || o.base.Status == nil || o.base.Job == nil {

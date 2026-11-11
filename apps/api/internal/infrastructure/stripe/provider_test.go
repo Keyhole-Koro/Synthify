@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestParseWebhook_CheckoutSessionCompleted(t *testing.T) {
@@ -278,4 +278,84 @@ func stripeSignature(secret string, ts time.Time, payload []byte) string {
 	mac.Write([]byte("."))
 	mac.Write(payload)
 	return fmt.Sprintf("t=%s,v1=%s", timestamp, hex.EncodeToString(mac.Sum(nil)))
+}
+
+func parseTestWebhook(t *testing.T, payload []byte) *domain.ProviderWebhookEvent {
+	t.Helper()
+	now := time.Unix(1710000000, 0)
+	provider := &Provider{
+		cfg: Config{WebhookSecret: "whsec_test"},
+		pricesByID: map[string]Price{
+			"price_jpy": {Plan: domain.BillingPlanUsageBased, Currency: domain.BillingCurrencyJPY, Interval: domain.BillingIntervalMonth, StripeID: "price_jpy"},
+		},
+		now: func() time.Time { return now },
+	}
+	event, err := provider.ParseWebhook(t.Context(), payload, stripeSignature("whsec_test", now, payload))
+	require.NoError(t, err)
+	return event
+}
+
+// From API version basil (2025-03-31) the billing period lives on the
+// subscription items, not on the subscription.
+func TestParseWebhook_SubscriptionPeriodFromItems(t *testing.T) {
+	event := parseTestWebhook(t, []byte(`{
+		"id": "evt_sub",
+		"type": "customer.subscription.updated",
+		"data": {
+			"object": {
+				"id": "sub_1",
+				"customer": "cus_1",
+				"status": "active",
+				"items": {"data": [{
+					"price": {"id": "price_jpy"},
+					"current_period_start": 1760000000,
+					"current_period_end": 1762600000
+				}]}
+			}
+		}
+	}`))
+
+	assert.Equal(t, "2025-10-09T08:53:20Z", event.CurrentPeriodStart)
+	assert.Equal(t, "2025-11-08T11:06:40Z", event.CurrentPeriodEnd)
+}
+
+// Older API versions put the period on the subscription itself.
+func TestParseWebhook_SubscriptionPeriodFromSubscription(t *testing.T) {
+	event := parseTestWebhook(t, []byte(`{
+		"id": "evt_sub_old",
+		"type": "customer.subscription.updated",
+		"data": {
+			"object": {
+				"id": "sub_1",
+				"customer": "cus_1",
+				"status": "active",
+				"current_period_start": 1760000000,
+				"current_period_end": 1762600000,
+				"items": {"data": [{"price": {"id": "price_jpy"}}]}
+			}
+		}
+	}`))
+
+	assert.Equal(t, "2025-10-09T08:53:20Z", event.CurrentPeriodStart)
+	assert.Equal(t, "2025-11-08T11:06:40Z", event.CurrentPeriodEnd)
+}
+
+// An invoice's line period is what was billed (for metered prices, the period
+// that just ended), so invoice events must leave the stored period alone.
+func TestParseWebhook_InvoicePaidLeavesPeriodUnset(t *testing.T) {
+	event := parseTestWebhook(t, []byte(`{
+		"id": "evt_inv",
+		"type": "invoice.paid",
+		"data": {
+			"object": {
+				"id": "in_1",
+				"customer": "cus_1",
+				"subscription": "sub_1",
+				"lines": {"data": [{"price": {"id": "price_jpy"}, "period": {"start": 1757400000, "end": 1760000000}}]}
+			}
+		}
+	}`))
+
+	assert.Empty(t, event.CurrentPeriodStart)
+	assert.Empty(t, event.CurrentPeriodEnd)
 }

@@ -1,0 +1,21 @@
+// Predefined rules extend buf.validate.StringRules, which only proto2 (or
+// editions) allows. Request messages stay proto3 and just use the rule.
+syntax = "proto2";
+
+package synthify.validate.v1;
+
+import "buf/validate/validate.proto";
+
+option go_package = "github.com/synthify/backend/internal/gen/synthify/validate/v1;validatev1";
+
+// Shared protovalidate rules for Synthify request messages.
+extend buf.validate.StringRules {
+  // not_blank rejects the empty string and strings made only of whitespace.
+  // Use it where the server trims the value before using it (names, emails,
+  // tokens), so "   " fails validation instead of reaching the handler.
+  optional bool not_blank = 80001 [(buf.validate.predefined).cel = {
+    id: "string.not_blank"
+    message: "value must not be blank"
+    expression: "!rule || this.matches('\\\\S')"
+  }];
+}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // GetTree returns the tree metadata for a workspace. The workspace itself is
@@ -29,6 +29,7 @@ func (s *Store) GetTree(ctx context.Context, wsID string) (*domain.Tree, error) 
 	}, nil
 }
 
+// GetTreeByWorkspace retrieves all knowledge tree items belonging to the workspace, populated with child IDs.
 func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error) {
 	rows, err := s.q().ListItemsByWorkspace(ctx, wsID)
 	if err != nil {
@@ -42,6 +43,7 @@ func (s *Store) GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.
 	return items, nil
 }
 
+// FindPaths traverses parent references to locate ancestor or relationship paths between sourceItemID and targetItemID.
 func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID string, maxDepth, limit int) ([]*domain.Item, []domain.TreePath, error) {
 	items, err := s.GetTreeByWorkspace(ctx, wsID)
 	if err != nil || len(items) == 0 {
@@ -72,8 +74,9 @@ func (s *Store) FindPaths(ctx context.Context, wsID, sourceItemID, targetItemID 
 	return items, paths, nil
 }
 
+// GetSubtree returns the specified root item and its immediate child items with HasChildren flags.
 func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error) {
-	// ルートアイテム取得
+	// Fetch root item
 	rootRow, err := s.q().GetItem(ctx, rootItemID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -82,7 +85,7 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 		return nil, err
 	}
 
-	// 子要素取得
+	// Fetch child items
 	rows, err := s.q().ListChildItems(ctx, sql.NullString{String: rootItemID, Valid: true})
 	if err != nil {
 		return nil, err
@@ -108,6 +111,7 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 	return items, nil
 }
 
+// populateChildIDs fetches and assigns child item IDs for each item in the slice.
 func (s *Store) populateChildIDs(ctx context.Context, items []*domain.Item) {
 	for _, item := range items {
 		if item == nil || item.ItemID == "" {

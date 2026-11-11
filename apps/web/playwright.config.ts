@@ -16,7 +16,7 @@ function localFrontendPort(): string {
 const externalBaseURL = process.env.E2E_BASE_URL;
 const baseURL = externalBaseURL ?? `http://localhost:${localFrontendPort()}`;
 const authFile = fileURLToPath(new URL('./e2e/.auth/user.json', import.meta.url));
-// Gate webServer readiness on the API, not the frontend: Next dev answers
+// Gate webServer readiness on the API, not the frontend: Vite dev answers
 // within seconds while the Go backend builds for minutes on a cold cache,
 // and tests that start in that window fail on dead connections.
 const apiHealthURL = `${process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'}/health`;
@@ -28,7 +28,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  // Next dev + the Go services share one local machine; unbounded browser
+  // Vite dev + the Go services share one local machine; unbounded browser
   // workers can starve page compilation and cause navigation timeouts.
   workers: process.env.CI ? 1 : 2,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'html',

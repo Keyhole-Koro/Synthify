@@ -1,18 +1,28 @@
-'use client';
-
-import React from 'react';
 import { PanelError } from '@/components/error/PanelError';
-import { type AppError } from '@/lib/errors';
+import { isRetryableError } from '@/lib/errors';
 import { useExponentialBackoff } from '@/lib/useExponentialBackoff';
 
+/**
+ * Props for the {@link WorkspaceError} display component.
+ */
 interface WorkspaceErrorProps {
-  error: AppError;
+  /** The error object caught during workspace loading or operations. */
+  error: Error;
+  /** Callback triggered to retry the failed workspace query or operation. */
   onRetry: () => void | Promise<void>;
 }
 
+/**
+ * Renders an error message inside the workspace paper view with exponential backoff
+ * countdown retry support for transient failures.
+ *
+ * @param props - Component properties.
+ * @returns The rendered error panel with retry behavior.
+ */
 export function WorkspaceError({ error, onRetry }: WorkspaceErrorProps) {
+  const isRetryable = isRetryableError(error);
   const { nextRetryInSeconds } = useExponentialBackoff({
-    error: error.retryable ? error : null,
+    error: isRetryable ? error : null,
     onRetry,
   });
 
@@ -22,7 +32,7 @@ export function WorkspaceError({ error, onRetry }: WorkspaceErrorProps) {
 
   return (
     <PanelError
-      error={{ ...error, message }}
+      error={new Error(message)}
     />
   );
 }

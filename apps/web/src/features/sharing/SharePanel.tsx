@@ -1,73 +1,79 @@
-'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { WorkspaceRole } from '@/features/workspaces/api';
+import { shareLinksQueryOptions, workspaceDetailQueryOptions } from '@/features/workspaces/queries';
+import { useCreateShareLinkMutation, useRevokeShareLinkMutation } from '@/features/sharing/mutations';
 import {
-  createShareLink,
-  getWorkspace,
-  inviteMember,
-  listShareLinks,
-  removeMember,
-  updateMemberRole,
-  revokeShareLink,
-  WorkspaceRole,
-  type ShareLink,
-  type WorkspaceMember,
-} from '@/features/workspaces/api';
-import { toAppError } from '@/lib/error_normalize';
+  useInviteMemberMutation,
+  useRemoveMemberMutation,
+  useUpdateMemberRoleMutation,
+} from '@/features/workspaces/mutations';
+import { ConnectError, Code } from '@connectrpc/connect';
 import { InlineError } from '@/components/error/InlineError';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 
+/**
+ * Props for the workspace sharing and access control modal panel.
+ */
 interface SharePanelProps {
+  /** Target workspace identifier. */
   workspaceId: string;
+  /** Panel close action callback. */
   onClose: () => void;
 }
 
-// リンクに付与できる権限。owner は所有者に予約。
+// Available roles for public share links (owner is reserved for creator).
 const LINK_ROLES: { value: WorkspaceRole; label: string }[] = [
   { value: WorkspaceRole.VIEWER, label: 'Read-only' },
   { value: WorkspaceRole.EDITOR, label: 'Read & write' },
 ];
 
+/**
+ * Returns a human-friendly role name string.
+ */
 function roleLabel(role: WorkspaceRole): string {
   return role === WorkspaceRole.EDITOR ? 'Read & write' : 'Read-only';
 }
 
+/**
+ * Constructs the absolute URL for a share token.
+ */
 function shareLinkUrl(token: string): string {
   const path = `/view?token=${encodeURIComponent(token)}`;
   if (typeof window === 'undefined') return path;
   return `${window.location.origin}${path}`;
 }
 
+/**
+ * Modal panel for managing workspace share links and member invitations.
+ *
+ * @param props - Workspace identifier and close callback supplied by the paper host.
+ * @returns Modal UI for listing/revoking share links and inviting members.
+ */
 export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
-  const [links, setLinks] = useState<ShareLink[]>([]);
+  const { data: links = [], error: linksError } = useQuery(shareLinksQueryOptions(workspaceId));
+  const { data: detail } = useQuery(workspaceDetailQueryOptions(workspaceId));
+  const members = detail?.members ?? [];
+
+  const createLinkMutation = useCreateShareLinkMutation(workspaceId);
+  const revokeLinkMutation = useRevokeShareLinkMutation(workspaceId);
+  const inviteMemberMutation = useInviteMemberMutation(workspaceId);
+  const updateMemberRoleMutation = useUpdateMemberRoleMutation(workspaceId);
+  const removeMemberMutation = useRemoveMemberMutation(workspaceId);
+
   const [role, setRole] = useState<WorkspaceRole>(WorkspaceRole.VIEWER);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
   const [copiedToken, setCopiedToken] = useState('');
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [email, setEmail] = useState('');
   const [memberRole, setMemberRole] = useState<WorkspaceRole>(WorkspaceRole.VIEWER);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const run = useCallback(async (fn: () => Promise<void>) => {
-    setBusy(true);
-    setError('');
-    try {
-      await fn();
-    } catch (err) {
-      setError(toAppError(err).message || '操作に失敗しました。');
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    listShareLinks(workspaceId)
-      .then(setLinks)
-      .catch((err) => setError(toAppError(err).message || 'リンクの取得に失敗しました。'));
-  }, [workspaceId]);
-
-  useEffect(() => {
-    getWorkspace(workspaceId).then(({ members: next }) => setMembers(next)).catch(() => {});
-  }, [workspaceId]);
+  const busy =
+    createLinkMutation.isPending ||
+    revokeLinkMutation.isPending ||
+    inviteMemberMutation.isPending ||
+    updateMemberRoleMutation.isPending ||
+    removeMemberMutation.isPending;
 
   const copy = useCallback(async (token: string) => {
     try {
@@ -80,36 +86,207 @@ export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
   }, []);
 
   // リンクを生成し、すぐクリップボードへコピーする (生成→コピーを一動作に)。
-  const onGenerate = () =>
-    run(async () => {
-      const link = await createShareLink(workspaceId, role);
-      setLinks((prev) => [link, ...prev]);
+  const onGenerate = async () => {
+    setActionError(null);
+    try {
+      const link = await createLinkMutation.mutateAsync({ role });
       await copy(link.token);
-    });
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        setActionError(err.message);
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.PermissionDenied) {
+          setActionError('共有リンクを作成する権限がありません。');
+          return;
+        }
+        if (err.code === Code.NotFound) {
+          setActionError('ワークスペースが見つかりませんでした。');
+          return;
+        }
+        if (err.code === Code.ResourceExhausted) {
+          setActionError('共有リンクの作成上限に達しました。不要なリンクを失効させてください。');
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          setActionError('通信環境を確認して、再度お試しください。');
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          setActionError(formatConnectErrorMessage(err, '共有リンクの作成に失敗しました。'));
+          return;
+        }
+      }
+      console.error('Unexpected UI error', err);
+      setActionError('共有リンクの作成に失敗しました。');
+    }
+  };
 
-  const onRevoke = (token: string) =>
-    run(async () => {
-      await revokeShareLink(workspaceId, token);
-      setLinks((prev) => prev.map((l) => (l.token === token ? { ...l, revoked: true } : l)));
-    });
+  const onRevoke = async (token: string) => {
+    setActionError(null);
+    try {
+      await revokeLinkMutation.mutateAsync(token);
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        setActionError(err.message);
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.PermissionDenied) {
+          setActionError('共有リンクを失効させる権限がありません。');
+          return;
+        }
+        if (err.code === Code.NotFound) {
+          setActionError('対象の共有リンクが見つかりませんでした。');
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          setActionError('通信環境を確認して、再度お試しください。');
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          setActionError(formatConnectErrorMessage(err, '共有リンクの失効に失敗しました。'));
+          return;
+        }
+      }
+      console.error('Unexpected UI error', err);
+      setActionError('共有リンクの失効に失敗しました。');
+    }
+  };
+
+  const onInvite = async () => {
+    if (!email.trim()) return;
+    setActionError(null);
+    try {
+      await inviteMemberMutation.mutateAsync({ email: email.trim(), role: memberRole });
+      setEmail('');
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        setActionError(err.message);
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.AlreadyExists) {
+          setActionError('このユーザーはすでにメンバーに追加されています。');
+          return;
+        }
+        if (err.code === Code.InvalidArgument) {
+          setActionError(err.rawMessage || 'メールアドレスの形式が正しくありません。');
+          return;
+        }
+        if (err.code === Code.PermissionDenied) {
+          setActionError('メンバーを招待する権限がありません。');
+          return;
+        }
+        if (err.code === Code.NotFound) {
+          setActionError('対象のユーザーまたはワークスペースが見つかりませんでした。');
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          setActionError('通信環境を確認して、再度お試しください。');
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          setActionError(formatConnectErrorMessage(err, 'メンバーの招待に失敗しました。'));
+          return;
+        }
+      }
+      console.error('Unexpected UI error', err);
+      setActionError('メンバーの招待に失敗しました。');
+    }
+  };
+
+  const onRemoveMember = async (userId: string) => {
+    setActionError(null);
+    try {
+      await removeMemberMutation.mutateAsync(userId);
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        setActionError(err.message);
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.PermissionDenied) {
+          setActionError('メンバーを削除する権限がありません。');
+          return;
+        }
+        if (err.code === Code.NotFound) {
+          setActionError('対象のメンバーが見つかりませんでした。');
+          return;
+        }
+        if (err.code === Code.FailedPrecondition) {
+          setActionError(err.rawMessage || 'オーナー自身を削除することはできません。');
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          setActionError('通信環境を確認して、再度お試しください。');
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          setActionError(formatConnectErrorMessage(err, 'メンバーの削除に失敗しました。'));
+          return;
+        }
+      }
+      console.error('Unexpected UI error', err);
+      setActionError('メンバーの削除に失敗しました。');
+    }
+  };
+
+  const onMemberRoleChange = async (userId: string, nextRole: WorkspaceRole) => {
+    setActionError(null);
+    try {
+      await updateMemberRoleMutation.mutateAsync({ userId, role: nextRole });
+    } catch (err) {
+      if (err instanceof UserFacingError) {
+        setActionError(err.message);
+        return;
+      }
+      if (err instanceof ConnectError) {
+        if (err.code === Code.PermissionDenied) {
+          setActionError('権限を変更する権限がありません。');
+          return;
+        }
+        if (err.code === Code.NotFound) {
+          setActionError('対象のメンバーが見つかりませんでした。');
+          return;
+        }
+        if (err.code === Code.FailedPrecondition) {
+          setActionError(err.rawMessage || 'オーナーの権限は変更できません。');
+          return;
+        }
+        if (err.code === Code.InvalidArgument) {
+          setActionError(err.rawMessage || '無効な権限が指定されました。');
+          return;
+        }
+        if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+          setActionError('通信環境を確認して、再度お試しください。');
+          return;
+        }
+        if (isExpectedConnectError(err)) {
+          setActionError(formatConnectErrorMessage(err, 'メンバー権限の変更に失敗しました。'));
+          return;
+        }
+      }
+      console.error('Unexpected UI error', err);
+      setActionError('メンバー権限の変更に失敗しました。');
+    }
+  };
 
   const activeLinks = links.filter((l) => !l.revoked);
-
-  const onInvite = () => run(async () => {
-    const member = await inviteMember(workspaceId, email.trim(), memberRole);
-    setMembers((prev) => [...prev.filter((item) => item.userId !== member.userId), member]);
-    setEmail('');
-  });
-
-  const onRemoveMember = (userId: string) => run(async () => {
-    await removeMember(workspaceId, userId);
-    setMembers((prev) => prev.filter((item) => item.userId !== userId));
-  });
-
-  const onMemberRoleChange = (userId: string, nextRole: WorkspaceRole) => run(async () => {
-    const member = await updateMemberRole(workspaceId, userId, nextRole);
-    setMembers((prev) => prev.map((item) => item.userId === userId ? member : item));
-  });
+  const linksErrorMessage = (() => {
+    if (!linksError) return null;
+    if (linksError instanceof UserFacingError) return linksError.message;
+    if (isExpectedConnectError(linksError)) {
+      if (linksError.code === Code.PermissionDenied) {
+        return '共有リンク一覧を閲覧する権限がありません。';
+      }
+      return formatConnectErrorMessage(linksError, 'リンクの取得に失敗しました。');
+    }
+    console.error('Unexpected UI error', linksError);
+    return 'リンクの取得に失敗しました。';
+  })();
+  const displayError = actionError || linksErrorMessage;
 
   return (
     <div className="border-t border-stone-100 px-5 py-4 text-sm">
@@ -123,7 +300,7 @@ export function SharePanel({ workspaceId, onClose }: SharePanelProps) {
         リンクを知っている人がアクセスできます (ログイン不要)。
       </p>
 
-      {error && <InlineError message={error} className="mb-2" />}
+      {displayError && <InlineError message={displayError} className="mb-2" />}
 
       <div className="mb-4 border-b border-stone-100 pb-4">
         <h4 className="mb-2 text-[11px] font-semibold text-stone-600">メンバーを招待</h4>

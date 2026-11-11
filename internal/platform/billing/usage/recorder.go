@@ -3,7 +3,9 @@ package usage
 import (
 	"context"
 	"errors"
+	"github.com/synthify/backend/internal/domain"
 	"log/slog"
+	"time"
 )
 
 // ErrNotFound is returned by Repository.GetModelPricing when no pricing row
@@ -24,15 +26,15 @@ type AccountSnapshot struct {
 // historically called UsageRepository); worker will start implementing the
 // same surface in PR 9.
 type Repository interface {
-	GetModelPricing(ctx context.Context, model string) (*ModelPricing, error)
+	GetModelPricing(ctx context.Context, model string) (*domain.ModelPricing, error)
 	GetCreditBalance(ctx context.Context, accountID string) (int64, error)
-	GrantCredit(ctx context.Context, grant *CreditGrant) error
+	GrantCredit(ctx context.Context, grant *domain.CreditGrant) error
 	GetAccount(ctx context.Context, accountID string) (*AccountSnapshot, error)
 	// RecordAccounting persists the raw event, upserts daily rollup, and
 	// updates the account's running period totals in a single transaction.
 	// The bool return indicates whether the account budget has just been
 	// exceeded by this event.
-	RecordAccounting(ctx context.Context, ev *Event, date string) (budgetExceeded bool, err error)
+	RecordAccounting(ctx context.Context, ev *domain.UsageEvent, date string) (budgetExceeded bool, err error)
 }
 
 // Clock lets tests freeze time. nil falls back to a default time.Now-based
@@ -50,17 +52,30 @@ type Recorder struct {
 	logger *slog.Logger
 }
 
+// NewRecorder constructs a Recorder with the provided persistence repository, clock, and logger.
 func NewRecorder(repo Repository, clock Clock, logger *slog.Logger) *Recorder {
+	if clock == nil {
+		clock = systemClock{}
+	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Recorder{repo: repo, clock: clock, logger: logger}
+}
+
+type systemClock struct{}
+
+func (systemClock) NowRFC3339Date() string {
+	return time.Now().UTC().Format(time.RFC3339)
 }
 
 // Record applies pricing, draws down credit, persists the event, and
 // returns a settlement summary. ev is mutated in place to record the chosen
 // PaidVia, CostMinor, Currency, CreditAmountMinor, and StripeAmountMinor —
 // callers that need the original snapshot should copy beforehand.
-func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error) {
+func (r *Recorder) Record(ctx context.Context, ev *domain.UsageEvent) (*domain.UsageRecordResult, error) {
 	if ev == nil || ev.EventID == "" || ev.AccountID == "" || ev.Model == "" {
-		return nil, ErrEventInvalid
+		return nil, domain.ErrBillingUsageEventInvalid
 	}
 
 	// 1. Pricing lookup. We still persist at cost 0 when pricing can't be
@@ -88,8 +103,12 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 		)
 	default:
 		pricingMissing = true
+		pricingErr := err
+		if pricingErr == nil {
+			pricingErr = errors.New("pricing record is missing")
+		}
 		r.logger.Error("billing.record_usage.pricing_lookup_failed",
-			"error", err.Error(),
+			"error", pricingErr.Error(),
 			"model", ev.Model,
 			"account_id", ev.AccountID,
 			"event_id", ev.EventID,
@@ -104,7 +123,7 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 	creditStopped := false
 	creditPortion := int64(0)
 	stripePortion := int64(0)
-	paidVia := PaidViaStripe
+	paidVia := domain.PaidViaStripe
 
 	if costMinor > 0 {
 		balance, balErr := r.repo.GetCreditBalance(ctx, ev.AccountID)
@@ -117,27 +136,27 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 		switch {
 		case balance >= costMinor:
 			creditPortion = costMinor
-			paidVia = PaidViaCredit
+			paidVia = domain.PaidViaCredit
 		case balance > 0:
 			creditPortion = balance
 			stripePortion = costMinor - balance
-			paidVia = PaidViaMixed
+			paidVia = domain.PaidViaMixed
 			if isFree {
 				creditStopped = true
 			}
 		case isFree:
 			creditStopped = true
-			paidVia = PaidViaCredit
+			paidVia = domain.PaidViaCredit
 		default:
 			stripePortion = costMinor
-			paidVia = PaidViaStripe
+			paidVia = domain.PaidViaStripe
 		}
 
 		if creditPortion > 0 {
-			deduct := &CreditGrant{
+			deduct := &domain.CreditGrant{
 				CreditID:    "deduct-" + ev.EventID,
 				AccountID:   ev.AccountID,
-				CreditType:  CreditTypeConsumed,
+				CreditType:  domain.CreditTypeConsumed,
 				AmountMinor: -creditPortion,
 				Currency:    currency,
 				Note:        "usage:" + ev.EventID,
@@ -174,7 +193,7 @@ func (r *Recorder) Record(ctx context.Context, ev *Event) (*RecordResult, error)
 		return nil, err
 	}
 
-	return &RecordResult{
+	return &domain.UsageRecordResult{
 		EventID:           ev.EventID,
 		Cost:              FormatMinor(costMinor, currency),
 		BudgetExceeded:    exceeded || creditStopped,

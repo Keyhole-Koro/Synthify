@@ -1,12 +1,23 @@
-'use client';
 
 import { useEffect, useState } from 'react';
+import { ConnectError, Code } from '@connectrpc/connect';
 import { createPortalSession } from './api';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 
+/**
+ * Props for the Stripe customer portal management paper.
+ */
 interface ManagePaperProps {
+  /** Target account identifier. */
   accountId: string;
 }
 
+/**
+ * Paper component providing a direct link out to the Stripe Customer Portal for subscription management.
+ *
+ * @param props - Account identifier used to create the customer portal session.
+ * @returns Management paper with loading/error handling and the portal link action.
+ */
 export function ManagePaper({ accountId }: ManagePaperProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -15,7 +26,36 @@ export function ManagePaper({ accountId }: ManagePaperProps) {
   useEffect(() => {
     createPortalSession(accountId)
       .then(setUrl)
-      .catch(() => setError('管理画面URLを取得できませんでした。'))
+      .catch((err) => {
+        if (err instanceof UserFacingError) {
+          setError(err.message);
+          return;
+        }
+        if (err instanceof ConnectError) {
+          if (err.code === Code.FailedPrecondition) {
+            setError(err.rawMessage || '決済プロバイダが設定されていません。');
+            return;
+          }
+          if (err.code === Code.PermissionDenied) {
+            setError('管理画面にアクセスする権限がありません。');
+            return;
+          }
+          if (err.code === Code.NotFound) {
+            setError('請求アカウントが見つかりませんでした。');
+            return;
+          }
+          if (err.code === Code.Unavailable || err.code === Code.DeadlineExceeded) {
+            setError('通信環境を確認して、再度お試しください。');
+            return;
+          }
+          if (isExpectedConnectError(err)) {
+            setError(formatConnectErrorMessage(err, '決済管理画面の取得に失敗しました。'));
+            return;
+          }
+        }
+        console.error('Unexpected UI error', err);
+        setError('決済管理画面の取得に失敗しました。');
+      })
       .finally(() => setLoading(false));
   }, [accountId]);
 

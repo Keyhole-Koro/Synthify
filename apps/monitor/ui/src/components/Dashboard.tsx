@@ -1,6 +1,11 @@
-'use client';
+/**
+ * Operational Business Intelligence (BI) dashboard providing insights into
+ * job health, processing costs, workspace activity, and error frequencies.
+ *
+ * @module
+ */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -20,32 +25,56 @@ import type {
   Period,
 } from '@/lib/dashboard-queries';
 import { AuditPage } from './AuditPage';
-import { authFetch } from '@/lib/auth-client';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardQuery, type DashboardName } from '@/lib/api-queries';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Formats a monetary amount in minor units (cents) into a USD dollar string.
+ *
+ * @param minor - Amount in cents.
+ * @returns Formatted dollar string (e.g., "$12.34").
+ */
 function fmtCost(minor: number): string {
   return `$${(minor / 100).toFixed(2)}`;
 }
 
+/**
+ * Formats a duration in milliseconds into a human-readable string.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns Formatted duration (e.g. "350ms" or "2.4s").
+ */
 function fmtMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/**
+ * Truncates an ISO date string (YYYY-MM-DD) to MM-DD for compact chart axes.
+ *
+ * @param iso - ISO date string.
+ * @returns Substring formatted as MM-DD.
+ */
 function shortDate(iso: string): string {
   return iso.slice(5); // MM-DD
 }
 
-async function fetchDashboardData<T>(url: string): Promise<T> {
-  const res = await authFetch(url);
-  if (!res.ok) {
-    const message = await res.text().catch(() => '');
-    throw new Error(message || `Request failed: ${res.status}`);
-  }
-  return res.json() as Promise<T>;
+/**
+ * Loads one dashboard tab for a period. While loading, `data` is null; if the
+ * request fails, `data` is the tab's empty state and `error` holds the message.
+ */
+function useDashboardTab<T>(name: DashboardName, period: Period, normalize: (body: Partial<T>) => T, empty: T) {
+  const query = useQuery({ ...dashboardQuery<T>(name, period), select: normalize });
+  return {
+    loading: query.isPending,
+    error: query.error ? query.error.message || 'Failed to load' : null,
+    data: query.isError ? empty : (query.data ?? null),
+  };
 }
 
+/** Default empty state for job health dashboard data. */
 const EMPTY_JOB_HEALTH: JobHealthData = {
   totalJobs: 0,
   successRate: 0,
@@ -60,6 +89,7 @@ const EMPTY_JOB_HEALTH: JobHealthData = {
   activeFailures: [],
 };
 
+/** Default empty state for cost dashboard data. */
 const EMPTY_COST: CostData = {
   totalCostMinor: 0,
   creditCostMinor: 0,
@@ -69,6 +99,7 @@ const EMPTY_COST: CostData = {
   topJobs: [],
 };
 
+/** Default empty state for workspace dashboard data. */
 const EMPTY_WORKSPACE: WorkspaceData = {
   totalWorkspaces: 0,
   dormantWorkspaces: 0,
@@ -76,6 +107,7 @@ const EMPTY_WORKSPACE: WorkspaceData = {
   itemsByDay: [],
 };
 
+/** Default empty state for error alerts dashboard data. */
 const EMPTY_ERRORS: ErrorsData = {
   totalErrors: 0,
   recentBurst: false,
@@ -83,6 +115,12 @@ const EMPTY_ERRORS: ErrorsData = {
   topEvents: [],
 };
 
+/**
+ * Safely normalizes partial or undefined job health response into complete structure.
+ *
+ * @param data - Raw response object.
+ * @returns Fully populated JobHealthData.
+ */
 function normalizeJobHealth(data: Partial<JobHealthData> | null | undefined): JobHealthData {
   return {
     ...EMPTY_JOB_HEALTH,
@@ -96,6 +134,12 @@ function normalizeJobHealth(data: Partial<JobHealthData> | null | undefined): Jo
   };
 }
 
+/**
+ * Safely normalizes partial or undefined cost response into complete structure.
+ *
+ * @param data - Raw response object.
+ * @returns Fully populated CostData.
+ */
 function normalizeCost(data: Partial<CostData> | null | undefined): CostData {
   return {
     ...EMPTY_COST,
@@ -106,6 +150,12 @@ function normalizeCost(data: Partial<CostData> | null | undefined): CostData {
   };
 }
 
+/**
+ * Safely normalizes partial or undefined workspace response into complete structure.
+ *
+ * @param data - Raw response object.
+ * @returns Fully populated WorkspaceData.
+ */
 function normalizeWorkspace(data: Partial<WorkspaceData> | null | undefined): WorkspaceData {
   return {
     ...EMPTY_WORKSPACE,
@@ -115,6 +165,12 @@ function normalizeWorkspace(data: Partial<WorkspaceData> | null | undefined): Wo
   };
 }
 
+/**
+ * Safely normalizes partial or undefined error response into complete structure.
+ *
+ * @param data - Raw response object.
+ * @returns Fully populated ErrorsData.
+ */
 function normalizeErrors(data: Partial<ErrorsData> | null | undefined): ErrorsData {
   return {
     ...EMPTY_ERRORS,
@@ -126,6 +182,9 @@ function normalizeErrors(data: Partial<ErrorsData> | null | undefined): ErrorsDa
 
 // ── Stat Card ─────────────────────────────────────────────────────────────────
 
+/**
+ * Displays a single numerical metric KPI with an uppercase label and optional subtitle.
+ */
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="bg-white rounded-lg border border-stone-200 p-4">
@@ -138,6 +197,9 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
 
+/**
+ * Section container with consistent header typography for dashboard widgets.
+ */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-8">
@@ -149,23 +211,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 // ── Job Health Tab ────────────────────────────────────────────────────────────
 
+/**
+ * Tab panel showing overall job success/failure trends, execution latencies,
+ * stage errors, and retry hotspots.
+ */
 function JobHealthTab({ period, onDrillDown }: { period: Period; onDrillDown?: (jobId: string) => void }) {
-  const [data, setData] = useState<JobHealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<JobHealthData>>(`/api/dashboards/job-health?period=${period}`)
-      .then((body) => setData(normalizeJobHealth(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_JOB_HEALTH);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<JobHealthData>('job-health', period, normalizeJobHealth, EMPTY_JOB_HEALTH);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -364,23 +415,11 @@ function JobHealthTab({ period, onDrillDown }: { period: Period; onDrillDown?: (
 
 // ── Cost & Usage Tab ──────────────────────────────────────────────────────────
 
+/**
+ * Tab panel displaying monetary and credit costs across models and high-consumption jobs.
+ */
 function CostTab({ period }: { period: Period }) {
-  const [data, setData] = useState<CostData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<CostData>>(`/api/dashboards/cost?period=${period}`)
-      .then((body) => setData(normalizeCost(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_COST);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<CostData>('cost', period, normalizeCost, EMPTY_COST);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -459,23 +498,11 @@ function CostTab({ period }: { period: Period }) {
 
 // ── Workspace Activity Tab ────────────────────────────────────────────────────
 
+/**
+ * Tab panel showing active workspace numbers, dormant counts, and document creation throughput.
+ */
 function WorkspaceTab({ period }: { period: Period }) {
-  const [data, setData] = useState<WorkspaceData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<WorkspaceData>>(`/api/dashboards/workspace?period=${period}`)
-      .then((body) => setData(normalizeWorkspace(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_WORKSPACE);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<WorkspaceData>('workspace', period, normalizeWorkspace, EMPTY_WORKSPACE);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -527,23 +554,11 @@ function WorkspaceTab({ period }: { period: Period }) {
 
 // ── Errors & Alerts Tab ───────────────────────────────────────────────────────
 
+/**
+ * Tab panel surfacing system error rates, burst notifications, and top error event patterns.
+ */
 function ErrorsTab({ period }: { period: Period }) {
-  const [data, setData] = useState<ErrorsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    fetchDashboardData<Partial<ErrorsData>>(`/api/dashboards/errors?period=${period}`)
-      .then((body) => setData(normalizeErrors(body)))
-      .catch((err) => {
-        console.error(err);
-        setError(err instanceof Error ? err.message : 'Failed to load');
-        setData(EMPTY_ERRORS);
-      })
-      .finally(() => setLoading(false));
-  }, [period]);
+  const { data, loading, error } = useDashboardTab<ErrorsData>('errors', period, normalizeErrors, EMPTY_ERRORS);
 
   if (loading) return <p className="text-sm text-stone-400 py-10 text-center">Loading...</p>;
   if (!data) return <p className="text-sm text-red-400 py-10 text-center">Failed to load</p>;
@@ -607,8 +622,10 @@ function ErrorsTab({ period }: { period: Period }) {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 
+/** Valid tab view keys for Dashboard navigation. */
 type Tab = 'logs' | 'job-health' | 'cost' | 'workspace' | 'errors';
 
+/** Sidebar tab navigation definitions. */
 const TABS: { id: Tab; label: string }[] = [
   { id: 'logs', label: 'Logs' },
   { id: 'job-health', label: 'Job Health' },
@@ -617,12 +634,19 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'errors', label: 'Errors & Alerts' },
 ];
 
+/** Predefined time period filter options. */
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'today', label: 'Today' },
   { id: '7d', label: 'Past 7 days' },
   { id: '30d', label: 'This month' },
 ];
 
+/**
+ * Main operations BI dashboard containing navigation for job health,
+ * processing costs, workspace activity, alerts, and live log drilldown.
+ *
+ * @returns The dashboard shell and the currently selected operational BI panel.
+ */
 export function Dashboard() {
   const [tab, setTab] = useState<Tab>('job-health');
   const [period, setPeriod] = useState<Period>('7d');

@@ -4,6 +4,23 @@
   "packageManager": "bun@1.3.13",
   "workspaces": [
     "apps/web",
-    "apps/monitor/ui"
-  ]
+    "apps/monitor/ui",
+    "apps/desktop",
+    "packages/*"
+  ],
+  "overrides": {
+    "which": "2.0.2"
+  },
+  "scripts": {
+    "desktop:dev": "bun --cwd apps/desktop start",
+    "desktop:typecheck": "bun --cwd apps/desktop typecheck",
+    "desktop:test": "bun --cwd apps/desktop test",
+    "desktop:package": "bun --cwd apps/desktop package",
+    "web:typecheck": "bun --cwd apps/web typecheck",
+    "web:lint": "bun --cwd apps/web lint",
+    "web:test": "bun --cwd apps/web test",
+    "web:build": "bun --cwd apps/web build",
+    "sync:hosting": "bun run scripts/sync-hosting-config.ts",
+    "check:hosting": "bun run scripts/sync-hosting-config.ts --check"
+  }
 }

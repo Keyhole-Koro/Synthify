@@ -1,3 +1,4 @@
+// Package storage manages local filesystem access to mounted cloud storage volumes, intermediate caches, and pipeline checkpoints.
 package storage
 
 import (
@@ -8,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // FileSystem manages access to files via a local mount (e.g., GCS FUSE).

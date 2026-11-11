@@ -1,4 +1,3 @@
-'use client';
 
 import { useEffect, useRef } from 'react';
 import type { ExpansionMap } from '@keyhole-koro/paper-in-paper';
@@ -6,19 +5,34 @@ import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import type { Workspace } from '@/features/workspaces/api';
 import type { TreeStore } from './workspaceTreeTypes';
 
+/**
+ * Arguments for the {@link useExpansionWatcher} hook.
+ */
 interface UseExpansionWatcherArgs {
+  /** Current map of opened paper node IDs. */
   expansionMap: ExpansionMap;
+  /** List of workspaces accessible to the user. */
   workspaces: Workspace[];
+  /** Tree store instance containing cached nodes. */
   store: TreeStore;
+  /** Callback fired to load a newly revealed node's subtree. */
   onLoadSubtree: (workspaceId: string, itemId: string) => void;
+  /** Callback fired to open and initialize a workspace on canvas. */
   onOpenWorkspace: (workspaceId: string) => void;
+  /** Callback fired to re-project papers for an initialized workspace. */
   onRebuildPaper: (workspaceId: string) => void;
+  /** Callback fired when pruned or updated expansion maps are produced. */
   onExpansionMapChange: (next: ExpansionMap) => void;
 }
 
-// useExpansionWatcher reacts to expansion-map changes and to workspace list
-// changes. It does not own tree data — it just triggers subtree loads when
-// new items become open, and re-hydrates expanded workspaces on mount.
+/**
+ * Observes changes to the paper canvas expansion map and user workspaces list,
+ * automatically triggering subtree fetching for newly exposed nodes and hydrating
+ * workspaces that are opened in the persisted canvas state.
+ *
+ * @param args - Watcher configuration and event callbacks.
+ * @returns Ref containing the previous expansion map state.
+ */
 export function useExpansionWatcher({
   expansionMap,
   workspaces,

@@ -3,8 +3,8 @@ package store
 import (
 	"testing"
 
-	"github.com/synthify/backend/apps/eval/runner"
 	"github.com/stretchr/testify/require"
+	"github.com/synthify/backend/apps/eval/runner"
 )
 
 func TestSummarize(t *testing.T) {

@@ -11,21 +11,25 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// MergeCandidate describes an individual knowledge tree item being considered for deduplication.
 type MergeCandidate struct {
 	LocalID     string `json:"local_id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
 
+// MergeArgs specifies candidates to be evaluated for merging into a single canonical item.
 type MergeArgs struct {
 	Items []MergeCandidate `json:"items"`
 }
 
+// MergeResult identifies the chosen canonical item ID and the rationale for the merge decision.
 type MergeResult struct {
 	MergedID string `json:"merged_id"`
 	Reason   string `json:"reason"`
 }
 
+// NewMergeTool creates a core.Tool for deduplicating overlapping items in the knowledge tree.
 func NewMergeTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[MergeArgs, MergeResult]()
 	if err != nil {
@@ -60,6 +64,7 @@ func NewMergeTool(b *base.Context) (core.Tool, error) {
 	}, nil
 }
 
+// merge asks the LLM to select the most comprehensive canonical candidate from a list of duplicates.
 func merge(ctx context.Context, llmClient base.LLMClient, items []MergeCandidate) (MergeResult, error) {
 	if llmClient == nil {
 		return MergeResult{MergedID: items[0].LocalID, Reason: "llm not configured, selected first"}, nil

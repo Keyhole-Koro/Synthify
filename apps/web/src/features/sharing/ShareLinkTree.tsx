@@ -1,11 +1,15 @@
-'use client';
 
 import { useEffect, useState } from 'react';
 import { getTreeViaShareToken, type ApiItem } from '@/features/tree/api';
-import { toAppError } from '@/lib/error_normalize';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 
+/**
+ * Props for displaying a knowledge tree fetched via public share token.
+ */
 interface ShareLinkTreeProps {
+  /** Target workspace identifier. */
   workspaceId: string;
+  /** Share authorization token. */
   token: string;
 }
 
@@ -14,7 +18,9 @@ interface TreeNode {
   children: TreeNode[];
 }
 
-// items を parentId で木に組み立てる。root は parentId が空のもの。
+/**
+ * Reconstructs a hierarchical forest of TreeNodes from a flat array of items using parentId pointers.
+ */
 function buildForest(items: ApiItem[]): TreeNode[] {
   const byId = new Map<string, TreeNode>();
   for (const item of items) {
@@ -32,6 +38,9 @@ function buildForest(items: ApiItem[]): TreeNode[] {
   return roots;
 }
 
+/**
+ * Recursive tree node item rendering title, description, and children nested with indentation.
+ */
 function TreeNodeView({ node, depth }: { node: TreeNode; depth: number }) {
   return (
     <li>
@@ -57,6 +66,12 @@ type TreeState =
   | { status: 'ready'; forest: TreeNode[] }
   | { status: 'error'; message: string };
 
+/**
+ * Component rendering the knowledge tree view for unauthenticated or public viewers holding a share token.
+ *
+ * @param props - Workspace identifier and public share token used to fetch the tree.
+ * @returns Loading, error, empty, or rendered shared-tree UI.
+ */
 export function ShareLinkTree({ workspaceId, token }: ShareLinkTreeProps) {
   const [state, setState] = useState<TreeState>({ status: 'loading' });
 
@@ -71,7 +86,18 @@ export function ShareLinkTree({ workspaceId, token }: ShareLinkTreeProps) {
       })
       .catch((err) => {
         if (cancelled) return;
-        setState({ status: 'error', message: toAppError(err).message || 'ツリーを取得できませんでした。' });
+        let message = 'ツリーを取得できませんでした。';
+        if (err instanceof UserFacingError) {
+          message = err.message;
+        } else if (isExpectedConnectError(err)) {
+          message = formatConnectErrorMessage(err, message);
+        } else {
+          console.error('Unexpected UI error', err);
+        }
+        setState({
+          status: 'error',
+          message,
+        });
       });
     return () => {
       cancelled = true;

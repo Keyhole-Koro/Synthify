@@ -12,7 +12,7 @@ import (
 
 	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	taskspb "cloud.google.com/go/cloudtasks/apiv2/cloudtaskspb"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -39,15 +39,20 @@ type CloudTasksDispatcher struct {
 	logger           *slog.Logger
 }
 
+// CloudTasksDispatcherConfig encapsulates required and optional configuration for CloudTasksDispatcher.
 type CloudTasksDispatcherConfig struct {
-	QueuePath    string
-	DispatchURL  string
-	InvokerSA    string
-	OIDCAudience string // optional; defaults to scheme+host of DispatchURL
-	// DispatchDeadline is the per-task response deadline. Zero falls back to
-	// defaultDispatchDeadline.
+	// QueuePath is the fully-qualified Google Cloud Tasks queue path ("projects/X/locations/Y/queues/Z").
+	QueuePath string
+	// DispatchURL is the target worker endpoint ("https://worker-host/internal/dispatch-job").
+	DispatchURL string
+	// InvokerSA is the service account email used to sign OIDC tokens for Cloud Run invocation.
+	InvokerSA string
+	// OIDCAudience is the expected OIDC audience claim (defaults to scheme+host of DispatchURL).
+	OIDCAudience string
+	// DispatchDeadline is the per-task response deadline. Zero falls back to defaultDispatchDeadline.
 	DispatchDeadline time.Duration
-	Logger           *slog.Logger
+	// Logger is the structured logger instance.
+	Logger *slog.Logger
 }
 
 // NewCloudTasksDispatcher wires up the dispatcher and the underlying Cloud
@@ -94,23 +99,30 @@ func NewCloudTasksDispatcher(ctx context.Context, cfg CloudTasksDispatcherConfig
 	}, nil
 }
 
+// Close closes the underlying Google Cloud Tasks client connection.
 func (d *CloudTasksDispatcher) Close() error {
 	return d.client.Close()
 }
 
+// GenerateExecutionPlan enqueues a GenerateExecutionPlan task into Cloud Tasks for asynchronous execution.
 func (d *CloudTasksDispatcher) GenerateExecutionPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
 	return d.enqueue(ctx, "GenerateExecutionPlan", req)
 }
 
+// ExecuteApprovedPlan enqueues an ExecuteApprovedPlan task into Cloud Tasks for asynchronous execution.
 func (d *CloudTasksDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.ExecutePlanRequest) error {
 	return d.enqueue(ctx, "ExecuteApprovedPlan", req)
 }
 
+// dispatchBody is the JSON request payload sent to the worker's /internal/dispatch-job endpoint.
 type dispatchBody struct {
-	Procedure string                    `json:"procedure"`
-	Payload   domain.ExecutePlanRequest `json:"payload"`
+	// Procedure is the requested worker action ("GenerateExecutionPlan" or "ExecuteApprovedPlan").
+	Procedure string `json:"procedure"`
+	// Payload carries the execution plan request data.
+	Payload domain.ExecutePlanRequest `json:"payload"`
 }
 
+// enqueue marshals the dispatch request and creates a Cloud Tasks task.
 func (d *CloudTasksDispatcher) enqueue(ctx context.Context, procedure string, req domain.ExecutePlanRequest) error {
 	body, err := json.Marshal(dispatchBody{Procedure: procedure, Payload: req})
 	if err != nil {
@@ -178,6 +190,7 @@ func taskID(jobID, procedure string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// audienceFromURL extracts the scheme+host from the provided dispatch URL for OIDC token audience matching.
 func audienceFromURL(u string) string {
 	// Strip the path so the audience claim matches what the worker's
 	// Cloud Run service expects (scheme+host only).
@@ -190,6 +203,7 @@ func audienceFromURL(u string) string {
 	return u
 }
 
+// isAlreadyExists reports whether err indicates a Google Cloud Tasks AlreadyExists error condition.
 func isAlreadyExists(err error) bool {
 	// The Cloud Tasks client wraps gRPC errors; check by message rather than
 	// pulling in google.golang.org/grpc/status just for this. AlreadyExists

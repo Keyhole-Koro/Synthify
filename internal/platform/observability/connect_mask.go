@@ -1,3 +1,5 @@
+// Package observability provides telemetry, tracing, and structured logging adapters
+// including New Relic integrations and ConnectRPC error masking interceptors.
 package observability
 
 import (
@@ -32,6 +34,8 @@ func MaskInternalErrorsHandlerOptions(logger *slog.Logger) []connect.HandlerOpti
 	return []connect.HandlerOption{connect.WithInterceptors(maskInternalErrors(logger))}
 }
 
+// maskInternalErrors creates a unary interceptor that intercepts RPC responses, logs unexpected
+// or internal failures with structured metadata, and sanitizes error messages returned to clients.
 func maskInternalErrors(logger *slog.Logger) connect.UnaryInterceptorFunc {
 	return func(next connect.UnaryFunc) connect.UnaryFunc {
 		return func(ctx context.Context, req connect.AnyRequest) (connect.AnyResponse, error) {

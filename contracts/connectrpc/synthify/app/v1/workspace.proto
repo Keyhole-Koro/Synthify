@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package synthify.app.v1;
 
+import "buf/validate/validate.proto";
+import "synthify/validate/v1/rules.proto";
+
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
 service WorkspaceService {
@@ -58,7 +61,7 @@ enum WorkspaceRole {
 }
 
 message CreateWorkspaceRequest {
-  string name = 1;
+  string name = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message CreateWorkspaceResponse {
@@ -66,7 +69,7 @@ message CreateWorkspaceResponse {
 }
 
 message GetWorkspaceRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).required = true];
 }
 
 message GetWorkspaceResponse {
@@ -81,8 +84,8 @@ message ListWorkspacesResponse {
 }
 
 message UpdateWorkspaceRequest {
-  string workspace_id = 1;
-  string name = 2;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
+  string name = 2 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message UpdateWorkspaceResponse {
@@ -90,8 +93,8 @@ message UpdateWorkspaceResponse {
 }
 
 message InviteMemberRequest {
-  string workspace_id = 1;
-  string email = 2;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
+  string email = 2 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
   WorkspaceRole role = 3;
   bool is_dev = 4;
 }
@@ -101,8 +104,8 @@ message InviteMemberResponse {
 }
 
 message UpdateMemberRoleRequest {
-  string workspace_id = 1;
-  string user_id = 2;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
+  string user_id = 2 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
   WorkspaceRole role = 3;
   bool is_dev = 4;
 }
@@ -112,8 +115,8 @@ message UpdateMemberRoleResponse {
 }
 
 message RemoveMemberRequest {
-  string workspace_id = 1;
-  string user_id = 2;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
+  string user_id = 2 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message RemoveMemberResponse {}
@@ -129,7 +132,7 @@ message TransferOwnershipResponse {
 }
 
 message DeleteWorkspaceRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message DeleteWorkspaceResponse {}
@@ -149,7 +152,7 @@ message ShareLink {
 }
 
 message CreateShareLinkRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
   WorkspaceRole role = 2;  // 未指定なら VIEWER 扱い
   string expires_at = 3;   // 空文字なら無期限
 }
@@ -159,7 +162,7 @@ message CreateShareLinkResponse {
 }
 
 message ListShareLinksRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message ListShareLinksResponse {
@@ -167,15 +170,15 @@ message ListShareLinksResponse {
 }
 
 message RevokeShareLinkRequest {
-  string workspace_id = 1;
-  string token = 2;
+  string workspace_id = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
+  string token = 2 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message RevokeShareLinkResponse {}
 
 // 無認証で呼ばれる。token のみを受け取り、有効なら workspace を返す。
 message ResolveShareLinkRequest {
-  string token = 1;
+  string token = 1 [(buf.validate.field).string.(synthify.validate.v1.not_blank) = true];
 }
 
 message ResolveShareLinkResponse {

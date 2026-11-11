@@ -1,10 +1,20 @@
-import React from 'react';
 
+/**
+ * Props for the fatal error fallback screen.
+ */
 interface FatalErrorViewProps {
+  /** The unhandled error that triggered the boundary. */
   error: Error & { digest?: string };
+  /** Callback to trigger a reset / reload attempt. */
   reset: () => void;
 }
 
+/**
+ * Fullscreen fallback view rendered when an unrecoverable runtime error occurs at the root level.
+ *
+ * @param props - Runtime error details and a reset callback supplied by the error boundary.
+ * @returns Fullscreen recovery UI showing a safe message and optional error digest.
+ */
 export function FatalErrorView({ error, reset }: FatalErrorViewProps) {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">

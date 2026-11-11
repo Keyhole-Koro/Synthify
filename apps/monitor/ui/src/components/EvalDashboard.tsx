@@ -1,20 +1,28 @@
-'use client';
+/**
+ * LLM Evaluation Dashboard component displaying run traces, span latencies,
+ * prompt comparisons, and test case pass rates.
+ *
+ * @module
+ */
 
-import Link from 'next/link';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from '@tanstack/react-router';
+import { useState, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { authFetch } from '@/lib/auth-client';
+import { evalDashboardQuery } from '@/lib/api-queries';
 import type { Period } from '@/lib/dashboard-queries';
 import type { EvalData } from '@/lib/eval-queries';
 import { EvalExecutionTrace } from './eval/EvalExecutionTrace';
 import { EvalRunTimeline, EvalVariantComparison } from './eval/EvalDiagrams';
 
+/** Selectable evaluation reporting time windows. */
 const PERIODS: { id: Period; label: string }[] = [
   { id: 'today', label: 'Today' },
   { id: '7d', label: 'Past 7 days' },
   { id: '30d', label: 'This month' },
 ];
 
+/** Default blank evaluation metrics state. */
 const EMPTY_EVAL: EvalData = {
   totalRuns: 0,
   totalCases: 0,
@@ -27,6 +35,12 @@ const EMPTY_EVAL: EvalData = {
   trend: [], byPromptSource: [], byModel: [], recentRuns: [], recentCases: [], recentFailures: [], slowestCases: [],
 };
 
+/**
+ * Normalizes partial evaluation API responses into complete EvalData objects.
+ *
+ * @param data - Raw evaluation metrics response.
+ * @returns Fully populated EvalData structure.
+ */
 function normalize(data: Partial<EvalData> | null | undefined): EvalData {
   return {
     ...EMPTY_EVAL,
@@ -42,47 +56,54 @@ function normalize(data: Partial<EvalData> | null | undefined): EvalData {
   };
 }
 
+/**
+ * Formats a duration in milliseconds into a concise time unit string.
+ *
+ * @param ms - Milliseconds duration.
+ * @returns Formatted duration string (e.g., "150ms", "4.2s", "1.5m").
+ */
 function fmtMs(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
   return `${(ms / 60_000).toFixed(1)}m`;
 }
 
+/**
+ * Formats an integer using compact notation for large numbers.
+ *
+ * @param value - Integer number.
+ * @returns Compactly formatted string.
+ */
 function fmtNumber(value: number): string {
   return new Intl.NumberFormat('en-US', { notation: value >= 10_000 ? 'compact' : 'standard' }).format(value);
 }
 
+/**
+ * KPI summary card widget.
+ */
 function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div className="rounded-lg border border-stone-200 bg-white p-4"><p className="text-[9px] font-bold uppercase tracking-wider text-stone-400">{label}</p><p className="mt-1 text-xl font-bold text-stone-800">{value}</p>{detail && <p className="mt-1 text-[9px] text-stone-400">{detail}</p>}</div>;
 }
 
+/**
+ * Section container with title and subtext detail.
+ */
 function Section({ title, detail, children }: { title: string; detail?: string; children: ReactNode }) {
   return <section className="mb-8"><div className="mb-3"><h2 className="text-xs font-bold uppercase tracking-wider text-stone-500">{title}</h2>{detail && <p className="mt-1 text-[10px] text-stone-400">{detail}</p>}</div>{children}</section>;
 }
 
+/**
+ * LLM Evaluation Dashboard rendering test run timelines, case execution traces,
+ * prompt variant metrics, and aggregate pass rates.
+ *
+ * @returns Evaluation dashboard UI with period selection and drill-down panels.
+ */
 export function EvalDashboard() {
   const [period, setPeriod] = useState<Period>('7d');
-  const [data, setData] = useState<EvalData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    authFetch(`/api/dashboards/eval?period=${period}`)
-      .then(async (response) => {
-        if (!response.ok) throw new Error((await response.text().catch(() => '')) || `Request failed: ${response.status}`);
-        return response.json() as Promise<Partial<EvalData>>;
-      })
-      .then((body) => { if (!cancelled) setData(normalize(body)); })
-      .catch((reason) => {
-        console.error(reason);
-        if (!cancelled) { setData(EMPTY_EVAL); setError(reason instanceof Error ? reason.message : 'Failed to load'); }
-      })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [period]);
+  const query = useQuery({ ...evalDashboardQuery(period), select: normalize });
+  const loading = query.isPending;
+  const error = query.error ? query.error.message || 'Failed to load' : null;
+  const data: EvalData | null = query.isError ? EMPTY_EVAL : (query.data ?? null);
 
   const trend = (data?.trend ?? []).map((point) => ({ ...point, passRatePct: Number((point.passRate * 100).toFixed(1)) }));
   const llmCalls = data?.recentCases.length ?? 0;
@@ -92,7 +113,7 @@ export function EvalDashboard() {
     <div className="flex h-screen overflow-hidden bg-stone-50">
       <aside className="flex w-56 shrink-0 flex-col border-r border-stone-200 bg-white">
         <div className="border-b border-stone-100 bg-stone-50/50 p-4"><h1 className="text-sm font-bold uppercase tracking-tight text-stone-800">Dashboards</h1><p className="mt-0.5 text-[10px] text-stone-400">Operations BI</p></div>
-        <nav className="flex-1 p-2"><Link href="/dashboards" className="mb-0.5 block rounded-md px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100">Logs & Operations</Link><span className="block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval Trace</span></nav>
+        <nav className="flex-1 p-2"><Link to="/dashboards" className="mb-0.5 block rounded-md px-3 py-2 text-xs font-medium text-stone-600 hover:bg-stone-100">Logs & Operations</Link><span className="block rounded-md bg-stone-800 px-3 py-2 text-xs font-medium text-white">LLM Eval Trace</span></nav>
         <div className="border-t border-stone-100 p-3 text-[10px] text-stone-400">Inspect LLM calls, tool calls, validation and assertion failures.</div>
       </aside>
 

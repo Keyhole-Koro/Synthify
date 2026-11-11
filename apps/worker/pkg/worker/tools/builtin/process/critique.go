@@ -11,17 +11,20 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 )
 
+// CritiqueArgs specifies the generated content and evaluation criteria for quality inspection.
 type CritiqueArgs struct {
 	TargetData string `json:"target_data"`
 	Criteria   string `json:"criteria"`
 }
 
+// CritiqueResult contains the validation status, identified issues, and improvement suggestions.
 type CritiqueResult struct {
 	Valid       bool     `json:"valid"`
 	Issues      []string `json:"issues"`
 	Suggestions []string `json:"suggestions"`
 }
 
+// NewCritiqueTool creates a core.Tool for evaluating generated content against hallucinations and logical gaps.
 func NewCritiqueTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[CritiqueArgs, CritiqueResult]()
 	if err != nil {
@@ -51,6 +54,7 @@ func NewCritiqueTool(b *base.Context) (core.Tool, error) {
 	}, nil
 }
 
+// critique invokes the LLM with QA reviewer guidelines to inspect content quality.
 func critique(ctx context.Context, llmClient base.LLMClient, targetData, criteria string) (CritiqueResult, error) {
 	if llmClient == nil {
 		return CritiqueResult{Valid: true}, nil

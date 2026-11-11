@@ -1,3 +1,4 @@
+// Package mock provides an in-memory repository implementation for unit testing worker domain services.
 package mock
 
 import (
@@ -5,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // RecordCandidate persists a freshly generated tool with status=candidate and
@@ -131,6 +132,7 @@ func (s *Store) IncrementUseCount(ctx context.Context, toolID string) error {
 	return nil
 }
 
+// findDynamicToolLocked searches for a dynamic tool by ID while holding store lock.
 func (s *Store) findDynamicToolLocked(toolID string) *domain.DynamicTool {
 	for _, tool := range s.dynamicTools {
 		if tool.ToolID == toolID {

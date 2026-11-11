@@ -1,16 +1,22 @@
-'use client';
-
 import { useCallback } from 'react';
 import { createDocument, startProcessing, uploadFile } from '@/features/documents/api';
 import { validateDocumentUploadFile } from '@/features/documents/uploadPolicy';
+import { UserFacingError } from '@/lib/errors';
 
-// useWorkspaceUpload returns the workspace upload pipeline: create document
-// row -> upload bytes -> start processing job. The caller decides what to
-// do with the resulting jobId / documentId (typically injecting it into the
-// workspace runtime state so the progress UI lights up).
+/**
+ * Provides an upload pipeline callback that validates a candidate file, creates a document
+ * metadata record, uploads the binary content to signed storage, and initiates AI processing.
+ *
+ * @returns An asynchronous handler function accepting `workspaceId` and `file`, returning `{ jobId, documentId }`.
+ * The callback rejects with a UserFacingError for invalid files and propagates API, storage,
+ * or processing failures. It performs validation before creating any server-side record.
+ */
 export function useWorkspaceUpload() {
   return useCallback(async (workspaceId: string, file: File) => {
-    validateDocumentUploadFile(file);
+    const validation = validateDocumentUploadFile(file);
+    if (!validation.ok) {
+      throw new UserFacingError(validation.error.message);
+    }
     const created = await createDocument(
       workspaceId,
       file.name,

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestLoadReadsFromMount(t *testing.T) {

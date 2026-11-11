@@ -4,24 +4,28 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
+// Brief holds the working memory block for high-level document topic and claim summaries.
 type Brief struct {
 	mu    sync.RWMutex
 	brief *domain.DocumentBrief
 }
 
+// NewBrief creates a new uninitialized Brief memory container.
 func NewBrief() *Brief {
 	return &Brief{}
 }
 
+// Set stores the document brief safely under write lock.
 func (b *Brief) Set(brief domain.DocumentBrief) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.brief = &brief
 }
 
+// RenderForPrompt generates a Markdown representation of the brief suitable for LLM prompt injection.
 func (b *Brief) RenderForPrompt() string {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

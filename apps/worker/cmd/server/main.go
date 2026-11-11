@@ -1,3 +1,4 @@
+// Package main provides the entrypoint for the asynchronous document processing worker service.
 package main
 
 import (
@@ -23,8 +24,10 @@ import (
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/observability"
+	"github.com/synthify/backend/internal/platform/transport/rpcvalidate"
 )
 
+// main boots the worker service, initializes dependencies, and binds HTTP and Connect RPC handlers.
 func main() {
 	ctx := context.Background()
 	cfg := config.LoadWorker()
@@ -82,6 +85,7 @@ func main() {
 		observability.ConnectHandlerOptions(nrApp),
 		observability.MaskInternalErrorsHandlerOptions(appLogger)...,
 	)
+	handlerOpts = append(handlerOpts, rpcvalidate.HandlerOptions()...)
 	mux.Handle(workerv1connect.NewWorkerServiceHandler(
 		worker.NewConnectHandler(processor, store, planner, evaluator, appLogger),
 		handlerOpts...,
@@ -103,10 +107,12 @@ func main() {
 	}
 }
 
+// readinessChecker defines the interface for components verifying readiness status.
 type readinessChecker interface {
 	CheckReadiness(context.Context) error
 }
 
+// healthHandler serves liveness and readiness probes for load balancers and deployment verification.
 func healthHandler(store any, readinessKey string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("ready") != "1" {
@@ -137,6 +143,7 @@ func healthHandler(store any, readinessKey string) http.HandlerFunc {
 	}
 }
 
+// readinessAuthorized compares the request readiness key header against the expected secret in constant time.
 func readinessAuthorized(r *http.Request, expected string) bool {
 	expected = strings.TrimSpace(expected)
 	got := strings.TrimSpace(r.Header.Get("X-Synthify-Readiness-Key"))
@@ -148,6 +155,7 @@ func readinessAuthorized(r *http.Request, expected string) bool {
 	return subtle.ConstantTimeCompare(gotHash[:], expectedHash[:]) == 1
 }
 
+// withJobLogger injects the job-level logger into the HTTP request context.
 func withJobLogger(l joblog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := joblog.WithLogger(r.Context(), l)

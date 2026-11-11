@@ -9,18 +9,21 @@ import (
 	"net/http"
 
 	connect "connectrpc.com/connect"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// BillingHandler implements Connect-RPC endpoints for billing, subscription management, and usage tracking.
 type BillingHandler struct {
 	service BillingUsecase
 }
 
+// NewBillingHandler creates a new BillingHandler with the provided BillingUsecase.
 func NewBillingHandler(svc BillingUsecase) *BillingHandler {
 	return &BillingHandler{service: svc}
 }
 
+// NewBillingWebhookHTTPHandler returns an HTTP handler for processing incoming Stripe webhooks.
 func NewBillingWebhookHTTPHandler(svc BillingUsecase, logger *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -47,10 +50,8 @@ func NewBillingWebhookHTTPHandler(svc BillingUsecase, logger *slog.Logger) http.
 	}
 }
 
+// GetBillingAccount returns billing account status, quotas, and current credit balance.
 func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Request[appv1.GetBillingAccountRequest]) (*connect.Response[appv1.GetBillingAccountResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -59,7 +60,10 @@ func (h *BillingHandler) GetBillingAccount(ctx context.Context, req *connect.Req
 	if err != nil {
 		return nil, toError(err)
 	}
-	creditBalance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	creditBalance, err := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
 	return connect.NewResponse(&appv1.GetBillingAccountResponse{
 		AccountId:              account.AccountID,
 		Plan:                   account.Plan,
@@ -87,6 +91,7 @@ func minorToDecimal(minor int64) string {
 	return fmt.Sprintf("%d.%02d", minor/100, abs64(minor%100))
 }
 
+// abs64 returns the absolute value of an int64 integer.
 func abs64(n int64) int64 {
 	if n < 0 {
 		return -n
@@ -94,10 +99,8 @@ func abs64(n int64) int64 {
 	return n
 }
 
+// CreateCheckoutSession initiates a Stripe checkout session for subscribing to paid plans.
 func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect.Request[appv1.CreateCheckoutSessionRequest]) (*connect.Response[appv1.CreateCheckoutSessionResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -111,10 +114,8 @@ func (h *BillingHandler) CreateCheckoutSession(ctx context.Context, req *connect
 	}), nil
 }
 
+// CreatePortalSession creates a Stripe Customer Portal session for self-service subscription management.
 func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.Request[appv1.CreatePortalSessionRequest]) (*connect.Response[appv1.CreatePortalSessionResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -132,10 +133,8 @@ func (h *BillingHandler) CreatePortalSession(ctx context.Context, req *connect.R
 // Usage-Based Billing handlers
 // =========================================================
 
+// GetUsage aggregates model usage breakdown and daily spend trends for an account.
 func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv1.GetUsageRequest]) (*connect.Response[appv1.GetUsageResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -171,15 +170,13 @@ func (h *BillingHandler) GetUsage(ctx context.Context, req *connect.Request[appv
 	return connect.NewResponse(resp), nil
 }
 
+// RecordUsage records an LLM token consumption event and checks budget limits.
 func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[appv1.RecordUsageRequest]) (*connect.Response[appv1.RecordUsageResponse], error) {
 	// 内部 RPC: worker -> API のサービストークン認証のみ受け付ける。
 	// SYNTHIFY_INTERNAL_SERVICE_TOKEN が未設定の環境では service principal が立たないので、
 	// すべての RecordUsage は拒否される。
 	if _, err := requireServicePrincipal(ctx); err != nil {
 		return nil, err
-	}
-	if req.Msg.GetAccountId() == "" || req.Msg.GetModel() == "" || req.Msg.GetEventId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("event_id, account_id, and model are required"))
 	}
 	ev := &domain.UsageEvent{
 		EventID:      req.Msg.GetEventId(),
@@ -201,10 +198,8 @@ func (h *BillingHandler) RecordUsage(ctx context.Context, req *connect.Request[a
 	}), nil
 }
 
+// UpdateBudget sets a new monthly spending limit on an account.
 func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[appv1.UpdateBudgetRequest]) (*connect.Response[appv1.UpdateBudgetResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -216,10 +211,8 @@ func (h *BillingHandler) UpdateBudget(ctx context.Context, req *connect.Request[
 	return connect.NewResponse(&appv1.UpdateBudgetResponse{BudgetLimit: limit}), nil
 }
 
+// ListInvoices lists historical and upcoming Stripe invoices for an account.
 func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[appv1.ListInvoicesRequest]) (*connect.Response[appv1.ListInvoicesResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -249,10 +242,8 @@ func (h *BillingHandler) ListInvoices(ctx context.Context, req *connect.Request[
 	return connect.NewResponse(resp), nil
 }
 
+// GrantCredit adds promotional or trial credit to a billing account (requires admin privileges).
 func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[appv1.GrantCreditRequest]) (*connect.Response[appv1.GrantCreditResponse], error) {
-	if req.Msg.GetAccountId() == "" || req.Msg.GetAmountMinor() <= 0 {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id and amount_minor > 0 are required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -264,7 +255,10 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[a
 	if err != nil {
 		return nil, toError(err)
 	}
-	balance, _ := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	balance, err := h.service.GetCreditBalance(ctx, req.Msg.GetAccountId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
 	return connect.NewResponse(&appv1.GrantCreditResponse{
 		CreditId:      grant.CreditID,
 		AccountId:     grant.AccountID,
@@ -273,10 +267,8 @@ func (h *BillingHandler) GrantCredit(ctx context.Context, req *connect.Request[a
 	}), nil
 }
 
+// GetCreditBalance returns the current credit balance in decimal currency string and stop status.
 func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Request[appv1.GetCreditBalanceRequest]) (*connect.Response[appv1.GetCreditBalanceResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -285,7 +277,10 @@ func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Requ
 	if err != nil {
 		return nil, toError(err)
 	}
-	account, _ := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
+	account, err := h.service.GetBillingAccount(ctx, req.Msg.GetAccountId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
 	stopped := account != nil && account.Plan == string(domain.BillingPlanFree) && balance <= 0
 	return connect.NewResponse(&appv1.GetCreditBalanceResponse{
 		CreditBalance: minorToDecimal(balance),
@@ -293,10 +288,8 @@ func (h *BillingHandler) GetCreditBalance(ctx context.Context, req *connect.Requ
 	}), nil
 }
 
+// ListPaymentMethods returns saved payment methods for the billing account.
 func (h *BillingHandler) ListPaymentMethods(ctx context.Context, req *connect.Request[appv1.ListPaymentMethodsRequest]) (*connect.Response[appv1.ListPaymentMethodsResponse], error) {
-	if req.Msg.GetAccountId() == "" {
-		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("account_id is required"))
-	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err

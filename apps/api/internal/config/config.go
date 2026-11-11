@@ -1,3 +1,6 @@
+// Package config provides configuration structs and environment variable loaders
+// for the Synthify API service, storage buckets, worker dispatching, authentication,
+// Stripe billing, and observability.
 package config
 
 import (
@@ -9,6 +12,7 @@ import (
 	"github.com/synthify/backend/internal/platform/storage"
 )
 
+// API holds all runtime configuration settings required by the Synthify API server.
 type API struct {
 	Port                     string
 	Env                      string
@@ -23,9 +27,20 @@ type API struct {
 	WorkerBaseURL            string
 	WorkerDispatch           WorkerDispatch
 	Auth                     Auth
-	Stripe                   Stripe
+	Stripe                   *Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+	Chat                     Chat
+}
+
+// Chat configures the grounded-answer client for workspace chat. When no key
+// and no Vertex project are set, bootstrap falls back to a non-model extractive
+// answerer outside production and fails startup inside it.
+type Chat struct {
+	GeminiAPIKey   string
+	GeminiModel    string
+	VertexProject  string
+	VertexLocation string
 }
 
 // WorkerDispatch controls how the API hands jobs to the worker. When
@@ -49,12 +64,14 @@ type WorkerDispatch struct {
 	DispatchDeadline time.Duration
 }
 
+// Auth defines credentials and access control lists for internal and external API callers.
 type Auth struct {
 	ServiceToken     string
 	AdminEmailsCSV   string
 	AllowedEmailsCSV string
 }
 
+// Stripe encapsulates API keys, pricing plan IDs, meter events, and webhook secrets for Stripe integration.
 type Stripe struct {
 	SecretKey        string
 	WebhookSecret    string
@@ -67,28 +84,54 @@ type Stripe struct {
 	APIVersion       string
 }
 
+// Billing holds redirect URLs for Stripe Checkout and Customer Portal flows.
 type Billing struct {
 	SuccessURL      string
 	CancelURL       string
 	PortalReturnURL string
 }
 
+// NewRelic configures application telemetry and APM licensing credentials.
 type NewRelic struct {
 	AppName    string
 	LicenseKey string
 }
 
+// Store holds database connection parameters and connection pool tuning parameters.
 type Store struct {
 	DatabaseDSN    string
 	DBMaxOpenConns int
 	DBMaxIdleConns int
 }
 
+// loadStripeConfig initializes Stripe configuration from environment variables,
+// returning nil in local environments if STRIPE_SECRET_KEY is omitted.
+func loadStripeConfig(env string) *Stripe {
+	secret := os.Getenv("STRIPE_SECRET_KEY")
+	if env == "local" && secret == "" {
+		return nil
+	}
+	return &Stripe{
+		SecretKey:        secret,
+		WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
+		ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
+		ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
+		DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
+		MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
+		MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
+		APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
+		APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
+	}
+}
+
+// LoadAPI loads and validates all API server configuration settings from environment variables.
 func LoadAPI() API {
 	uploadBase := mustBaseURL("GCS_UPLOAD_URL_BASE", get("GCS_UPLOAD_URL_BASE", "http://127.0.0.1:4443"))
+	env := get("ENV", "production")
+
 	return API{
 		Port:                     get("PORT", "8080"),
-		Env:                      get("ENV", "production"),
+		Env:                      env,
 		ReadinessKey:             os.Getenv("SYNTHIFY_READINESS_KEY"),
 		ReadinessMonitorKey:      os.Getenv("SYNTHIFY_READINESS_MONITOR_KEY"),
 		CORSAllowedOrigins:       get("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:3000,http://127.0.0.1:3000"),
@@ -110,17 +153,7 @@ func LoadAPI() API {
 			AdminEmailsCSV:   os.Getenv("SYNTHIFY_ADMIN_USER_EMAILS"),
 			AllowedEmailsCSV: os.Getenv("SYNTHIFY_ALLOWED_USER_EMAILS"),
 		},
-		Stripe: Stripe{
-			SecretKey:        os.Getenv("STRIPE_SECRET_KEY"),
-			WebhookSecret:    os.Getenv("STRIPE_WEBHOOK_SECRET"),
-			ProPriceIDJPY:    os.Getenv("STRIPE_PRO_PRICE_ID_JPY"),
-			ProPriceIDUSD:    os.Getenv("STRIPE_PRO_PRICE_ID_USD"),
-			DefaultCurrency:  get("STRIPE_DEFAULT_CURRENCY", "jpy"),
-			MeterInputEvent:  os.Getenv("STRIPE_METER_INPUT_EVENT"),
-			MeterOutputEvent: os.Getenv("STRIPE_METER_OUTPUT_EVENT"),
-			APIBase:          get("STRIPE_API_BASE", "https://api.stripe.com"),
-			APIVersion:       get("STRIPE_API_VERSION", "2025-06-30.basil"),
-		},
+		Stripe: loadStripeConfig(env),
 		Billing: Billing{
 			SuccessURL:      get("BILLING_SUCCESS_URL", "http://localhost:3000/workspaces?billing=success"),
 			CancelURL:       get("BILLING_CANCEL_URL", "http://localhost:3000/workspaces?billing=cancel"),
@@ -130,9 +163,32 @@ func LoadAPI() API {
 			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-api")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
+		Chat: Chat{
+			// Same env vars the worker reads, so a deployment configures the
+			// model once rather than separately per service.
+			GeminiAPIKey: firstNonEmpty(os.Getenv("GEMINI_API_KEY"), os.Getenv("GOOGLE_API_KEY")),
+			GeminiModel:  get("GEMINI_MODEL", "gemini-3-flash-preview"),
+			VertexProject: firstNonEmpty(
+				os.Getenv("GCP_PROJECT"),
+				os.Getenv("GOOGLE_CLOUD_PROJECT"),
+				os.Getenv("GCP_PROJECT_ID"),
+			),
+			VertexLocation: get("VERTEX_LOCATION", "global"),
+		},
 	}
 }
 
+// firstNonEmpty returns the first non-empty string in the provided list.
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// LoadStore loads database DSN and connection pool configuration from environment variables.
 func LoadStore() Store {
 	return Store{
 		DatabaseDSN:    os.Getenv("DATABASE_DSN"),
@@ -160,6 +216,7 @@ func getDurationSeconds(key string, fallback time.Duration) time.Duration {
 	return time.Duration(secs) * time.Second
 }
 
+// get retrieves an environment variable value or returns the fallback if empty.
 func get(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -167,6 +224,7 @@ func get(key, fallback string) string {
 	return fallback
 }
 
+// defaultNewRelicAppName derives the New Relic APM application name based on deployment environment.
 func defaultNewRelicAppName(base string) string {
 	env := os.Getenv("ENV")
 	switch env {
@@ -192,6 +250,8 @@ func getInt(key string, def int) int {
 	return def
 }
 
+// mustBaseURL validates that the specified URL string is an acceptable HTTP/HTTPS base URL,
+// panicking if validation fails.
 func mustBaseURL(name, value string) string {
 	if err := storage.ValidateBaseURL(value); err != nil {
 		panic(fmt.Sprintf("%s is invalid: %v", name, err))

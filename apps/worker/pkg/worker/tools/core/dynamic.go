@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // DynamicToolSource is the seam between the worker and the dynamic tool store.

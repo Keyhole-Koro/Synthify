@@ -3,7 +3,6 @@ import type { DescService } from '@bufbuild/protobuf';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { env } from '@/config/env';
 import { getAuthHeaders } from '@/features/auth/session';
-import { toAppError } from './error_normalize';
 
 const baseUrl = env.apiBaseUrl;
 
@@ -11,45 +10,38 @@ const transport = createConnectTransport({
   baseUrl,
   interceptors: [
     (next) => async (req) => {
-      try {
-        const authHeaders = await getAuthHeaders();
-        for (const [key, value] of Object.entries(authHeaders)) {
-          req.header.set(key, value);
-        }
-      } catch (err) {
-        // If auth headers fail (e.g. token refresh failed), normalize and rethrow
-        throw toAppError(err);
+      const authHeaders = await getAuthHeaders();
+      for (const [key, value] of Object.entries(authHeaders)) {
+        req.header.set(key, value);
       }
-      
-      try {
-        return await next(req);
-      } catch (err) {
-        // Normalize RPC errors
-        throw toAppError(err);
-      }
+      return await next(req);
     },
   ],
 });
 
+/**
+ * Creates an authenticated ConnectRPC client injecting user Firebase ID tokens into request headers.
+ *
+ * @typeParam T - DescService definition type.
+ * @param service - The protobuf service descriptor.
+ * @returns Configured ConnectRPC client.
+ */
 export function createRPCClient<T extends DescService>(service: T): Client<T> {
   return createClient(service, transport);
 }
 
-// publicTransport は認証ヘッダを付けない。公開リンク (ResolveShareLink) のように
-// ログイン不要で叩く無認証経路のためのもの。エラー正規化だけは共有する。
+// publicTransport does not append auth headers (for public links, share tokens, etc.)
 const publicTransport = createConnectTransport({
   baseUrl,
-  interceptors: [
-    (next) => async (req) => {
-      try {
-        return await next(req);
-      } catch (err) {
-        throw toAppError(err);
-      }
-    },
-  ],
 });
 
+/**
+ * Creates an unauthenticated ConnectRPC client for public endpoints (such as shared workspace links).
+ *
+ * @typeParam T - DescService definition type.
+ * @param service - The protobuf service descriptor.
+ * @returns Configured public ConnectRPC client.
+ */
 export function createPublicRPCClient<T extends DescService>(service: T): Client<T> {
   return createClient(service, publicTransport);
 }

@@ -1,3 +1,4 @@
+// Package io provides builtin tools for document text extraction, chunking, search, encoding repairs, and table parsing.
 package io
 
 import (
@@ -13,24 +14,53 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
+// ExtractionArgs defines inputs for document text extraction.
+//
+// @property FileURI - Source object or mounted-file identifier.
+// @property MimeType - MIME type selecting the extraction strategy.
+// @property WorkspaceID - Workspace scope, optionally inherited from the job.
+// @property DocumentID - Document scope, optionally inherited from the job.
 type ExtractionArgs struct {
-	FileURI     string `json:"file_uri"`
-	MimeType    string `json:"mime_type"`
+	// FileURI identifies the source object or mounted file to read.
+	FileURI string `json:"file_uri"`
+	// MimeType selects the extraction path, such as archive, text, image, or media.
+	MimeType string `json:"mime_type"`
+	// WorkspaceID scopes filesystem and repository operations; the job context is used when empty.
 	WorkspaceID string `json:"workspace_id,omitempty"`
-	DocumentID  string `json:"document_id,omitempty"`
+	// DocumentID identifies the document; the job context is used when empty.
+	DocumentID string `json:"document_id,omitempty"`
 }
 
+// ExtractionResult holds the extracted raw text content of a source document.
+//
+// @property RawText - Normalized text, transcription, or image-derived content.
 type ExtractionResult struct {
+	// RawText contains normalized text, transcription, or image-derived content.
 	RawText string `json:"raw_text"`
 }
 
+// NewExtractionTool creates the extract_text builtin tool for parsing text from documents and archives.
+//
+// The tool delegates to the same extraction path used by the deterministic
+// worker pre-pass, so tool-driven and pre-pass extraction produce consistent
+// source records and extracted files.
+//
+// Parameters:
+//   - b: worker dependencies, including filesystem, repository, and optional LLM clients.
+//
+// Returns:
+//   - a configured extract_text tool;
+//   - an error when the input/output schema cannot be generated.
+//
+// @param b - Worker dependencies, including filesystem, repository, and optional LLM clients.
+// @return Configured extract_text tool and optional schema-generation error.
 func NewExtractionTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[ExtractionArgs, ExtractionResult]()
 	if err != nil {
@@ -50,16 +80,35 @@ func NewExtractionTool(b *base.Context) (core.Tool, error) {
 	}
 	return core.Tool{
 		Name:        "extract_text",
-		Description: "Extracts raw text from a given document URI (PDF, TXT, ZIP, etc.) or transcribes media files (audio/video). Unified as a directory-based project.",
+		Description: "Extract text from a document or archive file.",
 		IOSchema:    schema,
 		Run:         run,
 	}, nil
 }
 
-// Extract runs the extraction logic outside the tool wrapper so the
-// orchestrator can perform a deterministic extract pass at the start of a job
+// Extract extracts text from a file without going through the agent tool path.
+// Split out so the orchestrator can perform a deterministic extract pass at the start of a job
 // (the agent no longer discovers the source by guessing extract_text args). It
 // is the same code path the extract_text tool drives.
+//
+// Parameters:
+//   - ctx: request context propagated to storage, repository, and LLM operations.
+//   - b: worker dependencies used to read and persist extraction artifacts.
+//   - fileURI: source object or mounted-file identifier.
+//   - mimeType: source MIME type used to select the extraction strategy.
+//   - workspaceID: workspace scope, used when the job context does not provide it.
+//   - documentID: document scope, used when the job context does not provide it.
+//
+// Returns the extracted text, or an error when the source cannot be loaded or
+// the selected extractor fails.
+//
+// @param ctx - Request context propagated to storage, repository, and LLM operations.
+// @param b - Worker dependencies used to read and persist extraction artifacts.
+// @param fileURI - Source object or mounted-file identifier.
+// @param mimeType - Source MIME type used to select the extraction strategy.
+// @param workspaceID - Workspace scope, used when the job context does not provide it.
+// @param documentID - Document scope, used when the job context does not provide it.
+// @return Extracted text and an optional extraction error.
 func Extract(ctx context.Context, b *base.Context, fileURI, mimeType, workspaceID, documentID string) (string, error) {
 	res, err := runExtraction(ctx, b, ExtractionArgs{
 		FileURI:     fileURI,
@@ -74,7 +123,7 @@ func Extract(ctx context.Context, b *base.Context, fileURI, mimeType, workspaceI
 }
 
 // runExtraction is the unwrapped extraction logic. Split from the factory so
-// the 道A Run closure stays small and the existing per-file-shape branches
+// the unified Run closure stays small and the existing per-file-shape branches
 // (zip / media / text) remain testable independently.
 func runExtraction(ctx context.Context, b *base.Context, args ExtractionArgs) (ExtractionResult, error) {
 	wsID := args.WorkspaceID
