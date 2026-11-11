@@ -14,11 +14,21 @@ async function chooseFile(page: import('@playwright/test').Page, file: { name: s
   await chooser.setFiles(file);
 }
 
+/**
+ * Creates a workspace from the workspace list and waits for its own upload area. The home
+ * screen has one too, earlier on the page: until the workspace's is there, `chooseFile` (which
+ * takes the last one) would pick the home screen's.
+ */
+async function createWorkspace(page: import('@playwright/test').Page) {
+  await page.getByText('ワークスペース', { exact: true }).first().click();
+  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await expect(page.getByText('ファイルをアップロード')).toHaveCount(2);
+}
+
 test('uploads to fake GCS, restores running progress, and renders fixture tree after completion', async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
   await chooseFile(page, { name: 'e2e-slow.md', mimeType: 'text/markdown', buffer: Buffer.from('# fixture') });
 
   await expect(page.getByText('解析中', { exact: true }).last()).toBeVisible();
@@ -54,9 +64,7 @@ test('rejects an executable dropped on the home screen without creating a worksp
 
 test('rejects executable files without starting an upload', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
-  await expect(page.getByText('ファイルをアップロード').last()).toBeVisible();
+  await createWorkspace(page);
 
   await chooseFile(page, {
     name: 'unsafe.exe',
@@ -64,14 +72,14 @@ test('rejects executable files without starting an upload', async ({ page }) => 
     buffer: Buffer.from('not really executable'),
   });
 
-  await expect(page.getByText('アップロードに失敗しました。実行ファイル形式はアップロードできません。', { exact: true })).toBeVisible();
+  // The workspace's upload area shows the policy's reason as is; the home screen's prefixes it.
+  await expect(page.getByText('実行ファイル形式はアップロードできません。', { exact: true })).toBeVisible();
   await expect(page.getByText('解析中', { exact: true })).toHaveCount(0);
 });
 
 test('surfaces an upload API failure and remains retryable', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
 
   await page.route('**/synthify.app.v1.DocumentService/CreateDocument', async (route) => {
     await route.fulfill({
@@ -85,7 +93,8 @@ test('surfaces an upload API failure and remains retryable', async ({ page }) =>
     mimeType: 'text/markdown',
     buffer: Buffer.from('# Retry me'),
   });
-  await expect(page.getByText(/アップロードに失敗しました|E2E upload unavailable/).first()).toBeVisible();
+  // The workspace's upload area reports an unavailable API as a connection problem.
+  await expect(page.getByText('通信環境を確認して、再度お試しください。', { exact: true })).toBeVisible();
 
   await page.unroute('**/synthify.app.v1.DocumentService/CreateDocument');
   await expect(page.getByText('ファイルをアップロード').last()).toBeVisible();
@@ -94,8 +103,7 @@ test('surfaces an upload API failure and remains retryable', async ({ page }) =>
 
 test('shows a size limit error without uploading bytes', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
   await page.route('**/synthify.app.v1.DocumentService/CreateDocument', async (route) => {
     await route.fulfill({ status: 413, contentType: 'application/json', body: JSON.stringify({ code: 'resource_exhausted', message: 'ファイルサイズが上限を超えています。' }) });
   });
@@ -105,8 +113,7 @@ test('shows a size limit error without uploading bytes', async ({ page }) => {
 
 test('rejects upload when the free-plan quota is exhausted', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
   await page.route('**/synthify.app.v1.DocumentService/CreateDocument', (route) => route.fulfill({
     status: 429,
     contentType: 'application/json',
@@ -119,19 +126,17 @@ test('rejects upload when the free-plan quota is exhausted', async ({ page }) =>
 
 test('surfaces StartProcessing failure after a successful fake GCS upload', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
   await page.route('**/synthify.app.v1.DocumentService/StartProcessing', async (route) => {
     await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'unavailable', message: 'E2E processing unavailable' }) });
   });
   await chooseFile(page, { name: 'processing.md', mimeType: 'text/markdown', buffer: Buffer.from('# uploaded first') });
-  await expect(page.getByText(/アップロードに失敗しました|E2E processing unavailable/).first()).toBeVisible();
+  await expect(page.getByText('通信環境を確認して、再度お試しください。', { exact: true })).toBeVisible();
 });
 
 test('shows worker failure and exposes retry upload control', async ({ page }) => {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
   await chooseFile(page, { name: 'e2e-fail.md', mimeType: 'text/markdown', buffer: Buffer.from('# fail fixture') });
   await expect(page.getByText('E2E fixture worker failure', { exact: true }).last()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('再試行', { exact: true }).last()).toBeVisible();
