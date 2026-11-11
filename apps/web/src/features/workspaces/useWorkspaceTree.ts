@@ -91,8 +91,11 @@ export function useWorkspaceTree(
 
   // openChild / setOpenChildren / updateWorkspaceExpansion are pure
   // ExpansionMap manipulations — kept inline because they are the only
-  // place the orchestrator touches the map directly.
+  // place the orchestrator touches the map directly. Each returns `base`
+  // itself when nothing changes, so a no-op can be told apart by identity.
   const setOpenChildren = (parentId: string, childIds: string[], base: ExpansionMap): ExpansionMap => {
+    const current = base.get(parentId)?.openChildIds ?? [];
+    if (current.length === childIds.length && current.every((id, i) => id === childIds[i])) return base;
     const next = new Map(base);
     next.set(parentId, { openChildIds: childIds });
     return next;
@@ -126,7 +129,10 @@ export function useWorkspaceTree(
       : currentWorkspaceOpenIds;
 
     map = setOpenChildren(workspaceId, openChildIds, map);
-    onExpansionMapChange(map);
+    // Report only a change. A new but equal map re-runs useExpansionWatcher,
+    // which opens a workspace still waiting for ListWorkspaces again, which
+    // comes back here: a render loop until access is confirmed.
+    if (map !== expansionMapRef.current) onExpansionMapChange(map);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onExpansionMapChange, store]);
 

@@ -24,12 +24,12 @@ test('uploads to fake GCS, restores running progress, and renders fixture tree a
   await expect(page.getByText('解析中', { exact: true }).last()).toBeVisible();
   await page.reload();
   await expect(page.getByText(/解析中|Fixture processing/).last()).toBeVisible();
-  const fixtureFrame = page.frameLocator('iframe[title="workspace-root-content"]');
+  const fixtureFrame = page.frameLocator('[data-testid="workspace-root-content"]');
   await expect(fixtureFrame.getByRole('heading', { name: 'E2E Fixture Report' })).toBeVisible({ timeout: 30_000 });
   await expect(fixtureFrame.getByText('E2E Fixture Overview', { exact: true })).toBeVisible();
 
   await page.reload();
-  await expect(page.frameLocator('iframe[title="workspace-root-content"]').getByRole('heading', { name: 'E2E Fixture Report' })).toBeVisible();
+  await expect(page.frameLocator('[data-testid="workspace-root-content"]').getByRole('heading', { name: 'E2E Fixture Report' })).toBeVisible();
 });
 
 test('rejects an executable dropped on the home screen without creating a workspace', async ({ page }) => {
