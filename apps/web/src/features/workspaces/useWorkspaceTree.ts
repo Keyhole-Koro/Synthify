@@ -1,7 +1,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ExpansionMap, Paper } from '@keyhole-koro/paper-in-paper';
-import { projectWorkspacePapers } from '@/features/workspaces/useWorkspaceProjection';
+import { projectWorkspacePapers, type ProjectionCache } from '@/features/workspaces/useWorkspaceProjection';
 import { ROOT_ID, WORKSPACES_ID } from '@/features/paperMap/defaultOpenState';
 import { type Workspace } from '@/features/workspaces/api';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
@@ -55,6 +55,7 @@ export function useWorkspaceTree(
   }, [expansionMap]);
 
   const treeCache = useMemo(() => createWorkspaceTreeCache(), []);
+  const projectionCacheRef = useRef<ProjectionCache>(new Map());
   const treeCommands = useMemo(() => createWorkspaceTreeCommands(treeCache), [treeCache]);
 
   useEffect(() => {
@@ -191,6 +192,7 @@ export function useWorkspaceTree(
       store.getTreeItems(workspaceId),
       store.getRootNodeIds(workspaceId),
       buildWsPaper,
+      projectionCacheRef.current,
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildWsPaper]);
@@ -341,6 +343,7 @@ export function useWorkspaceTree(
 
   const resetTree = useCallback(() => {
     store.reset();
+    projectionCacheRef.current.clear();
     clearWorkspacePapers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clearWorkspacePapers]);

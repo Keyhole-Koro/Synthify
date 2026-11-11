@@ -27,7 +27,7 @@
 - 本文中の `data-paper-id` リンクは、子なら開き、それ以外の既知のペーパー（親・兄弟・別の枝）はツリー上の本来の場所で表示します。LLM が親へ戻るリンクを書いても壊れません（以前はキャンバスごとクラッシュしていました）。
 - レイアウトは木と整合する展開エントリだけをたどります。localStorage から復元した展開状態に古いエントリや循環があっても描画は壊れません。
 - HTML 本文の iframe には CSP（ドキュメントごとの nonce）が付き、本文中のスクリプトやインラインハンドラは実行されません。外部のスタイルシートやフォントも読み込めません。
-- iframe 内の bootstrap は本文より先に `<head>` で動き、DOM の関数を先に確保するので、本文の DOM clobbering（`<img name="addEventListener">` など）で壊れません。キャンバスとの通信はドキュメントごとの秘密値で開いた専用の `MessageChannel` だけで行い、window のメッセージは受け付けません。
+- iframe 内の bootstrap（ライブラリの `internal/frame/bootstrap.js`。書いたまま文字列として埋め込まれ、通信の型に対して型検査される）は本文より先に `<head>` で動き、DOM の関数を先に確保するので、本文の DOM clobbering（`<img name="addEventListener">` など）で壊れません。キャンバスとの通信はドキュメントごとの秘密値で開いた専用の `MessageChannel` だけで行い、window のメッセージは受け付けません。
 - iframe が自分のドキュメント以外を表示したら（meta refresh などで遷移した場合）、そのペーパーの本文は `labels.contentBlocked` の通知に置き換わります。
 - 子ペーパーの DOM 順は `childIds` 順で固定です。並べ替えても iframe は DOM 上で動かないので再読み込みされません（レイアウト順は `data-child-index`）。
 
@@ -39,6 +39,7 @@
 | `features/paperMap/hooks/usePersistentPaperOpenState.ts` | `onExpansionMapChange` / `onFocusedNodeIdChange` を localStorage に保存（コールバックは変化時のみ、マウント時は呼ばれない）。ユーザーが替わったら、復元した状態とキャンバスの `key` を同じ更新で切り替える。保存できるのは最新の解決に対応するキャンバスだけで、入れ替わり中の古いキャンバスの通知は捨てる（前のユーザーの状態が次のユーザーに保存されない） |
 | `features/paperMap/expansionPersistence.ts` | 復元時に不正なエントリを捨て、件数に上限を設ける |
 | `features/workspaces/paper/components/WorkspaceRootContent.tsx` | カバーレポートを `PaperHtmlContent` で描画（独自の iframe ブリッジは廃止） |
-| `features/workspaces/useWorkspaceProjection.ts` | ツリー → `Paper` の変換。値が同じアイテムは前回の `Paper` オブジェクトを使い回す（変わったペーパーだけ再描画させるため） |
+| `features/paperMap/hooks/useLandingPaperMap.tsx` | ランディングの `PaperMap`。ペーパー（またはそのまとまり）ごとに入力が変わったときだけ作り直す。説明用の固定ペーパーは `paperMap/landing/productPapers.tsx` のモジュール定数で、一度しか作らない（キャンバスは新しいオブジェクトを受け取ったペーパーを再描画するため） |
+| `features/workspaces/useWorkspaceProjection.ts` | ツリー → `Paper` の変換。値が同じアイテムは前回の `Paper` オブジェクトを使い回す（変わったペーパーだけ再描画させるため）。前回分のキャッシュは `useWorkspaceTree` が持ち、`resetTree`（ログアウト）で消える |
 
 `vite.config.ts` / `vitest.config.ts` はライブラリをソースのまま読み込み、`resolve.dedupe` で React をアプリ側の 1 つに揃えています（サブモジュール内に `node_modules` がある開発時でも React が二重にならないように）。

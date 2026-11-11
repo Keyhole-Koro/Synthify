@@ -26,10 +26,11 @@ function samePaper(a: Paper, b: Paper): boolean {
 }
 
 /**
- * The papers last projected per workspace. Reusing the previous object for an unchanged item
- * lets the canvas re-render only the papers that actually changed.
+ * The papers last projected, per workspace and item. Reusing the previous object for an
+ * unchanged item lets the canvas re-render only the papers that actually changed. Owned by the
+ * caller (one per workspace tree), so it goes with the tree's lifetime.
  */
-const lastProjection = new Map<string, Map<string, Paper>>();
+export type ProjectionCache = Map<string, Map<string, Paper>>;
 
 
 /**
@@ -84,6 +85,7 @@ export interface WorkspaceRootNodeProjection {
  * @param treeItems - Map of all loaded tree nodes.
  * @param rootNodeIds - Array of root item IDs found in the workspace tree.
  * @param buildWsPaper - Factory callback for generating the workspace parent paper.
+ * @param cache - The previous projections to reuse unchanged papers from; updated in place.
  * @returns Array of all projected papers including the workspace container paper.
  */
 export function projectWorkspacePapers(
@@ -95,6 +97,7 @@ export function projectWorkspacePapers(
     childPapers: { id: string; title: string }[],
     rootNode?: WorkspaceRootNodeProjection,
   ) => Paper,
+  cache?: ProjectionCache,
 ): Paper[] {
   const childPapers = rootNodeIds
     .map((id) => treeItems.get(id))
@@ -112,7 +115,7 @@ export function projectWorkspacePapers(
     ? { id: rootItem.id, content: rootItem.content, overrideCss: rootItem.overrideCss }
     : undefined;
 
-  const previous = lastProjection.get(workspaceId);
+  const previous = cache?.get(workspaceId);
   const current = new Map<string, Paper>();
   const projectedPapers: Paper[] = [];
   for (const itemId of treeItems.keys()) {
@@ -123,7 +126,7 @@ export function projectWorkspacePapers(
     current.set(itemId, paper);
     projectedPapers.push(paper);
   }
-  lastProjection.set(workspaceId, current);
+  cache?.set(workspaceId, current);
 
   return [...projectedPapers, buildWsPaper(workspaceId, childPapers, rootNode)];
 }

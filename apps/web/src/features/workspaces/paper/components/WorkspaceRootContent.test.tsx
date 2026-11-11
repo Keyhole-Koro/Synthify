@@ -54,7 +54,7 @@ const reportFrame = () => document.querySelector<HTMLIFrameElement>('[data-testi
  * secret and a MessagePort, answers the canvas's liveness pings, and returns its end of the port.
  */
 async function connect(frame: HTMLIFrameElement) {
-  const secret = /var SECRET = '([^']*)'/.exec(frame.getAttribute('srcdoc') ?? '')?.[1] ?? '';
+  const secret = /const SECRET = '([^']*)'/.exec(frame.getAttribute('srcdoc') ?? '')?.[1] ?? '';
   const channel = new MessageChannel();
   channel.port1.onmessage = (event: MessageEvent) => {
     if (event.data?.type === 'ping') channel.port1.postMessage({ type: 'pong', seq: event.data.seq });

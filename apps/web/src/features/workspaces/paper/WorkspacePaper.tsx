@@ -1,5 +1,5 @@
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { isJobFailed, isJobSucceeded, isJobTerminal } from '@/features/jobs/contracts/jobStatusContract';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
@@ -14,6 +14,7 @@ import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
 import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
+import { useFileDrop } from '@/lib/useFileDrop';
 import { WorkspaceChatPanel } from '@/features/workspaceChat/WorkspaceChatPanel';
 
 /**
@@ -125,8 +126,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     onProcessingComplete,
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const drop = useFileDrop({ onFile: handleUpload });
   const [isSharing, setIsSharing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -187,45 +187,11 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const isTreeMissing = !hasTree;
   const isExpanded = !isPopulated || isFailed;
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    await handleUpload(file);
-  };
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setIsDragging(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    await handleUpload(file);
-  }, [handleUpload]);
-
   return (
     <div
       className="flex h-full flex-col"
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="sr-only"
-        onChange={handleFileChange}
-        onClick={(e) => {
-          (e.target as HTMLInputElement).value = '';
-        }}
-      />
+      <input {...drop.inputProps} className="sr-only" />
 
       {/* Share control. Kept outside the populated/empty branches so it stays
           mounted regardless of isPopulated (which briefly flips to false while
@@ -351,14 +317,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
               hasChildItems={childItems.length > 0}
               uploading={uploading}
               activeJobId={activeJobId}
-              isDragging={isDragging}
+              isDragging={drop.isDragging}
               jobStatusMessage={jobStatusError?.message ?? jobStatus?.errorMessage ?? jobStatus?.message}
               jobStatusProgress={jobStatus?.progress}
               jobStatusFailed={isJobFailed(jobStatus)}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
+              {...drop.dropHandlers}
+              onClick={drop.openPicker}
             />
 
             {uploadMessage && (

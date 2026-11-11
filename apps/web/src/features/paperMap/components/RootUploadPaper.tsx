@@ -1,8 +1,8 @@
-
-import React, { useRef, useState } from 'react';
+import { useState } from 'react';
 import { WorkspaceDropzone } from '@/features/workspaces/paper/components/WorkspaceDropzone';
 import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
+import { useFileDrop } from '@/lib/useFileDrop';
 
 /**
  * Props for the {@link RootUploadPaper} component.
@@ -25,10 +25,8 @@ export function RootUploadPaper({
   disabled,
   onUpload,
 }: RootUploadPaperProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
 
   async function handleUpload(file: File) {
     if (disabled || uploading) return;
@@ -52,48 +50,19 @@ export function RootUploadPaper({
     }
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    await handleUpload(file);
-  }
+  const drop = useFileDrop({ onFile: handleUpload, disabled });
 
   return (
     <div className="flex h-full flex-col justify-center gap-3 p-5">
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="sr-only"
-        onChange={handleFileChange}
-        onClick={(e) => {
-          (e.target as HTMLInputElement).value = '';
-        }}
-      />
+      <input {...drop.inputProps} className="sr-only" />
       <WorkspaceDropzone
         isTreeMissing
         hasChildItems={false}
         uploading={uploading}
         activeJobId={null}
-        isDragging={isDragging}
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (!disabled) setIsDragging(true);
-        }}
-        onDragLeave={(e) => {
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setIsDragging(false);
-          }
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragging(false);
-          const file = e.dataTransfer.files[0];
-          if (file) void handleUpload(file);
-        }}
-        onClick={() => {
-          if (!disabled) fileInputRef.current?.click();
-        }}
+        isDragging={drop.isDragging}
+        {...drop.dropHandlers}
+        onClick={drop.openPicker}
       />
       {uploadMessage && (
         <p
