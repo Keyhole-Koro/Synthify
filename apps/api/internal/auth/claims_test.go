@@ -45,6 +45,9 @@ func TestPrincipalFromClaims_AdminRole(t *testing.T) {
 		{"no email", map[string]any{"email_verified": true}, false},
 		{"empty email", map[string]any{"email": "", "email_verified": true}, false},
 		{"non-string email", map[string]any{"email": 42, "email_verified": true}, false},
+		{"unverified admin email", map[string]any{"email": "admin@example.com", "email_verified": false}, false},
+		{"admin email without email_verified", map[string]any{"email": "admin@example.com"}, false},
+		{"admin email with non-bool email_verified", map[string]any{"email": "admin@example.com", "email_verified": "true"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := a.principalFromClaims("uid_1", tc.claims)
@@ -65,6 +68,8 @@ func TestPrincipalFromClaims_Allowlist(t *testing.T) {
 		{"verified allowed email", map[string]any{"email": "Allowed@Example.com", "email_verified": true}, true},
 		{"verified other email", map[string]any{"email": "user@example.com", "email_verified": true}, false},
 		{"no email", map[string]any{"email_verified": true}, false},
+		{"unverified allowed email", map[string]any{"email": "allowed@example.com", "email_verified": false}, false},
+		{"allowed email without email_verified", map[string]any{"email": "allowed@example.com"}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := a.principalFromClaims("uid_1", tc.claims)
@@ -88,4 +93,24 @@ func TestPrincipalFromClaims_NoAllowlistAdmitsAnyUser(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "uid_1", got.SubjectID)
 	assert.False(t, got.Admin)
+}
+
+// An unverified email still signs in when there is no allowlist, and is still
+// passed on (SyncUser stores it); it only stops granting the admin role.
+func TestPrincipalFromClaims_UnverifiedEmailSignsInWithoutAdminRole(t *testing.T) {
+	a := newClaimsAuthenticator("admin@example.com", "")
+
+	got, err := a.principalFromClaims("uid_1", map[string]any{
+		"email":          "admin@example.com",
+		"email_verified": false,
+		"name":           "Someone",
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, Principal{
+		Kind:        PrincipalKindUser,
+		SubjectID:   "uid_1",
+		Email:       "admin@example.com",
+		DisplayName: "Someone",
+	}, got)
 }
