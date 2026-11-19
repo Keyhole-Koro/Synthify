@@ -72,8 +72,11 @@ func (b *Context) runningJobScope(ctx context.Context) (JobScope, error) {
 		return JobScope{}, nil
 	}
 	callJobID := jobIDFromContext(ctx)
-	if b.Job != nil && (callJobID == "" || callJobID == b.Job.JobID) {
-		return JobScope{JobID: b.Job.JobID, WorkspaceID: b.Job.WorkspaceID, DocumentID: b.Job.DocumentID}, nil
+	// Read b.Job once. A concurrent BeginJob replaces it with a new JobContext,
+	// so a second read could return another job's IDs after the check passed.
+	cur := b.Job
+	if cur != nil && (callJobID == "" || callJobID == cur.JobID) {
+		return JobScope{JobID: cur.JobID, WorkspaceID: cur.WorkspaceID, DocumentID: cur.DocumentID}, nil
 	}
 	if callJobID == "" {
 		return JobScope{}, nil
