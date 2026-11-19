@@ -62,19 +62,7 @@ func (a *FirebaseAuthenticator) AuthenticateBearer(ctx context.Context, token st
 	if err != nil {
 		return Principal{}, fmt.Errorf("%w: verify bearer token: %v", ErrUnauthenticated, err)
 	}
-	email, _ := idToken.Claims["email"].(string)
-	displayName, _ := idToken.Claims["name"].(string)
-	normalizedEmail := lowerTrim(email)
-	if len(a.allowedEmails) > 0 && !a.allowedEmails[normalizedEmail] {
-		return Principal{}, fmt.Errorf("%w: email not allowed", ErrPermissionDenied)
-	}
-	return Principal{
-		Kind:        PrincipalKindUser,
-		SubjectID:   idToken.UID,
-		Email:       email,
-		DisplayName: displayName,
-		Admin:       normalizedEmail != "" && a.adminEmails[normalizedEmail],
-	}, nil
+	return a.principalFromClaims(idToken.UID, idToken.Claims)
 }
 
 func (a *FirebaseAuthenticator) AuthenticateServiceToken(ctx context.Context, token string) (Principal, error) {
