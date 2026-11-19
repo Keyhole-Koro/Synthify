@@ -286,7 +286,11 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 		}
 
 		relPath := f.Name
-		destPath := filepath.Join(extractDir, relPath)
+		destPath, ok := zipEntryPath(extractDir, relPath)
+		if !ok {
+			b.Logger.Warn("extraction.unsafe_zip_entry_skipped", "path", relPath)
+			continue
+		}
 
 		// Create parent dirs
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
