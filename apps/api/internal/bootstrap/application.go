@@ -229,7 +229,8 @@ func healthHandler(store any, readinessKey, readinessMonitorKey string) http.Han
 		if provided == "" {
 			provided = r.URL.Query().Get("key")
 		}
-		if !constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey) {
+		// An empty key never authorizes, so an unset key cannot match it (fail closed).
+		if provided == "" || (!constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey)) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
