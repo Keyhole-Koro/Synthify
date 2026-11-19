@@ -16,6 +16,9 @@ func CORS(allowedOrigins string, next http.Handler) http.Handler {
 		}
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The CORS headers depend on Origin, so caches must not reuse a
+		// response across origins.
+		w.Header().Add("Vary", "Origin")
 		origin := r.Header.Get("Origin")
 		if allowedOrigins == "*" {
 			if origin != "" {
@@ -28,7 +31,8 @@ func CORS(allowedOrigins string, next http.Handler) http.Handler {
 		}
 
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Connect-Protocol-Version, Connect-Timeout-Ms")
+		// X-Synthify-Share-Token: the shared-link viewer reads the tree with it (see middleware/auth.go).
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Connect-Protocol-Version, Connect-Timeout-Ms, X-Synthify-Share-Token")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Access-Control-Expose-Headers", "Connect-Error-Code, Connect-Error-Message")
 		w.Header().Set("Access-Control-Max-Age", "86400")
