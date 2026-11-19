@@ -41,6 +41,13 @@ func NewExtractionTool(b *base.Context) (core.Tool, error) {
 		if err := json.Unmarshal(in, &args); err != nil {
 			return nil, core.Usage{}, err
 		}
+		// The IDs come from the model: bind them to the running job so a call
+		// cannot read or write another workspace's files on the shared mount.
+		scope, err := b.BindJobScope(ctx, base.JobScope{WorkspaceID: args.WorkspaceID, DocumentID: args.DocumentID})
+		if err != nil {
+			return nil, core.Usage{}, err
+		}
+		args.WorkspaceID, args.DocumentID = scope.WorkspaceID, scope.DocumentID
 		result, err := runExtraction(ctx, b, args)
 		if err != nil {
 			return nil, core.Usage{}, err

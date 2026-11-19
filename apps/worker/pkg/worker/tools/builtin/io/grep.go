@@ -61,14 +61,13 @@ func NewGrepTool(b *base.Context) (core.Tool, error) {
 }
 
 func grepSearch(ctx context.Context, b *base.Context, args GrepArgs) (GrepResult, error) {
-	docID := args.DocumentID
-	if docID == "" && b != nil && b.Job != nil {
-		docID = b.Job.DocumentID
+	// The IDs come from the model: bind them to the running job so a call
+	// cannot read another workspace's files on the shared mount.
+	scope, err := b.BindJobScope(ctx, base.JobScope{WorkspaceID: args.WorkspaceID, DocumentID: args.DocumentID})
+	if err != nil {
+		return GrepResult{}, err
 	}
-	wsID := args.WorkspaceID
-	if wsID == "" && b != nil && b.Job != nil {
-		wsID = b.Job.WorkspaceID
-	}
+	docID, wsID := scope.DocumentID, scope.WorkspaceID
 
 	if docID == "" || wsID == "" {
 		return GrepResult{}, fmt.Errorf("document_id and workspace_id are required")
@@ -108,10 +107,13 @@ func grepSearch(ctx context.Context, b *base.Context, args GrepArgs) (GrepResult
 	if args.ExtendedRegex {
 		cmdArgs = append(cmdArgs, "-E")
 	}
+	// -e keeps a pattern that starts with "-" from being parsed as an option,
+	// and "--" ends the options before the path.
 	cmdArgs = append(cmdArgs,
 		"-B", strconv.Itoa(contextLines),
 		"-A", strconv.Itoa(contextLines),
-		args.Pattern,
+		"-e", args.Pattern,
+		"--",
 		targetPath,
 	)
 
