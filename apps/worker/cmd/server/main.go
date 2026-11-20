@@ -21,6 +21,7 @@ import (
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
 	workerv1connect "github.com/synthify/backend/internal/gen/synthify/worker/v1/workerv1connect"
 	"github.com/synthify/backend/internal/platform/httpmiddleware"
+	"github.com/synthify/backend/internal/platform/httpserver"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 	"github.com/synthify/backend/internal/platform/observability"
 )
@@ -98,7 +99,7 @@ func main() {
 	addr := fmt.Sprintf(":%s", cfg.Port)
 	appLogger.Info("worker.started", "addr", addr)
 	h := httpmiddleware.Recover(appLogger, httpmiddleware.Logger(appLogger, withJobLogger(jobLogger, mux)))
-	if err := http.ListenAndServe(addr, h); err != nil {
+	if err := httpserver.New(addr, h).ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
