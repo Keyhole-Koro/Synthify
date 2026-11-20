@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +26,8 @@ func newMemberTestService(t *testing.T) (*WorkspaceService, *mock.Store, string,
 		Workspaces: store,
 		Users:      store,
 		Logger:     nil,
+		// invitee と other は、サインインしたアカウントでこのアドレスを確認済み。
+		VerifiedEmails: verifiedEmailsByUser{"invitee": "invitee@example.com", "other": "other@example.com"},
 	})
 	return svc, store, wsID, "invitee"
 }
@@ -172,4 +176,72 @@ func TestListWorkspaces_InvitedMember_SeesSharedWorkspace(t *testing.T) {
 	require.NoError(t, err, "ListWorkspaces after")
 	require.Len(t, after, 1, "invited member sees the shared workspace")
 	assert.Equal(t, wsID, after[0].WorkspaceID)
+}
+
+// verifiedEmailsByUser は VerifiedEmails の fake。user ごとに、サインインした
+// アカウントで確認済みのアドレスを持つ。
+type verifiedEmailsByUser map[string]string
+
+func (v verifiedEmailsByUser) HasVerifiedEmail(_ context.Context, userID, email string) (bool, error) {
+	verified, ok := v[userID]
+	return ok && strings.EqualFold(verified, email), nil
+}
+
+type failingVerifiedEmails struct{ err error }
+
+func (f failingVerifiedEmails) HasVerifiedEmail(context.Context, string, string) (bool, error) {
+	return false, f.err
+}
+
+// 他人のアドレスでアカウントを作り、一度サインインしただけの squatter は、users に
+// そのアドレスで保存されるが、確認はしていない。そのアドレスへの招待で squatter が
+// メンバーになってはいけない。
+func TestInviteMember_UnverifiedAddressOwner_IsNotInvited(t *testing.T) {
+	ctx := context.Background()
+	svc, store, wsID, _ := newMemberTestService(t)
+	_, err := store.UpsertUser(ctx, &domain.User{UserID: "squatter", Email: "victim@example.com"})
+	require.NoError(t, err, "UpsertUser squatter")
+
+	_, err = svc.InviteMember(ctx, wsID, "owner", "victim@example.com", domain.WorkspaceRoleEditor)
+	assert.ErrorIs(t, err, domain.ErrNotFound, "an unverified address is treated as unregistered")
+	_, err = svc.GetWorkspace(ctx, wsID, "squatter")
+	assert.ErrorIs(t, err, domain.ErrForbidden, "the squatter must not become a member")
+}
+
+// users.email はサインインのときにしか更新されない。その後で別のアドレスに移って
+// 確認したアカウントには、古いアドレスへの招待を渡さない。
+func TestInviteMember_StaleStoredAddress_IsNotInvited(t *testing.T) {
+	ctx := context.Background()
+	svc, store, wsID, _ := newMemberTestService(t)
+	_, err := store.UpsertUser(ctx, &domain.User{UserID: "mover", Email: "old@example.com"})
+	require.NoError(t, err, "UpsertUser mover")
+	svc.emails = verifiedEmailsByUser{"mover": "new@example.com"}
+
+	_, err = svc.InviteMember(ctx, wsID, "owner", "old@example.com", domain.WorkspaceRoleViewer)
+	assert.ErrorIs(t, err, domain.ErrNotFound)
+	_, err = svc.GetWorkspace(ctx, wsID, "mover")
+	assert.ErrorIs(t, err, domain.ErrForbidden)
+}
+
+// 確認ができないとき (Firebase のエラー、確認の手段が無い) は、誰も招待しない。
+func TestInviteMember_UncheckableAddress_InvitesNobody(t *testing.T) {
+	ctx := context.Background()
+	errLookup := errors.New("firebase unavailable")
+	for name, emails := range map[string]VerifiedEmails{
+		"lookup error": failingVerifiedEmails{err: errLookup},
+		"no verifier":  nil,
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc, _, wsID, inviteeID := newMemberTestService(t)
+			svc.emails = emails
+
+			_, err := svc.InviteMember(ctx, wsID, "owner", "invitee@example.com", domain.WorkspaceRoleViewer)
+			require.Error(t, err)
+			if emails != nil {
+				assert.ErrorIs(t, err, errLookup)
+			}
+			_, err = svc.GetWorkspace(ctx, wsID, inviteeID)
+			assert.ErrorIs(t, err, domain.ErrForbidden, "the invitee must not become a member")
+		})
+	}
 }

@@ -37,6 +37,7 @@ type WorkspaceService struct {
 	users      repository.UserRepository
 	logger     *slog.Logger
 	jobReaders JobStatusReaders
+	emails     VerifiedEmails
 }
 
 type WorkspaceServiceDeps struct {
@@ -49,6 +50,9 @@ type WorkspaceServiceDeps struct {
 	// in Firestore (see workspace_job_readers.go). nil mirrors nothing, and
 	// then nobody can read them.
 	JobStatusReaders JobStatusReaders
+	// VerifiedEmails tells whether an invitee has verified the invited
+	// address (see workspace_invitee.go). nil lets nobody be invited.
+	VerifiedEmails VerifiedEmails
 }
 
 func NewWorkspaceService(deps WorkspaceServiceDeps) *WorkspaceService {
@@ -58,6 +62,7 @@ func NewWorkspaceService(deps WorkspaceServiceDeps) *WorkspaceService {
 		users:      deps.Users,
 		logger:     deps.Logger,
 		jobReaders: deps.JobStatusReaders,
+		emails:     deps.VerifiedEmails,
 	}
 }
 
@@ -169,6 +174,14 @@ func (s *WorkspaceService) InviteMember(ctx context.Context, wsID, userID, email
 	user, err := s.users.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
+	}
+	// The stored email is not proof of ownership (see workspace_invitee.go).
+	verified, err := s.inviteeHasVerifiedEmail(ctx, user.UserID, email)
+	if err != nil {
+		return nil, err
+	}
+	if !verified {
+		return nil, domain.ErrNotFound
 	}
 	if err := s.workspaces.UpsertWorkspaceMember(ctx, wsID, user.UserID, role, userID); err != nil {
 		return nil, err
