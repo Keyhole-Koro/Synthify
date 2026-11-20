@@ -39,12 +39,13 @@ type JobScope struct {
 //     because the filesystem tools join the IDs into paths on the shared
 //     mount (ErrInvalidScopeID).
 //
-// The running job is b.Job, which BeginJob sets. b.Job is shared by every job
-// in this worker process, so when the call's context carries a different job
-// ID (the ADK session ID is the job ID, see jobIDFromContext), a later job has
-// replaced b.Job and the caller's own job is looked up in the repository
-// instead. Without a running job (direct calls and tests) the IDs are only
-// checked to be path segments.
+// The running job is b.Job, which BeginJob sets. Each job runs on a Context of
+// its own (see ForJob), so the call's context carries the same job ID (the ADK
+// session ID is the job ID, see jobIDFromContext). Should a Context ever be
+// shared between jobs again, a call whose context carries another job ID is
+// bound to that job, looked up in the repository, rather than to b.Job.
+// Without a running job (direct calls and tests) the IDs are only checked to
+// be path segments.
 func (b *Context) BindJobScope(ctx context.Context, requested JobScope) (JobScope, error) {
 	running, err := b.runningJobScope(ctx)
 	if err != nil {
