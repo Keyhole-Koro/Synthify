@@ -283,6 +283,10 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("%w: invalid zip file format", domain.ErrJobError)
 	}
+	// Refuse a zip bomb before extracting anything (see zipLimits).
+	if err := checkZipLimits(r.File); err != nil {
+		return ExtractionResult{}, fmt.Errorf("%w: %w", domain.ErrJobError, err)
+	}
 
 	var combinedText strings.Builder
 	extractedCount := 0
@@ -339,6 +343,9 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 
 		// Only append text files to the combined result for the LLM's initial view
 		if isLikelyText(content, mimeType) {
+			if combinedText.Len()+len(content) > zipLimits.textBytes {
+				return ExtractionResult{}, fmt.Errorf("%w: %w: the text files exceed %d bytes", domain.ErrJobError, errZipTooLarge, zipLimits.textBytes)
+			}
 			fileID := ""
 			if fileRecord != nil {
 				fileID = fileRecord.FileID
