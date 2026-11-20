@@ -6,10 +6,18 @@ service cloud.firestore {
       // get = 単一ドキュメント取得 (useJobStatus), list = コレクションクエリ
       // (useWorkspaceJobStatuses)。list 権限はドキュメントワイルドカードの
       // match 内で宣言しないと list クエリに適用されないため、両方をここに置く。
-      allow get, list: if request.auth != null;
+      //
+      // 読めるのは、そのワークスペースにアクセスできるユーザーだけ。メンバーは
+      // Postgres にあってルールからは見えないので、API が
+      // workspaces/{workspaceId}/readers/{uid} に写しを置く
+      // (internal/platform/job/status/readers.go)。条件はパスと uid だけで
+      // 決まるため、list クエリは今のまま (絞り込み無し) で評価できる。
+      allow get, list: if request.auth != null
+        && exists(/databases/$(database)/documents/workspaces/$(workspaceId)/readers/$(request.auth.uid));
       allow write: if false;
     }
 
+    // readers を含め、ほかのドキュメントはクライアントから読み書きできない。
     match /{document=**} {
       allow read, write: if false;
     }
