@@ -232,10 +232,9 @@ func healthHandler(store any, readinessKey, readinessMonitorKey string) http.Han
 			return
 		}
 
+		// Only the header carries the key: a key in the query string would be
+		// written to the request logs.
 		provided := r.Header.Get("X-Synthify-Readiness-Key")
-		if provided == "" {
-			provided = r.URL.Query().Get("key")
-		}
 		// An empty key never authorizes, so an unset key cannot match it (fail closed).
 		if provided == "" || (!constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey)) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
