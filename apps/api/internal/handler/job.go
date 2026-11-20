@@ -81,6 +81,9 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 	if err != nil {
 		return nil, err
 	}
+	if err := authorizeDocumentWrite(ctx, h.workspaces, h.documents, job.DocumentID); err != nil {
+		return nil, err
+	}
 	userID, err := requireUserID(ctx)
 	if err != nil {
 		return nil, err
@@ -104,6 +107,9 @@ func (h *JobHandler) RequestJobApproval(ctx context.Context, req *connect.Reques
 func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Request[appv1.ApproveJobApprovalRequest]) (*connect.Response[appv1.ApproveJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
+		return nil, err
+	}
+	if err := authorizeDocumentWrite(ctx, h.workspaces, h.documents, job.DocumentID); err != nil {
 		return nil, err
 	}
 	userID, err := requireUserID(ctx)
@@ -131,6 +137,9 @@ func (h *JobHandler) ApproveJobApproval(ctx context.Context, req *connect.Reques
 func (h *JobHandler) RejectJobApproval(ctx context.Context, req *connect.Request[appv1.RejectJobApprovalRequest]) (*connect.Response[appv1.RejectJobApprovalResponse], error) {
 	job, err := h.authorizeAndLoadJob(ctx, req.Msg.GetJobId())
 	if err != nil {
+		return nil, err
+	}
+	if err := authorizeDocumentWrite(ctx, h.workspaces, h.documents, job.DocumentID); err != nil {
 		return nil, err
 	}
 	userID, err := requireUserID(ctx)
