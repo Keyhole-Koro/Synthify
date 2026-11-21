@@ -83,10 +83,22 @@ jobs:
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
-          terraform_version: 1.6.6
+          terraform_version: 1.9.8
 
       - name: terraform fmt check
         run: terraform fmt -check -recursive terraform
+
+      # CD applies terraform/environments as the deploy service account, which
+      # cannot set project IAM, create service accounts or change Workload
+      # Identity. Such a resource there passes validate and then fails the
+      # deploy; it belongs in terraform/manual/iam, applied by hand.
+      - name: no IAM in the CD stack that the deploy account cannot apply
+        run: |
+          if grep -rnE 'resource "google_(project_iam_[a-z_]+|service_account[a-z_]*|iam_workload_identity_pool[a-z_]*)"' \
+              terraform/environments terraform/services terraform/modules; then
+            echo "::error::Move the resources above to terraform/manual/iam: the deploy service account cannot apply them."
+            exit 1
+          fi
 
       # Single root reused across envs; validate is env-agnostic so one
       # backend-less init/validate covers stage and prod.
@@ -95,6 +107,18 @@ jobs:
           cd terraform/environments
           terraform init -backend=false -lockfile=readonly
           terraform validate
+
+      # Stacks under terraform/manual are applied by hand, never by CD, so this
+      # is the only check they get before someone runs them.
+      - name: terraform validate (manual stacks)
+        run: |
+          set -euo pipefail
+          for dir in terraform/manual/*/; do
+            echo "::group::${dir}"
+            terraform -chdir="${dir}" init -backend=false -lockfile=readonly -input=false
+            terraform -chdir="${dir}" validate
+            echo "::endgroup::"
+          done
 
   notify:
     needs: [build, terraform]

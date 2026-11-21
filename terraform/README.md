@@ -9,10 +9,15 @@ terraform/
   services/       # service 単位の構成 (platform/api/worker)
   environments/   # 単一 root。stage/prod は tfvars + backend で切替
   tfvars/         # 環境別 tfvars
+  manual/         # 人が手で apply する root。CD は apply しない
 ```
 
 stage/prod でディレクトリは分けない。単一 root (`environments/`) を
 `-backend-config` と `-var-file` で切り替えて再利用する。
+
+`manual/` の下は、デプロイ用 SA の権限では apply できない（させない）もの。
+人が一度だけ手で apply する。手順は各ディレクトリの README にある。CI
+(`backend.yml`) は validate だけを流す。
 
 ## 構成方針
 
@@ -37,7 +42,14 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
 - **Secret は platform module が一括作成**。version (値) は手動で投入。
 - **署名付きアップロード URL**: `gcs_upload_issuer = "signed"` で実 GCS 署名 URL。
   private key は不要 (IAM SignBlob 経由)。API service account が自分自身に
-  対し `roles/iam.serviceAccountTokenCreator` を持つよう Terraform が付与する。
+  対し `roles/iam.serviceAccountTokenCreator` を持つよう `manual/iam` が付与する。
+- **サービスアカウントと IAM は `manual/iam`**。デプロイ用 SA (`github-deploy`) は
+  プロジェクトの IAM を変えられず、サービスアカウントも作れない
+  (`projectIamAdmin`・`serviceAccountAdmin`・プロジェクト全体の
+  `serviceAccountTokenCreator` を持たない)。実行用 SA とその権限、デプロイ用 SA の
+  権限、GitHub Actions からデプロイ用 SA になれる条件 (Workload Identity) は、
+  プロジェクトのオーナーが `manual/iam` を手で apply する。CI はこの境界を
+  `backend.yml` で確かめる (CD の stack に IAM の resource があると落ちる)。
 - **内部サービストークン**: worker は `INTERNAL_WORKER_TOKEN` を読んで送信、
   API の auth middleware は `SYNTHIFY_INTERNAL_SERVICE_TOKEN` を期待する。
   両者を同じ `internal-worker-token` secret にバインドして整合させている。
@@ -51,11 +63,16 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
    # または: bash scripts/bootstrap-tfstate.sh stage your-stage-project
    ```
 
-2. `tfvars/<env>.tfvars` を用意。埋めるのは実質 4 項目だけ
+2. サービスアカウント、IAM、Workload Identity を作る (プロジェクトのオーナーが手で。
+   [manual/iam/README.md](manual/iam/README.md) の「新しい環境」)。出力の
+   `workload_identity_provider` と `deploy_service_account_email` を、GitHub の
+   environment secret `GCP_WIF_PROVIDER` と `GCP_WIF_SA_EMAIL` に入れる。
+
+3. `tfvars/<env>.tfvars` を用意。埋めるのは実質 4 項目だけ
    (`project_id` / `region` / `environment` / `web_base_url`)。
    残りは locals.tf が導出する。機密値は tfvars に書かず、Secret Manager に投入する。
 
-3. init / apply (Pass 1: platform のみ。image はまだ無い):
+4. init / apply (Pass 1: platform のみ。image はまだ無い):
 
    ```bash
    cd terraform/environments
@@ -63,9 +80,9 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
    terraform apply -var-file=../tfvars/stage.tfvars -target=module.platform
    ```
 
-4. 作成された Secret Manager に値を投入 (下記)
-5. image を build & push (CD が自動。手動なら docker push)
-6. 全体 apply。image を `-var` で渡す:
+5. 作成された Secret Manager に値を投入 (下記)
+6. image を build & push (CD が自動。手動なら docker push)
+7. 全体 apply。image を `-var` で渡す:
 
    ```bash
    terraform apply -var-file=../tfvars/stage.tfvars \
@@ -73,10 +90,10 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
      -var="worker_image=<registry>/worker:<tag>"
    ```
 
-7. `terraform output -raw api_uri` を `-var="api_base_url=..."` で再 apply
+8. `terraform output -raw api_uri` を `-var="api_base_url=..."` で再 apply
    (worker → api コールバックを有効化)
 
-`make infra-stage-up` / `make infra-prod-up` が 1〜6 のうち
+`make infra-stage-up` / `make infra-prod-up` が 4〜7 のうち
 init→apply→placeholder secret→2回目 apply を自動化する。
 
 ## Secret Manager に投入する値

@@ -6,5 +6,6 @@
 
 - `cloud_run_service`
 - `cloud_tasks_queue`
-- `service_account`
 - `gcs_bucket`
+
+サービスアカウントは module にせず、`terraform/manual/iam` が直接作る（デプロイ用 SA には作れない）。

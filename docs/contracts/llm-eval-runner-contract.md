@@ -131,7 +131,8 @@ IAM:
 
 - eval runtime SA は project に `roles/aiplatform.user` を持つ。
 - scheduler SA は eval job に `roles/run.invoker` を持つ。
-- `deployer_principal` が設定されている場合、CI/WIF principal は eval runtime SA と scheduler SA に `roles/iam.serviceAccountUser` を持つ。
+- CI/WIF principal（`github-deploy`）は eval runtime SA と scheduler SA に `roles/iam.serviceAccountUser` を持つ。
+- SA と、project・SA への付与は [terraform/manual/iam](../../terraform/manual/iam/README.md) が持ち、人が手で apply する。job への `run.invoker` は CD の Terraform が付ける。
 
 Terraform environment variables:
 
