@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { GetMeRequest, GetMeResponse, SignInUserRequest, SignInUserResponse } from "./user_pb.js";
+import { DeleteAccountRequest, DeleteAccountResponse, GetMeRequest, GetMeResponse, SignInUserRequest, SignInUserResponse } from "./user_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -32,6 +32,20 @@ export declare const UserService: {
       readonly name: "GetMe",
       readonly I: typeof GetMeRequest,
       readonly O: typeof GetMeResponse,
+      readonly kind: MethodKind.Unary,
+    },
+    /**
+     * 退会。呼んだ本人のアカウントを消す: 自分のワークスペース（文書・ツリー・
+     * 共有リンクごと）、他人のワークスペースのメンバーシップ、利用者とアカウントの
+     * 行、Firebase Authentication の利用者。有料プランが続いているときと、
+     * 処理中の文書があるときは断る。詳細は docs/data-retention.md。
+     *
+     * @generated from rpc synthify.app.v1.UserService.DeleteAccount
+     */
+    readonly deleteAccount: {
+      readonly name: "DeleteAccount",
+      readonly I: typeof DeleteAccountRequest,
+      readonly O: typeof DeleteAccountResponse,
       readonly kind: MethodKind.Unary,
     },
   }

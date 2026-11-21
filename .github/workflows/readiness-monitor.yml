@@ -1,5 +1,14 @@
 name: Readiness Monitor
 
+# A best-effort second path, not the monitor. The Cloud Monitoring uptime check
+# (terraform/services/platform_alerts) probes the same endpoint every 5
+# minutes from three locations and emails; this workflow is kept because it is
+# the only path that reaches Discord when the API is down, and it covers an
+# environment until a deploy creates its uptime check. Do not rely on its
+# timing: GitHub runs scheduled workflows late or not at all (the 15-minute
+# schedule below ran every 3.7 to 9.7 hours, median 6.8, from 2026-11-10 to
+# 11-21), and it disables them after 60 days without a commit to this public
+# repository.
 on:
   schedule:
     # Every 15 minutes, across stage and prod. At 5 minutes this probe was
@@ -7,8 +16,7 @@ on:
     # minutes, so it kept one running around the clock in both environments.
     # This is a liveness signal for a sustained outage, not a latency SLO, and
     # it does not need to pay cold-start CPU 288 times a day per environment to
-    # be one. Two consecutive misses (the retry below) still surface an outage
-    # inside half an hour.
+    # be one.
     - cron: "*/15 * * * *"
   workflow_dispatch:
 

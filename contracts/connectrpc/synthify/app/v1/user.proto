@@ -10,6 +10,11 @@ service UserService {
   // 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
   rpc SignInUser(SignInUserRequest) returns (SignInUserResponse);
   rpc GetMe(GetMeRequest) returns (GetMeResponse);
+  // 退会。呼んだ本人のアカウントを消す: 自分のワークスペース（文書・ツリー・
+  // 共有リンクごと）、他人のワークスペースのメンバーシップ、利用者とアカウントの
+  // 行、Firebase Authentication の利用者。有料プランが続いているときと、
+  // 処理中の文書があるときは断る。詳細は docs/data-retention.md。
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse);
 }
 
 message User {
@@ -36,3 +41,7 @@ message GetMeResponse {
   User user = 1;
   repeated string workspace_ids = 2;
 }
+
+message DeleteAccountRequest {}
+
+message DeleteAccountResponse {}

@@ -25,6 +25,14 @@ module "service" {
   # (WORKER_REQUEST_TIMEOUT_SECONDS below) so they can never drift apart.
   timeout = "${var.request_timeout_seconds}s"
 
+  # One job per instance. The worker is not safe to share between jobs that
+  # run at the same time: a job's state must not reach another tenant's
+  # prompts. Concurrent jobs therefore get their own instances, up to
+  # max_instance_count, which also caps the pipeline queue's dispatches
+  # (environments/locals.tf worker_max_instances).
+  max_instance_request_concurrency = 1
+  max_instance_count               = var.max_instance_count
+
   gcs_volume = {
     bucket     = var.uploads_bucket_name
     mount_path = local.gcs_fuse_mount_path

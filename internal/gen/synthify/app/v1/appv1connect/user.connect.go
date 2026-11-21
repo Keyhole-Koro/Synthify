@@ -37,6 +37,9 @@ const (
 	UserServiceSignInUserProcedure = "/synthify.app.v1.UserService/SignInUser"
 	// UserServiceGetMeProcedure is the fully-qualified name of the UserService's GetMe RPC.
 	UserServiceGetMeProcedure = "/synthify.app.v1.UserService/GetMe"
+	// UserServiceDeleteAccountProcedure is the fully-qualified name of the UserService's DeleteAccount
+	// RPC.
+	UserServiceDeleteAccountProcedure = "/synthify.app.v1.UserService/DeleteAccount"
 )
 
 // UserServiceClient is a client for the synthify.app.v1.UserService service.
@@ -46,6 +49,11 @@ type UserServiceClient interface {
 	// 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
 	SignInUser(context.Context, *connect.Request[v1.SignInUserRequest]) (*connect.Response[v1.SignInUserResponse], error)
 	GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error)
+	// 退会。呼んだ本人のアカウントを消す: 自分のワークスペース（文書・ツリー・
+	// 共有リンクごと）、他人のワークスペースのメンバーシップ、利用者とアカウントの
+	// 行、Firebase Authentication の利用者。有料プランが続いているときと、
+	// 処理中の文書があるときは断る。詳細は docs/data-retention.md。
+	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 }
 
 // NewUserServiceClient constructs a client for the synthify.app.v1.UserService service. By default,
@@ -71,13 +79,20 @@ func NewUserServiceClient(httpClient connect.HTTPClient, baseURL string, opts ..
 			connect.WithSchema(userServiceMethods.ByName("GetMe")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteAccount: connect.NewClient[v1.DeleteAccountRequest, v1.DeleteAccountResponse](
+			httpClient,
+			baseURL+UserServiceDeleteAccountProcedure,
+			connect.WithSchema(userServiceMethods.ByName("DeleteAccount")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // userServiceClient implements UserServiceClient.
 type userServiceClient struct {
-	signInUser *connect.Client[v1.SignInUserRequest, v1.SignInUserResponse]
-	getMe      *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
+	signInUser    *connect.Client[v1.SignInUserRequest, v1.SignInUserResponse]
+	getMe         *connect.Client[v1.GetMeRequest, v1.GetMeResponse]
+	deleteAccount *connect.Client[v1.DeleteAccountRequest, v1.DeleteAccountResponse]
 }
 
 // SignInUser calls synthify.app.v1.UserService.SignInUser.
@@ -90,6 +105,11 @@ func (c *userServiceClient) GetMe(ctx context.Context, req *connect.Request[v1.G
 	return c.getMe.CallUnary(ctx, req)
 }
 
+// DeleteAccount calls synthify.app.v1.UserService.DeleteAccount.
+func (c *userServiceClient) DeleteAccount(ctx context.Context, req *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error) {
+	return c.deleteAccount.CallUnary(ctx, req)
+}
+
 // UserServiceHandler is an implementation of the synthify.app.v1.UserService service.
 type UserServiceHandler interface {
 	// Firebase Auth ログイン成功後にクライアントから毎回呼ぶ provisioning RPC。
@@ -97,6 +117,11 @@ type UserServiceHandler interface {
 	// 冪等。途中失敗 (users 行はあるが accounts が無い等) からも自己回復する。
 	SignInUser(context.Context, *connect.Request[v1.SignInUserRequest]) (*connect.Response[v1.SignInUserResponse], error)
 	GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error)
+	// 退会。呼んだ本人のアカウントを消す: 自分のワークスペース（文書・ツリー・
+	// 共有リンクごと）、他人のワークスペースのメンバーシップ、利用者とアカウントの
+	// 行、Firebase Authentication の利用者。有料プランが続いているときと、
+	// 処理中の文書があるときは断る。詳細は docs/data-retention.md。
+	DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error)
 }
 
 // NewUserServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -118,12 +143,20 @@ func NewUserServiceHandler(svc UserServiceHandler, opts ...connect.HandlerOption
 		connect.WithSchema(userServiceMethods.ByName("GetMe")),
 		connect.WithHandlerOptions(opts...),
 	)
+	userServiceDeleteAccountHandler := connect.NewUnaryHandler(
+		UserServiceDeleteAccountProcedure,
+		svc.DeleteAccount,
+		connect.WithSchema(userServiceMethods.ByName("DeleteAccount")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.app.v1.UserService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case UserServiceSignInUserProcedure:
 			userServiceSignInUserHandler.ServeHTTP(w, r)
 		case UserServiceGetMeProcedure:
 			userServiceGetMeHandler.ServeHTTP(w, r)
+		case UserServiceDeleteAccountProcedure:
+			userServiceDeleteAccountHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -139,4 +172,8 @@ func (UnimplementedUserServiceHandler) SignInUser(context.Context, *connect.Requ
 
 func (UnimplementedUserServiceHandler) GetMe(context.Context, *connect.Request[v1.GetMeRequest]) (*connect.Response[v1.GetMeResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.UserService.GetMe is not implemented"))
+}
+
+func (UnimplementedUserServiceHandler) DeleteAccount(context.Context, *connect.Request[v1.DeleteAccountRequest]) (*connect.Response[v1.DeleteAccountResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.UserService.DeleteAccount is not implemented"))
 }

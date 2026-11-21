@@ -56,6 +56,14 @@ export async function startProcessing(
 }
 
 /**
+ * Deletes a document with its stored files and the tree nodes made only from
+ * it. Refused (FailedPrecondition) while it is uploading or processing.
+ */
+export async function deleteDocument(documentId: string): Promise<void> {
+  await client.deleteDocument({ documentId });
+}
+
+/**
  * Resolves a data-file-id image marker (embedded in generated HTML) to a
  * short-lived signed GET URL. Called at render time, so the URL is never
  * persisted into the saved HTML.

@@ -188,7 +188,16 @@ variable "readiness_api_key" {
 }
 
 variable "readiness_monitor_key" {
-  description = "Long-lived key for external uptime monitoring of /health?ready=1 (GitHub Actions cron), distinct from readiness_api_key which rotates on every deploy."
+  description = "Long-lived key for external uptime monitoring of /health?ready=1 (the Cloud Monitoring uptime check and the GitHub Actions cron), distinct from readiness_api_key which rotates on every deploy."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# The repository is public, so the address never goes in tfvars. CD passes it
+# from the GitHub environment secret PLATFORM_ALERT_EMAIL.
+variable "platform_alert_email" {
+  description = "Email address for the Cloud Monitoring alerts (uptime, admin changes). Empty => the alert policies exist but notify no one."
   type        = string
   default     = ""
   sensitive   = true
@@ -237,12 +246,13 @@ variable "log_llm_payload" {
 }
 
 # Principal running `terraform apply` (the CI/WIF service account, the
-# GitHub secret GCP_WIF_SA_EMAIL). Format: "serviceAccount:<email>". Its roles,
-# and its actAs on the runtime service accounts, are granted by
-# terraform/manual/iam, not here: they need project IAM admin, which this
-# account does not have.
+# GitHub secret GCP_WIF_SA_EMAIL). Format: "serviceAccount:<email>". Here it
+# only keeps CD's own changes out of the admin-change alert
+# (services/platform_alerts). Its roles, and its actAs on the runtime service
+# accounts, are granted by terraform/manual/iam: they need project IAM admin,
+# which this account does not have.
 variable "deployer_principal" {
-  description = "CI/WIF principal that runs terraform apply. Format: serviceAccount:<email>. Its IAM lives in terraform/manual/iam."
+  description = "CI/WIF principal that runs terraform apply. Format: serviceAccount:<email>. Used to leave CD's own changes out of the admin-change alert; its IAM lives in terraform/manual/iam."
   type        = string
   default     = ""
 }

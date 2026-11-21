@@ -12,6 +12,8 @@ provider "newrelic" {
 module "bootstrap" {
   source = "../services/bootstrap"
 
+  pipeline_max_concurrent_dispatches = local.worker_max_instances
+
   project_id                  = var.project_id
   region                      = var.region
   environment                 = var.environment
@@ -37,6 +39,7 @@ module "worker" {
   log_llm_payload         = var.log_llm_payload
   deletion_protection     = local.deletion_protection
   request_timeout_seconds = local.worker_request_timeout_seconds
+  max_instance_count      = local.worker_max_instances
 }
 
 module "eval" {
@@ -124,6 +127,23 @@ module "monitoring" {
   worker_app_name           = local.new_relic_worker_app_name
   browser_app_name          = var.new_relic_browser_app_name
   discord_alert_webhook_url = var.discord_alert_webhook_url
+}
+
+# Uptime checks and admin-change alerts in Cloud Monitoring, sent by email:
+# the path that still works when the app, its New Relic agent or the Discord
+# webhook does not. docs/alerts.md lists every alert.
+module "platform_alerts" {
+  source = "../services/platform_alerts"
+
+  project_id            = var.project_id
+  environment           = var.environment
+  web_base_url          = local.web_base_url
+  api_base_url          = module.api.uri
+  readiness_monitor_key = var.readiness_monitor_key
+  alert_email           = var.platform_alert_email
+  # CD's own changes (every deploy updates Cloud Run and IAM) are not alerts.
+  deploy_service_account_email = trimprefix(var.deployer_principal, "serviceAccount:")
+  runbook_base_url             = "https://github.com/Keyhole-Koro/Synthify/blob/main/docs/runbooks"
 }
 
 resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {

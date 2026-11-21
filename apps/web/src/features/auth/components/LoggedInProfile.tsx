@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AuthUser } from '@/features/auth/session';
+import { DeleteAccountSection } from './DeleteAccountSection';
 
 interface LoggedInProfileProps {
   user: AuthUser;
@@ -28,6 +29,7 @@ export function LoggedInProfile({ user, onLogout }: LoggedInProfileProps) {
       >
         ログアウト
       </button>
+      <DeleteAccountSection onDeleted={onLogout} />
     </div>
   );
 }

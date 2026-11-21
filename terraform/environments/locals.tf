@@ -41,6 +41,14 @@ locals {
   worker_request_timeout_seconds   = 600
   worker_dispatch_deadline_seconds = min(1800, local.worker_request_timeout_seconds * 3 / 2)
 
+  # How many jobs run at once. A worker instance takes one request at a time
+  # (services/worker), so this is the worker's max instance count, and the
+  # pipeline queue dispatches no more than this at once. With more in flight,
+  # Cloud Run would turn the extra dispatches away with 429, and each refusal
+  # would use up one of the task's 7 attempts; held in the queue, a task waits
+  # without spending any.
+  worker_max_instances = 2
+
   # Web origin drives CORS + billing redirect URLs. Trim any trailing slash
   # so concatenation below is predictable.
   web_base_url = trimsuffix(var.web_base_url, "/")

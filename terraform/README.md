@@ -25,6 +25,11 @@ stage/prod でディレクトリは分けない。単一 root (`environments/`) 
   Secret Manager の `synthify-database-dsn` に手動で投入する。
 - **Cloud Run × 2**: `synthify-api-<env>` と `synthify-worker-<env>`。
   worker は INTERNAL ingress、api は public。
+- **アラートは 2 経路**: New Relic → Discord (`services/monitoring`) と、
+  Cloud Monitoring の外形監視・管理操作の監視 → メール (`services/platform_alerts`)。
+  メールの宛先は GitHub の environment secret `PLATFORM_ALERT_EMAIL` から CD が渡す
+  (公開リポジトリなので tfvars に書かない)。予算は `manual/billing` を手で apply する。
+  一覧は [docs/alerts.md](../docs/alerts.md)。
 - **環境変数は Terraform が全管理**。env 名は環境中立 (prefix/suffix なし)、
   値の出し分けは tfvars / Secret Manager / `locals.tf` の導出で行う。
 - **tfvars は最小限**。導出可能なものは `environments/locals.tf` で組み立てる:

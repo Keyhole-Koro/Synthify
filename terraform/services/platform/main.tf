@@ -37,6 +37,8 @@ module "pipeline_queue" {
   location   = var.region
   name       = "synthify-pipeline-${var.environment}"
 
+  max_concurrent_dispatches = var.pipeline_max_concurrent_dispatches
+
   depends_on = [google_project_service.required]
 }
 
@@ -150,6 +152,16 @@ resource "google_storage_bucket_iam_member" "api_uploads_reader" {
   member = "serviceAccount:${local.service_account_emails["api"]}"
 }
 
+# Deleting a document removes its stored files from the API
+# (apps/api/internal/infrastructure/storage/prefix_deleter.go), as does the
+# cleanup of abandoned uploads. objectCreator and objectViewer grant no
+# storage.objects.delete; objectUser adds it, on this bucket only.
+resource "google_storage_bucket_iam_member" "api_uploads_deleter" {
+  bucket = module.uploads_bucket.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${local.service_account_emails["api"]}"
+}
+
 # The worker mounts this bucket read-write via gcsfuse: it reads uploaded
 # source files as local files and writes job checkpoints under .checkpoints/.
 # objectViewer alone makes the mount read-only and every checkpoint write fails
@@ -168,7 +180,10 @@ resource "google_storage_bucket_iam_member" "worker_uploads_writer" {
 }
 
 # Moved to terraform/manual/iam: the service accounts, their project roles
-# (Firestore, Vertex AI, Cloud Tasks) and the API's grants on itself. They
+# (Firestore, Vertex AI, Cloud Tasks, Firebase Auth) and the API's grants on
+# itself. Bucket and secret bindings stay above: storage.admin and
+# secretmanager.admin let the deploy account manage IAM on its own buckets
+# and secrets, but not on the project or on service accounts. They
 # need projectIamAdmin and serviceAccountAdmin, which the deploy account no
 # longer has. These blocks make CD drop them from its state without
 # destroying them, so the accounts and grants stay while the manual stack
@@ -222,10 +237,18 @@ removed {
   }
 }
 
-# Added by the invitation check (#55). A removed block for a resource that is
-# not in the state does nothing, so this is safe before #55 is deployed.
+# Added by the invitation check (#55) and by account deletion (#75). A removed
+# block for a resource that is not in the state does nothing, so these are
+# safe whether or not those changes were deployed before this one.
 removed {
   from = google_project_iam_member.api_firebaseauth_viewer
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_project_iam_member.api_firebaseauth_admin
   lifecycle {
     destroy = false
   }
