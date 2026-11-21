@@ -21,15 +21,15 @@ type Account struct {
 	BillingUpdatedAt     string `json:"billing_updated_at,omitempty"`
 
 	// Usage-Based Billing (Phase 2)
-	BudgetLimitMinor          int64  `json:"budget_limit_minor,omitempty"`
-	CurrentPeriodUsageMinor   int64  `json:"current_period_usage_minor,omitempty"`
-	CurrentPeriodStartedAt    string `json:"current_period_started_at,omitempty"`
-	BudgetExceeded            bool   `json:"budget_exceeded,omitempty"`
+	BudgetLimitMinor        int64  `json:"budget_limit_minor,omitempty"`
+	CurrentPeriodUsageMinor int64  `json:"current_period_usage_minor,omitempty"`
+	CurrentPeriodStartedAt  string `json:"current_period_started_at,omitempty"`
+	BudgetExceeded          bool   `json:"budget_exceeded,omitempty"`
 
 	// Credits
 	CreditBalanceMinor int64 `json:"credit_balance_minor,omitempty"`
 
-	CreatedAt            string `json:"created_at"`
+	CreatedAt string `json:"created_at"`
 }
 
 type AccountUser struct {

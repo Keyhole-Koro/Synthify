@@ -48,7 +48,7 @@ func TestGenerateKnowledgeTree_ObjectResponseAndUsage(t *testing.T) {
 
 	items, usage, err := GenerateKnowledgeTree(context.Background(), fake, GenerateKnowledgeTreeArgs{
 		DocumentID: "doc_1",
-		Chunks: []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}},
+		Chunks:     []domain.Chunk{{ChunkIndex: 0, Heading: "Authentication", Text: "Tokens expire."}},
 	})
 	if err != nil {
 		t.Fatalf("GenerateKnowledgeTree returned error: %v", err)
