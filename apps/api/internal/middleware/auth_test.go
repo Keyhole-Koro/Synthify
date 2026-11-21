@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
+	"github.com/synthify/backend/internal/gen/synthify/app/v1/appv1connect"
 )
 
 func TestBearerToken(t *testing.T) {
@@ -151,6 +152,86 @@ func TestWithAuth_PermissionDeniedReturnsForbidden(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+	}
+}
+
+// 公開リンク (share token) だけで届くのは tree の read RPC 3 つ。届いた先では token が
+// context に載り、principal は立たず、authenticator も呼ばれない。
+func TestWithAuth_ShareTokenAloneReachesShareReadableRPCs(t *testing.T) {
+	for _, path := range []string{
+		appv1connect.TreeServiceGetTreeProcedure,
+		appv1connect.TreeServiceGetSubtreeProcedure,
+		appv1connect.TreeServiceFindPathsProcedure,
+	} {
+		t.Run(path, func(t *testing.T) {
+			authenticator := &fakeAuthenticator{}
+			called := false
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				token, ok := apiauth.ShareTokenFromContext(r.Context())
+				if !ok || token != "share-token-1" {
+					t.Fatalf("share token = %q ok=%v, want %q", token, ok, "share-token-1")
+				}
+				if principal, ok := apiauth.PrincipalFromContext(r.Context()); ok {
+					t.Fatalf("principal = %+v, want none", principal)
+				}
+				w.WriteHeader(http.StatusNoContent)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("X-Synthify-Share-Token", "share-token-1")
+			rec := httptest.NewRecorder()
+			WithAuth(authenticator, slog.Default(), next).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
+			}
+			if !called {
+				t.Fatal("next handler was not called")
+			}
+			if authenticator.bearerCalls != 0 || authenticator.serviceCalls != 0 {
+				t.Fatalf("authenticator called: bearer=%d service=%d", authenticator.bearerCalls, authenticator.serviceCalls)
+			}
+		})
+	}
+}
+
+// 公開リンクは閲覧専用。share token だけでは書き込み RPC にも、公開対象外の read RPC
+// (share link の一覧など) にも届かず、bearer が無いので 401 になる。
+func TestWithAuth_ShareTokenAloneIsRejectedOutsideShareReadableRPCs(t *testing.T) {
+	for _, path := range []string{
+		appv1connect.WorkspaceServiceUpdateWorkspaceProcedure,
+		appv1connect.WorkspaceServiceCreateShareLinkProcedure,
+		appv1connect.WorkspaceServiceListShareLinksProcedure,
+		appv1connect.ItemServiceCreateItemProcedure,
+		appv1connect.BillingServiceGrantCreditProcedure,
+	} {
+		t.Run(path, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, path, nil)
+			req.Header.Set("X-Synthify-Share-Token", "share-token-1")
+			rec := httptest.NewRecorder()
+			WithAuth(&fakeAuthenticator{}, slog.Default(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				t.Fatal("next handler should not be called")
+			})).ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
+			}
+		})
+	}
+}
+
+// 空白だけの share token は token 無しと同じ扱いで、read RPC でも 401 になる。
+func TestWithAuth_BlankShareTokenIsIgnored(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, appv1connect.TreeServiceGetTreeProcedure, nil)
+	req.Header.Set("X-Synthify-Share-Token", "   ")
+	rec := httptest.NewRecorder()
+	WithAuth(&fakeAuthenticator{}, slog.Default(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not be called")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 }
 

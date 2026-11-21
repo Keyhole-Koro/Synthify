@@ -106,7 +106,14 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	startStuckJobMonitor(documentSvc, logger)
 
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})
-	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
+	// InviteMember asks Firebase Authentication whether the invitee has
+	// verified the invited address.
+	verifiedEmails, err := apiauth.NewFirebaseEmailVerifier(ctx, cfg.FirebaseProjectID)
+	if err != nil {
+		_ = closeDispatcher()
+		return nil, fmt.Errorf("email verifier init: %w", err)
+	}
+	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger, JobStatusReaders: appCtx.JobStatusReaders, VerifiedEmails: verifiedEmails})
 	userSvc := application.NewUserService(application.UserServiceDeps{Users: store, Accounts: store, Billing: billingSvc, Logger: logger})
 	treeSvc := application.NewTreeService(application.TreeServiceDeps{Tree: store, Workspaces: store, Logger: logger})
 	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{Accounts: store, Workspaces: store, Tree: store, Items: store})
@@ -238,11 +245,11 @@ func healthHandler(store any, readinessKey, readinessMonitorKey string) http.Han
 			return
 		}
 
+		// Only the header carries the key: a key in the query string would be
+		// written to the request logs.
 		provided := r.Header.Get("X-Synthify-Readiness-Key")
-		if provided == "" {
-			provided = r.URL.Query().Get("key")
-		}
-		if !constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey) {
+		// An empty key never authorizes, so an unset key cannot match it (fail closed).
+		if provided == "" || (!constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey)) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

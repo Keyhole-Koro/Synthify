@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 	"log/slog"
-	"net/http"
 	"os"
 
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/config"
+	"github.com/synthify/backend/internal/platform/httpserver"
 	"github.com/synthify/backend/internal/platform/observability"
 )
 
@@ -36,7 +36,7 @@ func main() {
 	}()
 
 	logger.Info("api.started", "addr", app.Address, "env", cfg.Env)
-	if err := http.ListenAndServe(app.Address, app.Handler); err != nil {
+	if err := httpserver.New(app.Address, app.Handler).ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
