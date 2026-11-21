@@ -6,11 +6,13 @@ import (
 	"fmt"
 )
 
+// RetryingClient wraps a Client and retries failed or invalid JSON generation calls up to maxRetries times.
 type RetryingClient struct {
 	inner      Client
 	maxRetries int
 }
 
+// NewRetryingClient returns a client decorator with configurable retry limits.
 func NewRetryingClient(inner Client, maxRetries int) *RetryingClient {
 	if maxRetries < 0 {
 		maxRetries = 0
@@ -18,6 +20,7 @@ func NewRetryingClient(inner Client, maxRetries int) *RetryingClient {
 	return &RetryingClient{inner: inner, maxRetries: maxRetries}
 }
 
+// GenerateStructured executes structured output generation, retrying on API error or JSON parse failure.
 func (c *RetryingClient) GenerateStructured(ctx context.Context, req StructuredRequest) (json.RawMessage, Usage, error) {
 	var lastErr error
 	var lastUsage Usage
@@ -39,6 +42,7 @@ func (c *RetryingClient) GenerateStructured(ctx context.Context, req StructuredR
 	return nil, lastUsage, lastErr
 }
 
+// GenerateText executes text generation, retrying on API error up to maxRetries times.
 func (c *RetryingClient) GenerateText(ctx context.Context, req TextRequest) (string, Usage, error) {
 	var lastErr error
 	var lastUsage Usage

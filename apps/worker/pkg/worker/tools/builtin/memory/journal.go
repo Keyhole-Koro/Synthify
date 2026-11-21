@@ -10,14 +10,19 @@ import (
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 )
 
+// JournalStatus indicates the current progress status of a task checklist item.
 type JournalStatus string
 
 const (
-	JournalStatusPending    JournalStatus = "pending"
+	// JournalStatusPending indicates a task that has not yet been started.
+	JournalStatusPending JournalStatus = "pending"
+	// JournalStatusInProgress indicates a task currently being worked on.
 	JournalStatusInProgress JournalStatus = "in_progress"
-	JournalStatusCompleted  JournalStatus = "completed"
+	// JournalStatusCompleted indicates a task that has finished execution.
+	JournalStatusCompleted JournalStatus = "completed"
 )
 
+// Task represents a single unit of work in the agent's execution checklist.
 type Task struct {
 	ID          string        `json:"id"`
 	Description string        `json:"description"`
@@ -25,16 +30,18 @@ type Task struct {
 	DependsOn   []string      `json:"depends_on,omitempty"`
 }
 
-
+// Journal manages an in-memory checklist of tasks for tracking progress through synthesis steps.
 type Journal struct {
 	mu    sync.RWMutex
 	tasks []Task
 }
 
+// NewJournal initializes an empty Journal.
 func NewJournal() *Journal {
 	return &Journal{}
 }
 
+// RenderForPrompt formats the checklist of tasks as Markdown with checkboxes for prompt injection.
 func (j *Journal) RenderForPrompt() string {
 	j.mu.RLock()
 	defer j.mu.RUnlock()
@@ -60,16 +67,19 @@ func (j *Journal) RenderForPrompt() string {
 	return sb.String()
 }
 
+// addArgs specifies parameters for adding a new task to the journal.
 type addArgs struct {
 	Description string   `json:"description"`
 	DependsOn   []string `json:"depends_on,omitempty"`
 }
 
+// addResult contains the newly allocated task ID and confirmation message.
 type addResult struct {
 	TaskID  string `json:"task_id"`
 	Message string `json:"message"`
 }
 
+// NewAddTaskTool creates a core.Tool enabling an agent to record planning tasks.
 func NewAddTaskTool(j *Journal) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[addArgs, addResult]()
 	if err != nil {
@@ -100,15 +110,18 @@ func NewAddTaskTool(j *Journal) (core.Tool, error) {
 	}, nil
 }
 
+// updateArgs specifies the task to update and its new status.
 type updateArgs struct {
 	TaskID string        `json:"task_id"`
 	Status JournalStatus `json:"status"`
 }
 
+// updateResult reports the outcome of the status update operation.
 type updateResult struct {
 	Message string `json:"message"`
 }
 
+// NewUpdateTaskTool creates a core.Tool enabling an agent to change task status in the journal.
 func NewUpdateTaskTool(j *Journal) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[updateArgs, updateResult]()
 	if err != nil {

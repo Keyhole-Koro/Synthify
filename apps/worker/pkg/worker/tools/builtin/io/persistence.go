@@ -6,28 +6,65 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
+	"github.com/synthify/backend/internal/domain"
 )
 
+// PersistenceArgs defines input parameters for persisting knowledge tree items to the database.
+//
+// @property JobID - Authorized job capability identifier.
+// @property DocumentID - Source document identifier for provenance.
+// @property WorkspaceID - Destination workspace identifier.
+// @property Items - Generated tree items to create or merge.
 type PersistenceArgs struct {
-	JobID       string            `json:"job_id"`
-	DocumentID  string            `json:"document_id"`
-	WorkspaceID string            `json:"workspace_id"`
-	Items       []PersistenceItem `json:"items"`
+	// JobID identifies the authorized job capability used for mutations.
+	JobID string `json:"job_id"`
+	// DocumentID identifies the source document for provenance records.
+	DocumentID string `json:"document_id"`
+	// WorkspaceID identifies the knowledge tree receiving the generated items.
+	WorkspaceID string `json:"workspace_id"`
+	// Items contains generated tree items in arbitrary parent-before-child order.
+	Items []PersistenceItem `json:"items"`
 }
 
+// PersistenceItem represents a generated tree item along with the associated file ID.
+//
+// @property GeneratedTreeItem - Generated hierarchy, content, and source chunks.
+// @property FileID - Source file identifier for provenance links.
 type PersistenceItem struct {
+	// GeneratedTreeItem contains the local ID, hierarchy, content, and source chunks to persist.
 	domain.GeneratedTreeItem
+	// FileID identifies the source file associated with the item's provenance links.
 	FileID string `json:"file_id"`
 }
 
+// PersistenceResult indicates whether the persistence operation succeeded and returns a status message.
+//
+// @property Success - Whether all requested persistence work completed successfully.
+// @property Message - Human-readable operation result.
 type PersistenceResult struct {
-	Success bool   `json:"success"`
+	// Success is false when there are no items to persist or the operation reports failure.
+	Success bool `json:"success"`
+	// Message describes the outcome, including the number of successfully created items.
 	Message string `json:"message"`
 }
 
+// NewPersistenceTool creates a core.Tool for storing generated knowledge tree items into the database.
+//
+// The tool validates the job capability, orders parent items before children,
+// preserves the workspace's single-root invariant, creates or merges items,
+// and rewrites local HTML paper links to persisted IDs.
+//
+// Parameters:
+//   - b: worker dependencies used for authorization, repository mutations, and metering.
+//
+// Returns:
+//   - a configured persist_knowledge_tree tool;
+//   - an error when the input/output schema cannot be generated.
+//
+// @param b - Worker dependencies used for authorization, repository mutations, and metering.
+// @return Configured persist_knowledge_tree tool and optional schema-generation error.
 func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 	schema, err := core.IOSchemaFor[PersistenceArgs, PersistenceResult]()
 	if err != nil {
@@ -198,6 +235,7 @@ func resolveRootNodeID(ctx context.Context, b *base.Context, workspaceID string)
 	return "", nil
 }
 
+// sortItemsTopologically orders items such that parent items appear before child items, handling circular dependencies gracefully.
 func sortItemsTopologically(items []PersistenceItem) []PersistenceItem {
 	itemMap := make(map[string]PersistenceItem)
 	inDegree := make(map[string]int)

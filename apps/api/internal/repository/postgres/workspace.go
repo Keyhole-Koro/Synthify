@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // defaultFreePlan defines the default plan limits for newly created accounts.
@@ -24,6 +24,7 @@ var defaultFreePlan = struct {
 	MaxUploadsPerWeek: 100,
 }
 
+// proPlan defines the resource quotas and upload rate limits for pro/usage-based accounts.
 var proPlan = struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64
@@ -36,6 +37,8 @@ var proPlan = struct {
 	MaxUploadsPerWeek: 1000,
 }
 
+// GetOrCreateAccount retrieves the account associated with the given user ID,
+// or creates a new free-tier account if one does not exist yet.
 func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	// Return the existing account if present.
 	existing, err := s.GetAccountByUser(ctx, userID)
@@ -47,6 +50,8 @@ func (s *Store) GetOrCreateAccount(ctx context.Context, userID string) (*domain.
 	return s.CreateAccount(ctx, userID)
 }
 
+// GetAccountByUser retrieves the account associated with the specified user ID.
+// Returns domain.ErrNotFound if no account is found.
 func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error) {
 	row, err := s.q().GetAccountByUser(ctx, userID)
 	if err != nil {
@@ -58,6 +63,8 @@ func (s *Store) GetAccountByUser(ctx context.Context, userID string) (*domain.Ac
 	return s.GetAccount(ctx, row.AccountID)
 }
 
+// CreateAccount provisions a new account for the specified user with default free-tier quotas
+// and assigns the user as the account owner.
 func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Account, error) {
 	accountID := newID()
 	createdAt := nowTime()
@@ -85,12 +92,15 @@ func (s *Store) CreateAccount(ctx context.Context, userID string) (*domain.Accou
 	return s.GetAccount(ctx, row.AccountID)
 }
 
+// GetAccount retrieves the account with the specified account ID.
+// Returns domain.ErrNotFound if the account does not exist.
 func (s *Store) GetAccount(ctx context.Context, accountID string) (*domain.Account, error) {
 	account, err := s.scanAccount(ctx, `
 SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
        max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
        billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
-       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at,
+       budget_limit_minor, current_period_started_at
 FROM accounts
 WHERE account_id = $1
 `, accountID)
@@ -100,9 +110,31 @@ WHERE account_id = $1
 	if err != nil {
 		return nil, err
 	}
+	if err := s.applyBudgetPeriodUsage(ctx, account); err != nil {
+		return nil, err
+	}
 	return account, nil
 }
 
+// applyBudgetPeriodUsage fills in the cost of the current budget period and
+// whether it is over the budget. Both are derived from usage_events on read, so
+// they follow the period boundary without a stored flag to reset.
+func (s *Store) applyBudgetPeriodUsage(ctx context.Context, account *domain.Account) error {
+	periodStart := domain.BudgetPeriodStart(account.CurrentPeriodStartedAt, account.CurrentPeriodEnd, nowTime())
+	periodMinor, err := s.q().SumUsageCostByAccountSince(ctx, sqlcgen.SumUsageCostByAccountSinceParams{
+		AccountID: account.AccountID,
+		CreatedAt: periodStart,
+	})
+	if err != nil {
+		return fmt.Errorf("sum usage for budget period: %w", err)
+	}
+	account.CurrentPeriodStartedAt = periodStart.Format(time.RFC3339)
+	account.CurrentPeriodUsageMinor = periodMinor
+	account.BudgetExceeded = domain.BudgetExceeded(account.BudgetLimitMinor, periodMinor)
+	return nil
+}
+
+// IsAccountAccessible checks if the given user is a member of the specified account.
 func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID string) (bool, error) {
 	accessible, err := s.q().IsAccountAccessible(ctx, sqlcgen.IsAccountAccessibleParams{
 		AccountID: accountID,
@@ -114,6 +146,7 @@ func (s *Store) IsAccountAccessible(ctx context.Context, accountID, userID strin
 	return accessible, nil
 }
 
+// SetAccountStripeCustomerID associates a Stripe customer ID with the specified account.
 func (s *Store) SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error {
 	res, err := s.db.ExecContext(ctx, `
 UPDATE accounts
@@ -133,6 +166,8 @@ WHERE account_id = $1
 	return nil
 }
 
+// ListStripeLinkedAccounts returns a list of accounts that have a non-empty Stripe customer ID,
+// ordered by update time ascending, up to the given limit.
 func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error) {
 	if limit <= 0 {
 		limit = 100
@@ -141,7 +176,8 @@ func (s *Store) ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*dom
 SELECT account_id, name, plan, storage_quota_bytes, storage_used_bytes, max_file_size_bytes,
        max_uploads_per_5h, max_uploads_per_1week, stripe_customer_id, stripe_subscription_id,
        billing_status, stripe_price_id, billing_currency, billing_amount_minor, billing_interval,
-       current_period_end, cancel_at_period_end, billing_updated_at, created_at
+       current_period_end, cancel_at_period_end, billing_updated_at, created_at,
+       budget_limit_minor, current_period_started_at
 FROM accounts
 WHERE stripe_customer_id <> ''
 ORDER BY updated_at ASC
@@ -165,6 +201,7 @@ LIMIT $1
 	return accounts, nil
 }
 
+// ApplyBillingPlan updates an account's billing plan, resource limits, and Stripe details by account ID.
 func (s *Store) ApplyBillingPlan(ctx context.Context, accountID, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
 	limits, err := billingLimits(plan)
 	if err != nil {
@@ -197,6 +234,7 @@ WHERE account_id = $1
 	return nil
 }
 
+// ApplyBillingPlanByStripeCustomerID updates an account's plan and quotas using its Stripe customer ID.
 func (s *Store) ApplyBillingPlanByStripeCustomerID(ctx context.Context, stripeCustomerID, stripeSubscriptionID string, plan domain.BillingPlan) error {
 	if stripeCustomerID == "" {
 		return domain.ErrNotFound
@@ -231,6 +269,8 @@ WHERE stripe_customer_id = $1
 	return nil
 }
 
+// RecordBillingWebhookEvent logs an incoming billing webhook event in billing_events for idempotency.
+// Returns true if this is a newly inserted event, or false if it was already recorded.
 func (s *Store) RecordBillingWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error) {
 	if event == nil || event.EventID == "" {
 		return true, nil
@@ -257,6 +297,7 @@ ON CONFLICT (provider, event_id) DO NOTHING
 	return rows > 0, nil
 }
 
+// MarkBillingWebhookEventProcessed updates the status and optional error message of a billing webhook event.
 func (s *Store) MarkBillingWebhookEventProcessed(ctx context.Context, provider, eventID, status, errorMessage string) error {
 	if eventID == "" {
 		return nil
@@ -274,6 +315,7 @@ WHERE provider = $1 AND event_id = $2
 	return err
 }
 
+// ApplyBillingEvent updates account billing status, subscription, pricing, and limits from a webhook event.
 func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error {
 	if event == nil {
 		return nil
@@ -296,36 +338,43 @@ func (s *Store) ApplyBillingEvent(ctx context.Context, event *domain.ProviderWeb
 			status = string(domain.BillingStatusActive)
 		}
 	}
+	periodStart, err := parseBillingTime(event.CurrentPeriodStart)
+	if err != nil {
+		return err
+	}
 	periodEnd, err := parseBillingTime(event.CurrentPeriodEnd)
 	if err != nil {
 		return err
 	}
 	now := nowTime()
+	// $1 is the lookup key (account_id or stripe_customer_id). Every placeholder
+	// must be referenced: CockroachDB and PostgreSQL reject a statement with a
+	// parameter whose type they cannot infer.
 	query := `
 UPDATE accounts
-SET plan = CASE WHEN $3 = '' THEN plan ELSE $3 END,
-    storage_quota_bytes = CASE WHEN $3 = '' THEN storage_quota_bytes ELSE $4 END,
-    max_file_size_bytes = CASE WHEN $3 = '' THEN max_file_size_bytes ELSE $5 END,
-    max_uploads_per_5h = CASE WHEN $3 = '' THEN max_uploads_per_5h ELSE $6 END,
-    max_uploads_per_1week = CASE WHEN $3 = '' THEN max_uploads_per_1week ELSE $7 END,
-    stripe_customer_id = CASE WHEN $8 = '' THEN stripe_customer_id ELSE $8 END,
-    stripe_subscription_id = CASE WHEN $9 = '' AND $3 <> 'free' THEN stripe_subscription_id ELSE $9 END,
-    billing_status = $10,
-    stripe_price_id = $11,
-    billing_currency = $12,
-    billing_amount_minor = $13,
-    billing_interval = $14,
-    current_period_end = $15,
-    cancel_at_period_end = $16,
-    billing_updated_at = $17,
-    updated_at = $17
+SET plan = CASE WHEN $2 = '' THEN plan ELSE $2 END,
+    storage_quota_bytes = CASE WHEN $2 = '' THEN storage_quota_bytes ELSE $3 END,
+    max_file_size_bytes = CASE WHEN $2 = '' THEN max_file_size_bytes ELSE $4 END,
+    max_uploads_per_5h = CASE WHEN $2 = '' THEN max_uploads_per_5h ELSE $5 END,
+    max_uploads_per_1week = CASE WHEN $2 = '' THEN max_uploads_per_1week ELSE $6 END,
+    stripe_customer_id = CASE WHEN $7 = '' THEN stripe_customer_id ELSE $7 END,
+    stripe_subscription_id = CASE WHEN $8 = '' AND $2 <> 'free' THEN stripe_subscription_id ELSE $8 END,
+    billing_status = $9,
+    stripe_price_id = $10,
+    billing_currency = $11,
+    billing_amount_minor = $12,
+    billing_interval = $13,
+    current_period_end = COALESCE($14, current_period_end),
+    current_period_started_at = COALESCE($17, current_period_started_at),
+    cancel_at_period_end = $15,
+    billing_updated_at = $16,
+    updated_at = $16
 WHERE `
-	var res sql.Result
-	if event.AccountID != "" {
-		res, err = s.db.ExecContext(ctx, query+"account_id = $1", event.AccountID, "", string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now)
-	} else {
-		res, err = s.db.ExecContext(ctx, query+"stripe_customer_id = $2", "", event.ExternalCustomerID, string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now)
+	keyColumn, key := "account_id", event.AccountID
+	if event.AccountID == "" {
+		keyColumn, key = "stripe_customer_id", event.ExternalCustomerID
 	}
+	res, err := s.db.ExecContext(ctx, query+keyColumn+" = $1", key, string(event.Plan), limits.StorageQuotaBytes, limits.MaxFileSizeBytes, limits.MaxUploadsPer5h, limits.MaxUploadsPerWeek, event.ExternalCustomerID, event.ExternalSubscriptionID, status, event.ExternalPriceID, string(event.Currency), event.AmountMinor, string(event.Interval), periodEnd, event.CancelAtPeriodEnd, now, periodStart)
 	if err != nil {
 		return err
 	}
@@ -339,6 +388,7 @@ WHERE `
 	return nil
 }
 
+// ListWorkspacesByUser returns all non-deleted workspaces accessible to the specified user.
 func (s *Store) ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT w.workspace_id, w.account_id, w.name, w.created_at,
@@ -368,6 +418,8 @@ ORDER BY w.created_at DESC
 	return workspaces, nil
 }
 
+// GetWorkspace retrieves a workspace by its ID, including account quotas.
+// Returns domain.ErrNotFound if the workspace does not exist or has been soft-deleted.
 func (s *Store) GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error) {
 	row := s.db.QueryRowContext(ctx, `
 SELECT w.workspace_id, w.account_id, w.name, w.created_at,
@@ -387,6 +439,8 @@ WHERE w.workspace_id = $1 AND w.deleted_at IS NULL
 	return ws, nil
 }
 
+// IsWorkspaceAccessible checks if the user has access to the specified workspace,
+// either via direct workspace membership or account ownership.
 func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (bool, error) {
 	accessible, err := s.q().IsWorkspaceAccessible(ctx, sqlcgen.IsWorkspaceAccessibleParams{
 		WorkspaceID: wsID,
@@ -398,6 +452,7 @@ func (s *Store) IsWorkspaceAccessible(ctx context.Context, wsID, userID string) 
 	return accessible, nil
 }
 
+// GetWorkspaceRole retrieves the user's role within the specified workspace.
 func (s *Store) GetWorkspaceRole(ctx context.Context, wsID, userID string) (domain.WorkspaceRole, error) {
 	role, err := s.q().GetWorkspaceRole(ctx, sqlcgen.GetWorkspaceRoleParams{
 		WorkspaceID: wsID,
@@ -409,6 +464,7 @@ func (s *Store) GetWorkspaceRole(ctx context.Context, wsID, userID string) (doma
 	return domain.WorkspaceRole(role), nil
 }
 
+// UpsertWorkspaceMember adds a user to a workspace or updates their role if already a member.
 func (s *Store) UpsertWorkspaceMember(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, invitedBy string) error {
 	if err := s.q().UpsertWorkspaceMember(ctx, sqlcgen.UpsertWorkspaceMemberParams{
 		WorkspaceID: wsID,
@@ -422,6 +478,7 @@ func (s *Store) UpsertWorkspaceMember(ctx context.Context, wsID, userID string, 
 	return nil
 }
 
+// ListWorkspaceMembers returns all members and their roles for the specified workspace.
 func (s *Store) ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error) {
 	rows, err := s.q().ListWorkspaceMembers(ctx, wsID)
 	if err != nil {
@@ -441,6 +498,8 @@ func (s *Store) ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domai
 	return members, nil
 }
 
+// RemoveWorkspaceMember removes a member from the specified workspace.
+// Returns domain.ErrNotFound if the member was not part of the workspace.
 func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error {
 	affected, err := s.q().RemoveWorkspaceMember(ctx, sqlcgen.RemoveWorkspaceMemberParams{
 		WorkspaceID: wsID,
@@ -455,6 +514,7 @@ func (s *Store) RemoveWorkspaceMember(ctx context.Context, wsID, userID string) 
 	return nil
 }
 
+// CreateShareLink generates an invitation share link for a workspace with an expiration time.
 func (s *Store) CreateShareLink(ctx context.Context, link *domain.ShareLink) error {
 	expiresAt, err := parseBillingTime(link.ExpiresAt)
 	if err != nil {
@@ -473,6 +533,7 @@ func (s *Store) CreateShareLink(ctx context.Context, link *domain.ShareLink) err
 	return nil
 }
 
+// ListShareLinks returns all active and revoked share links for the workspace.
 func (s *Store) ListShareLinks(ctx context.Context, wsID string) ([]*domain.ShareLink, error) {
 	rows, err := s.q().ListShareLinks(ctx, wsID)
 	if err != nil {
@@ -485,6 +546,8 @@ func (s *Store) ListShareLinks(ctx context.Context, wsID string) ([]*domain.Shar
 	return links, nil
 }
 
+// RevokeShareLink marks a share link token as revoked.
+// Returns domain.ErrNotFound if no such token exists.
 func (s *Store) RevokeShareLink(ctx context.Context, wsID, token string, now time.Time) error {
 	affected, err := s.q().RevokeShareLink(ctx, sqlcgen.RevokeShareLinkParams{
 		WorkspaceID: wsID,
@@ -500,6 +563,8 @@ func (s *Store) RevokeShareLink(ctx context.Context, wsID, token string, now tim
 	return nil
 }
 
+// ResolveShareLink retrieves an unexpired, non-revoked share link by its token.
+// Returns domain.ErrNotFound if the token does not exist or has expired.
 func (s *Store) ResolveShareLink(ctx context.Context, token string, now time.Time) (*domain.ShareLink, error) {
 	row, err := s.q().ResolveShareLink(ctx, sqlcgen.ResolveShareLinkParams{
 		Token:     token,
@@ -514,6 +579,7 @@ func (s *Store) ResolveShareLink(ctx context.Context, token string, now time.Tim
 	return toDomainShareLink(row), nil
 }
 
+// toDomainShareLink converts a sqlcgen.WorkspaceShareLink row into a domain.ShareLink.
 func toDomainShareLink(row sqlcgen.WorkspaceShareLink) *domain.ShareLink {
 	return &domain.ShareLink{
 		Token:       row.Token,
@@ -526,9 +592,9 @@ func toDomainShareLink(row sqlcgen.WorkspaceShareLink) *domain.ShareLink {
 	}
 }
 
-// CreateWorkspace は workspaces 行と tree root item を 1 ペアで作成する。
-// 内部で tx を張らないため、atomic 性が必要なら呼び出し側を
-// Transactor.WithTx で包むこと。
+// CreateWorkspace inserts a workspace row.
+// It does not wrap the operation in a transaction; if atomicity is required,
+// wrap the caller in Transactor.WithTx.
 func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error) {
 	createdAt := nowTime()
 	wsID := newID()
@@ -546,7 +612,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	// when a document is processed.
 	ws, err := s.GetWorkspace(ctx, wsID)
 	if err != nil {
-		// 作成直後の読み戻しが失敗した場合は、書き込んだ値を組み立てて返す。
+		// Return constructed domain object if reread fails immediately after write.
 		return &domain.Workspace{
 			WorkspaceID: wsID,
 			AccountID:   accountID,
@@ -557,6 +623,8 @@ func (s *Store) CreateWorkspace(ctx context.Context, accountID, name string) (*d
 	return ws, nil
 }
 
+// UpdateWorkspaceName updates the display name of a workspace.
+// Returns domain.ErrNotFound if the workspace does not exist.
 func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error) {
 	affected, err := s.q().UpdateWorkspaceName(ctx, sqlcgen.UpdateWorkspaceNameParams{
 		WorkspaceID: workspaceID,
@@ -572,6 +640,8 @@ func (s *Store) UpdateWorkspaceName(ctx context.Context, workspaceID, name strin
 	return s.GetWorkspace(ctx, workspaceID)
 }
 
+// DeleteWorkspace marks a workspace as deleted via soft deletion.
+// Returns domain.ErrNotFound if the workspace does not exist.
 func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	affected, err := s.q().SoftDeleteWorkspace(ctx, sqlcgen.SoftDeleteWorkspaceParams{
 		WorkspaceID: workspaceID,
@@ -586,44 +656,23 @@ func (s *Store) DeleteWorkspace(ctx context.Context, workspaceID string) error {
 	return nil
 }
 
-func toAccount(row sqlcgen.Account) *domain.Account {
-	return &domain.Account{
-		AccountID:            row.AccountID,
-		Name:                 row.Name,
-		Plan:                 row.Plan,
-		StorageQuotaBytes:    row.StorageQuotaBytes,
-		StorageUsedBytes:     row.StorageUsedBytes,
-		MaxFileSizeBytes:     row.MaxFileSizeBytes,
-		MaxUploadsPerFiveH:   int64(row.MaxUploadsPer5h),
-		MaxUploadsPerWeek:    int64(row.MaxUploadsPer1week),
-		StripeCustomerID:     row.StripeCustomerID,
-		StripeSubscriptionID: row.StripeSubscriptionID,
-		CreatedAt:            row.CreatedAt.UTC().Format(time.RFC3339),
-	}
-}
-
-func toWorkspace(row sqlcgen.Workspace) *domain.Workspace {
-	return &domain.Workspace{
-		WorkspaceID: row.WorkspaceID,
-		AccountID:   row.AccountID,
-		Name:        row.Name,
-		CreatedAt:   row.CreatedAt.UTC().Format(time.RFC3339),
-	}
-}
-
+// scanner defines an abstraction over sql.Row and sql.Rows for scanning values.
 type scanner interface {
 	Scan(dest ...any) error
 }
 
+// scanAccount executes an account query and scans the result into a domain.Account.
 func (s *Store) scanAccount(ctx context.Context, query string, args ...any) (*domain.Account, error) {
 	return scanAccountRow(s.db.QueryRowContext(ctx, query, args...))
 }
 
+// scanAccountRow scans a single database row into a domain.Account struct.
 func scanAccountRow(row scanner) (*domain.Account, error) {
 	var account domain.Account
 	var maxUploadsPer5h int32
 	var maxUploadsPerWeek int32
 	var currentPeriodEnd sql.NullTime
+	var currentPeriodStartedAt sql.NullTime
 	var billingUpdatedAt sql.NullTime
 	var createdAt time.Time
 	if err := row.Scan(
@@ -646,17 +695,21 @@ func scanAccountRow(row scanner) (*domain.Account, error) {
 		&account.CancelAtPeriodEnd,
 		&billingUpdatedAt,
 		&createdAt,
+		&account.BudgetLimitMinor,
+		&currentPeriodStartedAt,
 	); err != nil {
 		return nil, err
 	}
 	account.MaxUploadsPerFiveH = int64(maxUploadsPer5h)
 	account.MaxUploadsPerWeek = int64(maxUploadsPerWeek)
 	account.CurrentPeriodEnd = formatNullTime(currentPeriodEnd)
+	account.CurrentPeriodStartedAt = formatNullTime(currentPeriodStartedAt)
 	account.BillingUpdatedAt = formatNullTime(billingUpdatedAt)
 	account.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	return &account, nil
 }
 
+// scanWorkspace scans a single database row into a domain.Workspace struct.
 func scanWorkspace(row scanner) (*domain.Workspace, error) {
 	var ws domain.Workspace
 	var createdAt time.Time
@@ -682,6 +735,7 @@ func scanWorkspace(row scanner) (*domain.Workspace, error) {
 	return &ws, nil
 }
 
+// parseBillingTime converts an RFC3339 timestamp string into a nullable sql.NullTime.
 func parseBillingTime(value string) (sql.NullTime, error) {
 	if value == "" {
 		return sql.NullTime{}, nil
@@ -693,6 +747,7 @@ func parseBillingTime(value string) (sql.NullTime, error) {
 	return sql.NullTime{Time: parsed.UTC(), Valid: true}, nil
 }
 
+// formatNullTime formats a nullable sql.NullTime into an RFC3339 string, or returns empty string if null.
 func formatNullTime(value sql.NullTime) string {
 	if !value.Valid {
 		return ""
@@ -700,6 +755,7 @@ func formatNullTime(value sql.NullTime) string {
 	return value.Time.UTC().Format(time.RFC3339)
 }
 
+// billingLimits returns the default quota and rate limit configurations for the given billing plan.
 func billingLimits(plan domain.BillingPlan) (struct {
 	StorageQuotaBytes int64
 	MaxFileSizeBytes  int64

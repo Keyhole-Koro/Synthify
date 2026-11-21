@@ -90,6 +90,7 @@ func New(repo Repository, notifier jobstatus.Notifier, logger *slog.Logger, nrAp
 
 // --- QueuedNotifier ----------------------------------------------------------
 
+// NotifyQueued publishes a "queued" status update to Firestore for the newly created job.
 func (s *Service) NotifyQueued(ctx context.Context, payload jobstatus.Payload) {
 	if s.notifier == nil {
 		return
@@ -101,6 +102,7 @@ func (s *Service) NotifyQueued(ctx context.Context, payload jobstatus.Payload) {
 
 // --- RuntimeController -------------------------------------------------------
 
+// MarkRunning transitions the job to running in the database and notifies Firestore.
 func (s *Service) MarkRunning(ctx context.Context, payload jobstatus.Payload) error {
 	if err := s.repo.MarkProcessingJobRunning(ctx, payload.JobID); err != nil {
 		return err
@@ -114,6 +116,7 @@ func (s *Service) MarkRunning(ctx context.Context, payload jobstatus.Payload) er
 	return nil
 }
 
+// UpdateStage updates the current processing stage in the database and broadcasts the stage to Firestore.
 func (s *Service) UpdateStage(ctx context.Context, payload jobstatus.Payload, stage string) error {
 	if err := s.repo.UpdateProcessingJobStage(ctx, payload.JobID, stage); err != nil {
 		return err
@@ -134,6 +137,8 @@ func (s *Service) TryFail(ctx context.Context, payload jobstatus.Payload, cause 
 	s.TryFailWith(ctx, payload, Failure{Cause: cause, Reason: jobstatus.FirestoreJobStatusReasonInternal})
 }
 
+// TryFailWith marks the job as failed in the database, publishes the failure notification
+// with classified reason to Firestore, and records the failure incident in New Relic.
 func (s *Service) TryFailWith(ctx context.Context, payload jobstatus.Payload, failure Failure) {
 	errorMessage := ""
 	if failure.Cause != nil {
@@ -159,6 +164,7 @@ func (s *Service) TryFailWith(ctx context.Context, payload jobstatus.Payload, fa
 	}
 }
 
+// Complete marks the job as succeeded in the database and notifies Firestore with the completion outcome.
 func (s *Service) Complete(ctx context.Context, payload jobstatus.Payload, outcome CompletionOutcome) error {
 	if err := s.repo.CompleteProcessingJob(ctx, payload.JobID); err != nil {
 		return err

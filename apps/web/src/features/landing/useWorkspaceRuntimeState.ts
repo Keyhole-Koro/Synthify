@@ -1,4 +1,3 @@
-'use client';
 
 import { useCallback, useRef } from 'react';
 import type { WorkspacePaperRuntimeState } from '@/features/workspaces/paper/WorkspacePaper';
@@ -7,11 +6,14 @@ interface UseWorkspaceRuntimeStateArgs {
   rebuildWorkspacePaper: (workspaceId: string) => void;
 }
 
-// useWorkspaceRuntimeState holds the per-workspace WorkspacePaper runtime
-// state (initial activeJobId / uploadMessage / etc.) that the landing page
-// injects into a freshly created workspace card so its upload progress UI
-// lights up immediately. It is a thin in-memory keyed map; refresh on
-// reload is the WorkspacePaper's own concern (it recovers from Firestore).
+/**
+ * Manages volatile in-memory runtime UI state (activeJobId, upload messages) per workspace
+ * so upload progress indicators light up immediately upon creation.
+ *
+ * @param props - Callback used to rebuild the affected workspace paper after state injection.
+ * @returns Stable callbacks for reading, injecting, clearing one workspace, and resetting all
+ *   runtime state. The returned map is kept in a ref and does not itself trigger a render.
+ */
 export function useWorkspaceRuntimeState({ rebuildWorkspacePaper }: UseWorkspaceRuntimeStateArgs) {
   const ref = useRef<Map<string, WorkspacePaperRuntimeState>>(new Map());
 

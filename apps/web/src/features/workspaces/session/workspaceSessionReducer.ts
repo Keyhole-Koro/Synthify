@@ -5,6 +5,14 @@ import {
   type WorkspaceSessionState,
 } from './workspaceSessionTypes';
 
+/**
+ * Pure state reducer governing workspace session state transitions including
+ * uploads, active job adoption, completions, and inline workspace renaming.
+ *
+ * @param state - The previous WorkspaceSessionState.
+ * @param action - Dispatched WorkspaceSessionAction event.
+ * @returns The resulting next WorkspaceSessionState.
+ */
 export function workspaceSessionReducer(
   state: WorkspaceSessionState,
   action: WorkspaceSessionAction,

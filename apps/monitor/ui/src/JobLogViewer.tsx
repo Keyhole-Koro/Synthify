@@ -1,12 +1,23 @@
-'use client';
+/**
+ * Interactive Job Log Viewer component providing live timeline, tool flow, and correlated job logs.
+ *
+ * @module
+ */
 
 import React, { useEffect, useMemo, useState } from 'react';
 import type { JobLog, JobLogDataSource, JobLogFilters, JobLogGroup } from './types';
 
+/**
+ * Props for configuring the JobMonitor log viewer.
+ */
 interface JobMonitorProps {
+  /** Target job execution UUID. */
   jobId: string;
+  /** Optional document ID scope. */
   documentId?: string;
+  /** Optional workspace ID scope. */
   workspaceId?: string;
+  /** Data source client for querying job logs and related correlations. */
   dataSource: JobLogDataSource;
 }
 
@@ -18,6 +29,14 @@ const levelClass: Record<string, string> = {
   ERROR: 'border-red-200 bg-red-50 text-red-800',
 };
 
+/**
+ * Interactive viewer component for inspecting background worker job logs,
+ * filtering by levels/events, polling running jobs, and browsing correlated tasks.
+ *
+ * @param props - Viewer inputs including the target job, optional correlation scopes, and
+ *   the data source used for BFF requests.
+ * @returns The interactive log viewer with timeline, flow, and related-job modes.
+ */
 export function JobMonitor({ jobId, documentId, workspaceId, dataSource }: JobMonitorProps) {
   const [logs, setLogs] = useState<JobLog[]>([]);
   const [related, setRelated] = useState<JobLogGroup[]>([]);
@@ -223,7 +242,22 @@ export function JobMonitor({ jobId, documentId, workspaceId, dataSource }: JobMo
   );
 }
 
-function Segmented({ value, values, onChange }: { value: string; values: string[]; onChange: (value: string) => void }) {
+/**
+ * Props for the Segmented control component.
+ */
+interface SegmentedProps {
+  /** Currently selected value. */
+  value: string;
+  /** Available selectable values. */
+  values: string[];
+  /** Callback fired when a tab is selected. */
+  onChange: (value: string) => void;
+}
+
+/**
+ * Segmented control button group for toggling view modes.
+ */
+function Segmented({ value, values, onChange }: SegmentedProps) {
   return (
     <div className="flex rounded-md bg-stone-100 p-1">
       {values.map((item) => (
@@ -239,6 +273,9 @@ function Segmented({ value, values, onChange }: { value: string; values: string[
   );
 }
 
+/**
+ * Renders a vertical linear sequence of job logs.
+ */
 function Timeline({ logs }: { logs: JobLog[] }) {
   if (logs.length === 0) return <Empty />;
   return (
@@ -248,6 +285,9 @@ function Timeline({ logs }: { logs: JobLog[] }) {
   );
 }
 
+/**
+ * Renders an orchestration flow showing tool executions.
+ */
 function Flow({ logs }: { logs: JobLog[] }) {
   const toolLogs = logs.filter((log) => log.source === 'tool');
   if (toolLogs.length === 0) return <Empty />;
@@ -261,6 +301,9 @@ function Flow({ logs }: { logs: JobLog[] }) {
   );
 }
 
+/**
+ * Displays related job logs grouped by document and workspace context.
+ */
 function Related({ groups }: { groups: JobLogGroup[] }) {
   const safeGroups = Array.isArray(groups) ? groups : [];
   if (safeGroups.length === 0) return <Empty />;
@@ -289,6 +332,9 @@ function Related({ groups }: { groups: JobLogGroup[] }) {
   );
 }
 
+/**
+ * Card component for displaying an individual job log item with expandable JSON detail.
+ */
 function LogCard({ log, compact = false }: { log: JobLog; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const detail = parseDetail(log.detailJson);
@@ -315,11 +361,20 @@ function LogCard({ log, compact = false }: { log: JobLog; compact?: boolean }) {
   );
 }
 
+/**
+ * Placeholder displayed when no logs match the current filters.
+ */
 function Empty() {
   return <div className="flex h-full items-center justify-center p-10 text-xs italic text-stone-400">No logs found.</div>;
 }
 
-function parseDetail(value: string) {
+/**
+ * Safely parses detail JSON string into an object or wraps it in a raw fallback.
+ *
+ * @param value - Raw JSON string.
+ * @returns Parsed object or fallback object with raw property.
+ */
+function parseDetail(value: string): unknown {
   try {
     return JSON.parse(value || '{}');
   } catch {
@@ -327,7 +382,15 @@ function parseDetail(value: string) {
   }
 }
 
-function mergeLogs(older: JobLog[], newer: JobLog[]) {
+/**
+ * Merges two arrays of job logs deduplicating by source and sourceId,
+ * sorting chronologically ascending.
+ *
+ * @param older - Existing log entries.
+ * @param newer - Incoming log entries.
+ * @returns Deduplicated and sorted log array.
+ */
+function mergeLogs(older: JobLog[], newer: JobLog[]): JobLog[] {
   const seen = new Set<string>();
   const merged: JobLog[] = [];
   for (const log of [...older, ...newer]) {
@@ -348,7 +411,13 @@ function mergeLogs(older: JobLog[], newer: JobLog[]) {
   return merged;
 }
 
-function formatDateTimeLocal(value?: string) {
+/**
+ * Formats an ISO timestamp string into a `YYYY-MM-DDTHH:mm` format suitable for datetime-local inputs.
+ *
+ * @param value - ISO timestamp string.
+ * @returns HTML input datetime-local string or empty string if invalid/missing.
+ */
+function formatDateTimeLocal(value?: string): string {
   if (!value) {
     return '';
   }
@@ -360,7 +429,13 @@ function formatDateTimeLocal(value?: string) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function parseDateTimeLocal(value: string) {
+/**
+ * Parses an HTML datetime-local value string into an ISO 8601 string.
+ *
+ * @param value - HTML datetime-local string.
+ * @returns ISO string or undefined if empty/invalid.
+ */
+function parseDateTimeLocal(value: string): string | undefined {
   if (!value) {
     return undefined;
   }

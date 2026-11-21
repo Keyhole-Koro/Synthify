@@ -1,0 +1,133 @@
+/**
+ * Correlated jobs and log groupings API endpoint.
+ *
+ * @module
+ */
+import { getPool } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth-server';
+import { logRowToWireFormat } from '@/lib/log-queries';
+import type { JobLog, ListRelatedJobLogsRequest, ListRelatedJobLogsResponse } from '@/types';
+
+/**
+ * Handles POST requests to fetch and group correlated logs across job, document, or workspace scopes.
+ *
+ * @param req - Incoming HTTP request containing scope and identifier filters.
+ * @returns Grouped job logs response.
+ */
+export async function POST(req: Request) {
+  const denied = await requireAdmin(req);
+  if (denied) return denied;
+
+  let body: ListRelatedJobLogsRequest;
+  try {
+    body = (await req.json()) as ListRelatedJobLogsRequest;
+  } catch {
+    return Response.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
+  const limit = Math.min(Math.max(body.limit || 100, 1), 500);
+
+  try {
+    const pool = getPool();
+    // Fetch job list based on scope
+    let jobsSQL: string;
+    const jobsArgs: unknown[] = [];
+    switch (body.scope) {
+      case 'job': {
+        if (!body.jobId) return Response.json(emptyRelatedResponse());
+        jobsArgs.push(body.jobId);
+        jobsSQL = `
+          SELECT job_id, document_id, workspace_id, status, created_at
+          FROM v_processing_jobs WHERE job_id = $1
+        `;
+        break;
+      }
+      case 'document': {
+        if (!body.documentId) return Response.json(emptyRelatedResponse());
+        jobsArgs.push(body.documentId);
+        jobsSQL = `
+          SELECT job_id, document_id, workspace_id, status, created_at
+          FROM v_processing_jobs WHERE document_id = $1
+          ORDER BY created_at DESC LIMIT 100
+        `;
+        break;
+      }
+      case 'workspace': {
+        if (!body.workspaceId) return Response.json(emptyRelatedResponse());
+        jobsArgs.push(body.workspaceId);
+        jobsSQL = `
+          SELECT job_id, document_id, workspace_id, status, created_at
+          FROM v_processing_jobs WHERE workspace_id = $1
+          ORDER BY created_at DESC LIMIT 100
+        `;
+        break;
+      }
+      default:
+        return Response.json({ error: 'invalid scope' }, { status: 400 });
+    }
+
+    const { rows: jobRows } = await pool.query(jobsSQL, jobsArgs);
+    if (jobRows.length === 0) {
+      return Response.json(emptyRelatedResponse());
+    }
+
+    const jobIds = jobRows.map((j) => j.job_id);
+    const { rows: logRows } = await pool.query(
+      `
+        SELECT id, job_id, workspace_id, document_id, level, event, message, detail_json, created_at
+        FROM v_job_logs
+        WHERE job_id = ANY($1::text[])
+        ORDER BY job_id, created_at ASC
+        LIMIT $2
+      `,
+      [jobIds, limit * jobIds.length],
+    );
+
+    // Group logs by workspace_id + document_id
+    const groupMap = new Map<string, {
+      workspaceId: string;
+      documentId: string;
+      jobs: Array<{ jobId: string; status: number; createdAt: string; logs: JobLog[] }>;
+    }>();
+    const jobMap = new Map<string, { jobId: string; status: number; createdAt: string; logs: JobLog[] }>();
+
+    for (const j of jobRows) {
+      const key = `${j.workspace_id}::${j.document_id}`;
+      if (!groupMap.has(key)) {
+        groupMap.set(key, {
+          workspaceId: j.workspace_id,
+          documentId: j.document_id,
+          jobs: [],
+        });
+      }
+      const createdAt =
+        j.created_at instanceof Date ? j.created_at.toISOString() : String(j.created_at ?? '');
+      const job = { jobId: j.job_id, status: 0, createdAt, logs: [] as JobLog[] };
+      groupMap.get(key)!.jobs.push(job);
+      jobMap.set(j.job_id, job);
+    }
+    for (const r of logRows) {
+      const j = jobMap.get(r.job_id);
+      if (j) {
+        j.logs.push(logRowToWireFormat(r));
+      }
+    }
+
+    const response: ListRelatedJobLogsResponse = {
+      groups: Array.from(groupMap.values()),
+      nextPageToken: '',
+    };
+    return Response.json(response);
+  } catch (error) {
+    console.error('monitor listRelatedJobLogs failed:', error);
+    return Response.json(emptyRelatedResponse(), { status: 500 });
+  }
+}
+
+/**
+ * Returns an empty response structure for related job log queries.
+ *
+ * @returns Empty ListRelatedJobLogsResponse object.
+ */
+function emptyRelatedResponse(): ListRelatedJobLogsResponse {
+  return { groups: [], nextPageToken: '' };
+}

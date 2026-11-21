@@ -7,18 +7,33 @@ import {
 import { WorkspaceItemList } from './components/WorkspaceItemList';
 import { CreateWorkspaceForm } from './components/CreateWorkspaceForm';
 import { WorkspaceError } from './components/WorkspaceError';
-import { type AppError } from '@/lib/errors';
-import { toAppError } from '@/lib/error_normalize';
+import { formatConnectErrorMessage, isExpectedConnectError, UserFacingError } from '@/lib/errors';
 
-interface Props {
+/**
+ * Props for the {@link WorkspaceListContent} component.
+ */
+interface WorkspaceListContentProps {
+  /** The collection of workspaces owned by or accessible to the user. */
   workspaces: Workspace[];
+  /** Whether workspaces or background tasks are loading. */
   loading: boolean;
-  error?: AppError | null;
+  /** Error occurred during workspace operations or querying, if any. */
+  error?: Error | null;
+  /** Callback triggered when a user selects a workspace to display on canvas. */
   onOpenWorkspace: (workspaceId: string) => void;
+  /** Callback triggered to create a new workspace. */
   onCreateWorkspace: (name: string) => Promise<Workspace | void>;
+  /** Callback triggered to retry workspace loading on error. */
   onRetry: () => void;
 }
 
+/**
+ * Renders the content of the workspaces management paper, including the list of
+ * workspace cards, a workspace creation button, and development seeding utilities.
+ *
+ * @param props - Component properties.
+ * @returns The rendered workspace management paper content.
+ */
 export function WorkspaceListContent({
   workspaces,
   loading,
@@ -26,7 +41,7 @@ export function WorkspaceListContent({
   onOpenWorkspace,
   onCreateWorkspace,
   onRetry,
-}: Props) {
+}: WorkspaceListContentProps) {
   const [creating, setCreating] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
@@ -48,7 +63,14 @@ export function WorkspaceListContent({
       const ws = await seedDevWorkspace();
       onOpenWorkspace(ws.workspaceId);
     } catch (err) {
-      setSeedError(toAppError(err).message);
+      if (err instanceof UserFacingError) {
+        setSeedError(err.message);
+      } else if (isExpectedConnectError(err)) {
+        setSeedError(formatConnectErrorMessage(err, 'ワークスペースの作成に失敗しました。'));
+      } else {
+        console.error('Unexpected UI error', err);
+        setSeedError('ワークスペースの作成に失敗しました。');
+      }
     } finally {
       setSeeding(false);
     }

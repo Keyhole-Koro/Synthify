@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func fixedNow() time.Time {

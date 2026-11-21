@@ -19,7 +19,7 @@
 ```sh
 cd apps/monitor/ui
 bun install          # playwright-core を入れる
-bun run screenshots  # next dev を起動 → 撮影 → 後始末
+bun run screenshots  # vite dev を起動 → 撮影 → 後始末
 ```
 
 出力は `docs/monitor-screenshots/*.png` (job-health / cost / workspace /
@@ -36,6 +36,6 @@ BASE_URL=http://127.0.0.1:5174 node scripts/screenshots/capture.mjs
 
 | ファイル | 役割 |
 | --- | --- |
-| `run.mjs` | next dev をプレビューモードで起動し capture を回すランナー |
+| `run.mjs` | vite dev をプレビューモードで起動し capture を回すランナー |
 | `capture.mjs` | ルートをモックして既存タブと `/dashboards/eval` を巡回・撮影する Playwright スクリプト |
 | `fixtures/*.json` | 各ダッシュボード / eval / ジョブ一覧 / ログのモック応答 |

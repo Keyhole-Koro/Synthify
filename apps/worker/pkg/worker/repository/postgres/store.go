@@ -1,3 +1,4 @@
+// Package postgres provides PostgreSQL implementations of the worker repository interfaces.
 package postgres
 
 import (
@@ -8,7 +9,7 @@ import (
 
 	"github.com/newrelic/go-agent/v3/newrelic"
 	"github.com/synthify/backend/apps/worker/pkg/worker/repository"
-	"github.com/synthify/backend/apps/worker/pkg/worker/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
 	"github.com/synthify/backend/internal/platform/database"
 	"github.com/synthify/backend/internal/platform/util"
 )
@@ -20,6 +21,7 @@ var (
 	_ repository.Repositories = (*Store)(nil)
 )
 
+// Store provides PostgreSQL data access implementations across all domain entities.
 type Store struct {
 	db              *sql.DB
 	queries         *sqlcgen.Queries
@@ -28,6 +30,7 @@ type Store struct {
 	inTx            bool
 }
 
+// NewStore initializes a new Store with a configured database connection pool and query engine.
 func NewStore(ctx context.Context, dsn string, pool database.PoolConfig, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp ...*newrelic.Application) (*Store, error) {
 	var app *newrelic.Application
 	if len(nrApp) > 0 {
@@ -50,6 +53,7 @@ func NewStore(ctx context.Context, dsn string, pool database.PoolConfig, uploadU
 	}, nil
 }
 
+// Close closes the underlying SQL database connection pool.
 func (s *Store) Close() error {
 	if s.db != nil {
 		return s.db.Close()
@@ -57,10 +61,12 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// CheckReadiness verifies database connectivity by executing a ping against the connection pool.
 func (s *Store) CheckReadiness(ctx context.Context) error {
 	return database.CheckReadiness(ctx, s.db)
 }
 
+// q returns the active sqlc Queries instance, falling back to initializing with s.db if nil.
 func (s *Store) q() *sqlcgen.Queries {
 	if s.queries == nil {
 		s.queries = sqlcgen.New(s.db)
@@ -68,11 +74,11 @@ func (s *Store) q() *sqlcgen.Queries {
 	return s.queries
 }
 
-// WithTx は callback を単一 SQL transaction の中で実行する。
-// callback には tx スコープに束縛された Repositories (Store のクローン) が
-// 渡される。fn が nil を返せば commit、err を返せば rollback。
+// WithTx executes the callback within a single SQL transaction.
+// The callback receives a transaction-bound Repositories implementation (a Store clone).
+// If fn returns nil, the transaction commits; otherwise it rolls back.
 //
-// 入れ子の WithTx はサポートしない (inTx=true で呼ぶと panic)。
+// Nested transactions are not supported and will panic if invoked on a transaction-bound Store.
 func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) error) error {
 	if s.inTx {
 		panic("postgres.Store.WithTx: nested transactions are not supported")
@@ -104,10 +110,12 @@ func (s *Store) WithTx(ctx context.Context, fn func(repository.Repositories) err
 	return nil
 }
 
+// newID generates a new ULID string for database records.
 func newID() string {
 	return util.NewULID()
 }
 
+// nowTime returns the current UTC timestamp.
 func nowTime() time.Time {
 	return util.NowUTC()
 }

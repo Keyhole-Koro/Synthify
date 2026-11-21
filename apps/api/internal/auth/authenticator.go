@@ -1,3 +1,5 @@
+// Package auth provides authentication mechanisms, principal context propagation,
+// and role/permission enforcement for the Synthify API.
 package auth
 
 import (
@@ -11,13 +13,17 @@ import (
 	firebaseauth "firebase.google.com/go/v4/auth"
 )
 
+// InternalServiceSubjectID is the subject ID assigned to verified internal service principals.
 const InternalServiceSubjectID = "internal-service"
 
 var (
-	ErrUnauthenticated  = errors.New("unauthenticated")
+	// ErrUnauthenticated is returned when authentication credentials are missing or invalid.
+	ErrUnauthenticated = errors.New("unauthenticated")
+	// ErrPermissionDenied is returned when an authenticated principal lacks required access rights.
 	ErrPermissionDenied = errors.New("permission denied")
 )
 
+// FirebaseAuthenticatorConfig defines settings for Firebase Admin SDK and access control lists.
 type FirebaseAuthenticatorConfig struct {
 	ProjectID        string
 	ServiceToken     string
@@ -25,6 +31,7 @@ type FirebaseAuthenticatorConfig struct {
 	AllowedEmailsCSV string
 }
 
+// FirebaseAuthenticator verifies Firebase user ID tokens and internal service shared secrets.
 type FirebaseAuthenticator struct {
 	client               *firebaseauth.Client
 	expectedServiceToken string
@@ -32,6 +39,7 @@ type FirebaseAuthenticator struct {
 	allowedEmails        map[string]bool
 }
 
+// NewFirebaseAuthenticator initializes a Firebase Admin Auth client and parses email allowlists.
 func NewFirebaseAuthenticator(cfg FirebaseAuthenticatorConfig) (*FirebaseAuthenticator, error) {
 	projectID := strings.TrimSpace(cfg.ProjectID)
 	if projectID == "" {
@@ -53,6 +61,8 @@ func NewFirebaseAuthenticator(cfg FirebaseAuthenticatorConfig) (*FirebaseAuthent
 	}, nil
 }
 
+// AuthenticateBearer verifies an incoming Firebase ID token, validates allowed email domains,
+// and extracts user identity and administrator privileges.
 func (a *FirebaseAuthenticator) AuthenticateBearer(ctx context.Context, token string) (Principal, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
@@ -77,6 +87,8 @@ func (a *FirebaseAuthenticator) AuthenticateBearer(ctx context.Context, token st
 	}, nil
 }
 
+// AuthenticateServiceToken validates an internal service token against the expected configured secret
+// using constant-time comparison.
 func (a *FirebaseAuthenticator) AuthenticateServiceToken(ctx context.Context, token string) (Principal, error) {
 	_ = ctx
 	token = strings.TrimSpace(token)
@@ -92,10 +104,12 @@ func (a *FirebaseAuthenticator) AuthenticateServiceToken(ctx context.Context, to
 	}, nil
 }
 
+// lowerTrim trims leading/trailing whitespace and converts the string to lowercase.
 func lowerTrim(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
+// parseEmailSet converts a comma-separated email list into a normalized lowercase lookup set.
 func parseEmailSet(csv string) map[string]bool {
 	result := map[string]bool{}
 	for _, raw := range strings.Split(csv, ",") {

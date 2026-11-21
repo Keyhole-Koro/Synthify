@@ -1,3 +1,4 @@
+// Package util provides general-purpose helper functions and utilities shared across the backend platform.
 package util
 
 import (

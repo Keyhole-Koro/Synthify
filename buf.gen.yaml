@@ -16,5 +16,11 @@ plugins:
       - paths=source_relative
   - remote: buf.build/connectrpc/es:v1.6.1
     out: apps/web/src/gen/proto
+    exclude_types:
+      - synthify.localprovider.v1.**
   - remote: buf.build/bufbuild/es:v2.6.0
     out: apps/web/src/gen/proto
+    # validate.proto is imported by the request messages, so emit it too.
+    include_imports: true
+    exclude_types:
+      - synthify.localprovider.v1.**

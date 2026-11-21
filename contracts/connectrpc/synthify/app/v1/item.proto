@@ -4,6 +4,7 @@ package synthify.app.v1;
 
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
+import "buf/validate/validate.proto";
 import "synthify/app/v1/common.proto";
 import "synthify/app/v1/tree_types.proto";
 
@@ -57,7 +58,14 @@ message TreeEntityDetail {
 }
 
 message GetTreeEntityDetailRequest {
-  EntityRef target_ref = 1;
+  EntityRef target_ref = 1 [
+    (buf.validate.field).required = true,
+    (buf.validate.field).cel = {
+      id: "target_ref.id_required"
+      message: "target_ref.id is required"
+      expression: "this.id != ''"
+    }
+  ];
   bool resolve_aliases = 2;
 }
 
@@ -66,9 +74,9 @@ message GetTreeEntityDetailResponse {
 }
 
 message CreateItemRequest {
-  string workspace_id = 1;
+  string workspace_id = 1 [(buf.validate.field).required = true];
   string document_id = 2;   // 関連づける document（必須）
-  string label = 3;
+  string label = 3 [(buf.validate.field).required = true];
   int32 level = 4;          // 0〜3
   string description = 5;
   string parent_id = 6; // hierarchical 親アイテム（省略可）
@@ -79,9 +87,9 @@ message CreateItemResponse {
 }
 
 message ApproveAliasRequest {
-  string workspace_id = 1;
-  string canonical_item_id = 2;
-  string alias_item_id = 3;
+  string workspace_id = 1 [(buf.validate.field).required = true];
+  string canonical_item_id = 2 [(buf.validate.field).required = true];
+  string alias_item_id = 3 [(buf.validate.field).required = true];
 }
 
 message ApproveAliasResponse {
@@ -91,9 +99,9 @@ message ApproveAliasResponse {
 }
 
 message RejectAliasRequest {
-  string workspace_id = 1;
-  string canonical_item_id = 2;
-  string alias_item_id = 3;
+  string workspace_id = 1 [(buf.validate.field).required = true];
+  string canonical_item_id = 2 [(buf.validate.field).required = true];
+  string alias_item_id = 3 [(buf.validate.field).required = true];
 }
 
 message RejectAliasResponse {

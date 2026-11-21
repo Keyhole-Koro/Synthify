@@ -1,15 +1,21 @@
+// Package joblog provides structured logging and event collection for asynchronous jobs.
 package joblog
 
 import "context"
 
+// Level represents the severity level of a job log event.
 type Level string
 
 const (
-	INFO  Level = "INFO"
-	WARN  Level = "WARN"
+	// INFO indicates informational messages during normal job progression.
+	INFO Level = "INFO"
+	// WARN indicates warnings or non-fatal anomalies during job execution.
+	WARN Level = "WARN"
+	// ERROR indicates fatal errors or failure conditions during job execution.
 	ERROR Level = "ERROR"
 )
 
+// Event describes a single structured lifecycle or diagnostic event emitted during job execution.
 type Event struct {
 	JobID       string
 	WorkspaceID string
@@ -17,9 +23,10 @@ type Event struct {
 	Level       Level
 	Event       string
 	Message     string
-	Detail      map[string]any // optional
+	Detail      map[string]any // optional metadata
 }
 
+// Logger defines the interface for recording job execution events.
 type Logger interface {
 	Log(ctx context.Context, e Event)
 }

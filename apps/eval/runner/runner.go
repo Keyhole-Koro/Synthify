@@ -1,3 +1,5 @@
+// Package runner executes and grades evaluation test cases against LLM tools,
+// validating output schema conformity and custom semantic assertions.
 package runner
 
 import (
@@ -11,16 +13,18 @@ import (
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
 	"github.com/synthify/backend/apps/worker/pkg/worker/prompts"
 	"github.com/synthify/backend/apps/worker/pkg/worker/tools/core/base"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
+	"github.com/synthify/backend/internal/domain"
 	"gopkg.in/yaml.v3"
 )
 
+// ToolKnowledgeTree is the canonical identifier for the knowledge tree generation tool.
 const ToolKnowledgeTree = "knowledge_tree"
 
+// Case represents a test case definition specifying tool, input payload, and expected results.
 type Case struct {
 	Name   string          `yaml:"name" json:"name"`
 	Tool   string          `yaml:"tool" json:"tool"`
@@ -28,6 +32,7 @@ type Case struct {
 	Expect CaseExpect      `yaml:"expect" json:"expect"`
 }
 
+// Result holds the execution outcome, performance metrics, and validation status of an evaluated case.
 type Result struct {
 	CaseName     string          `json:"case_name"`
 	Tool         string          `json:"tool"`
@@ -47,6 +52,7 @@ type Result struct {
 	Trace []TraceEvent `json:"trace,omitempty"`
 }
 
+// InputSnapshot captures the resolved input arguments of an evaluation case for failure debugging.
 type InputSnapshot struct {
 	DocumentID  string         `json:"document_id"`
 	Instruction string         `json:"instruction,omitempty"`
@@ -54,7 +60,9 @@ type InputSnapshot struct {
 	Chunks      []domain.Chunk `json:"chunks"`
 }
 
+// Runner coordinates execution of evaluation test cases across LLM tools.
 type Runner struct {
+	// LLM is the underlying language model client used to execute tool calls.
 	LLM base.LLMClient
 
 	// Renderer renders the knowledge_tree prompt. Nil means the production
@@ -76,6 +84,8 @@ type Runner struct {
 	Collector *TraceCollector
 }
 
+// CaseFiles locates and returns all YAML evaluation case files under path,
+// or returns path directly if it points to a single file.
 func CaseFiles(path string) ([]string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -124,6 +134,7 @@ func (r Runner) resolveRenderer() (*prompts.Renderer, string, error) {
 	return p, promptSource, nil
 }
 
+// RunCaseFile loads a single YAML case from disk and executes it against the runner's tool set.
 func (r Runner) RunCaseFile(ctx context.Context, path string) (Result, error) {
 	c, err := LoadCase(path)
 	if err != nil {
@@ -140,6 +151,7 @@ func (r Runner) RunCaseFile(ctx context.Context, path string) (Result, error) {
 	return r.runCase(ctx, c, filepath.Dir(path), promptSource, tools)
 }
 
+// RunCaseFiles loads and executes multiple YAML evaluation case files sequentially.
 func (r Runner) RunCaseFiles(ctx context.Context, paths []string) ([]Result, error) {
 	renderer, promptSource, err := r.resolveRenderer()
 	if err != nil {
@@ -189,6 +201,7 @@ func (r Runner) toolTable(renderer *prompts.Renderer) (map[string]Tool, error) {
 	return builtinTable(llmClient, renderer), nil
 }
 
+// runCase executes a single evaluation case using the prepared tools table and captures traces if configured.
 func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSource string, tools map[string]Tool) (Result, error) {
 	if strings.TrimSpace(c.Name) == "" {
 		return Result{}, fmt.Errorf("case name is required")
@@ -254,6 +267,7 @@ func (r Runner) runCase(ctx context.Context, c Case, baseDir string, promptSourc
 	return res, nil
 }
 
+// resolveRunTool finds an existing builtin or dynamic tool in the tools table or resolves it dynamically.
 func (r Runner) resolveRunTool(ctx context.Context, tools map[string]Tool, name string) (Tool, error) {
 	tool, err := resolveTool(tools, name)
 	if err == nil {
@@ -274,6 +288,7 @@ func (r Runner) resolveRunTool(ctx context.Context, tools map[string]Tool, name 
 	return tool, nil
 }
 
+// validateRaw verifies that the unmarshaled raw JSON complies with the given resolved JSON schema.
 func validateRaw(schema *jsonschema.Resolved, raw json.RawMessage) error {
 	if schema == nil {
 		return fmt.Errorf("missing schema")
@@ -285,6 +300,7 @@ func validateRaw(schema *jsonschema.Resolved, raw json.RawMessage) error {
 	return schema.Validate(v)
 }
 
+// LoadCase loads and unmarshals an evaluation case definition from a YAML file.
 func LoadCase(path string) (Case, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -297,6 +313,7 @@ func LoadCase(path string) (Case, error) {
 	return c, nil
 }
 
+// LoadChunks reads and unmarshals document chunk objects from a JSON fixture file.
 func LoadChunks(path string) ([]domain.Chunk, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -309,6 +326,7 @@ func LoadChunks(path string) ([]domain.Chunk, error) {
 	return chunks, nil
 }
 
+// resolvePath returns path if absolute, or joins it with baseDir if relative.
 func resolvePath(baseDir, path string) string {
 	if filepath.IsAbs(path) || baseDir == "" {
 		return path

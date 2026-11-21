@@ -1,0 +1,153 @@
+package handler
+
+import (
+	"context"
+
+	connect "connectrpc.com/connect"
+
+	"github.com/synthify/backend/internal/domain"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
+)
+
+// WorkspaceChatUsecase is the application API required by WorkspaceChatHandler.
+type WorkspaceChatUsecase interface {
+	// ListConversations returns all conversations in the workspace and whether answerable sources exist.
+	ListConversations(ctx context.Context, workspaceID, userID string) ([]*domain.ChatConversation, bool, error)
+	// ListMessages returns the ordered messages within a conversation.
+	ListMessages(ctx context.Context, workspaceID, conversationID, userID string) ([]*domain.ChatMessage, error)
+	// SendMessage sends a new user message and triggers generation of the assistant response.
+	SendMessage(ctx context.Context, workspaceID, conversationID, text, userID string) (*domain.ChatMessage, *domain.ChatMessage, error)
+}
+
+// WorkspaceChatHandler implements Connect-RPC endpoints for workspace AI chat conversations.
+type WorkspaceChatHandler struct {
+	service WorkspaceChatUsecase
+}
+
+// NewWorkspaceChatHandler constructs a new WorkspaceChatHandler.
+func NewWorkspaceChatHandler(service WorkspaceChatUsecase) *WorkspaceChatHandler {
+	return &WorkspaceChatHandler{service: service}
+}
+
+// ListWorkspaceChatConversations lists all chat conversations for a workspace.
+func (h *WorkspaceChatHandler) ListWorkspaceChatConversations(
+	ctx context.Context,
+	req *connect.Request[appv1.ListWorkspaceChatConversationsRequest],
+) (*connect.Response[appv1.ListWorkspaceChatConversationsResponse], error) {
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	convs, hasAnswerableSources, err := h.service.ListConversations(ctx, req.Msg.GetWorkspaceId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
+	out := make([]*appv1.WorkspaceChatConversation, 0, len(convs))
+	for _, conv := range convs {
+		out = append(out, toProtoChatConversation(conv))
+	}
+	return connect.NewResponse(&appv1.ListWorkspaceChatConversationsResponse{
+		Conversations:        out,
+		HasAnswerableSources: hasAnswerableSources,
+	}), nil
+}
+
+// ListWorkspaceChatMessages lists all messages in a conversation.
+func (h *WorkspaceChatHandler) ListWorkspaceChatMessages(
+	ctx context.Context,
+	req *connect.Request[appv1.ListWorkspaceChatMessagesRequest],
+) (*connect.Response[appv1.ListWorkspaceChatMessagesResponse], error) {
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	msgs, err := h.service.ListMessages(ctx, req.Msg.GetWorkspaceId(), req.Msg.GetConversationId(), userID)
+	if err != nil {
+		return nil, toError(err)
+	}
+	out := make([]*appv1.WorkspaceChatMessage, 0, len(msgs))
+	for _, msg := range msgs {
+		out = append(out, toProtoChatMessage(msg))
+	}
+	return connect.NewResponse(&appv1.ListWorkspaceChatMessagesResponse{Messages: out}), nil
+}
+
+// SendWorkspaceChatMessage sends a message from the user and returns both the user message and assistant reply.
+func (h *WorkspaceChatHandler) SendWorkspaceChatMessage(
+	ctx context.Context,
+	req *connect.Request[appv1.SendWorkspaceChatMessageRequest],
+) (*connect.Response[appv1.SendWorkspaceChatMessageResponse], error) {
+	userID, err := requireUserID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	userMsg, assistantMsg, err := h.service.SendMessage(
+		ctx,
+		req.Msg.GetWorkspaceId(),
+		req.Msg.GetConversationId(),
+		req.Msg.GetText(),
+		userID,
+	)
+	if err != nil {
+		return nil, toError(err)
+	}
+	return connect.NewResponse(&appv1.SendWorkspaceChatMessageResponse{
+		ConversationId:   userMsg.ConversationID,
+		UserMessage:      toProtoChatMessage(userMsg),
+		AssistantMessage: toProtoChatMessage(assistantMsg),
+	}), nil
+}
+
+// toProtoChatConversation converts a domain chat conversation into its protobuf representation.
+func toProtoChatConversation(conv *domain.ChatConversation) *appv1.WorkspaceChatConversation {
+	return &appv1.WorkspaceChatConversation{
+		ConversationId: conv.ConversationID,
+		WorkspaceId:    conv.WorkspaceID,
+		CreatedBy:      conv.CreatedBy,
+		Title:          conv.Title,
+		CreatedAt:      conv.CreatedAt,
+		UpdatedAt:      conv.UpdatedAt,
+	}
+}
+
+// toProtoChatMessage converts a domain chat message into its protobuf representation.
+func toProtoChatMessage(msg *domain.ChatMessage) *appv1.WorkspaceChatMessage {
+	if msg == nil {
+		return nil
+	}
+	sources := make([]*appv1.WorkspaceChatSource, 0, len(msg.Sources))
+	for _, src := range msg.Sources {
+		sources = append(sources, &appv1.WorkspaceChatSource{
+			DocumentId: src.DocumentID,
+			ChunkId:    src.ChunkID,
+			ItemId:     src.ItemID,
+			Label:      src.Label,
+		})
+	}
+	return &appv1.WorkspaceChatMessage{
+		MessageId:      msg.MessageID,
+		ConversationId: msg.ConversationID,
+		Role:           msg.Role,
+		Content:        msg.Content,
+		Sources:        sources,
+		ModelSelection: msg.ModelSelection,
+		CreatedAt:      msg.CreatedAt,
+		Status:         toProtoChatMessageStatus(msg.Status),
+		ErrorCode:      msg.ErrorCode,
+		Grounded:       msg.Grounded,
+	}
+}
+
+// toProtoChatMessageStatus maps domain chat message status strings to protobuf enum values.
+func toProtoChatMessageStatus(status string) appv1.WorkspaceChatMessageStatus {
+	switch status {
+	case domain.ChatMessageStatusComplete:
+		return appv1.WorkspaceChatMessageStatus_WORKSPACE_CHAT_MESSAGE_STATUS_COMPLETE
+	case domain.ChatMessageStatusFailed:
+		return appv1.WorkspaceChatMessageStatus_WORKSPACE_CHAT_MESSAGE_STATUS_FAILED
+	case domain.ChatMessageStatusCancelled:
+		return appv1.WorkspaceChatMessageStatus_WORKSPACE_CHAT_MESSAGE_STATUS_CANCELLED
+	default:
+		return appv1.WorkspaceChatMessageStatus_WORKSPACE_CHAT_MESSAGE_STATUS_UNSPECIFIED
+	}
+}

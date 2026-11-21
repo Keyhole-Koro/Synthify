@@ -7,6 +7,7 @@ import (
 	platformstorage "github.com/synthify/backend/internal/platform/storage"
 )
 
+// fakeGCSDocumentUploadURLIssuer implements repository.DocumentUploadURLIssuer for local fake-gcs emulation.
 type fakeGCSDocumentUploadURLIssuer struct {
 	base   string
 	bucket string
@@ -18,6 +19,7 @@ func NewFakeGCSDocumentUploadURLIssuer(base, bucket string) repository.DocumentU
 	return fakeGCSDocumentUploadURLIssuer{base: base, bucket: bucket}
 }
 
+// IssueDocumentUploadURL constructs an upload target URL pointing to fake-gcs for direct browser uploads.
 func (i fakeGCSDocumentUploadURLIssuer) IssueDocumentUploadURL(_ context.Context, workspaceID, objectName, contentType string, fileSize int64) (repository.DocumentUploadTarget, error) {
 	_ = fileSize
 	return repository.DocumentUploadTarget{

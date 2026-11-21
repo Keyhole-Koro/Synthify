@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package synthify.app.v1;
 
+import "buf/validate/validate.proto";
+
 option go_package = "github.com/synthify/backend/internal/gen/synthify/app/v1;appv1";
 
 service BillingService {
@@ -26,7 +28,7 @@ service BillingService {
 }
 
 message GetBillingAccountRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
 }
 
 message GetBillingAccountResponse {
@@ -56,7 +58,7 @@ message GetBillingAccountResponse {
 }
 
 message CreateCheckoutSessionRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
   string currency = 2;
 }
 
@@ -65,7 +67,7 @@ message CreateCheckoutSessionResponse {
 }
 
 message CreatePortalSessionRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
 }
 
 message CreatePortalSessionResponse {
@@ -76,7 +78,7 @@ message CreatePortalSessionResponse {
 // Phase 1: Usage Metering
 // =========================================================
 message GetUsageRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
   // ISO 8601 (例: "2026-05-01T00:00:00Z")。空なら当月初。
   string period_start = 2;
   // 同上。空なら現在時刻。
@@ -110,11 +112,11 @@ message DailyUsage {
 
 // Worker -> API への記録用 (内部 RPC)
 message RecordUsageRequest {
-  string event_id = 1;
-  string account_id = 2;
+  string event_id = 1 [(buf.validate.field).required = true];
+  string account_id = 2 [(buf.validate.field).required = true];
   string workspace_id = 3;
   string job_id = 4;
-  string model = 5;
+  string model = 5 [(buf.validate.field).required = true];
   int64 input_tokens = 6;
   int64 output_tokens = 7;
 }
@@ -129,7 +131,7 @@ message RecordUsageResponse {
 // Phase 2: Budget
 // =========================================================
 message UpdateBudgetRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
   string budget_limit = 2;  // decimal string。"0" で解除。
 }
 
@@ -141,7 +143,7 @@ message UpdateBudgetResponse {
 // Phase 3: Invoices & Payment Methods
 // =========================================================
 message ListInvoicesRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
   int32 limit = 2;
 }
 
@@ -165,7 +167,7 @@ message Invoice {
 }
 
 message ListPaymentMethodsRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
 }
 
 message ListPaymentMethodsResponse {
@@ -187,8 +189,8 @@ message PaymentMethod {
 
 // GrantCredit は admin が任意アカウントにクレジットを付与する (内部/admin 専用)
 message GrantCreditRequest {
-  string account_id = 1;
-  int64 amount_minor = 2;   // USD cents
+  string account_id = 1 [(buf.validate.field).required = true];
+  int64 amount_minor = 2 [(buf.validate.field).int64.gt = 0];   // USD cents
   string note = 3;
 }
 
@@ -200,7 +202,7 @@ message GrantCreditResponse {
 }
 
 message GetCreditBalanceRequest {
-  string account_id = 1;
+  string account_id = 1 [(buf.validate.field).required = true];
 }
 
 message GetCreditBalanceResponse {

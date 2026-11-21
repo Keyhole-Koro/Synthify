@@ -4,12 +4,10 @@ import type { LogLevel } from '@/config/env';
 const recordBrowserLog = vi.fn();
 
 // log.ts captures console refs at module-eval time, so console must be spied
-// before importing it. We re-import per test (resetModules) to vary the
-// env-derived consoleLevel, mocking env + the NR helper.
-async function loadLog(consoleLevel: LogLevel) {
+// before importing it. We re-import per test (resetModules) and mock the NR helper.
+async function loadLog() {
   vi.resetModules();
   recordBrowserLog.mockClear();
-  vi.doMock('@/config/env', () => ({ env: { observability: { consoleLevel } } }));
   vi.doMock('@/lib/newrelic/browser', () => ({ recordBrowserLog }));
   return (await import('@/lib/observability/log')).log;
 }
@@ -31,25 +29,24 @@ describe('log', () => {
     vi.resetModules();
   });
 
-  it('delivers to New Relic even when the level is below the console threshold', async () => {
-    const log = await loadLog('error');
+  it('delivers every level to New Relic but mirrors only warnings and errors', async () => {
+    const log = await loadLog();
     log.debug('hello');
-    expect(recordBrowserLog).toHaveBeenCalledWith('debug', 'hello', {});
-    expect(spies.debug).not.toHaveBeenCalled();
-  });
-
-  it('gates the console by level but always delivers to NR', async () => {
-    const log = await loadLog('warn');
     log.info('quiet');
     log.warn('loud');
-    expect(spies.info).not.toHaveBeenCalled();
-    expect(spies.warn).toHaveBeenCalled();
+    log.error('failed');
+    expect(recordBrowserLog).toHaveBeenCalledWith('debug', 'hello', {});
     expect(recordBrowserLog).toHaveBeenCalledWith('info', 'quiet', {});
     expect(recordBrowserLog).toHaveBeenCalledWith('warn', 'loud', {});
+    expect(recordBrowserLog).toHaveBeenCalledWith('error', 'failed', {});
+    expect(spies.debug).not.toHaveBeenCalled();
+    expect(spies.info).not.toHaveBeenCalled();
+    expect(spies.warn).toHaveBeenCalled();
+    expect(spies.error).toHaveBeenCalled();
   });
 
   it('error(message, Error) attaches error attributes', async () => {
-    const log = await loadLog('error');
+    const log = await loadLog();
     log.error('failed', new Error('boom'));
     expect(recordBrowserLog).toHaveBeenCalledWith(
       'error',
@@ -59,7 +56,7 @@ describe('log', () => {
   });
 
   it('error(message, attributes, Error) merges both', async () => {
-    const log = await loadLog('error');
+    const log = await loadLog();
     log.error('failed', { source: 's' }, new Error('boom'));
     expect(recordBrowserLog).toHaveBeenCalledWith(
       'error',
@@ -69,13 +66,13 @@ describe('log', () => {
   });
 
   it('error(message) with no error sends empty attributes', async () => {
-    const log = await loadLog('error');
+    const log = await loadLog();
     log.error('failed');
     expect(recordBrowserLog).toHaveBeenCalledWith('error', 'failed', {});
   });
 
   it('error(message, non-Error) records errorValue', async () => {
-    const log = await loadLog('error');
+    const log = await loadLog();
     log.error('failed', 'stringy');
     expect(recordBrowserLog).toHaveBeenCalledWith('error', 'failed', { errorValue: 'stringy' });
   });

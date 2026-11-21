@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/newrelic/go-agent/v3/newrelic"
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	"github.com/synthify/backend/internal/domain"
 	platformusage "github.com/synthify/backend/internal/platform/billing/usage"
 )
 
+// BillingUsecase defines the use-case interface for customer billing, checkout sessions, usage reporting, and credits.
 type BillingUsecase interface {
 	GetBillingAccount(ctx context.Context, accountID, actorUserID string) (*domain.Account, error)
 	CreateCheckoutSession(ctx context.Context, accountID, actorUserID string, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error)
@@ -33,6 +34,7 @@ type BillingUsecase interface {
 	GetCreditBalance(ctx context.Context, accountID, actorUserID string) (int64, error)
 }
 
+// BillingProvider abstracts communication with payment service providers such as Stripe.
 type BillingProvider interface {
 	EnsureCustomer(ctx context.Context, account *domain.Account) (*domain.BillingCustomerRef, error)
 	CreateCheckoutSession(ctx context.Context, account *domain.Account, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error)
@@ -40,17 +42,19 @@ type BillingProvider interface {
 	ParseWebhook(ctx context.Context, payload []byte, signature string) (*domain.ProviderWebhookEvent, error)
 	ReportTokenUsage(ctx context.Context, account *domain.Account, identifier string, inputTokens, outputTokens int64) error
 	FetchBillingState(ctx context.Context, account *domain.Account) (*domain.ProviderWebhookEvent, error)
-	// reconcile バックフィル用: webhook を取りこぼした過去分の invoice / payment method を
-	// Stripe から引き直す。ListRemotePaymentMethods の第2戻り値は default payment method id。
+	// ListRemoteInvoices fetches past invoices from Stripe for reconciliation backfills.
 	ListRemoteInvoices(ctx context.Context, account *domain.Account, limit int) ([]*domain.ProviderInvoice, error)
+	// ListRemotePaymentMethods fetches payment methods and default ID from Stripe for reconciliation backfills.
 	ListRemotePaymentMethods(ctx context.Context, account *domain.Account) ([]*domain.ProviderPaymentMethod, string, error)
 }
 
+// BillingReconciler defines the interface for synchronizing local billing states with provider records.
 type BillingReconciler interface {
 	ReconcileAccount(ctx context.Context, accountID string, apply bool) (*BillingReconciliationDiff, error)
 	ReconcileLinkedAccounts(ctx context.Context, apply bool, limit int) ([]*BillingReconciliationDiff, error)
 }
 
+// billingService coordinates customer billing operations, checkout, usage tracking, and webhooks.
 type billingService struct {
 	accounts repository.AccountRepository
 	usage    repository.UsageRepository
@@ -60,6 +64,7 @@ type billingService struct {
 	recorder *platformusage.Recorder
 }
 
+// BillingServiceDeps specifies dependencies required to construct a BillingUsecase.
 type BillingServiceDeps struct {
 	Accounts repository.AccountRepository
 	// Usage may be nil during early local dev (before the postgres-backed
@@ -79,6 +84,7 @@ type BillingServiceDeps struct {
 // otherwise fall back to a no-op stub that bills nothing.
 var ErrBillingUsageRepoRequired = errors.New("billing: usage repository is required but not configured")
 
+// NewBillingService creates a new BillingUsecase implementation.
 func NewBillingService(deps BillingServiceDeps) (BillingUsecase, error) {
 	if deps.RequireUsage && deps.Usage == nil {
 		return nil, ErrBillingUsageRepoRequired
@@ -98,6 +104,7 @@ func NewBillingService(deps BillingServiceDeps) (BillingUsecase, error) {
 	return s, nil
 }
 
+// billingClock implements the clock interface needed by platformusage.Recorder.
 type billingClock struct{ now func() time.Time }
 
 // NowRFC3339Date returns the current instant as an RFC3339 string. The
@@ -107,6 +114,7 @@ func (c billingClock) NowRFC3339Date() string {
 	return c.now().UTC().Format("2006-01-02T15:04:05Z")
 }
 
+// GetBillingAccount retrieves account information and billing plan limits for an authorized user.
 func (s *billingService) GetBillingAccount(ctx context.Context, accountID, actorUserID string) (*domain.Account, error) {
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
@@ -119,6 +127,7 @@ func (s *billingService) GetBillingAccount(ctx context.Context, accountID, actor
 	return account, nil
 }
 
+// CreateCheckoutSession initiates a Stripe checkout session for subscribing to a paid billing plan.
 func (s *billingService) CreateCheckoutSession(ctx context.Context, accountID, actorUserID string, plan domain.BillingPlan, currency domain.BillingCurrency) (*domain.BillingCheckoutSession, error) {
 	if err := plan.Validate(); err != nil {
 		s.logger.Warn("billing.checkout_session.invalid_plan",
@@ -198,6 +207,7 @@ func (s *billingService) CreateCheckoutSession(ctx context.Context, accountID, a
 	return session, nil
 }
 
+// CreatePortalSession creates a Stripe Customer Portal session URL where users can manage payment methods and view invoices.
 func (s *billingService) CreatePortalSession(ctx context.Context, accountID, actorUserID string) (*domain.BillingPortalSession, error) {
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
@@ -250,6 +260,7 @@ func (s *billingService) CreatePortalSession(ctx context.Context, accountID, act
 	return session, nil
 }
 
+// HandleWebhook verifies, logs, and processes incoming payment provider webhook events idempotently.
 func (s *billingService) HandleWebhook(ctx context.Context, payload []byte, signature string) error {
 	if s.provider == nil {
 		s.noticeError(ctx, "billing.provider_not_configured", domain.ErrBillingProviderNotConfigured, map[string]any{
@@ -307,6 +318,7 @@ func (s *billingService) HandleWebhook(ctx context.Context, payload []byte, sign
 	return err
 }
 
+// ensureProviderCustomer verifies that a Stripe customer exists for the account, creating one if needed.
 func (s *billingService) ensureProviderCustomer(ctx context.Context, account *domain.Account) error {
 	customer, err := s.provider.EnsureCustomer(ctx, account)
 	if err != nil {
@@ -322,6 +334,7 @@ func (s *billingService) ensureProviderCustomer(ctx context.Context, account *do
 	return nil
 }
 
+// recordAndApplyWebhookEvent idempotently saves a webhook event and applies plan/status transitions.
 func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *domain.ProviderWebhookEvent) (bool, error) {
 	if event == nil {
 		return false, nil
@@ -337,9 +350,7 @@ func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *
 		)
 		return false, nil
 	}
-	// account billing 状態を更新するのは plan が解決できたイベント、もしくは
-	// checkout 完了の保留ステータスのみ。invoice/payment_method 専用イベントは
-	// plan が空でも下記サイドエフェクトだけ走らせ、accounts は触らない。
+	// Apply account billing state only if the event specifies a plan or pending checkout.
 	applyAccount := event.Plan != "" || event.Status == domain.BillingStatusCheckoutPending
 	hasSideEffect := event.Invoice != nil || event.PaymentMethod != nil ||
 		event.PaymentMethodDeleted != "" || event.DefaultPaymentMethodSet
@@ -367,9 +378,7 @@ func (s *billingService) recordAndApplyWebhookEvent(ctx context.Context, event *
 			return false, err
 		}
 	}
-	// invoice / payment_method キャッシュ同期はベストエフォート。失敗しても accounts
-	// 更新は確定済みなので webhook は ack（重複再送は dedup されるため、取りこぼしは
-	// reconcile バックフィルで修復する）。
+	// Best-effort cache synchronization for invoices and payment methods.
 	s.applyWebhookSideEffects(ctx, event)
 	if err := s.accounts.MarkBillingWebhookEventProcessed(ctx, event.Provider, event.EventID, "processed", ""); err != nil {
 		return true, err
@@ -424,16 +433,30 @@ func (s *billingService) applyWebhookSideEffects(ctx context.Context, event *dom
 	}
 }
 
+// BillingReconciliationDiff describes the difference between the locally stored
+// billing state and the state returned by the configured billing provider.
+//
+// The values are intentionally strings so the reconciliation report can represent
+// provider-specific states without coupling the application layer to Stripe enums.
 type BillingReconciliationDiff struct {
-	AccountID          string
-	LocalPlan          string
-	RemotePlan         string
-	LocalStatus        string
-	RemoteStatus       string
-	LocalSubscription  string
+	// AccountID identifies the local account being reconciled.
+	AccountID string
+	// LocalPlan is the plan currently stored by the application.
+	LocalPlan string
+	// RemotePlan is the plan currently reported by the billing provider.
+	RemotePlan string
+	// LocalStatus is the local subscription status.
+	LocalStatus string
+	// RemoteStatus is the provider subscription status.
+	RemoteStatus string
+	// LocalSubscription is the local external subscription identifier.
+	LocalSubscription string
+	// RemoteSubscription is the provider's subscription identifier.
 	RemoteSubscription string
-	LocalPriceID       string
-	RemotePriceID      string
+	// LocalPriceID is the local price identifier.
+	LocalPriceID string
+	// RemotePriceID is the provider price identifier.
+	RemotePriceID string
 }
 
 func (s *billingService) ReconcileAccount(ctx context.Context, accountID string, apply bool) (*BillingReconciliationDiff, error) {
@@ -550,6 +573,7 @@ func (s *billingService) backfillPaymentMethods(ctx context.Context, account *do
 	}
 }
 
+// authorizeAccount checks if the user has access to the specified account.
 func (s *billingService) authorizeAccount(ctx context.Context, accountID, userID string) (*domain.Account, error) {
 	ok, err := s.accounts.IsAccountAccessible(ctx, accountID, userID)
 	if err != nil {
@@ -561,6 +585,7 @@ func (s *billingService) authorizeAccount(ctx context.Context, accountID, userID
 	return s.accounts.GetAccount(ctx, accountID)
 }
 
+// noticeError records custom error traces in New Relic if the error represents an operational issue.
 func (s *billingService) noticeError(ctx context.Context, event string, err error, attrs map[string]any) {
 	if !shouldNoticeBillingError(err) {
 		return
@@ -576,6 +601,7 @@ func (s *billingService) noticeError(ctx context.Context, event string, err erro
 	txn.NoticeError(err)
 }
 
+// logAuthorizeError logs authorization failures, logging as Warn for ErrNotFound and Error otherwise.
 func (s *billingService) logAuthorizeError(ctx context.Context, event string, err error, attrs ...any) {
 	attrs = append([]any{"error", err.Error()}, attrs...)
 	if errors.Is(err, domain.ErrNotFound) {
@@ -585,6 +611,7 @@ func (s *billingService) logAuthorizeError(ctx context.Context, event string, er
 	s.logger.Error(event, attrs...)
 }
 
+// shouldNoticeBillingError filters out client-side or expected validation errors from New Relic error reporting.
 func shouldNoticeBillingError(err error) bool {
 	switch {
 	case err == nil:
@@ -604,9 +631,9 @@ func shouldNoticeBillingError(err error) bool {
 
 // =========================================================
 // Usage-Based Billing
-// 仕様: docs/architecture/usage-based-billing-spec.md
 // =========================================================
 
+// GetUsage aggregates model usage tokens and costs for an account across the given date period.
 func (s *billingService) GetUsage(ctx context.Context, accountID, actorUserID string, periodStart, periodEnd string) (*domain.UsageReport, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
 		s.logAuthorizeError(ctx, "billing.get_usage.authorize_failed", err,
@@ -651,6 +678,7 @@ func (s *billingService) GetUsage(ctx context.Context, accountID, actorUserID st
 	}, nil
 }
 
+// RecordUsage records LLM token consumption, deducting available credits and reporting to Stripe metered billing.
 func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent) (*domain.UsageRecordResult, error) {
 	if ev == nil || ev.EventID == "" || ev.AccountID == "" || ev.Model == "" {
 		return nil, domain.ErrBillingUsageEventInvalid
@@ -672,22 +700,11 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 		return &domain.UsageRecordResult{EventID: ev.EventID, Cost: "0.00"}, nil
 	}
 
-	pue := toPlatformEvent(ev)
-	result, err := s.recorder.Record(ctx, pue)
+	// Recorder fills in the cost and the credit/Stripe split on ev.
+	result, err := s.recorder.Record(ctx, ev)
 	if err != nil {
-		if errors.Is(err, platformusage.ErrEventInvalid) {
-			return nil, domain.ErrBillingUsageEventInvalid
-		}
 		return nil, err
 	}
-	// Recorder mutated pue with the chosen split; mirror the relevant fields
-	// back onto the caller's domain event so callers reading ev after the
-	// fact see the same accounting.
-	ev.CostMinor = pue.CostMinor
-	ev.Currency = pue.Currency
-	ev.PaidVia = domain.PaidVia(pue.PaidVia)
-	ev.CreditAmountMinor = pue.CreditAmountMinor
-	ev.StripeAmountMinor = pue.StripeAmountMinor
 
 	// Pricing が解決できず cost 0 で記録された場合は課金漏れ。recorder 側で
 	// error ログは出るが、ここでも NewRelic に notice してアラート可能にする。
@@ -711,36 +728,10 @@ func (s *billingService) RecordUsage(ctx context.Context, ev *domain.UsageEvent)
 		s.reportStripeMeterPortion(ctx, ev, inTok, outTok)
 	}
 
-	return &domain.UsageRecordResult{
-		EventID:           result.EventID,
-		Cost:              result.Cost,
-		BudgetExceeded:    result.BudgetExceeded,
-		CreditStopped:     result.CreditStopped,
-		PaidVia:           domain.PaidVia(result.PaidVia),
-		CreditAmountMinor: result.CreditAmountMinor,
-		StripeAmountMinor: result.StripeAmountMinor,
-		PricingMissing:    result.PricingMissing,
-	}, nil
+	return result, nil
 }
 
-func toPlatformEvent(ev *domain.UsageEvent) *platformusage.Event {
-	return &platformusage.Event{
-		EventID:           ev.EventID,
-		AccountID:         ev.AccountID,
-		WorkspaceID:       ev.WorkspaceID,
-		JobID:             ev.JobID,
-		Model:             ev.Model,
-		InputTokens:       ev.InputTokens,
-		OutputTokens:      ev.OutputTokens,
-		CostMinor:         ev.CostMinor,
-		Currency:          ev.Currency,
-		PaidVia:           platformusage.PaidVia(ev.PaidVia),
-		CreditAmountMinor: ev.CreditAmountMinor,
-		StripeAmountMinor: ev.StripeAmountMinor,
-		CreatedAt:         ev.CreatedAt,
-	}
-}
-
+// reportStripeMeterPortion reports metered token usage directly to the billing provider.
 func (s *billingService) reportStripeMeterPortion(ctx context.Context, ev *domain.UsageEvent, inputTokens, outputTokens int64) {
 	if s.provider == nil {
 		return
@@ -772,6 +763,7 @@ func formatMinor(minor int64, currency string) string {
 	return neg + strconv.FormatInt(minor/100, 10) + "." + fmt.Sprintf("%02d", minor%100)
 }
 
+// parseMinor parses a decimal string amount into its minor integer units.
 func parseMinor(value string, currency string) (int64, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -816,6 +808,7 @@ func parseMinor(value string, currency string) (int64, error) {
 	return minor, nil
 }
 
+// UpdateBudget sets a monthly budget spending cap for the specified account.
 func (s *billingService) UpdateBudget(ctx context.Context, accountID, actorUserID string, budgetLimit string) (string, error) {
 	account, err := s.authorizeAccount(ctx, accountID, actorUserID)
 	if err != nil {
@@ -842,6 +835,7 @@ func (s *billingService) UpdateBudget(ctx context.Context, accountID, actorUserI
 	return formatMinor(limitMinor, currency), nil
 }
 
+// ListInvoices retrieves the cached list of recent customer invoices.
 func (s *billingService) ListInvoices(ctx context.Context, accountID, actorUserID string, limit int) (*domain.InvoiceList, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
 		s.logAuthorizeError(ctx, "billing.list_invoices.authorize_failed", err,
@@ -856,6 +850,7 @@ func (s *billingService) ListInvoices(ctx context.Context, accountID, actorUserI
 	return s.usage.ListInvoices(ctx, accountID, limit)
 }
 
+// ListPaymentMethods retrieves stored payment cards for the account.
 func (s *billingService) ListPaymentMethods(ctx context.Context, accountID, actorUserID string) ([]*domain.PaymentMethod, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
 		s.logAuthorizeError(ctx, "billing.list_payment_methods.authorize_failed", err,
@@ -874,8 +869,8 @@ func (s *billingService) ListPaymentMethods(ctx context.Context, accountID, acto
 // Credits
 // =========================================================
 
-// GrantFreeSignupCredit は新規アカウント作成時に $1 の無料クレジットを付与する。
-// 既に付与済みの場合は冪等に何もしない（credit_id が衝突するため）。
+// GrantFreeSignupCredit grants initial complimentary credits upon new account creation.
+// The operation is idempotent based on a deterministic credit identifier.
 func (s *billingService) GrantFreeSignupCredit(ctx context.Context, accountID string) error {
 	if s.usage == nil {
 		return nil
@@ -904,7 +899,7 @@ func (s *billingService) GrantFreeSignupCredit(ctx context.Context, accountID st
 	return nil
 }
 
-// GrantCredit は admin が任意アカウントにクレジットを付与する。
+// GrantCredit allows administrators to grant arbitrary credits to an account.
 func (s *billingService) GrantCredit(ctx context.Context, actorUserID, accountID string, amountMinor int64, note string) (*domain.CreditGrant, error) {
 	if amountMinor <= 0 {
 		return nil, domain.ErrBillingBudgetInvalid
@@ -928,6 +923,7 @@ func (s *billingService) GrantCredit(ctx context.Context, actorUserID, accountID
 	return grant, nil
 }
 
+// GetCreditBalance retrieves the current active credit balance in minor units.
 func (s *billingService) GetCreditBalance(ctx context.Context, accountID, actorUserID string) (int64, error) {
 	if _, err := s.authorizeAccount(ctx, accountID, actorUserID); err != nil {
 		return 0, err
@@ -938,6 +934,7 @@ func (s *billingService) GetCreditBalance(ctx context.Context, accountID, actorU
 	return s.usage.GetCreditBalance(ctx, accountID)
 }
 
+// newCreditID generates a unique identifier for a credit grant entry.
 func newCreditID() string {
 	return fmt.Sprintf("credit-%d", time.Now().UnixNano())
 }

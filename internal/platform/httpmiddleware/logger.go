@@ -1,3 +1,4 @@
+// Package httpmiddleware provides standard HTTP middleware for logging, panic recovery, and request tracing.
 package httpmiddleware
 
 import (
@@ -33,11 +34,13 @@ func Logger(logger *slog.Logger, next http.Handler) http.Handler {
 	})
 }
 
+// responseWriter intercepts WriteHeader calls to capture the HTTP status code for logging.
 type responseWriter struct {
 	http.ResponseWriter
 	status int
 }
 
+// WriteHeader captures the status code and delegates to the underlying ResponseWriter.
 func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)

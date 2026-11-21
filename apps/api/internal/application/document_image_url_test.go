@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
 	"github.com/synthify/backend/apps/api/internal/repository/mock"
+	"github.com/synthify/backend/internal/domain"
 )
 
 type fakeImageURLIssuer struct {

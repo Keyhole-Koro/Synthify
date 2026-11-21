@@ -1,22 +1,38 @@
-import React from 'react';
 import { InlineError } from '@/components/error/InlineError';
 
+/**
+ * Props for the {@link WorkspaceEmptyHeader} component.
+ */
 interface WorkspaceEmptyHeaderProps {
+  /** Current display name of the workspace. */
   workspaceName: string;
+  /** Whether the inline renaming input field is active. */
   editingName: boolean;
+  /** Temporary name string currently being edited. */
   draftName: string;
+  /** Whether a rename submission is in flight. */
   savingName: boolean;
+  /** Validation error message if the draft name is invalid, or null. */
   nameError: string | null;
+  /** Callback fired as the user types in the rename input. */
   onDraftNameChange: (value: string) => void;
+  /** Callback to enter renaming mode. */
   onStartRename: () => void;
+  /** Callback to commit the renamed draft name. */
   onCommitName: () => void | Promise<void>;
+  /** Callback to abort renaming and revert draft changes. */
   onCancelRename: () => void;
+  /** Whether the user has permission to edit the workspace name. */
   canEdit?: boolean;
 }
 
-// WorkspaceEmptyHeader is the "Workspace" eyebrow + inline rename form that
-// appears when a workspace card has no tree yet. The populated-mode header
-// lives in WorkspaceHeader.tsx.
+/**
+ * Renders the top title header and inline rename form for a workspace paper
+ * that does not yet possess any tree or document contents.
+ *
+ * @param props - Component properties.
+ * @returns The rendered empty-state header.
+ */
 export function WorkspaceEmptyHeader({
   workspaceName,
   editingName,
@@ -41,6 +57,7 @@ export function WorkspaceEmptyHeader({
           }}
         >
           <input
+            aria-label="ワークスペース名"
             value={draftName}
             maxLength={64}
             disabled={savingName}

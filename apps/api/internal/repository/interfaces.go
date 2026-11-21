@@ -4,28 +4,36 @@ import (
 	"context"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
+// DocumentUploadTarget contains target details and metadata for direct document uploads to storage.
 type DocumentUploadTarget struct {
-	URL         string
-	Method      string
+	// URL is the signed upload URL.
+	URL string
+	// Method is the HTTP method to use for the upload (PUT or POST).
+	Method string
+	// ContentType is the exact MIME type bound into the signature.
 	ContentType string
-	ExpiresAt   time.Time
+	// ExpiresAt is the timestamp when the upload target expires.
+	ExpiresAt time.Time
 }
 
+// DocumentUploadURLIssuer issues short-lived direct-to-storage upload URLs for documents.
 type DocumentUploadURLIssuer interface {
-	// IssueDocumentUploadURL issues a signed PUT URL to GCS. fileSize is bound
+	// IssueDocumentUploadURL issues a signed upload URL to storage. fileSize is bound
 	// into the signature via the Content-Length header; it is always validated
 	// to be positive by the caller (CreateDocument) before reaching here.
 	IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (DocumentUploadTarget, error)
 }
 
-// SignedURL is a short-lived signed GET URL plus its expiry.
+// SignedURL represents a short-lived signed GET URL along with its expiration timestamp.
 type SignedURL struct {
-	URL       string
+	// URL is the pre-signed URL.
+	URL string
+	// ExpiresAt is the time at which the URL ceases to be valid.
 	ExpiresAt time.Time
 }
 
@@ -34,20 +42,20 @@ type SignedURL struct {
 // data-file-id marker. The url is minted fresh per view and expires, so it is
 // never persisted into the saved HTML.
 type DocumentImageURLIssuer interface {
+	// IssueDocumentImageURL generates a short-lived signed GET URL for downloading or rendering document images.
 	IssueDocumentImageURL(ctx context.Context, workspaceID, documentID, filename string) (SignedURL, error)
 }
 
-// DocumentObjectStore は CreateDocument で発行された GCS object に対する
-// 後始末を担う。reservation の mismatch / expiry のような「アップロード失敗」
-// 系で残骸を消すために用意している。
+// DocumentObjectStore handles storage cleanup for document objects uploaded to cloud storage.
+// Used to delete orphaned blobs upon upload cancellation, expiration, or reservation mismatch.
 type DocumentObjectStore interface {
+	// DeleteDocumentObject removes the specified document object and its subtree from storage.
 	DeleteDocumentObject(ctx context.Context, workspaceID, objectName string) error
 }
 
-// Repositories は単一 unit-of-work 内で利用可能な全リポジトリの集合体。
-// 個別の repo interface を埋め込むことで、tx スコープ内のクロスリポジトリ
-// 操作 (例: JobCapability + ProcessingJob を同一 tx で挿入) を表現する。
-// postgres / mock Store のどちらもこの interface を満たす。
+// Repositories aggregates all repository interfaces accessible within a single unit of work.
+// By embedding distinct repository interfaces, it enables cross-repository atomic operations
+// within a single transaction scope.
 type Repositories interface {
 	AccountRepository
 	UserRepository
@@ -62,23 +70,26 @@ type Repositories interface {
 	UsageRepository
 	CheckpointRepository
 	DynamicToolRepository
+	WorkspaceChatRepository
 }
 
-// Transactor は service 層から tx 境界を制御するためのインターフェース。
-// fn が nil を返せば commit、エラーを返せば rollback される。
-// 渡される Repositories は tx スコープに束縛されている。
+// Transactor controls transactional boundaries from application service workflows.
+// If the callback returns nil, the transaction commits; if it returns an error, it rolls back.
 type Transactor interface {
+	// WithTx executes the supplied function within an isolated database transaction.
 	WithTx(ctx context.Context, fn func(Repositories) error) error
 }
 
+// DocumentSourceURLBuilder constructs the canonical retrieval or delivery URL for a document source.
 type DocumentSourceURLBuilder func(workspaceID, documentID string) string
 
+// AccountRepository defines operations for managing accounts, membership, billing plans, and webhooks.
 type AccountRepository interface {
 	GetOrCreateAccount(ctx context.Context, userID string) (*domain.Account, error)
 	GetAccount(ctx context.Context, accountID string) (*domain.Account, error)
 	GetAccountByUser(ctx context.Context, userID string) (*domain.Account, error)
 	CreateAccount(ctx context.Context, userID string) (*domain.Account, error)
-	// IsAccountAccessible は DB エラーと「アクセス不可」を区別して返す。
+	// IsAccountAccessible reports whether the user has access to the account, distinguishing DB error from access denied.
 	IsAccountAccessible(ctx context.Context, accountID, userID string) (ok bool, err error)
 	SetAccountStripeCustomerID(ctx context.Context, accountID, stripeCustomerID string) error
 	ListStripeLinkedAccounts(ctx context.Context, limit int) ([]*domain.Account, error)
@@ -89,46 +100,43 @@ type AccountRepository interface {
 	ApplyBillingEvent(ctx context.Context, event *domain.ProviderWebhookEvent) error
 }
 
+// UserRepository defines operations for reading and writing user accounts.
 type UserRepository interface {
 	GetUser(ctx context.Context, userID string) (*domain.User, error)
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
 	UpsertUser(ctx context.Context, user *domain.User) (*domain.User, error)
 }
 
+// WorkspaceRepository defines operations for workspaces, collaborator memberships, and public share links.
 type WorkspaceRepository interface {
 	ListWorkspacesByUser(ctx context.Context, userID string) ([]*domain.Workspace, error)
 	GetWorkspace(ctx context.Context, id string) (*domain.Workspace, error)
-	// IsWorkspaceAccessible は DB エラーと「アクセス不可」を区別して返す。
-	// err != nil の場合 ok の値は意味を持たない。
+	// IsWorkspaceAccessible checks if the user has access to the workspace. If err != nil, ok has no meaning.
 	IsWorkspaceAccessible(ctx context.Context, wsID, userID string) (ok bool, err error)
-	// GetWorkspaceRole は user の workspace 内 role を返す。account 経由 (所有者) は
-	// owner 相当、workspace_members に居ればその role。どちらでもなければ空文字。
-	// err != nil の場合 role の値は意味を持たない。
+	// GetWorkspaceRole returns the user's role in the workspace. Account owners map to owner role.
+	// If the user has no membership, returns empty string.
 	GetWorkspaceRole(ctx context.Context, wsID, userID string) (domain.WorkspaceRole, error)
-	// CreateWorkspace は workspaces + tree root item を 1 ペアで作成する。
-	// 内部で tx を張らないため、atomic 性が必要なら呼び出し側を
-	// Transactor.WithTx で包むこと。
+	// CreateWorkspace creates a workspace and root tree item pair.
 	CreateWorkspace(ctx context.Context, accountID, name string) (*domain.Workspace, error)
 	UpdateWorkspaceName(ctx context.Context, workspaceID, name string) (*domain.Workspace, error)
 	DeleteWorkspace(ctx context.Context, workspaceID string) error
-	// UpsertWorkspaceMember は招待メンバーを追加 / role 更新する。
+	// UpsertWorkspaceMember invites or updates a workspace collaborator's role.
 	UpsertWorkspaceMember(ctx context.Context, wsID, userID string, role domain.WorkspaceRole, invitedBy string) error
-	// ListWorkspaceMembers は workspace の招待メンバー一覧を返す (email 付き)。
+	// ListWorkspaceMembers returns all invited workspace members including emails.
 	ListWorkspaceMembers(ctx context.Context, wsID string) ([]*domain.WorkspaceMember, error)
-	// RemoveWorkspaceMember はメンバーを削除する。対象が居なければ ErrNotFound。
+	// RemoveWorkspaceMember deletes an invited workspace member.
 	RemoveWorkspaceMember(ctx context.Context, wsID, userID string) error
-	// CreateShareLink は公開リンクを作成する。token は呼び出し側で生成して渡す。
+	// CreateShareLink creates a public share link for unauthenticated or collaborator access.
 	CreateShareLink(ctx context.Context, link *domain.ShareLink) error
-	// ListShareLinks は workspace の全リンク (失効済み含む) を新しい順で返す。
+	// ListShareLinks returns all share links (including revoked/expired) for the workspace ordered by recency.
 	ListShareLinks(ctx context.Context, wsID string) ([]*domain.ShareLink, error)
-	// RevokeShareLink はリンクを失効させる。対象が無い / 既に失効済みなら ErrNotFound。
+	// RevokeShareLink invalidates an active share link.
 	RevokeShareLink(ctx context.Context, wsID, token string, now time.Time) error
-	// ResolveShareLink は有効な (未失効・未期限切れ) リンクを返す。無効なら ErrNotFound。
+	// ResolveShareLink returns a valid (unrevoked and unexpired) share link by its token.
 	ResolveShareLink(ctx context.Context, token string, now time.Time) (*domain.ShareLink, error)
 }
 
-// DocumentRepository は document/file 自体のメタデータ操作を扱う。
-// Job / Chunk / Log は別 interface に分離されている (docs/improvements/api-document-repository-split.md)。
+// DocumentRepository handles document and file metadata persistence and storage reservations.
 type DocumentRepository interface {
 	ListDocuments(ctx context.Context, wsID string) ([]*domain.Document, error)
 	GetDocument(ctx context.Context, id string) (*domain.Document, error)
@@ -141,15 +149,14 @@ type DocumentRepository interface {
 	GetDocumentFileForDelivery(ctx context.Context, fileID string) (*domain.DocumentFileLocation, error)
 }
 
-// DocumentChunkRepository はドキュメントを分割した chunk と vector 検索を扱う。
+// DocumentChunkRepository manages chunked document content and vector similarity search.
 type DocumentChunkRepository interface {
 	GetDocumentChunks(ctx context.Context, documentID string) ([]*domain.DocumentChunk, error)
 	SaveDocumentChunks(ctx context.Context, documentID string, chunks []*domain.DocumentChunk) error
 	SearchRelatedChunksByVector(ctx context.Context, workspaceID string, embedding []float32, limit int) ([]*domain.DocumentChunk, error)
 }
 
-// JobRepository は document processing job の lifecycle と planning を扱う。
-// (approval / log / tool-call は別 interface)
+// JobRepository manages the lifecycle, execution plans, and evaluations for document processing jobs.
 type JobRepository interface {
 	GetLatestProcessingJob(ctx context.Context, docID string) (*domain.DocumentProcessingJob, error)
 	GetProcessingJob(ctx context.Context, jobID string) (*domain.DocumentProcessingJob, error)
@@ -158,9 +165,7 @@ type JobRepository interface {
 	UpsertJobExecutionPlan(ctx context.Context, jobID string, plan *domain.JobExecutionPlan) error
 	UpsertJobEvaluation(ctx context.Context, jobID string, result *domain.JobEvaluationResult) error
 	EvaluateJob(ctx context.Context, jobID string) (*domain.JobEvaluationResult, error)
-	// CreateProcessingJob は job_capabilities と processing_jobs を 1 ペアで作成する。
-	// 内部で tx を張らないため、複数 sqlc 呼び出しの atomic 性が必要な場合は
-	// 呼び出し側を Transactor.WithTx で包むこと (service 層の責務)。
+	// CreateProcessingJob creates a processing job and associated job capability.
 	CreateProcessingJob(ctx context.Context, docID, workspaceID, requestedBy string, jobType appv1.JobType) (*domain.DocumentProcessingJob, error)
 	MarkProcessingJobRunning(ctx context.Context, jobID string) error
 	UpdateProcessingJobStage(ctx context.Context, jobID, stage string) error
@@ -171,7 +176,7 @@ type JobRepository interface {
 	GetJobPlanningSignals(ctx context.Context, documentID, workspaceID, treeID string) (*domain.JobPlanningSignals, error)
 }
 
-// JobApprovalRepository は job の人手承認フローを扱う。
+// JobApprovalRepository manages human-in-the-loop review and approval workflows for execution plans.
 type JobApprovalRepository interface {
 	ListJobApprovalRequests(ctx context.Context, jobID string) ([]*domain.JobApprovalRequest, error)
 	RequestJobApproval(ctx context.Context, jobID, requestedBy, reason string) (*domain.JobApprovalRequest, error)
@@ -179,7 +184,7 @@ type JobApprovalRepository interface {
 	RejectJobApproval(ctx context.Context, jobID, approvalID, reviewedBy, reason string) error
 }
 
-// JobLogRepository は job 実行ログ / mutation ログ / tool 呼び出し記録を扱う。
+// JobLogRepository records execution logs, mutation records, and tool invocation audits.
 type JobLogRepository interface {
 	LogToolCall(ctx context.Context, jobID, toolName, inputJSON, outputJSON string, durationMs int64) error
 	ListJobMutationLogs(ctx context.Context, jobID string) ([]*domain.JobMutationLog, error)
@@ -188,6 +193,7 @@ type JobLogRepository interface {
 	ListRelatedJobLogs(ctx context.Context, scope domain.RelatedLogScope, workspaceID, documentID, jobID string, pageToken string, limit int) ([]*domain.JobLogGroup, string, error)
 }
 
+// TreeRepository queries knowledge tree hierarchy, paths, and subtrees.
 type TreeRepository interface {
 	GetTree(ctx context.Context, wsID string) (*domain.Tree, error)
 	GetTreeByWorkspace(ctx context.Context, wsID string) ([]*domain.Item, error)
@@ -195,13 +201,11 @@ type TreeRepository interface {
 	GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)
 }
 
+// ItemRepository manages knowledge tree items, provenance sources, and alias relations.
 type ItemRepository interface {
 	GetItem(ctx context.Context, itemID string) (*domain.Item, error)
 	CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) (*domain.Item, error)
-	// CreateStructuredItemWithCapability は capability の検証 + item 挿入 +
-	// mutation log 記録を行う。capability 違反 (op 不許可、ws 不一致、回数上限超過、
-	// expired) は domain.ErrForbidden を返す。atomic 性が必要なら呼び出し側を
-	// Transactor.WithTx で包むこと。
+	// CreateStructuredItemWithCapability validates job capabilities and inserts structured tree items with mutation tracking.
 	CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error)
 	UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error
 	UpsertItemSourceRef(ctx context.Context, source *domain.ItemSourceRef) error
@@ -212,6 +216,29 @@ type ItemRepository interface {
 	RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error
 }
 
+// WorkspaceChatRepository handles conversation threads, messages, and citation candidate retrieval.
+// Chat is strictly read-only regarding document and tree structures; no mutation methods belong here.
+type WorkspaceChatRepository interface {
+	CreateChatConversation(ctx context.Context, workspaceID, createdBy, title string) (*domain.ChatConversation, error)
+	GetChatConversation(ctx context.Context, conversationID string) (*domain.ChatConversation, error)
+	ListChatConversations(ctx context.Context, workspaceID string, limit int) ([]*domain.ChatConversation, error)
+	TouchChatConversation(ctx context.Context, conversationID string) error
+
+	// CreateChatMessage persists a chat message along with its verified citation sources.
+	CreateChatMessage(ctx context.Context, msg *domain.ChatMessage, retrievalSnapshot []byte) (*domain.ChatMessage, error)
+	ListChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error)
+	// ListRecentChatMessages returns the latest N messages in chronological order for prompt context.
+	ListRecentChatMessages(ctx context.Context, conversationID string, limit int) ([]*domain.ChatMessage, error)
+
+	// SearchChatSourceCandidates retrieves citation candidate chunks from succeeded documents matching search terms.
+	SearchChatSourceCandidates(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error)
+	// SearchChatSourceItems retrieves citation candidate items from the knowledge tree matching search terms.
+	SearchChatSourceItems(ctx context.Context, workspaceID string, terms []string, limit int) ([]domain.ChatSourceCandidate, error)
+	CountChatSourceDocuments(ctx context.Context, workspaceID string) (int, error)
+	CountChatSourceItems(ctx context.Context, workspaceID string) (int, error)
+}
+
+// UsageRepository manages LLM token accounting, pricing catalog, usage-based billing, invoices, and credits.
 type UsageRepository interface {
 	GetModelPricing(ctx context.Context, model string) (*domain.ModelPricing, error)
 	RecordUsageAccounting(ctx context.Context, ev *domain.UsageEvent, date string) (string, bool, error)
@@ -221,11 +248,13 @@ type UsageRepository interface {
 	ListInvoices(ctx context.Context, accountID string, limit int) (*domain.InvoiceList, error)
 	ListPaymentMethods(ctx context.Context, accountID string) ([]*domain.PaymentMethod, error)
 
-	// Invoice / payment method cache 同期 (Stripe webhook 由来)。
-	// account は stripeCustomerID から解決され、未連携顧客は黙って no-op。
+	// UpsertInvoice persists cached Stripe invoice details.
 	UpsertInvoice(ctx context.Context, stripeCustomerID string, inv *domain.ProviderInvoice) error
+	// UpsertPaymentMethod persists cached customer payment method details.
 	UpsertPaymentMethod(ctx context.Context, stripeCustomerID string, pm *domain.ProviderPaymentMethod) error
+	// DeletePaymentMethod removes a payment method from the cache upon detachment.
 	DeletePaymentMethod(ctx context.Context, stripePaymentMethodID string) error
+	// SetDefaultPaymentMethod records the active default payment method identifier.
 	SetDefaultPaymentMethod(ctx context.Context, stripeCustomerID, defaultPaymentMethodID string) error
 
 	// Credits
@@ -234,10 +263,13 @@ type UsageRepository interface {
 	ListCreditGrants(ctx context.Context, accountID string, limit int) ([]*domain.CreditGrant, error)
 }
 
+// JobLogWriter writes structured runtime lifecycle events for background jobs.
 type JobLogWriter interface {
+	// LogJobEvent records a structured job execution event.
 	LogJobEvent(ctx context.Context, e joblog.Event) error
 }
 
+// CheckpointRepository persists pipeline execution stage status and intermediate cloud storage checkpoint artifacts.
 type CheckpointRepository interface {
 	UpsertStageRunning(ctx context.Context, jobID, stage string) error
 	MarkStageSucceeded(ctx context.Context, jobID, stage, gcsRef string) error

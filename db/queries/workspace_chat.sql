@@ -1,0 +1,156 @@
+-- name: CreateWorkspaceChatConversation :one
+INSERT INTO workspace_chat_conversations (conversation_id, workspace_id, created_by, title, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $5)
+RETURNING conversation_id, workspace_id, created_by, title, created_at, updated_at;
+
+-- name: GetWorkspaceChatConversation :one
+SELECT conversation_id, workspace_id, created_by, title, created_at, updated_at
+FROM workspace_chat_conversations
+WHERE conversation_id = $1;
+
+-- name: ListWorkspaceChatConversations :many
+SELECT conversation_id, workspace_id, created_by, title, created_at, updated_at
+FROM workspace_chat_conversations
+WHERE workspace_id = $1
+ORDER BY updated_at DESC
+LIMIT $2;
+
+-- name: TouchWorkspaceChatConversation :exec
+UPDATE workspace_chat_conversations
+SET updated_at = $2
+WHERE conversation_id = $1;
+
+-- name: CreateWorkspaceChatMessage :one
+INSERT INTO workspace_chat_messages (
+  message_id, conversation_id, role, content, model_selection, status, error_code, grounded, retrieval_snapshot_json, created_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at;
+
+-- name: ListWorkspaceChatMessages :many
+SELECT message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
+FROM workspace_chat_messages
+WHERE conversation_id = $1
+ORDER BY created_at, message_id
+LIMIT $2;
+
+-- ListRecentWorkspaceChatMessages returns the newest N messages for prompt history.
+-- Caller reverses the slice to get chronological order.
+-- name: ListRecentWorkspaceChatMessages :many
+SELECT message_id, conversation_id, role, content, model_selection, status, error_code, grounded, created_at
+FROM workspace_chat_messages
+WHERE conversation_id = $1 AND status = 'complete'
+ORDER BY created_at DESC, message_id DESC
+LIMIT $2;
+
+-- name: CreateWorkspaceChatMessageSource :exec
+INSERT INTO workspace_chat_message_sources (message_id, ordinal, document_id, chunk_id, item_id, label)
+VALUES ($1, $2, $3, $4, $5, $6);
+
+-- name: ListWorkspaceChatMessageSources :many
+SELECT s.message_id, s.ordinal, s.document_id, s.chunk_id, s.item_id, s.label
+FROM workspace_chat_message_sources s
+INNER JOIN workspace_chat_messages m ON m.message_id = s.message_id
+WHERE m.conversation_id = $1
+ORDER BY s.message_id, s.ordinal;
+
+-- name: CountWorkspaceChatMessagesByRole :one
+SELECT COUNT(*)::bigint AS message_count
+FROM workspace_chat_messages
+WHERE conversation_id = $1 AND role = $2;
+
+-- SearchWorkspaceChatSourceChunks retrieves candidate chunks for grounding.
+-- It is scoped by workspace_id, never by chunk id alone, and excludes documents
+-- with no succeeded processing job (so in-flight uploads cannot be cited).
+-- The 'succeeded' literal must match jobstatus.LifecycleStateToDB.
+--
+-- NOTE: this requires a pgvector-capable database. The local dev stack runs
+-- CockroachDB v24.2, which has no vector_cosine_distance, so this query fails
+-- there — same dormant state as SearchWorkspaceDocumentChunksByVector, which is
+-- generated but not yet called from Go. Retrieval therefore uses the lexical
+-- query below as its working path and only reaches for this one where embeddings
+-- and pgvector are both actually available.
+-- name: SearchWorkspaceChatSourceChunks :many
+SELECT c.chunk_id, c.document_id, d.filename, f.path AS sub_path, c.heading, c.text, c.source_page,
+       1 - vector_cosine_distance(c.embedding, sqlc.arg(query_embedding)) AS similarity
+FROM document_chunks c
+INNER JOIN documents d ON d.document_id = c.document_id
+LEFT JOIN document_files f ON f.file_id = c.file_id
+WHERE d.workspace_id = sqlc.arg(workspace_id)
+  AND c.embedding IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM document_processing_jobs j
+    WHERE j.document_id = d.document_id AND j.status = 'succeeded'
+  )
+ORDER BY vector_cosine_distance(c.embedding, sqlc.arg(query_embedding))
+LIMIT sqlc.arg(result_limit);
+
+-- ListWorkspaceChatSourceChunksLexical is the deterministic retrieval path used
+-- while the vector query above is unusable.
+--
+-- It takes a set of terms rather than one string because a single ILIKE of the
+-- whole question never matches: Japanese questions carry no spaces, so the
+-- "longest token" is the entire sentence. Scoring by how many terms a chunk
+-- contains puts the on-topic chunk first and still returns something when no
+-- term matches, so a miss degrades to a weaker answer rather than no answer.
+--
+-- Terms arrive as one chr(31)-delimited string rather than a text[] because the
+-- API talks to Postgres through pgx; sqlc renders a []string param as pq.Array,
+-- which would drag in lib/pq alongside the driver actually in use. The
+-- delimiter must be chr(31), not '\x1f': with standard_conforming_strings the
+-- latter is four literal characters, so nothing ever splits and every term
+-- collapses into one string that matches nothing.
+-- name: ListWorkspaceChatSourceChunksLexical :many
+SELECT c.chunk_id, c.document_id, d.filename, f.path AS sub_path, c.heading, c.text, c.source_page,
+       (
+         SELECT count(*) FROM unnest(string_to_array(sqlc.arg(terms)::text, chr(31))) AS t
+         WHERE t <> '' AND (c.text ILIKE '%' || t || '%' OR c.heading ILIKE '%' || t || '%')
+       )::int AS match_count
+FROM document_chunks c
+INNER JOIN documents d ON d.document_id = c.document_id
+LEFT JOIN document_files f ON f.file_id = c.file_id
+WHERE d.workspace_id = sqlc.arg(workspace_id)
+  AND EXISTS (
+    SELECT 1 FROM document_processing_jobs j
+    WHERE j.document_id = d.document_id AND j.status = 'succeeded'
+  )
+ORDER BY match_count DESC, c.document_id, c.chunk_id
+LIMIT sqlc.arg(result_limit);
+
+-- CountWorkspaceChatSourceDocuments reports whether the workspace has anything
+-- answerable at all, so the API can return chat_source_unavailable before it
+-- spends a model call.
+-- name: CountWorkspaceChatSourceDocuments :one
+SELECT COUNT(DISTINCT d.document_id)::bigint AS document_count
+FROM documents d
+WHERE d.workspace_id = $1
+  AND EXISTS (
+    SELECT 1 FROM document_processing_jobs j
+    WHERE j.document_id = d.document_id AND j.status = 'succeeded'
+  );
+
+-- ListWorkspaceChatSourceItems retrieves knowledge-tree items as citation
+-- candidates, ranked the same way as the chunk query.
+--
+-- Tree items are usable as sources before any document finishes processing —
+-- and in a workspace that never gets one — which is why chat no longer refuses
+-- to answer on an empty document set.
+-- name: ListWorkspaceChatSourceItems :many
+SELECT i.id, i.title, i.description, i.content,
+       (
+         SELECT count(*) FROM unnest(string_to_array(sqlc.arg(terms)::text, chr(31))) AS t
+         WHERE t <> '' AND (
+           i.title ILIKE '%' || t || '%'
+           OR i.description ILIKE '%' || t || '%'
+           OR i.content ILIKE '%' || t || '%'
+         )
+       )::int AS match_count
+FROM tree_items i
+WHERE i.workspace_id = sqlc.arg(workspace_id)
+ORDER BY match_count DESC, i.id
+LIMIT sqlc.arg(result_limit);
+
+-- name: CountWorkspaceChatSourceItems :one
+SELECT COUNT(*)::bigint AS item_count
+FROM tree_items
+WHERE workspace_id = $1;

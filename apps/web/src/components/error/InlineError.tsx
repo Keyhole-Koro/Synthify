@@ -1,10 +1,20 @@
-import React from 'react';
 
+/**
+ * Props for rendering an inline error alert message.
+ */
 interface InlineErrorProps {
+  /** Error message to display. If empty or null, renders nothing. */
   message: string;
+  /** Optional additional CSS class names. */
   className?: string;
 }
 
+/**
+ * Compact inline error message component with an alert icon, typically placed below form inputs.
+ *
+ * @param props - Message and optional CSS class names. Empty messages render no markup.
+ * @returns Inline alert markup, or null when the message is empty.
+ */
 export function InlineError({ message, className = '' }: InlineErrorProps) {
   if (!message) return null;
 

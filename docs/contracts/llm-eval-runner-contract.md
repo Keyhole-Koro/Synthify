@@ -10,7 +10,7 @@ Eval Runner は本番 worker のプロンプト・モデル変更による出力
 | Eval CLI | `apps/eval/cmd` | case を読み込み、LLM tool eval を実行し、report を stdout / `--out` に出力する |
 | Eval Runner | `apps/eval/runner` | YAML case / fixture を解決し、`knowledge_tree` を実行し、schema/rule/golden 以外の現行スコアを計算する |
 | Report Writer | `apps/eval/report` | `table` / `json` report を生成する。JSON は HTML を `\u003c` 等に escape しない |
-| Worker process tool | `apps/worker/pkg/worker/tools/process` | 本番と同じ `GenerateKnowledgeTree` API を提供する。eval は ADK を通さずこの API を直接呼ぶ |
+| Worker process tool | `apps/worker/pkg/worker/tools/builtin/process` | 本番と同じ `GenerateKnowledgeTree` API を提供する。eval は ADK を通さずこの API を直接呼ぶ |
 | Eval image | `apps/eval/Dockerfile` | CLI binary、`apps/eval/cases`、`apps/eval/testdata` を含む Cloud Run Job 用 image を作る |
 | Cloud Run Job | `terraform/services/eval` | eval image を 1 task / retry なしで実行する。結果は Cloud Logging に stdout として残す。GCS artifact 保存は別契約を参照 |
 | Cloud Scheduler | `terraform/services/eval` | cron で Cloud Run Job の `:run` endpoint を呼ぶ |
@@ -152,3 +152,17 @@ Terraform environment variables:
 これらを追加する場合も、CLI report schema と Cloud Run Job の exit code 契約を壊さないこと。
 
 GCS への report 永続保存は [llm-eval-gcs-artifact-contract.md](llm-eval-gcs-artifact-contract.md) を参照する。
+
+## 8. Model / style selection extension (planned)
+
+モデル・スタイル選択を実装するときは
+[model-and-style-selection-contract.md](model-and-style-selection-contract.md) §6 を additive extension の
+source of truth とする。
+
+- case の `input.style_prompt` は style guide 用。既存 `input.instruction` の chunk-specific instruction と
+  混用しない。
+- report は provider、requested/effective model selection、selection scope、style prompt hash を追加する。
+  raw style prompt は artifact に保存しない。
+- 現行 runner は ADK orchestrator を通らないため、process-tool output は評価できるが tool selection
+  accuracy は評価できない。agent eval は別 harness / contract とする。
+- field omission を許す additive change とし、既存 case、report reader、exit code semantics を壊さない。

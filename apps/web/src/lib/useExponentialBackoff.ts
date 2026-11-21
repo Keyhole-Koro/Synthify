@@ -1,14 +1,26 @@
-'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 
+/**
+ * Options for configuring the exponential backoff retry hook.
+ */
 interface UseExponentialBackoffArgs {
+  /** Callback executed on each scheduled retry attempt. */
   onRetry: () => void | Promise<void>;
+  /** Error trigger. When non-null/truthy, retry backoff timer begins. When cleared, timers reset. */
   error: unknown;
+  /** Initial delay before the first retry attempt in milliseconds. Defaults to 2000. */
   initialDelayMs?: number;
+  /** Maximum delay cap between retries in milliseconds. Defaults to 32000. */
   maxDelayMs?: number;
 }
 
+/**
+ * React hook that manages exponential backoff retries when an error is present.
+ *
+ * @param args - Configuration options.
+ * @returns An object with `retryCount` and remaining `nextRetryInSeconds` countdown.
+ */
 export function useExponentialBackoff({
   onRetry,
   error,

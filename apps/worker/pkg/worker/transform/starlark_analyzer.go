@@ -19,11 +19,13 @@ var dangerousModules = map[string]bool{
 
 // StarlarkAnalyzer parses Starlark source once and walks the AST to derive a
 // floor tier. The single parse serves both syntax validation (step 0) and the
-// static-analysis walk (step a) — see "判定パイプライン" in the design doc.
+// static-analysis walk (step a) — see judgement pipeline in the design doc.
 type StarlarkAnalyzer struct{}
 
+// NewStarlarkAnalyzer creates a new static analyzer for Starlark code.
 func NewStarlarkAnalyzer() *StarlarkAnalyzer { return &StarlarkAnalyzer{} }
 
+// Analyze inspects Starlark syntax to detect disallowed constructs and assign floor risk tiers.
 func (a *StarlarkAnalyzer) Analyze(code string) AnalysisResult {
 	f, err := syntax.Parse("transform.star", code, 0)
 	if err != nil {
@@ -72,6 +74,7 @@ func (a *StarlarkAnalyzer) Analyze(code string) AnalysisResult {
 	return AnalysisResult{FloorTier: floor}
 }
 
+// tierRank converts a risk tier to an ordinal integer for ceiling comparisons.
 func tierRank(t Tier) int {
 	switch t {
 	case Tier3:

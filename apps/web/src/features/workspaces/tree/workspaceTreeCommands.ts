@@ -2,11 +2,23 @@ import { getSubtree, getTree, type SubtreeItem } from '@/features/tree/api';
 import { log } from '@/lib/observability/log';
 import type { RefreshResult, WorkspaceTreeCache } from './workspaceTreeTypes';
 
+/**
+ * Commands interface defining network fetch actions for workspace trees and subtrees.
+ */
 export interface WorkspaceTreeCommands {
+  /** Asynchronously fetches and replaces the complete workspace tree. */
   refreshWorkspaceTree: (workspaceId: string) => Promise<RefreshResult>;
+  /** Asynchronously fetches a subtree for a specific node up to maxDepth. */
   loadSubtree: (workspaceId: string, itemId: string, maxDepth?: number) => Promise<SubtreeItem[]>;
 }
 
+/**
+ * Creates command handlers for refreshing trees and loading subtrees,
+ * backed by the provided WorkspaceTreeCache.
+ *
+ * @param cache - The tree cache instance to update.
+ * @returns Object providing `refreshWorkspaceTree` and `loadSubtree` command methods.
+ */
 export function createWorkspaceTreeCommands(cache: WorkspaceTreeCache): WorkspaceTreeCommands {
   return {
     refreshWorkspaceTree: async (workspaceId: string): Promise<RefreshResult> => {

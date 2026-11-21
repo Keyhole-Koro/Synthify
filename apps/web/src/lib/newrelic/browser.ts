@@ -27,6 +27,15 @@ const NR_LEVEL: Record<LogLevel, NrLogLevel> = {
 
 let pendingInit: Promise<BrowserAgent | null> | null = null;
 
+/**
+ * Dynamically loads and initializes the New Relic Browser agent if configured with a license key and app ID.
+ *
+ * Concurrent callers share the same in-flight initialization promise. When
+ * browser execution or required credentials are unavailable, the promise
+ * resolves to `null` and application behavior is left unchanged.
+ *
+ * @returns Promise resolving to the initialized BrowserAgent instance or null.
+ */
 export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
   const { licenseKey, applicationID } = nr;
   // Narrow to string for the agent config below; also the real enablement gate.
@@ -166,11 +175,24 @@ export function initNewRelicBrowser(): Promise<BrowserAgent | null> {
   return pendingInit;
 }
 
+/**
+ * Retrieves the globally cached New Relic browser agent instance if present.
+ *
+ * @returns The BrowserAgent instance or null if uninitialized.
+ */
 export function getNewRelicBrowserAgent(): BrowserAgent | null {
   if (typeof window === 'undefined') return null;
   return window.__synthifyNewRelicBrowserAgent ?? null;
 }
 
+/**
+ * Records an error to New Relic Browser with optional custom attributes.
+ *
+ * @param error - The Error or message to notice.
+ * @param customAttributes - Optional contextual metadata.
+ * @returns Nothing; if the agent is not ready, delivery is queued behind
+ *   asynchronous initialization on a best-effort basis.
+ */
 export function noticeBrowserError(error: Error | string, customAttributes?: Record<string, unknown>) {
   const agent = getNewRelicBrowserAgent();
   if (agent) {
@@ -182,9 +204,13 @@ export function noticeBrowserError(error: Error | string, customAttributes?: Rec
   });
 }
 
-// recordBrowserPageAction emits a custom PageAction event. Prefer this over
-// noticeBrowserError for things that are worth observing but are not user-facing
-// JS errors (so they stay out of the error rate / alerting feeds).
+/**
+ * Emits a custom PageAction event to New Relic for non-error operational events.
+ *
+ * @param name - Action name.
+ * @param attributes - Custom event attributes.
+ * @returns Nothing; events are discarded when the agent cannot be initialized.
+ */
 export function recordBrowserPageAction(name: string, attributes?: Record<string, unknown>) {
   const agent = getNewRelicBrowserAgent();
   if (agent) {
@@ -196,9 +222,14 @@ export function recordBrowserPageAction(name: string, attributes?: Record<string
   });
 }
 
-// recordBrowserLog sends a structured log line to NR Logs at the given level.
-// This is the first-party path used by log.ts (separate from the wrapLogger
-// backstop) so handled errors / warnings carry queryable customAttributes.
+/**
+ * Sends a structured log record to New Relic Logs at the specified severity level.
+ *
+ * @param level - Log severity level.
+ * @param message - Main message string.
+ * @param attributes - Queryable key-value metadata.
+ * @returns Nothing; delivery is best effort and does not block the caller.
+ */
 export function recordBrowserLog(
   level: LogLevel,
   message: string,
@@ -215,6 +246,13 @@ export function recordBrowserLog(
   });
 }
 
+/**
+ * Sets the authenticated user ID on the New Relic Browser session for tracking user journeys.
+ *
+ * @param userId - Unique user identifier, or null on logout.
+ * @returns Nothing; the update is sent immediately when the agent is ready or
+ *   after asynchronous initialization otherwise.
+ */
 export function setBrowserUserId(userId: string | null) {
   const agent = getNewRelicBrowserAgent();
   if (agent) {

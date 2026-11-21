@@ -1,50 +1,42 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { FirestoreError } from 'firebase/firestore';
+import { UserFacingError } from '@/lib/errors';
+import { handleSnapshotError } from './snapshotError';
 
-vi.mock('@/lib/observability/log', () => ({
-  log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+// The real logger validates env vars on import and forwards to New Relic.
+const log = vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn() }));
+vi.mock('@/lib/observability/log', () => ({ log }));
 
-import { classifyFirestoreSnapshotError, reportSnapshotError } from './snapshotError';
-import { log } from '@/lib/observability/log';
+// FirestoreError's constructor is private; the handler only reads code and message.
+function firestoreError(code: FirestoreError['code'], message: string) {
+  return Object.assign(new Error(message), { code, name: 'FirebaseError' }) as unknown as FirestoreError;
+}
 
-describe('classifyFirestoreSnapshotError', () => {
-  it.each(['permission-denied', 'unavailable', 'cancelled'])('treats %s as transient', (code) => {
-    expect(classifyFirestoreSnapshotError({ code }).kind).toBe('transient');
-  });
-
-  it('treats other codes as fatal with a normalized AppError', () => {
-    const result = classifyFirestoreSnapshotError({ code: 'not-found', message: 'nope' });
-    expect(result.kind).toBe('fatal');
-    if (result.kind === 'fatal') expect(result.error).toBeDefined();
-  });
-
-  it('treats errors without a code as fatal', () => {
-    expect(classifyFirestoreSnapshotError('boom').kind).toBe('fatal');
-  });
+afterEach(() => {
+  vi.clearAllMocks();
 });
 
-describe('reportSnapshotError', () => {
-  beforeEach(() => vi.clearAllMocks());
+describe('handleSnapshotError', () => {
+  it.each(['permission-denied', 'unavailable', 'cancelled'] as const)(
+    'logs %s as a warning and keeps it off the screen',
+    (code) => {
+      const { warn, error } = log;
 
-  it('logs a transient error as warn (never error)', () => {
-    const err = { code: 'permission-denied' };
-    reportSnapshotError(err, classifyFirestoreSnapshotError(err), { label: 'workspace_jobs' });
-    expect(log.warn).toHaveBeenCalledWith('firestore snapshot error swallowed', {
-      source: 'firestore_snapshot',
-      code: 'permission-denied',
-      label: 'workspace_jobs',
-    });
-    expect(log.error).not.toHaveBeenCalled();
-  });
+      expect(handleSnapshotError(firestoreError(code, 'Missing or insufficient permissions.'), 'job_status')).toBeNull();
+      expect(warn).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ code, label: 'job_status' }));
+      expect(error).not.toHaveBeenCalled();
+    },
+  );
 
-  it('logs a fatal error as error with the original error and a null label by default', () => {
-    const err = { code: 'internal', message: 'x' };
-    reportSnapshotError(err, classifyFirestoreSnapshotError(err));
-    expect(log.error).toHaveBeenCalledWith(
-      'firestore snapshot error',
-      { source: 'firestore_snapshot', code: 'internal', label: null },
-      err,
-    );
-    expect(log.warn).not.toHaveBeenCalled();
+  it('logs other errors and returns a Japanese message instead of the raw Firestore text', () => {
+    const { error } = log;
+    const raw = firestoreError('internal', 'INTERNAL ASSERTION FAILED');
+
+    const shown = handleSnapshotError(raw, 'workspace_jobs');
+
+    expect(shown).toBeInstanceOf(UserFacingError);
+    expect(shown?.message).toBe('最新の状態を取得できませんでした。ページを再読み込みしてください。');
+    expect(shown?.cause).toBe(raw);
+    expect(error).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ code: 'internal' }), raw);
   });
 });

@@ -8,18 +8,22 @@ import (
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// UserUsecase defines the application use-case requirements for user account provisioning.
 type UserUsecase interface {
 	SignInUser(ctx context.Context, userID, email, displayName string) (*application.SignInUserResult, error)
 }
 
+// UserHandler handles user authentication, profile synchronization, and provisioning RPC requests.
 type UserHandler struct {
 	service UserUsecase
 }
 
+// NewUserHandler instantiates a new UserHandler.
 func NewUserHandler(svc UserUsecase) *UserHandler {
 	return &UserHandler{service: svc}
 }
 
+// SignInUser processes user sign-in events by provisioning user rows and returning profile data.
 func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1.SignInUserRequest]) (*connect.Response[appv1.SignInUserResponse], error) {
 	principal, err := requireUserPrincipal(ctx)
 	if err != nil {
@@ -37,6 +41,7 @@ func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1
 	}), nil
 }
 
+// GetMe retrieves the currently authenticated user's profile information.
 func (h *UserHandler) GetMe(ctx context.Context, req *connect.Request[appv1.GetMeRequest]) (*connect.Response[appv1.GetMeResponse], error) {
 	// Not strictly requested in the plan but part of the UserService in proto
 	return nil, connect.NewError(connect.CodeUnimplemented, nil)

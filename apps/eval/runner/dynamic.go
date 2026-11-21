@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/transform"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // DynamicToolSource is the eval-side seam for promoted tools. The current
@@ -17,6 +17,7 @@ type DynamicToolSource interface {
 	Resolve(ctx context.Context, name string) (domain.DynamicTool, bool, error)
 }
 
+// newDynamicTool constructs a Tool descriptor wrapping a dynamic user-promoted tool.
 func newDynamicTool(dt domain.DynamicTool, _ transform.Engine) Tool {
 	name := dt.Name
 	run := func(context.Context, json.RawMessage) (json.RawMessage, Usage, error) {

@@ -1,11 +1,19 @@
-'use client';
+/**
+ * LLM Eval Execution Trace tree inspector for exploring hierarchical span events
+ * (tools, LLM prompts/responses, schema checks, and assertions).
+ *
+ * @module
+ */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { EvalCaseRow, EvalRunRow, EvalTraceEvent } from '@/lib/eval-queries';
-import { authFetch } from '@/lib/auth-client';
+import { evalTraceQuery } from '@/lib/api-queries';
 
+/** Category classification for a trace node event. */
 type TraceKind = 'case' | 'tool' | 'llm' | 'validation' | 'assertion';
 
+/** Visual execution graph node displayed in the trace waterfall tree. */
 type TraceNode = {
   id: string;
   kind: TraceKind;
@@ -17,20 +25,36 @@ type TraceNode = {
   details: Record<string, unknown>;
 };
 
+/**
+ * Formats a duration in milliseconds into a concise time unit string.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns Formatted duration string.
+ */
 function fmtMs(ms?: number): string {
   if (ms === undefined) return 'not recorded';
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/**
+ * Serializes an object to formatted JSON for inspecting node payloads.
+ *
+ * @param value - Value to serialize.
+ * @returns Pretty-printed JSON string.
+ */
 function json(value: unknown): string {
   if (value === undefined || value === null || value === '') return 'Not recorded';
   try { return JSON.stringify(value, null, 2); } catch { return String(value); }
 }
 
-// buildReconstructedNodes is the fallback for runs recorded before trace
-// instrumentation existed. It derives the skeleton from the aggregate case row;
-// the LLM prompt is genuinely not available for those runs.
+/**
+ * Fallback synthesizer that generates synthetic trace nodes for legacy eval runs
+ * that lack persisted span event telemetry.
+ *
+ * @param row - Case result row.
+ * @returns Array of synthesized trace nodes.
+ */
 function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
   const executionFailed = Boolean(row.error) && !row.output;
   return [
@@ -65,9 +89,14 @@ function buildReconstructedNodes(row: EvalCaseRow): TraceNode[] {
   ];
 }
 
-// buildTraceNodes builds nodes from real persisted spans. The case node frames
-// the run; every following node is an actual recorded event with its own
-// prompt/response, tokens and duration.
+/**
+ * Constructs hierarchical trace nodes from persisted span events, calculating indentation
+ * depth from the parent-child event ID chain.
+ *
+ * @param row - Parent eval case summary row.
+ * @param events - Chronological array of trace events.
+ * @returns Array of formatted trace nodes.
+ */
 function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[] {
   const caseNode: TraceNode = {
     id: 'case', kind: 'case', title: 'Eval case', subtitle: row.caseName, status: 'ok', depth: 0,
@@ -101,33 +130,31 @@ function buildTraceNodes(row: EvalCaseRow, events: EvalTraceEvent[]): TraceNode[
   return [caseNode, ...eventNodes];
 }
 
+/** Badge label mappings for node kind categories. */
 const kindLabel: Record<TraceKind, string> = { case: 'CASE', tool: 'TOOL', llm: 'LLM', validation: 'CHECK', assertion: 'ASSERT' };
 
+/**
+ * Three-column interactive explorer for navigating eval runs, selecting test cases,
+ * rendering execution trees, and inspecting full prompt/response payloads.
+ *
+ * @param props - Evaluation runs and cases available for selection.
+ * @returns Interactive run/case selector and the selected execution trace detail.
+ */
 export function EvalExecutionTrace({ runs, cases }: { runs: EvalRunRow[]; cases: EvalCaseRow[] }) {
   const [runId, setRunId] = useState(cases[0]?.runId ?? runs[0]?.runId ?? '');
   const visibleCases = useMemo(() => cases.filter((row) => !runId || row.runId === runId), [cases, runId]);
   const [caseKey, setCaseKey] = useState(cases[0] ? `${cases[0].runId}:${cases[0].caseName}` : '');
   const selectedCase = visibleCases.find((row) => `${row.runId}:${row.caseName}` === caseKey) ?? visibleCases[0] ?? cases[0];
 
-  const [trace, setTrace] = useState<EvalTraceEvent[] | null>(null);
-  const [traceLoading, setTraceLoading] = useState(false);
-
   const selectedRunId = selectedCase?.runId;
   const selectedCaseIndex = selectedCase?.caseIndex;
-
-  useEffect(() => {
-    if (!selectedRunId || selectedCaseIndex === undefined) { setTrace(null); return; }
-    let cancelled = false;
-    setTraceLoading(true);
-    setTrace(null);
-    const url = `/api/dashboards/eval/trace?runId=${encodeURIComponent(selectedRunId)}&caseIndex=${selectedCaseIndex}`;
-    authFetch(url)
-      .then((res) => (res.ok ? res.json() : { events: [] }))
-      .then((body: { events?: EvalTraceEvent[] }) => { if (!cancelled) setTrace(Array.isArray(body.events) ? body.events : []); })
-      .catch(() => { if (!cancelled) setTrace([]); })
-      .finally(() => { if (!cancelled) setTraceLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedRunId, selectedCaseIndex]);
+  const traceQuery = useQuery({
+    ...evalTraceQuery(selectedRunId ?? '', selectedCaseIndex ?? 0),
+    enabled: Boolean(selectedRunId) && selectedCaseIndex !== undefined,
+  });
+  // null until the selected case's trace has loaded (or when no case is selected).
+  const trace: EvalTraceEvent[] | null = traceQuery.data ?? null;
+  const traceLoading = traceQuery.isFetching;
 
   const hasRealTrace = Array.isArray(trace) && trace.length > 0;
   const nodes = useMemo(() => {

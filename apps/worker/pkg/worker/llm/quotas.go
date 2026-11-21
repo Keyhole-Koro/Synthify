@@ -2,28 +2,23 @@ package llm
 
 import "strings"
 
-// ModelQuota は 1 モデルあたりの公開クォータ参照値。
-// 値は Gemini Developer API (ai.google.dev) が tier ごとに公開している
-// 固定値を Tier1 ベースで取り込んだもの。Vertex AI 側は Dynamic Shared
-// Quota で project ごとに変動するため、Cloud Console の Quotas ページ
-// （Service: aiplatform.googleapis.com）の実値を正としつつ、本構造体は
-// バックオフ間隔やセマフォ容量を決めるための「目安」として使う。
+// ModelQuota defines published reference quota limits for an LLM model.
+// Values are sourced from Gemini Developer API (ai.google.dev) published Tier 1 limits.
+// On Vertex AI, actual quotas vary per project via Dynamic Shared Quotas; this struct
+// serves as a baseline guideline for client-side rate limiting and backoff intervals.
 //
-// 出典:
+// References:
 //   - https://ai.google.dev/gemini-api/docs/rate-limits
 //   - https://cloud.google.com/vertex-ai/generative-ai/docs/quotas
 type ModelQuota struct {
 	Model string
-	// RPM = requests per minute. これだけが実際に律速に使われる
-	// （newRateLimiter）。TPM/RPD は preview 帯では RPM で先に律速されるため
-	// 配線しておらず、死蔵を避けるためフィールド自体を持たない。
+	// RPM specifies the maximum requests per minute used by client-side rate limiters.
 	RPM int
-	// Tier は値の出所 tier ラベル（"free" / "tier1" / "tier2" / "tier3" / "vertex-dsq"）。
+	// Tier identifies the source tier label ("free", "tier1", "tier2", "tier3", "vertex-dsq").
 	Tier string
 }
 
-// modelQuotas は固定参照値。preview モデルは公開クォータが無いので
-// もっとも近い GA モデルの値にフォールバックさせる（resolveQuota 参照）。
+// modelQuotas holds reference quota configurations for recognized Gemini models.
 var modelQuotas = map[string]ModelQuota{
 	// --- Gemini 2.5 series (Tier1 paid) ---
 	"gemini-2.5-pro":        {Model: "gemini-2.5-pro", RPM: 150, Tier: "tier1"},
@@ -33,21 +28,19 @@ var modelQuotas = map[string]ModelQuota{
 	// --- Gemini 3.5 series (Tier1 paid) ---
 	"gemini-3.5-flash": {Model: "gemini-3.5-flash", RPM: 300, Tier: "tier1"},
 
-	// --- Gemini 2.0 series — Vertex AI 公式表に固定値が無いので 2.5 同等で暫定 ---
+	// --- Gemini 2.0 series — provisional values matching 2.5 series ---
 	"gemini-2.0-flash":      {Model: "gemini-2.0-flash", RPM: 300, Tier: "tier1"},
 	"gemini-2.0-flash-lite": {Model: "gemini-2.0-flash-lite", RPM: 300, Tier: "tier1"},
 
-	// --- Gemini 3 preview — preview 帯は限度が更にきついので Free 並みに見積もる ---
+	// --- Gemini 3 preview — conservative limits matching free tier ---
 	"gemini-3-pro-preview":   {Model: "gemini-3-pro-preview", RPM: 5, Tier: "free"},
 	"gemini-3-flash-preview": {Model: "gemini-3-flash-preview", RPM: 5, Tier: "free"},
 }
 
-// defaultQuota は未登録モデル用フォールバック。バックオフ計算が止まらない
-// 程度の保守的な値にしてある（=preview 系 free tier 相当）。
+// defaultQuota serves as a conservative fallback for unregistered models.
 var defaultQuota = ModelQuota{Model: "unknown", RPM: 5, Tier: "fallback"}
 
-// QuotaFor は指定モデルに紐づくクォータ参照値を返す。完全一致 → preview
-// サフィックス剥がし → defaultQuota の順で解決する。
+// QuotaFor returns the quota reference for a model name by exact match, suffix stripping, or default fallback.
 func QuotaFor(model string) ModelQuota {
 	if q, ok := modelQuotas[model]; ok {
 		return q
@@ -62,6 +55,7 @@ func QuotaFor(model string) ModelQuota {
 	return q
 }
 
+// stripPreviewSuffix removes preview or experimental suffixes to resolve to a base model name.
 func stripPreviewSuffix(model string) (string, bool) {
 	for _, suf := range []string{"-preview", "-exp", "-latest"} {
 		if strings.HasSuffix(model, suf) {

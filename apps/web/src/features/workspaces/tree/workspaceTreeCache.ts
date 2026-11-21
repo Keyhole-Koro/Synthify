@@ -5,6 +5,9 @@ import type { ApiItem, SubtreeItem } from '@/features/tree/api';
 import type { Workspace } from '@/features/workspaces/api';
 import type { InjectMockNodeArgs, InjectMockWorkspaceTreeArgs, RefreshResult, TreeStoreDebugSnapshot, WorkspaceTreeCache } from './workspaceTreeTypes';
 
+/**
+ * Generates a random unique ID string for debug mock nodes.
+ */
 function makeDebugItemId() {
   return `debug_node_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -18,10 +21,12 @@ h1 { color: #4338ca; }
 .metric { display: inline-block; margin-right: 16px; font-weight: 700; color: #be185d; }
 `.trim();
 
-// buildSampleRootContent renders a rich cover report that embeds child node ids
-// as data-paper-id links directly in the content. WorkspaceRootContent forwards
-// in-iframe clicks on these links to the host, which opens the child paper — so
-// the embedded links are live navigation, exercising that path from the console.
+/**
+ * Builds HTML markup for a mock cover report referencing child nodes via clickable data-paper-id anchors.
+ *
+ * @param childRefs - Array of child paper references to embed as links.
+ * @returns Formatted HTML string for mock cover report.
+ */
 function buildSampleRootContent(childRefs: { id: string; title: string }[]): string {
   const links = childRefs
     .map((c) => `<a data-paper-id="${c.id}">${c.title}</a>`)
@@ -41,11 +46,13 @@ function buildSampleRootContent(childRefs: { id: string; title: string }[]): str
 `.trim();
 }
 
-// buildMockWorkspaceTreeItems assembles a complete ApiItem[] for a single-root
-// workspace tree entirely on the frontend, mirroring the worker's node-direct
-// model: one root node (parent_id = '') carrying the cover-report content, with
-// M child knowledge nodes hanging off it. The shape mirrors what the backend
-// returns so it can flow through replaceWorkspaceTree unchanged.
+/**
+ * Assembles a complete mock tree topology entirely in-memory for testing and offline UI previews.
+ *
+ * @param workspaceId - Target workspace identifier.
+ * @param args - Mock generation parameters.
+ * @returns Array of synthetic ApiItem records.
+ */
 function buildMockWorkspaceTreeItems(
   workspaceId: string,
   args: InjectMockWorkspaceTreeArgs,
@@ -89,6 +96,12 @@ function buildMockWorkspaceTreeItems(
   return items;
 }
 
+/**
+ * Creates an in-memory WorkspaceTreeCache instance managing node storage, loading states,
+ * and optimistic workspace entities.
+ *
+ * @returns Instantiated WorkspaceTreeCache.
+ */
 export function createWorkspaceTreeCache(): WorkspaceTreeCache {
   const itemWorkspace = new Map<string, string>();
   const itemHasChildren = new Map<string, boolean>();

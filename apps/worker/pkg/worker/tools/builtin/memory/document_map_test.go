@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
+	"github.com/synthify/backend/internal/domain"
 )
 
 func TestDocumentMap_EmptyRendersNothing(t *testing.T) {

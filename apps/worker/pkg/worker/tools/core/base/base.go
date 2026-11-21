@@ -1,3 +1,4 @@
+// Package base provides shared context, dependencies, rate limiters, and memory state accessible to worker tools.
 package base
 
 import (
@@ -63,6 +64,7 @@ type Context struct {
 	Images *imageref.Registry
 }
 
+// BeginJob binds a new job execution context, resetting image registries and usage trackers.
 func (b *Context) BeginJob(ctx context.Context, jobID string, wsID, docID string) {
 	if b == nil {
 		return
@@ -82,6 +84,7 @@ func (b *Context) BeginJob(ctx context.Context, jobID string, wsID, docID string
 	}
 }
 
+// IncrementLLMCalls tracks and verifies quota for an invoked LLM call.
 func (b *Context) IncrementLLMCalls(ctx context.Context) error {
 	if b == nil || b.Usage == nil {
 		return nil
@@ -89,6 +92,7 @@ func (b *Context) IncrementLLMCalls(ctx context.Context) error {
 	return b.Usage.IncrementLLMCalls(ctx)
 }
 
+// IncrementToolRuns tracks and verifies quota for a tool invocation.
 func (b *Context) IncrementToolRuns(ctx context.Context) error {
 	if b == nil || b.Usage == nil {
 		return nil
@@ -96,6 +100,7 @@ func (b *Context) IncrementToolRuns(ctx context.Context) error {
 	return b.Usage.IncrementToolRuns(ctx)
 }
 
+// IncrementItemCreations tracks and verifies quota for created knowledge tree items.
 func (b *Context) IncrementItemCreations(ctx context.Context, count int) error {
 	if b == nil || b.Usage == nil {
 		return nil
@@ -103,6 +108,7 @@ func (b *Context) IncrementItemCreations(ctx context.Context, count int) error {
 	return b.Usage.IncrementItemCreations(ctx, count)
 }
 
+// IncrementTransformCreations tracks and verifies quota for synthesize transform tool creations.
 func (b *Context) IncrementTransformCreations(ctx context.Context) error {
 	if b == nil || b.Usage == nil {
 		return nil
@@ -110,6 +116,7 @@ func (b *Context) IncrementTransformCreations(ctx context.Context) error {
 	return b.Usage.IncrementTransformCreations(ctx)
 }
 
+// IncrementTransformRuns tracks and verifies quota for dynamic transform tool runs.
 func (b *Context) IncrementTransformRuns(ctx context.Context) error {
 	if b == nil || b.Usage == nil {
 		return nil

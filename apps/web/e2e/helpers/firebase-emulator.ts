@@ -38,7 +38,7 @@ export async function signInThroughApp(page: Page, user: TestUser): Promise<void
   await page.goto('/');
   await page.waitForFunction(() => '__synthifyE2E' in window);
   await page.evaluate(async ({ email, password }) => {
-    const hook = (window as Window & {
+    const hook = (window as unknown as Window & {
       __synthifyE2E: { signIn(email: string, password: string): Promise<void> };
     }).__synthifyE2E;
     await hook.signIn(email, password);

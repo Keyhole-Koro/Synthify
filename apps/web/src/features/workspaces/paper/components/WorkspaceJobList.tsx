@@ -1,16 +1,21 @@
-import React from 'react';
 import { jobStatusLabel, jobStatusToneClass } from '@/features/jobs/contracts/jobStatusContract';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 
+/**
+ * Props for the {@link WorkspaceJobList} component.
+ */
 interface WorkspaceJobListProps {
+  /** List of recent Firestore job status records for this workspace. */
   workspaceJobs: FirestoreJobStatus[];
 }
 
-// WorkspaceJobList shows the last few jobs against this workspace. The
-// currently active job already has its own progress bar
-// (WorkspaceJobProgress), so this view is a quieter receipt-style list.
-// documentId is intentionally not surfaced — it is a debug id, not a
-// user-facing identifier.
+/**
+ * Renders a compact receipt-style list showing the status and progress of recent
+ * background document processing jobs for the workspace.
+ *
+ * @param props - Component properties.
+ * @returns The rendered recent jobs list, or null if no jobs exist.
+ */
 export function WorkspaceJobList({ workspaceJobs }: WorkspaceJobListProps) {
   if (workspaceJobs.length === 0) {
     return null;

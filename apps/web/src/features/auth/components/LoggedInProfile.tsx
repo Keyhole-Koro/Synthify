@@ -1,11 +1,22 @@
 import React from 'react';
 import type { AuthUser } from '@/features/auth/session';
 
+/**
+ * Props for displaying the active user's profile card.
+ */
 interface LoggedInProfileProps {
+  /** Signed-in user profile. */
   user: AuthUser;
+  /** Logout action callback. */
   onLogout: () => void;
 }
 
+/**
+ * Renders the signed-in user's avatar, display name, email, and logout action button.
+ *
+ * @param props - Authenticated user profile and logout callback.
+ * @returns User profile card with the logout action.
+ */
 export function LoggedInProfile({ user, onLogout }: LoggedInProfileProps) {
   function stop(e: React.PointerEvent) { e.stopPropagation(); }
 

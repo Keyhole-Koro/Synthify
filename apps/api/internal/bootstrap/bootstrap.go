@@ -23,11 +23,13 @@ import (
 	iamcredentials "google.golang.org/api/iamcredentials/v1"
 )
 
+// AppContext aggregates the core storage engine and job status notifier initialized during bootstrap.
 type AppContext struct {
 	Store    Store
 	Notifier jobstatus.Notifier
 }
 
+// Bootstrap initializes the persistent data store and job status notification mechanisms.
 func Bootstrap(ctx context.Context, gcsBucket, gcsURLBase, firebaseProjectID string, logger *slog.Logger, nrApp *newrelic.Application) *AppContext {
 	store := InitStore(ctx, NewDocumentUploadURLIssuer(gcsBucket, gcsURLBase), logger, nrApp)
 	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID, logger)
@@ -37,6 +39,7 @@ func Bootstrap(ctx context.Context, gcsBucket, gcsURLBase, firebaseProjectID str
 	}
 }
 
+// Store composite interface gathers all domain repository and transaction interfaces required by the API server.
 type Store interface {
 	repository.AccountRepository
 	repository.WorkspaceRepository
@@ -52,9 +55,11 @@ type Store interface {
 	repository.CheckpointRepository
 	repository.JobLogWriter
 	repository.DynamicToolRepository
+	repository.WorkspaceChatRepository
 	repository.Transactor
 }
 
+// InitStore configures and connects to the PostgreSQL store or in-memory mock store depending on configuration.
 func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURLIssuer, logger *slog.Logger, nrApp *newrelic.Application) Store {
 	storeCfg := config.LoadStore()
 	if dsn := storeCfg.DatabaseDSN; dsn != "" {
@@ -94,6 +99,7 @@ func InitStore(ctx context.Context, uploadURLIssuer repository.DocumentUploadURL
 	return mock.NewStore()
 }
 
+// NewDocumentUploadURLIssuer constructs a DocumentUploadURLIssuer using signed GCS URLs or local emulator endpoints.
 func NewDocumentUploadURLIssuer(bucket, base string) repository.DocumentUploadURLIssuer {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("GCS_UPLOAD_ISSUER")))
 	if mode == "signed" {
@@ -107,6 +113,7 @@ func NewDocumentUploadURLIssuer(bucket, base string) repository.DocumentUploadUR
 	return NewFakeGCSDocumentUploadURLIssuer(base, bucket)
 }
 
+// NewDocumentSourceURLBuilder returns a DocumentSourceURLBuilder constructing access URLs for document sources.
 func NewDocumentSourceURLBuilder(bucket, base string) repository.DocumentSourceURLBuilder {
 	return func(workspaceID, documentID string) string {
 		return storage.BuildDocumentSourceURL(base, bucket, workspaceID, documentID)
@@ -135,6 +142,7 @@ type fakeGCSDocumentImageURLIssuer struct {
 	bucket string
 }
 
+// IssueDocumentImageURL generates a direct HTTP media URL for local fake-GCS storage.
 func (i fakeGCSDocumentImageURLIssuer) IssueDocumentImageURL(ctx context.Context, workspaceID, documentID, filename string) (repository.SignedURL, error) {
 	// fake-gcs needs no signature; serve the object directly via its media URL.
 	objectName := storage.SourceObjectName(documentID, filename)
@@ -151,6 +159,7 @@ type gcsSignedDocumentImageURLIssuer struct {
 	ttl            time.Duration
 }
 
+// newGCSSignedDocumentImageURLIssuer initializes a signed URL issuer for document images in Cloud Storage.
 func newGCSSignedDocumentImageURLIssuer(bucket, googleAccessID, privateKey string, ttl time.Duration) gcsSignedDocumentImageURLIssuer {
 	privateKey = strings.ReplaceAll(privateKey, `\n`, "\n")
 	var key []byte
@@ -165,6 +174,7 @@ func newGCSSignedDocumentImageURLIssuer(bucket, googleAccessID, privateKey strin
 	}
 }
 
+// IssueDocumentImageURL creates a signed GET URL with expiration for downloading a document image from Cloud Storage.
 func (i gcsSignedDocumentImageURLIssuer) IssueDocumentImageURL(ctx context.Context, workspaceID, documentID, filename string) (repository.SignedURL, error) {
 	expiresAt := time.Now().Add(i.ttl)
 	opts := &gcs.SignedURLOptions{
@@ -217,10 +227,12 @@ type fakeGCSDocumentUploadURLIssuer struct {
 	bucket string
 }
 
+// NewFakeGCSDocumentUploadURLIssuer constructs an upload URL issuer targeting local fake-GCS.
 func NewFakeGCSDocumentUploadURLIssuer(base, bucket string) repository.DocumentUploadURLIssuer {
 	return fakeGCSDocumentUploadURLIssuer{base: base, bucket: bucket}
 }
 
+// IssueDocumentUploadURL returns upload targets for local fake-GCS testing.
 func (i fakeGCSDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (repository.DocumentUploadTarget, error) {
 	// fake-gcs does not enforce Content-Length on POST uploads; the parameter is
 	// accepted to satisfy the interface and kept identical to the GCS branch so
@@ -240,6 +252,7 @@ type gcsSignedDocumentUploadURLIssuer struct {
 	ttl            time.Duration
 }
 
+// NewGCSSignedDocumentUploadURLIssuer creates an upload URL issuer using V4 signed Cloud Storage PUT URLs.
 func NewGCSSignedDocumentUploadURLIssuer(bucket, googleAccessID, privateKey string, ttl time.Duration) repository.DocumentUploadURLIssuer {
 	privateKey = strings.ReplaceAll(privateKey, `\n`, "\n")
 	var key []byte
@@ -254,6 +267,7 @@ func NewGCSSignedDocumentUploadURLIssuer(bucket, googleAccessID, privateKey stri
 	}
 }
 
+// IssueDocumentUploadURL creates a signed PUT upload URL bound to the declared file size and content type.
 func (i gcsSignedDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Context, workspaceID, objectName, contentType string, fileSize int64) (repository.DocumentUploadTarget, error) {
 	expiresAt := time.Now().Add(i.ttl)
 	opts := &gcs.SignedURLOptions{
@@ -287,6 +301,7 @@ func (i gcsSignedDocumentUploadURLIssuer) IssueDocumentUploadURL(ctx context.Con
 	}, nil
 }
 
+// signBytesWithIAM uses the IAM Credentials API to sign byte blobs when running under Workload Identity.
 func (i gcsSignedDocumentUploadURLIssuer) signBytesWithIAM(ctx context.Context) func([]byte) ([]byte, error) {
 	return func(payload []byte) ([]byte, error) {
 		if i.googleAccessID == "" {
@@ -311,6 +326,7 @@ func (i gcsSignedDocumentUploadURLIssuer) signBytesWithIAM(ctx context.Context) 
 	}
 }
 
+// uploadSignedURLTTL reads the signed URL TTL from environment or returns the 15-minute default.
 func uploadSignedURLTTL() time.Duration {
 	minutes, err := strconv.Atoi(getenvDefault("GCS_SIGNED_URL_TTL_MINUTES", "15"))
 	if err != nil || minutes <= 0 {
@@ -319,6 +335,7 @@ func uploadSignedURLTTL() time.Duration {
 	return time.Duration(minutes) * time.Minute
 }
 
+// getenvDefault retrieves an environment variable or returns the fallback value when empty.
 func getenvDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

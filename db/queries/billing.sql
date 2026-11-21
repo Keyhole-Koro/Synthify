@@ -39,18 +39,19 @@ ON CONFLICT (account_id, usage_date, model) DO UPDATE SET
   updated_at = EXCLUDED.updated_at;
 
 -- name: GetAccountBudgetForUsage :one
+-- The no-op UPDATE locks the account row, so concurrent usage records for the
+-- same account see each other's totals. Returns what the budget check needs;
+-- the period decides where the monthly budget starts (domain.BudgetPeriodStart).
 UPDATE accounts
 SET storage_used_bytes = storage_used_bytes
 WHERE account_id = $1
-RETURNING budget_limit_minor, budget_exceeded;
+RETURNING budget_limit_minor, current_period_started_at, current_period_end;
 
--- name: SumUsageCostByAccount :one
+-- name: SumUsageCostByAccountSince :one
+-- Usage cost in the current budget period (idx_usage_events_account_created).
 SELECT COALESCE(SUM(cost_minor), 0)::bigint
 FROM usage_events
-WHERE account_id = $1;
-
--- name: MarkAccountBudgetExceeded :exec
-UPDATE accounts SET budget_exceeded = TRUE WHERE account_id = $1;
+WHERE account_id = $1 AND created_at >= $2;
 
 -- name: DeductCredit :exec
 -- クレジット残高から消費分を差し引く（負の amount_minor を挿入することで残高を減らす）

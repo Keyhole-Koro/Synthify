@@ -1,7 +1,10 @@
 .gemini-cache
 .codex
 .claude
+.idea/
 node_modules/
+__pycache__/
+*.py[cod]
 
 firebase-debug.log
 firestore-debug.log
@@ -32,5 +35,3 @@ apps/worker/server
 .e2e-bin/
 
 tmp/
-
-.gemini-cache

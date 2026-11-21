@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/synthify/backend/apps/worker/pkg/worker/config"
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/sourceio"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	"github.com/synthify/backend/internal/domain"
 	"github.com/synthify/backend/internal/platform/job/log"
 	"google.golang.org/genai"
 )
 
+// GeminiClient implements Client by invoking Google Gemini API via the official genai SDK.
 type GeminiClient struct {
 	client     *genai.Client
 	model      string
@@ -27,6 +28,7 @@ type GeminiClient struct {
 	logPayload bool
 }
 
+// NewGeminiClient creates a GeminiClient configured for either Vertex AI or Gemini Developer API.
 func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem) (*GeminiClient, error) {
 	clientCfg := clientConfig(cfg)
 	client, err := genai.NewClient(ctx, clientCfg)
@@ -42,6 +44,7 @@ func NewGeminiClient(ctx context.Context, cfg config.LLM, fs *storage.FileSystem
 	}, nil
 }
 
+// GenerateStructured requests JSON structured output from Gemini with schema repair fallback.
 func (c *GeminiClient) GenerateStructured(ctx context.Context, req StructuredRequest) (json.RawMessage, Usage, error) {
 	if c.client == nil {
 		return nil, Usage{}, fmt.Errorf("gemini client not initialized")
@@ -68,6 +71,7 @@ func (c *GeminiClient) GenerateStructured(ctx context.Context, req StructuredReq
 	return json.RawMessage(RepairJSON(text)), geminiUsage(c.model, res), nil
 }
 
+// GenerateText produces unstructured text response using Gemini with low temperature.
 func (c *GeminiClient) GenerateText(ctx context.Context, req TextRequest) (string, Usage, error) {
 	if c.client == nil {
 		return "", Usage{}, fmt.Errorf("gemini client not initialized")
@@ -92,6 +96,7 @@ func (c *GeminiClient) GenerateText(ctx context.Context, req TextRequest) (strin
 	return res.Candidates[0].Content.Parts[0].Text, geminiUsage(c.model, res), nil
 }
 
+// generate executes the Gemini model call, logs telemetry, and records execution metrics.
 func (c *GeminiClient) generate(ctx context.Context, systemPrompt, userPrompt string, sourceFiles []domain.SourceFile, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
 	contents, cleanup, err := c.buildContents(ctx, userPrompt, sourceFiles)
 	if err != nil {
@@ -136,6 +141,7 @@ func (c *GeminiClient) generate(ctx context.Context, systemPrompt, userPrompt st
 	return res, err
 }
 
+// buildContents compiles user prompts and uploaded source file references into Gemini content parts.
 func (c *GeminiClient) buildContents(ctx context.Context, userPrompt string, sourceFiles []domain.SourceFile) ([]*genai.Content, func(), error) {
 	parts := []*genai.Part{{Text: userPrompt}}
 	var uploadedNames []string
@@ -158,6 +164,7 @@ func (c *GeminiClient) buildContents(ctx context.Context, userPrompt string, sou
 	return []*genai.Content{{Parts: parts}}, cleanup, nil
 }
 
+// uploadSourceFile loads file bytes, uploads to Gemini Files API, and waits until ACTIVE.
 func (c *GeminiClient) uploadSourceFile(ctx context.Context, source domain.SourceFile) (*genai.File, error) {
 	if err := sourceio.Load(ctx, c.fs, &source); err != nil {
 		return nil, fmt.Errorf("load source file %s: %w", source.Filename, err)
@@ -177,6 +184,7 @@ func (c *GeminiClient) uploadSourceFile(ctx context.Context, source domain.Sourc
 	return c.client.Files.Get(ctx, uploaded.Name, nil)
 }
 
+// waitForFileActive polls until an uploaded file reaches ACTIVE state or times out.
 func (c *GeminiClient) waitForFileActive(ctx context.Context, name string) error {
 	deadline := time.NewTimer(30 * time.Second)
 	defer deadline.Stop()
@@ -205,6 +213,7 @@ func (c *GeminiClient) waitForFileActive(ctx context.Context, name string) error
 	}
 }
 
+// deleteUploadedFile deletes an uploaded Gemini file resource by name.
 func (c *GeminiClient) deleteUploadedFile(ctx context.Context, name string) {
 	if c.client == nil || strings.TrimSpace(name) == "" {
 		return
@@ -214,6 +223,7 @@ func (c *GeminiClient) deleteUploadedFile(ctx context.Context, name string) {
 	_, _ = c.client.Files.Delete(cleanupCtx, name, nil)
 }
 
+// detectMIMEType determines the content MIME type by source metadata, file extension, or sniffing content bytes.
 func detectMIMEType(source domain.SourceFile) string {
 	if mimeType := strings.TrimSpace(source.MimeType); mimeType != "" {
 		return mimeType
@@ -227,6 +237,7 @@ func detectMIMEType(source domain.SourceFile) string {
 	return "application/octet-stream"
 }
 
+// detectDisplayName determines a human-readable display name for an uploaded source file.
 func detectDisplayName(source domain.SourceFile) string {
 	if name := strings.TrimSpace(source.Filename); name != "" {
 		return name
@@ -237,6 +248,7 @@ func detectDisplayName(source domain.SourceFile) string {
 	return "source-file"
 }
 
+// geminiUsage extracts input/output token usage metrics from a Gemini API response.
 func geminiUsage(model string, res *genai.GenerateContentResponse) Usage {
 	if res == nil || res.UsageMetadata == nil {
 		return Usage{Model: model}
@@ -249,6 +261,7 @@ func geminiUsage(model string, res *genai.GenerateContentResponse) Usage {
 	}
 }
 
+// ptr returns a pointer to the provided value.
 func ptr[T any](v T) *T {
 	return &v
 }

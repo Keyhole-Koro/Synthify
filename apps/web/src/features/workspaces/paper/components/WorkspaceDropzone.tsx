@@ -1,20 +1,42 @@
 import React from 'react';
 
+/**
+ * Props for the {@link WorkspaceDropzone} component.
+ */
 interface WorkspaceDropzoneProps {
+  /** Whether the workspace tree currently has no root nodes. */
   isTreeMissing: boolean;
+  /** Whether the workspace contains any child items or documents. */
   hasChildItems: boolean;
+  /** Whether a file upload is currently in flight. */
   uploading: boolean;
+  /** Identifier of the actively running document processing job, if any. */
   activeJobId: string | null;
+  /** Whether a dragged file is hovering over the dropzone. */
   isDragging: boolean;
+  /** Progress or status text from the running job. */
   jobStatusMessage?: string | null;
+  /** Percentage progress (0-100) of the running job. */
   jobStatusProgress?: number;
+  /** Whether the job encountered a failure. */
   jobStatusFailed?: boolean;
+  /** Event handler for dragover events. */
   onDragOver: (e: React.DragEvent) => void;
+  /** Event handler for dragleave events. */
   onDragLeave: (e: React.DragEvent) => void;
+  /** Event handler for drop events. */
   onDrop: (e: React.DragEvent) => void;
+  /** Click handler to open the native file picker. */
   onClick: () => void;
 }
 
+/**
+ * Renders an upload dropzone inside the workspace paper view, switching between
+ * a prominent empty-state card and a compact button when child documents exist.
+ *
+ * @param props - Component properties.
+ * @returns The rendered dropzone or compact button element.
+ */
 export function WorkspaceDropzone({
   isTreeMissing,
   hasChildItems,

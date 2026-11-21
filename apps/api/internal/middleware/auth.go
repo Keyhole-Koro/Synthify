@@ -9,6 +9,8 @@ import (
 	apiauth "github.com/synthify/backend/apps/api/internal/auth"
 )
 
+// WithAuth returns an HTTP middleware that performs authentication via Bearer tokens,
+// service tokens, or public workspace share tokens.
 func WithAuth(authenticator apiauth.Authenticator, logger *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isAuthExempt(r) {
@@ -16,9 +18,8 @@ func WithAuth(authenticator apiauth.Authenticator, logger *slog.Logger, next htt
 			return
 		}
 
-		// 公開リンク経由の閲覧: share token を持ち、対象が share でアクセス可能な
-		// read RPC なら、bearer 無しでも通す。token は context に載せ、各 service が
-		// token -> workspace の認可を行う (default-deny は service 側の責務)。
+		// Public share link access: if request contains X-Synthify-Share-Token and targets
+		// a read-only RPC, allow access and attach share token to context for downstream authorization.
 		if shareToken := strings.TrimSpace(r.Header.Get("X-Synthify-Share-Token")); shareToken != "" && isShareReadable(r) {
 			ctx := apiauth.ContextWithShareToken(r.Context(), shareToken)
 			next.ServeHTTP(w, r.WithContext(ctx))
@@ -52,6 +53,7 @@ func WithAuth(authenticator apiauth.Authenticator, logger *slog.Logger, next htt
 	})
 }
 
+// writeAuthError maps authentication errors to appropriate HTTP status codes (403 Forbidden vs 401 Unauthorized).
 func writeAuthError(w http.ResponseWriter, err error, unauthorizedMessage string) {
 	if errors.Is(err, apiauth.ErrPermissionDenied) {
 		http.Error(w, "access restricted to allowed users", http.StatusForbidden)
@@ -60,6 +62,7 @@ func writeAuthError(w http.ResponseWriter, err error, unauthorizedMessage string
 	http.Error(w, unauthorizedMessage, http.StatusUnauthorized)
 }
 
+// isAuthExempt reports whether an incoming request bypasses authentication (CORS preflight, health checks, webhooks).
 func isAuthExempt(r *http.Request) bool {
 	if r.Method == http.MethodOptions {
 		return true
@@ -67,15 +70,14 @@ func isAuthExempt(r *http.Request) bool {
 	switch r.URL.Path {
 	case "/health", "/stripe/webhook":
 		return true
-	// 公開リンクの解決は無認証経路 (token のみで workspace を解決する)。
+	// Share link resolution is unauthenticated (resolves workspace using only the token).
 	case "/synthify.app.v1.WorkspaceService/ResolveShareLink":
 		return true
 	}
 	return false
 }
 
-// isShareReadable は share token で読める read 専用 RPC かを返す。
-// 書き込み RPC は含めない (公開リンクは閲覧専用)。
+// isShareReadable reports whether the target RPC is a read-only endpoint accessible via public share link tokens.
 func isShareReadable(r *http.Request) bool {
 	switch r.URL.Path {
 	case "/synthify.app.v1.TreeService/GetTree",
@@ -86,6 +88,7 @@ func isShareReadable(r *http.Request) bool {
 	return false
 }
 
+// bearerToken extracts the Bearer token substring from an Authorization header value.
 func bearerToken(header string) string {
 	const prefix = "bearer "
 	if !strings.HasPrefix(strings.ToLower(header), prefix) {

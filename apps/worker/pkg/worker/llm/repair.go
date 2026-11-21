@@ -2,6 +2,7 @@ package llm
 
 import "strings"
 
+// RepairJSON cleans common LLM Markdown fencing and trailing commas from raw JSON strings.
 func RepairJSON(input string) string {
 	repaired := strings.TrimSpace(input)
 	repaired = strings.TrimPrefix(repaired, "```json")

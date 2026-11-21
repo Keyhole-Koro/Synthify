@@ -1,15 +1,26 @@
-import React from 'react';
+import type { PointerEvent } from 'react';
 import { InlineError } from '@/components/error/InlineError';
-import { type AppError } from '@/lib/errors';
 
+/**
+ * Props for the social login buttons section.
+ */
 interface SocialLoginProps {
+  /** Whether a login operation is currently pending. */
   loading: boolean;
-  error?: AppError | null;
+  /** Optional error returned from the last login attempt. */
+  error?: Error | null;
+  /** Action triggered when the user clicks the Google sign-in button. */
   onGoogleSubmit: () => void;
 }
 
+/**
+ * Social login section rendering divider, inline error alerts, and the Google authentication button.
+ *
+ * @param props - Loading/error state and the callback invoked for Google sign-in.
+ * @returns Social login controls with disabled/loading and inline-error states.
+ */
 export function SocialLogin({ loading, error, onGoogleSubmit }: SocialLoginProps) {
-  function stop(e: React.PointerEvent) { e.stopPropagation(); }
+  function stop(e: PointerEvent) { e.stopPropagation(); }
 
   return (
     <div className="flex flex-col gap-4">

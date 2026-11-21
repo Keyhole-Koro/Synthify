@@ -1,7 +1,9 @@
+// Package usage provides token pricing calculation, credit drawdown logic, and usage event recording.
 package usage
 
 import (
 	"fmt"
+	"github.com/synthify/backend/internal/domain"
 	"strconv"
 )
 
@@ -11,7 +13,7 @@ import (
 // cent or half a yen.
 //
 //	cost_minor = (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000
-func ComputeCostMinor(p *ModelPricing, inputTokens, outputTokens int64) int64 {
+func ComputeCostMinor(p *domain.ModelPricing, inputTokens, outputTokens int64) int64 {
 	const million = int64(1_000_000)
 	return (inputTokens*p.InputCostPerMTokenMinor)/million + (outputTokens*p.OutputCostPerMTokenMinor)/million
 }

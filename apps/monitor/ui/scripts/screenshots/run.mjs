@@ -1,4 +1,4 @@
-// next dev をプレビューモードで起動 → 準備できたら capture.mjs を実行 → 後始末。
+// vite dev (TanStack Start) をプレビューモードで起動 → 準備できたら capture.mjs を実行 → 後始末。
 // 実 DB / Firebase は不要 (認証はプレビューフラグでバイパス、データは fixtures)。
 
 import { spawn } from 'node:child_process';
@@ -48,8 +48,8 @@ function run(cmd, args, opts) {
 }
 
 async function main() {
-  console.log('→ starting next dev (preview mode)…');
-  const dev = spawn('bun', ['run', 'next', 'dev', '--hostname', '127.0.0.1', '--port', PORT], {
+  console.log('→ starting vite dev (preview mode)…');
+  const dev = spawn('bunx', ['vite', 'dev', '--host', '127.0.0.1', '--port', PORT], {
     cwd: uiRoot,
     env: devEnv,
     stdio: 'inherit',

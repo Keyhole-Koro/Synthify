@@ -1,12 +1,12 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2022",
     "lib": [
       "dom",
       "dom.iterable",
       "esnext"
     ],
-    "allowJs": false,
+    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -24,26 +24,23 @@
       "@keyhole-koro/paper-in-paper": ["./vender/paper-in-paper/src/lib/index.ts"],
       "@keyhole-koro/paper-in-paper/*": ["./vender/paper-in-paper/src/lib/*"]
     },
-    "plugins": [
-      {
-        "name": "next"
-      }
+    "types": [
+      "vite/client",
+      "node"
     ]
   },
   "include": [
-    "next-env.d.ts",
-    "instrumentation-client.ts",
-    "app/**/*.ts",
-    "app/**/*.tsx",
-    "next.config.ts",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
+    "e2e/**/*.ts",
     "vender/paper-in-paper/src/lib/**/*.ts",
-    "vender/paper-in-paper/src/lib/**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "vender/paper-in-paper/src/lib/**/*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "out"
   ]
 }

@@ -1,0 +1,2 @@
+# Preserve byte-for-byte output from the pinned Connect Python generator.
+apps/local-provider/src/synthify/localprovider/v1/provider_connect.py -whitespace

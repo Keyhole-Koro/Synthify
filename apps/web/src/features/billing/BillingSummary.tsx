@@ -1,26 +1,27 @@
-'use client';
+import { useQuery } from '@tanstack/react-query';
+import { billingAccountQueryOptions } from './queries';
 
-import { useEffect, useState } from 'react';
-import { getBillingAccount, type BillingAccount } from './api';
-
+/**
+ * Props for the billing summary overview paper.
+ */
 interface BillingSummaryProps {
+  /** Account ID whose billing status is rendered. */
   accountId: string;
 }
 
+/**
+ * Overview component presenting the current plan, monthly spend, storage quota, and billing navigation links.
+ *
+ * @param props - Account identifier used to scope billing queries and navigation links.
+ * @returns Billing overview paper with loading, error, and populated account states.
+ */
 export function BillingSummary({ accountId }: BillingSummaryProps) {
-  const [account, setAccount] = useState<BillingAccount | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: account, isLoading, error } = useQuery(billingAccountQueryOptions(accountId));
 
-  useEffect(() => {
-    getBillingAccount(accountId)
-      .then(setAccount)
-      .catch(() => setError('課金情報を取得できませんでした。'));
-  }, [accountId]);
-
-  if (!account) {
+  if (isLoading || !account) {
     return (
       <div style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-        {error ?? '読み込み中...'}
+        {error ? '課金情報を取得できませんでした。' : '読み込み中...'}
       </div>
     );
   }
@@ -75,6 +76,9 @@ export function BillingSummary({ accountId }: BillingSummaryProps) {
   );
 }
 
+/**
+ * Navigation button linking to sub-papers in the billing paper cluster.
+ */
 function NavLink({ paperId, title, hint }: { paperId: string; title: string; hint: string }) {
   return (
     <a
@@ -97,6 +101,9 @@ function NavLink({ paperId, title, hint }: { paperId: string; title: string; hin
   );
 }
 
+/**
+ * Metric card displaying a single billing statistic.
+ */
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div style={{ border: '1px solid var(--link-border)', borderRadius: 6, padding: '8px 10px', background: 'var(--surface-alt)' }}>
@@ -109,6 +116,9 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
   );
 }
 
+/**
+ * Formats a byte quantity into a human-readable string with units (B, KB, MB, GB, TB).
+ */
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];

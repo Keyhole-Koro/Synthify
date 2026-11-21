@@ -15,6 +15,8 @@ var (
 	firestoreJobStatusSchemaErr  error
 )
 
+// validateFirestoreJobStatus validates the given document map against the JSON Schema
+// definition for Firestore job status objects.
 func validateFirestoreJobStatus(doc map[string]any) error {
 	schema, err := resolvedFirestoreJobStatusSchema()
 	if err != nil {
@@ -62,6 +64,7 @@ func validatableDoc(doc map[string]any) map[string]any {
 	return out
 }
 
+// resolvedFirestoreJobStatusSchema parses and resolves the compiled JSON Schema once on demand.
 func resolvedFirestoreJobStatusSchema() (*jsonschema.Resolved, error) {
 	firestoreJobStatusSchemaOnce.Do(func() {
 		var schema jsonschema.Schema

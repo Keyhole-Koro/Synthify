@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	storage "github.com/synthify/backend/apps/worker/pkg/worker/storage"
+	"github.com/synthify/backend/internal/domain"
 )
 
 // LoadAll resolves the content of every source file from the gcsfuse mount,

@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/synthify/backend/apps/api/internal/domain"
-	"github.com/synthify/backend/apps/api/internal/repository/postgres/sqlcgen"
+	"github.com/synthify/backend/internal/db/sqlcgen"
+	"github.com/synthify/backend/internal/domain"
 	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
+// GetItem retrieves a single knowledge tree item by its ID from PostgreSQL.
 func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error) {
 	row, err := s.q().GetItem(ctx, itemID)
 	if err != nil {
@@ -23,12 +24,13 @@ func (s *Store) GetItem(ctx context.Context, itemID string) (*domain.Item, error
 	return toItemFromGetRow(row), nil
 }
 
+// CreateItem inserts a new knowledge tree node directly under a parent node or root.
 func (s *Store) CreateItem(ctx context.Context, workspaceID, label, description, parentID, createdBy string) (*domain.Item, error) {
 	return s.createStructuredItemDirect(ctx, workspaceID, label, 0, description, "", createdBy, parentID)
 }
 
-// createStructuredItemDirect は items テーブルに 1 行挿入する。
-// atomic 性が必要なら呼び出し側を Transactor.WithTx で包むこと。
+// createStructuredItemDirect inserts an item record into PostgreSQL without capability checks.
+// Callers should wrap within Transactor.WithTx if atomic consistency is required.
 func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, label string, level int, description, summaryHTML, createdBy, parentID string) (*domain.Item, error) {
 	createdAt := nowTime()
 	item := &domain.Item{
@@ -59,7 +61,7 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 	}); err != nil {
 		return nil, fmt.Errorf("create item: %w", err)
 	}
-	// updated_at の touch は best-effort。失敗しても item 作成自体は成功扱い。
+	// Best-effort timestamp touch on parent tree.
 	_ = s.q().UpdateTreeTimestamp(ctx, sqlcgen.UpdateTreeTimestampParams{
 		ID:        item.ItemID,
 		UpdatedAt: nowTime(),
@@ -67,9 +69,8 @@ func (s *Store) createStructuredItemDirect(ctx context.Context, workspaceID, lab
 	return item, nil
 }
 
-// CreateStructuredItemWithCapability は capability 検証 + item 挿入 + mutation log を行う。
-// capability 違反は domain.ErrForbidden を返す。atomic 性が必要なら呼び出し側を
-// Transactor.WithTx で包むこと。
+// CreateStructuredItemWithCapability verifies job capability constraints, creates a structured knowledge item,
+// and records an audit log entry in mutation_logs within PostgreSQL.
 func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, documentID, workspaceID, label string, level int, description, summaryHTML, overrideCSS, createdBy, parentID string, sourceChunkIDs []string) (*domain.Item, error) {
 	if !s.canMutateTree(capability, appv1.JobOperation_JOB_OPERATION_CREATE_ITEM, workspaceID, documentID) {
 		return nil, fmt.Errorf("capability denies item creation: %w", domain.ErrForbidden)
@@ -132,6 +133,7 @@ func (s *Store) CreateStructuredItemWithCapability(ctx context.Context, capabili
 	return item, nil
 }
 
+// UpsertItemSource links a document chunk source citation to a knowledge item in PostgreSQL.
 func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID, chunkID, sourceText string, confidence float64) error {
 	return s.q().UpsertItemSource(ctx, sqlcgen.UpsertItemSourceParams{
 		ItemID:     itemID,
@@ -143,6 +145,7 @@ func (s *Store) UpsertItemSource(ctx context.Context, itemID, documentID, fileID
 	})
 }
 
+// UpsertItemSourceRef stores or updates external provenance citations (URL, repository, line numbers) for an item.
 func (s *Store) UpsertItemSourceRef(ctx context.Context, source *domain.ItemSourceRef) error {
 	if source == nil {
 		return nil
@@ -173,6 +176,7 @@ func (s *Store) UpsertItemSourceRef(ctx context.Context, source *domain.ItemSour
 	})
 }
 
+// ListItemSources retrieves all document chunk source associations for an item.
 func (s *Store) ListItemSources(ctx context.Context, itemID string) ([]*domain.ItemSource, error) {
 	rows, err := s.q().ListItemSources(ctx, itemID)
 	if err != nil {
@@ -192,6 +196,7 @@ func (s *Store) ListItemSources(ctx context.Context, itemID string) ([]*domain.I
 	return sources, nil
 }
 
+// ListItemSourceRefs retrieves all external and repository source references associated with an item.
 func (s *Store) ListItemSourceRefs(ctx context.Context, itemID string) ([]*domain.ItemSourceRef, error) {
 	rows, err := s.q().ListItemSourceRefs(ctx, itemID)
 	if err != nil {
@@ -221,6 +226,7 @@ func (s *Store) ListItemSourceRefs(ctx context.Context, itemID string) ([]*domai
 	return sources, nil
 }
 
+// UpdateItemSummaryHTMLWithCapability updates an item's rendered HTML content within the constraints of an active JobCapability.
 func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capability *domain.JobCapability, jobID, itemID, summaryHTML string) error {
 	if capability == nil || !capability.Allows(appv1.JobOperation_JOB_OPERATION_UPDATE_ITEM) || capability.IsExpired(nowTime()) {
 		return fmt.Errorf("mutation not allowed by capability or expired")
@@ -282,6 +288,7 @@ func (s *Store) UpdateItemSummaryHTMLWithCapability(ctx context.Context, capabil
 	return tx.Commit()
 }
 
+// ApproveAlias accepts an alias relationship between canonicalItemID and aliasItemID in the workspace.
 func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
 	if err := s.q().UpsertApprovedAlias(ctx, sqlcgen.UpsertApprovedAliasParams{
 		WorkspaceID:     wsID,
@@ -294,6 +301,7 @@ func (s *Store) ApproveAlias(ctx context.Context, wsID, canonicalItemID, aliasIt
 	return nil
 }
 
+// RejectAlias records an explicit rejection of an alias suggestion between canonicalItemID and aliasItemID.
 func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasItemID string) error {
 	if err := s.q().UpsertRejectedAlias(ctx, sqlcgen.UpsertRejectedAliasParams{
 		WorkspaceID:     wsID,
@@ -306,6 +314,7 @@ func (s *Store) RejectAlias(ctx context.Context, wsID, canonicalItemID, aliasIte
 	return nil
 }
 
+// canMutateTree verifies whether capability grants permission for op on the specified workspace and document.
 func (s *Store) canMutateTree(capability *domain.JobCapability, op appv1.JobOperation, workspaceID, documentID string) bool {
 	if capability == nil || capability.IsExpired(nowTime()) {
 		return false
@@ -319,6 +328,7 @@ func (s *Store) canMutateTree(capability *domain.JobCapability, op appv1.JobOper
 	return capability.AllowsDocument(documentID)
 }
 
+// countJobMutations returns the number of mutations executed by jobID targeting targetType.
 func (s *Store) countJobMutations(ctx context.Context, jobID, targetType string) int {
 	count, err := s.q().CountJobMutationsByTarget(ctx, sqlcgen.CountJobMutationsByTargetParams{
 		JobID:      jobID,
@@ -330,16 +340,17 @@ func (s *Store) countJobMutations(ctx context.Context, jobID, targetType string)
 	return int(count)
 }
 
-// logMutation は mutation_logs に 1 行追記する。Store が Transactor.WithTx 経由で
-// tx-bound されていれば、その tx の queries が使われる。
+// logMutation writes a single audit row to mutation_logs using active transaction context if present.
 func (s *Store) logMutation(ctx context.Context, entry *domain.JobMutationLog) error {
 	return s.logMutationParams(ctx, s.q(), entry)
 }
 
+// logMutationTx writes an entry to mutation_logs scoped to an active database transaction.
 func (s *Store) logMutationTx(ctx context.Context, tx *sql.Tx, entry *domain.JobMutationLog) error {
 	return s.logMutationParams(ctx, s.q().WithTx(tx), entry)
 }
 
+// logMutationParams executes the SQL query to insert an entry into mutation_logs.
 func (s *Store) logMutationParams(ctx context.Context, q *sqlcgen.Queries, entry *domain.JobMutationLog) error {
 	createdAt, err := time.Parse(time.RFC3339, entry.CreatedAt)
 	if err != nil {
@@ -362,10 +373,12 @@ func (s *Store) logMutationParams(ctx context.Context, q *sqlcgen.Queries, entry
 	})
 }
 
+// nullInt32 wraps an int into a sql.NullInt32 if positive.
 func nullInt32(value int) sql.NullInt32 {
 	return sql.NullInt32{Int32: int32(value), Valid: value > 0}
 }
 
+// intFromNullInt32 extracts an int from sql.NullInt32 defaulting to 0 if null.
 func intFromNullInt32(value sql.NullInt32) int {
 	if !value.Valid {
 		return 0
@@ -373,6 +386,7 @@ func intFromNullInt32(value sql.NullInt32) int {
 	return int(value.Int32)
 }
 
+// defaultMetadataJSON returns a valid empty JSON object "{}" if the input string is empty.
 func defaultMetadataJSON(value string) string {
 	if value == "" {
 		return "{}"
@@ -380,6 +394,7 @@ func defaultMetadataJSON(value string) string {
 	return value
 }
 
+// mustJSON serializes a value into a JSON string, falling back to "{}" on serialization error.
 func mustJSON(value any) string {
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -388,6 +403,7 @@ func mustJSON(value any) string {
 	return string(encoded)
 }
 
+// toItemFromItemRow converts a sqlc ListItemsByWorkspaceRow into a domain Item entity.
 func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
@@ -406,6 +422,7 @@ func toItemFromItemRow(row sqlcgen.ListItemsByWorkspaceRow) *domain.Item {
 	}
 }
 
+// toItemFromGetRow converts a sqlc GetItemRow into a domain Item entity.
 func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
@@ -424,6 +441,7 @@ func toItemFromGetRow(row sqlcgen.GetItemRow) *domain.Item {
 	}
 }
 
+// toItemFromChildRow converts a sqlc ListChildItemsRow into a domain Item entity.
 func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 	return &domain.Item{
 		ItemID:          row.ID,
@@ -442,6 +460,7 @@ func toItemFromChildRow(row sqlcgen.ListChildItemsRow) *domain.Item {
 	}
 }
 
+// parseGovernanceState converts a string governance state into its appv1.ItemGovernanceState enum representation.
 func parseGovernanceState(s string) appv1.ItemGovernanceState {
 	switch s {
 	case "system_generated":

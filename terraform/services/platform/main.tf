@@ -137,6 +137,12 @@ resource "google_secret_manager_secret" "secrets" {
   project   = var.project_id
   secret_id = "synthify-${each.value}"
 
+  # A version-destroy request leaves a 14-day recovery window. This is long
+  # enough to roll back a bad rotation, while the cleanup workflow can still
+  # permanently remove stale versions instead of leaving billable disabled
+  # versions indefinitely.
+  version_destroy_ttl = "1209600s"
+
   replication {
     auto {}
   }

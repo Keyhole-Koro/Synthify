@@ -1,52 +1,30 @@
-import { type AppError } from '@/lib/errors';
-import { toAppError } from '@/lib/error_normalize';
+import type { FirestoreError } from 'firebase/firestore';
+import { UserFacingError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 
-export type ClassifiedSnapshotError =
-  | { kind: 'transient' }
-  | { kind: 'fatal'; error: AppError };
+/**
+ * Firestore codes that onSnapshot reports for conditions the user cannot act on:
+ * a dropped connection, a listener torn down during sign-out, or a rules
+ * mismatch. They are logged but kept off the screen.
+ */
+const TRANSIENT_CODES = new Set<FirestoreError['code']>(['permission-denied', 'unavailable', 'cancelled']);
 
-function firestoreErrorCode(err: unknown): string {
-  return typeof err === 'object' && err !== null && 'code' in err
-    ? String((err as { code: unknown }).code)
-    : '';
-}
-
-// Firestore onSnapshot は permission-denied / unavailable / cancelled などで
-// 発火する。これらは UI に出しても actionable でないため transient として
-// 握りつぶし、それ以外だけ AppError に正規化して上に返す。
-//
-// 注意: permission-denied は SDK が自動再接続しない（リスナーが恒久終了する）。
-// UI には出さないが、ルール/デプロイのバグを示すので観測はしたい。判定そのもの
-// は純粋に保ち、観測は reportSnapshotError 側に分離している。
-export function classifyFirestoreSnapshotError(err: unknown): ClassifiedSnapshotError {
-  const code = firestoreErrorCode(err);
-
-  if (code === 'permission-denied' || code === 'unavailable' || code === 'cancelled') {
-    return { kind: 'transient' };
+/**
+ * Logs a snapshot listener error and returns what the UI should show.
+ *
+ * permission-denied ends the listener for good (the SDK does not reconnect), so
+ * it is still logged at warn level: it points at a rules or deploy problem.
+ *
+ * @param err - Error passed to the onSnapshot error callback.
+ * @param label - Which subscription failed, for the log.
+ * @returns null for transient errors, otherwise an error with a Japanese message.
+ */
+export function handleSnapshotError(err: FirestoreError, label: string): UserFacingError | null {
+  const attributes = { source: 'firestore_snapshot', code: err.code, label };
+  if (TRANSIENT_CODES.has(err.code)) {
+    log.warn('Firestore snapshot error hidden from the user', attributes);
+    return null;
   }
-  return { kind: 'fatal', error: toAppError(err) };
-}
-
-// reportSnapshotError は分類結果に応じて観測レベルを振り分ける（log.ts 経由で
-// NR Logs + console。console レベルは env.observability.consoleLevel で制御）。
-// - transient: UI からは隠すが warn として残す（permission-denied 等のルール
-//   不整合に気づけるように。error ではないので JS エラー率は汚さない）
-// - fatal: UI にも出る handled error として error レベルで残す
-export function reportSnapshotError(
-  err: unknown,
-  classified: ClassifiedSnapshotError,
-  context: { label?: string } = {},
-) {
-  const attributes = {
-    source: 'firestore_snapshot',
-    code: firestoreErrorCode(err),
-    label: context.label ?? null,
-  };
-
-  if (classified.kind === 'transient') {
-    log.warn('firestore snapshot error swallowed', attributes);
-    return;
-  }
-  log.error('firestore snapshot error', attributes, err);
+  log.error('Firestore snapshot failed', attributes, err);
+  return new UserFacingError('最新の状態を取得できませんでした。ページを再読み込みしてください。', { cause: err });
 }

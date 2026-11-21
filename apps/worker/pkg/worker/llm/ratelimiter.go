@@ -15,14 +15,15 @@ import (
 	"google.golang.org/genai"
 )
 
-// RetryConfig は ADK model.LLM ラッパーの再試行ポリシー。
+// RetryConfig defines the retry and backoff policy for the ADK model.LLM wrapper.
 type RetryConfig struct {
-	MaxAttempts int           // 初回試行を含む合計回数
-	BaseDelay   time.Duration // 指数バックオフの基準
-	MaxDelay    time.Duration // バックオフの上限
-	Jitter      float64       // [0,1) の比率でジッタを乗せる
+	MaxAttempts int           // Total attempts including initial attempt
+	BaseDelay   time.Duration // Base duration for exponential backoff
+	MaxDelay    time.Duration // Maximum cap for backoff duration
+	Jitter      float64       // Ratio in [0,1) applied as random jitter
 }
 
+// withDefaults fills unspecified retry parameters with sensible defaults.
 func (c RetryConfig) withDefaults() RetryConfig {
 	if c.MaxAttempts <= 0 {
 		c.MaxAttempts = 4
@@ -42,14 +43,13 @@ func (c RetryConfig) withDefaults() RetryConfig {
 	return c
 }
 
-// RetryingModel は 429 / 5xx / UNAVAILABLE を捕捉して指数バックオフで
-// 再試行する model.LLM ラッパー。successful response がひとつでも
-// yield された後の error は再試行せずそのまま通す。
+// RetryingModel wraps model.LLM to catch 429, 5xx, and UNAVAILABLE errors and retry
+// with exponential backoff and jitter. If any successful response was already yielded
+// in streaming mode, subsequent errors are passed through without retrying.
 //
-// 加えて、クライアント側の流量制御として model 固有の RPM (QuotaFor) を
-// 上限とする rate limiter を持つ。これが無いと agent ループが連続で Vertex
-// を叩き、preview 帯の極小 RPM を即超過して 429 が多発する。limiter で
-// 呼び出しを平滑化し、リトライ/バックオフはあくまで保険として残す。
+// Additionally, RetryingModel enforces client-side rate limiting capped by the model's
+// published RPM (QuotaFor). This smooths agent request bursts to prevent tripping
+// tight Vertex AI preview quotas.
 type RetryingModel struct {
 	inner   model.LLM
 	cfg     RetryConfig
@@ -58,6 +58,7 @@ type RetryingModel struct {
 	nrApp   *newrelic.Application
 }
 
+// NewRetryingModel creates a retrying, rate-limited model.LLM decorator.
 func NewRetryingModel(inner model.LLM, cfg RetryConfig, logger *slog.Logger, nrApp *newrelic.Application) *RetryingModel {
 	if logger == nil {
 		logger = slog.Default()
@@ -93,8 +94,10 @@ func newRateLimiter(model string) *rate.Limiter {
 	return rate.NewLimiter(perSecond, burst)
 }
 
+// Name returns the underlying model identifier.
 func (m *RetryingModel) Name() string { return m.inner.Name() }
 
+// GenerateContent executes model generation with rate limiting, retries, and New Relic telemetry.
 func (m *RetryingModel) GenerateContent(ctx context.Context, req *model.LLMRequest, stream bool) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
 		for attempt := 1; attempt <= m.cfg.MaxAttempts; attempt++ {
@@ -126,7 +129,7 @@ func (m *RetryingModel) GenerateContent(ctx context.Context, req *model.LLMReque
 				return
 			}
 			if yielded {
-				// 部分応答後の失敗は安全に再試行できない。
+				// Failures following partial yields cannot be safely retried.
 				yield(nil, finalErr)
 				return
 			}
@@ -158,9 +161,7 @@ func (m *RetryingModel) GenerateContent(ctx context.Context, req *model.LLMReque
 	}
 }
 
-// backoff は attempt(1-origin) に対して指数バックオフ + ジッタを返す。
-// 429 の Retry-After 系情報は genai.APIError.Details に乗ることがあるが、
-// 形式が安定しないので現状は無視して指数バックオフのみ。
+// backoff calculates exponential backoff duration with jitter for the given attempt.
 func (m *RetryingModel) backoff(attempt int, _ error) time.Duration {
 	d := m.cfg.BaseDelay << (attempt - 1)
 	if d <= 0 || d > m.cfg.MaxDelay {
@@ -231,8 +232,7 @@ func throttleReason(err error) string {
 	return "other"
 }
 
-// isRetryable は genai.APIError や ADK が wrap した err 文字列から
-// 再試行可能カテゴリを判定する。
+// isRetryable determines whether a genai.APIError or wrapped error string represents a retryable condition.
 func isRetryable(err error) bool {
 	if err == nil {
 		return false
@@ -252,7 +252,7 @@ func isRetryable(err error) bool {
 		}
 		return false
 	}
-	// genai が APIError を返さず文字列でラップしているケースのフォールバック。
+	// Fallback pattern matching for SDK errors wrapped in plain strings.
 	s := err.Error()
 	return strings.Contains(s, "Error 429") ||
 		strings.Contains(s, "RESOURCE_EXHAUSTED") ||

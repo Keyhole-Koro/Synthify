@@ -8,8 +8,8 @@ import (
 
 	"github.com/oklog/ulid/v2"
 
-	"github.com/synthify/backend/apps/worker/pkg/worker/domain"
 	"github.com/synthify/backend/apps/worker/pkg/worker/llm"
+	"github.com/synthify/backend/internal/domain"
 	joblog "github.com/synthify/backend/internal/platform/job/log"
 )
 
@@ -34,6 +34,7 @@ func NewLLMClient(inner llm.Client, reporter llm.UsageReporter, logger *slog.Log
 	return &LLMClient{inner: inner, reporter: reporter, logger: logger}
 }
 
+// GenerateStructured delegates structured JSON completion to the inner LLM client and reports usage.
 func (c *LLMClient) GenerateStructured(ctx context.Context, req llm.StructuredRequest) (json.RawMessage, llm.Usage, error) {
 	raw, usage, err := c.inner.GenerateStructured(ctx, req)
 	if err == nil {
@@ -42,6 +43,7 @@ func (c *LLMClient) GenerateStructured(ctx context.Context, req llm.StructuredRe
 	return raw, usage, err
 }
 
+// GenerateText delegates text completion to the inner LLM client and reports usage.
 func (c *LLMClient) GenerateText(ctx context.Context, req llm.TextRequest) (string, llm.Usage, error) {
 	text, usage, err := c.inner.GenerateText(ctx, req)
 	if err == nil {
