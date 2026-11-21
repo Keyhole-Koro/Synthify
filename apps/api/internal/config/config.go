@@ -26,6 +26,7 @@ type API struct {
 	Stripe                   Stripe
 	Billing                  Billing
 	NewRelic                 NewRelic
+	DataRetention            DataRetention
 }
 
 // WorkerDispatch controls how the API hands jobs to the worker. When
@@ -130,6 +131,7 @@ func LoadAPI() API {
 			AppName:    get("NEW_RELIC_APP_NAME", defaultNewRelicAppName("synthify-api")),
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
+		DataRetention: loadDataRetention(),
 	}
 }
 
