@@ -47,3 +47,31 @@ func TestValidateDocumentUploadTypeRejectsExecutableFiles(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckUploadCount(t *testing.T) {
+	limited := &Account{MaxUploadsPerFiveH: 20, MaxUploadsPerWeek: 100}
+	tests := []struct {
+		name        string
+		account     *Account
+		inFiveHours int64
+		inWeek      int64
+		wantErr     string // empty when another upload is allowed
+	}{
+		{name: "below both limits", account: limited, inFiveHours: 19, inWeek: 99},
+		{name: "five hour limit reached", account: limited, inFiveHours: 20, inWeek: 20, wantErr: "upload limit reached: at most 20 uploads in 5 hours"},
+		{name: "week limit reached", account: limited, inFiveHours: 0, inWeek: 100, wantErr: "upload limit reached: at most 100 uploads in 7 days"},
+		{name: "both limits reached", account: limited, inFiveHours: 25, inWeek: 120, wantErr: "upload limit reached: at most 20 uploads in 5 hours"},
+		{name: "zero limits mean no limit", account: &Account{}, inFiveHours: 1000, inWeek: 1000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := CheckUploadCount(tt.account, tt.inFiveHours, tt.inWeek)
+			if tt.wantErr == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorIs(t, err, ErrUploadLimitReached)
+			assert.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
