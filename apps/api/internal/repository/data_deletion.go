@@ -23,8 +23,11 @@ type DocumentDeletionRepository interface {
 	//     checkpoints, sources),
 	//   - the document's confirmed bytes from the account's storage usage.
 	// Nodes another document also contributed to stay and lose only this
-	// document's sources. Nodes made by hand stay. It returns the number of
-	// nodes deleted, and ErrNotFound if the document is already gone.
+	// document's sources. Nodes made by hand stay, and so do nodes a person
+	// has curated or locked (governance_state human_curated or locked): they
+	// are protected from automated changes, and stay as hand-owned nodes
+	// without this document's sources. It returns the number of nodes
+	// deleted, and ErrNotFound if the document is already gone.
 	DeleteDocumentRows(ctx context.Context, documentID string) (deletedItems int, err error)
 }
 

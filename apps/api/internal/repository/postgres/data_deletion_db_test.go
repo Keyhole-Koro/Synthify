@@ -101,6 +101,17 @@ func (f dbFixture) mutation(jobID, workspaceID, itemID, mutationType string) {
 VALUES ($1, $2, $3, 'item', $4, $5, $6)`, newID(), jobID, workspaceID, itemID, mutationType, f.now)
 }
 
+func (f dbFixture) govern(itemID, state string) {
+	f.exec(`UPDATE tree_items SET governance_state = $2 WHERE id = $1`, itemID, state)
+}
+
+func (f dbFixture) governanceOf(itemID string) string {
+	f.t.Helper()
+	var state string
+	require.NoError(f.t, f.store.db.QueryRowContext(context.Background(), `SELECT governance_state FROM tree_items WHERE id = $1`, itemID).Scan(&state))
+	return state
+}
+
 func (f dbFixture) count(query string, args ...any) int {
 	f.t.Helper()
 	var n int
@@ -190,6 +201,49 @@ func TestDeleteDocumentRows_DB_DeletesOnlyNodesNoOtherDocumentContributedTo(t *t
 
 	// Only the deleted document's confirmed bytes are released.
 	assert.Equal(t, 700, f.count(`SELECT storage_used_bytes FROM accounts WHERE account_id = $1`, account))
+}
+
+// Nodes a person curated or locked are protected from automated changes: they
+// survive the deletion of the only document they came from, keep their
+// children where they are, and lose only that document's sources.
+func TestDeleteDocumentRows_DB_KeepsCuratedAndLockedNodes(t *testing.T) {
+	store := openTestDatabaseStore(t)
+	f := dbFixture{t: t, store: store, now: time.Now().UTC()}
+	ctx := context.Background()
+
+	account := f.account(1000)
+	ws := f.workspace(account)
+	doc1, file1, job1 := f.document(account, ws, "confirmed", 300, f.now.Add(-time.Hour))
+	doc2, file2, _ := f.document(account, ws, "confirmed", 200, f.now.Add(-time.Hour))
+	by1, by2 := [2]string{doc1, file1}, [2]string{doc2, file2}
+
+	// curated (doc1, human_curated)         kept, loses doc1's source
+	//   curatedChild (doc2)                 kept under curated
+	//   curatedOnly1 (doc1)                 deleted: not protected itself
+	// locked (made by doc1's job, locked)   kept
+	//   lockedChild (hand-made)             kept under locked
+	curated := f.item(ws, "", true, by1)
+	f.govern(curated, "human_curated")
+	curatedChild := f.item(ws, curated, false, by2)
+	curatedOnly1 := f.item(ws, curated, false, by1)
+	locked := f.item(ws, "", false)
+	f.mutation(job1, ws, locked, "append")
+	f.govern(locked, "locked")
+	lockedChild := f.item(ws, locked, false)
+
+	deleted, err := store.DeleteDocumentRows(ctx, doc1)
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, deleted)
+	assert.Zero(t, f.count(`SELECT count(*) FROM tree_items WHERE id = $1`, curatedOnly1))
+	assert.Equal(t, "human_curated", f.governanceOf(curated))
+	assert.Equal(t, "locked", f.governanceOf(locked))
+	assert.Equal(t, "", f.parentOf(curated))
+	assert.Equal(t, "", f.parentOf(locked))
+	assert.Equal(t, curated, f.parentOf(curatedChild))
+	assert.Equal(t, locked, f.parentOf(lockedChild))
+	assert.Zero(t, f.count(`SELECT count(*) FROM item_sources WHERE item_id = $1`, curated), "the deleted document's source rows still go")
+	assert.False(t, f.crossDocument(curated), "the cross-document recount still applies")
 }
 
 func TestDeleteDocumentRows_DB_UnconfirmedUploadReleasesNothing(t *testing.T) {
