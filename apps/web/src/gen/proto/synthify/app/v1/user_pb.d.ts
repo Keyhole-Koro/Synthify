@@ -121,6 +121,30 @@ export declare type GetMeResponse = Message<"synthify.app.v1.GetMeResponse"> & {
 export declare const GetMeResponseSchema: GenMessage<GetMeResponse>;
 
 /**
+ * @generated from message synthify.app.v1.DeleteAccountRequest
+ */
+export declare type DeleteAccountRequest = Message<"synthify.app.v1.DeleteAccountRequest"> & {
+};
+
+/**
+ * Describes the message synthify.app.v1.DeleteAccountRequest.
+ * Use `create(DeleteAccountRequestSchema)` to create a new message.
+ */
+export declare const DeleteAccountRequestSchema: GenMessage<DeleteAccountRequest>;
+
+/**
+ * @generated from message synthify.app.v1.DeleteAccountResponse
+ */
+export declare type DeleteAccountResponse = Message<"synthify.app.v1.DeleteAccountResponse"> & {
+};
+
+/**
+ * Describes the message synthify.app.v1.DeleteAccountResponse.
+ * Use `create(DeleteAccountResponseSchema)` to create a new message.
+ */
+export declare const DeleteAccountResponseSchema: GenMessage<DeleteAccountResponse>;
+
+/**
  * @generated from service synthify.app.v1.UserService
  */
 export declare const UserService: GenService<{
@@ -143,6 +167,19 @@ export declare const UserService: GenService<{
     methodKind: "unary";
     input: typeof GetMeRequestSchema;
     output: typeof GetMeResponseSchema;
+  },
+  /**
+   * 退会。呼んだ本人のアカウントを消す: 自分のワークスペース（文書・ツリー・
+   * 共有リンクごと）、他人のワークスペースのメンバーシップ、利用者とアカウントの
+   * 行、Firebase Authentication の利用者。有料プランが続いているときと、
+   * 処理中の文書があるときは断る。詳細は docs/data-retention.md。
+   *
+   * @generated from rpc synthify.app.v1.UserService.DeleteAccount
+   */
+  deleteAccount: {
+    methodKind: "unary";
+    input: typeof DeleteAccountRequestSchema;
+    output: typeof DeleteAccountResponseSchema;
   },
 }>;
 

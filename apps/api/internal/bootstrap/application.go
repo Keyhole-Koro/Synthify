@@ -107,12 +107,24 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	})
 	startAutoResume(documentSvc, logger)
 	startStuckJobMonitor(documentSvc, logger)
-	startDeletedWorkspacePurge(application.NewWorkspacePurger(application.WorkspacePurgerDeps{
+	workspacePurger := application.NewWorkspacePurger(application.WorkspacePurgerDeps{
 		Repo:      store,
 		Objects:   objectPrefixes,
 		Retention: cfg.DataRetention.DeletedWorkspaces,
 		Logger:    logger,
-	}), logger)
+	})
+	startDeletedWorkspacePurge(workspacePurger, logger)
+	authUsers, err := apiauth.NewFirebaseUserDeleter(ctx, cfg.FirebaseProjectID)
+	if err != nil {
+		_ = closeDispatcher()
+		return nil, fmt.Errorf("firebase user deleter init: %w", err)
+	}
+	accountDeletion := application.NewAccountDeletionService(application.AccountDeletionServiceDeps{
+		Repo:       store,
+		Workspaces: workspacePurger,
+		AuthUsers:  authUsers,
+		Logger:     logger,
+	})
 
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
@@ -140,7 +152,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	mux.Handle(appv1connect.NewTreeServiceHandler(handler.NewTreeHandler(treeSvc), connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(handler.NewItemHandler(itemSvc), connectOptions...))
 	mux.Handle(appv1connect.NewWorkspaceServiceHandler(handler.NewWorkspaceHandler(workspaceSvc), connectOptions...))
-	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc), connectOptions...))
+	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc).WithAccountDeletion(accountDeletion), connectOptions...))
 	mux.Handle(appv1connect.NewJobServiceHandler(handler.NewJobHandler(store, store, store, store, store, logger), connectOptions...))
 	mux.Handle(appv1connect.NewBillingServiceHandler(handler.NewBillingHandler(billingSvc), connectOptions...))
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, logger))

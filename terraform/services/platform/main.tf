@@ -200,6 +200,15 @@ resource "google_storage_bucket_iam_member" "api_uploads_deleter" {
   member = "serviceAccount:${module.api_service_account.email}"
 }
 
+# Account deletion removes the user from Firebase Authentication through the
+# Admin SDK (apps/api/internal/auth/user_deleter.go), which needs
+# firebaseauth.users.delete on the Firebase project, i.e. this project.
+resource "google_project_iam_member" "api_firebaseauth_admin" {
+  project = var.project_id
+  role    = "roles/firebaseauth.admin"
+  member  = "serviceAccount:${module.api_service_account.email}"
+}
+
 # The worker mounts this bucket read-write via gcsfuse: it reads uploaded
 # source files as local files and writes job checkpoints under .checkpoints/.
 # objectViewer alone makes the mount read-only and every checkpoint write fails
