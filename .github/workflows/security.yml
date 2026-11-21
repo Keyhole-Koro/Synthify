@@ -1,0 +1,176 @@
+name: Security
+
+# Dependency and infrastructure scanning, deliberately built out of free,
+# GitHub-native tooling rather than a hosted SCA product. Nothing here needs a
+# secret beyond DISCORD_WEBHOOK_URL, which the failure notification uses.
+#
+# The deciding constraint is bun: the JS dependency tree is resolved entirely
+# through bun.lock files, and the commercial scanners read npm/yarn/pnpm
+# lockfiles only. Pointing one at this repo means synthesising a
+# package-lock.json in CI, which resolves a *different* tree than the one bun
+# installs — so it reports versions that are not shipped and misses the ones
+# that are. `bun audit` reads bun.lock directly and is the only accurate source
+# of npm advisories here.
+#
+# On the Go side govulncheck is the better tool regardless of cost: it filters
+# by call-graph reachability, so it reports the CVEs that are actually
+# callable instead of everything present in go.sum.
+#
+# Third-party actions are pinned to the commit of a release; the comment names
+# the release, and Dependabot (github-actions) proposes new ones.
+
+on:
+  pull_request:
+    paths:
+      - bun.lock
+      - package.json
+      - apps/web/package.json
+      - apps/monitor/ui/package.json
+      - apps/tree-viewer/bun.lock
+      - apps/tree-viewer/package.json
+      - go.mod
+      - go.sum
+      - "**/*.go"
+      - terraform/**
+      - "**/Dockerfile"
+      - scripts/govulncheck-gate.sh
+      - .github/workflows/security.yml
+  push:
+    branches:
+      - main
+    paths:
+      - bun.lock
+      - package.json
+      - apps/web/package.json
+      - apps/monitor/ui/package.json
+      - apps/tree-viewer/bun.lock
+      - apps/tree-viewer/package.json
+      - go.mod
+      - go.sum
+      - "**/*.go"
+      - terraform/**
+      - "**/Dockerfile"
+      - scripts/govulncheck-gate.sh
+      - .github/workflows/security.yml
+  # The schedule is the part that actually finds things: advisories are
+  # published against code that has not changed, so a diff-triggered run alone
+  # would never see them. The PR trigger only stops new exposure from landing.
+  schedule:
+    - cron: "0 18 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Gating, but only on what a change adds. On a pull request the base commit
+  # is scanned as well, and only reachable vulnerabilities that the base does
+  # not have fail the job, so a PR is never red for findings that predate it.
+  # The schedule and pushes to main fail on any reachable vulnerability, which
+  # is how a newly published advisory reaches Discord. See
+  # scripts/govulncheck-gate.sh.
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The pull request's base commit is scanned too.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # The module proxy and checksum database pin the tool to this version.
+      - name: Install govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.10.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: govulncheck
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: scripts/govulncheck-gate.sh "${BASE_SHA}"
+
+  # Report-only, on purpose — see docs/improvements/dependency-scanning.md.
+  # The tree carries advisories in dev tooling and in firebase /
+  # firebase-admin's transitive dependencies that no bump in this repo clears
+  # yet. Blocking on that state would mean every PR is red for reasons its
+  # author cannot fix, so the report goes to the run summary until the backlog
+  # is down to advisories this repo can actually resolve.
+  bun_audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.13
+
+      # No `bun install`: audit reads the committed lockfiles, which are exactly
+      # the trees we want reported on. The root lockfile covers the apps/web
+      # and apps/monitor/ui workspaces; apps/tree-viewer has its own.
+      - name: bun audit
+        run: |
+          for dir in . apps/tree-viewer; do
+            (cd "$dir" && bun audit --audit-level=moderate) >audit.txt 2>&1 || true
+            cat audit.txt
+            {
+              echo "## bun audit (${dir})"
+              echo
+              echo '```'
+              cat audit.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  # Report-only as well: findings land in the Security tab rather than gating
+  # CI, so adopting an IaC scanner does not start by turning every PR red.
+  iac:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # v0.36.0 was released after the March 2026 compromise of this action's
+      # tags (GHSA-69fq-xp46-6x23) and is an immutable release. The commit pin
+      # and the explicit Trivy version keep a moved tag out of CI.
+      - name: Scan terraform and Dockerfiles
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.70.0
+          scan-type: config
+          scan-ref: .
+          format: sarif
+          output: trivy-config.sarif
+          severity: HIGH,CRITICAL
+          # `severity` alone does not reach SARIF output — without this the
+          # upload carries every severity and buries the two that matter.
+          limit-severities-for-sarif: true
+          exit-code: "0"
+
+      - name: Upload results to code scanning
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: trivy-config.sarif
+          category: trivy-iac
+
+  notify:
+    needs: [govulncheck, bun_audit, iac]
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Security
+      job_name: ${{ needs.govulncheck.result == 'failure' && 'govulncheck' || (needs.bun_audit.result == 'failure' && 'bun-audit' || 'iac') }}
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

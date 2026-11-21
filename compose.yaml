@@ -44,7 +44,7 @@ services:
       - .:/workspace
 
   backend:
-    image: golang:1.25-bookworm
+    image: golang:1.26-bookworm
     network_mode: host
     working_dir: /workspace
     command: >
@@ -114,7 +114,7 @@ services:
         condition: service_started
 
   worker:
-    image: golang:1.25-bookworm
+    image: golang:1.26-bookworm
     network_mode: host
     working_dir: /workspace
     command: >
