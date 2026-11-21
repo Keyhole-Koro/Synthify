@@ -51,6 +51,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	objectStore := storage.NewDocumentObjectStore(cfg.InternalGCSUploadBase, cfg.GCSBucket)
+	objectPrefixes := storage.NewObjectPrefixDeleter(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 	imageURLIssuer := NewDocumentImageURLIssuer(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
@@ -97,6 +98,8 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		ImageURLIssuer:   imageURLIssuer,
 		ObjectMetadata:   objectMetadata,
 		ObjectStore:      objectStore,
+		Deletion:         store,
+		ObjectPrefixes:   objectPrefixes,
 		Dispatcher:       dispatcher,
 		Notifier:         appCtx.Notifier,
 		Logger:           logger,
@@ -104,6 +107,12 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	})
 	startAutoResume(documentSvc, logger)
 	startStuckJobMonitor(documentSvc, logger)
+	startDeletedWorkspacePurge(application.NewWorkspacePurger(application.WorkspacePurgerDeps{
+		Repo:      store,
+		Objects:   objectPrefixes,
+		Retention: cfg.DataRetention.DeletedWorkspaces,
+		Logger:    logger,
+	}), logger)
 
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})
 	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
@@ -224,6 +233,43 @@ func startStuckJobMonitor(documentSvc *application.DocumentService, logger *slog
 			}
 		}
 	}()
+}
+
+// deletedWorkspacePurgeInterval is how often deleted workspaces past their
+// retention period are purged. The purge also runs a minute after start: like
+// the stuck-job scan it is an in-process timer, which only fires while an
+// instance is up, and instances that scale to zero rarely live a full
+// interval. Several instances may purge at once; each workspace's rows are
+// deleted in one transaction and file deletion is idempotent.
+const deletedWorkspacePurgeInterval = 15 * time.Minute
+
+// deletedWorkspacePurgeTimeout bounds one purge run. A run cut short leaves
+// the remaining workspaces marked deleted for the next run.
+const deletedWorkspacePurgeTimeout = 10 * time.Minute
+
+func startDeletedWorkspacePurge(purger *application.WorkspacePurger, logger *slog.Logger) {
+	go func() {
+		time.Sleep(time.Minute)
+		ticker := time.NewTicker(deletedWorkspacePurgeInterval)
+		defer ticker.Stop()
+		for {
+			runDeletedWorkspacePurge(purger, logger)
+			<-ticker.C
+		}
+	}()
+}
+
+func runDeletedWorkspacePurge(purger *application.WorkspacePurger, logger *slog.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), deletedWorkspacePurgeTimeout)
+	defer cancel()
+	purged, err := purger.PurgeDeletedWorkspaces(ctx)
+	if err != nil {
+		logger.Error("workspace.purge_sweep_failed", "error", err.Error(), "purged", purged)
+		return
+	}
+	if purged > 0 {
+		logger.Info("workspace.purge_sweep_completed", "purged", purged)
+	}
 }
 
 type readinessChecker interface {
