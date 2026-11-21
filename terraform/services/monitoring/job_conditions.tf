@@ -27,9 +27,11 @@ resource "newrelic_nrql_alert_condition" "job_failure_rate" {
   aggregation_window = 300
 }
 
-# Stuck job spike: the API periodically sweeps for jobs wedged in QUEUED/RUNNING
-# past a grace period and emits a JobStuck event per job_id. uniqueCount(job_id)
-# dedups the periodic re-emissions and multiple API instances.
+# Stuck job spike: Cloud Scheduler calls the API's maintenance sweep every 5
+# minutes (services/api google_cloud_scheduler_job.maintenance_sweep), which
+# reports jobs wedged in QUEUED/RUNNING past a grace period and emits a JobStuck
+# event per job_id. uniqueCount(job_id) dedups the periodic re-emissions, so the
+# 300s aggregation window below assumes that same 5-minute cadence.
 resource "newrelic_nrql_alert_condition" "stuck_jobs" {
   account_id                   = var.new_relic_account_id
   policy_id                    = newrelic_alert_policy.critical.id

@@ -1,3 +1,12 @@
+locals {
+  # OIDC audience for the maintenance sweep. Deliberately a synthetic constant
+  # rather than module.service.uri: feeding the service's own URL back into its
+  # env_vars would be a dependency cycle. Cloud Scheduler mints the token with
+  # whatever audience it is given, and the API compares it verbatim, so the only
+  # requirement is that both sides agree.
+  maintenance_oidc_audience = "https://${var.name}/internal/maintenance/sweep"
+}
+
 module "service" {
   source = "../../modules/cloud_run_service"
 
@@ -8,6 +17,11 @@ module "service" {
   service_account_email = var.service_account_email
   allow_unauthenticated = true
   deletion_protection   = var.deletion_protection
+
+  # One number drives both the Cloud Run hard cancel and the maintenance
+  # scheduler's attempt deadline, so a retry can never overlap a sweep that is
+  # still running.
+  timeout = "${var.request_timeout_seconds}s"
 
   # PORT is a Cloud Run reserved env var: it is injected automatically from
   # the container port (cloud_run_service container_port, default 8080) and
@@ -60,6 +74,13 @@ module "service" {
     # Empty => no restriction (prod default).
     SYNTHIFY_ALLOWED_USER_EMAILS = var.allowed_user_emails
     LOG_LLM_PAYLOAD              = var.log_llm_payload
+
+    # Cloud Scheduler-driven housekeeping (auto-resume + stuck-job sweep). Both
+    # must be set or the API leaves the endpoint unmounted; it never falls back
+    # to an open route. The API is allow_unauthenticated=true, so run.invoker
+    # cannot gate this and the OIDC token is verified in-process instead.
+    SYNTHIFY_MAINTENANCE_OIDC_AUDIENCE              = local.maintenance_oidc_audience
+    SYNTHIFY_MAINTENANCE_SCHEDULER_SERVICE_ACCOUNTS = var.maintenance_scheduler_service_account_email
   }
 
   sensitive_env_vars = {
@@ -96,4 +117,41 @@ module "service" {
       secret = var.secret_ids["internal-worker-token"]
     },
   ]
+}
+
+# Periodic housekeeping that used to run as in-process goroutines in the API
+# (auto-resume of failed jobs, and the stuck-job sweep that feeds the New Relic
+# JobStuck alert). Timers inside the container only fire when Cloud Run keeps CPU
+# allocated between requests — i.e. when the service is billed as always-on — and
+# with min-instances=0 the instance is frequently not alive at all. Cloud
+# Scheduler drives them instead, so the service can run cpu_idle=true and scale
+# to zero.
+resource "google_cloud_scheduler_job" "maintenance_sweep" {
+  project     = var.project_id
+  region      = var.region
+  name        = "${var.name}-maintenance-sweep"
+  description = "Runs the Synthify API job auto-resume and stuck-job sweeps."
+  schedule    = var.maintenance_schedule
+  time_zone   = var.maintenance_time_zone
+
+  # Matches the Cloud Run request timeout: a longer deadline would let Scheduler
+  # give up while the sweep is still running, and a retry would then overlap it.
+  attempt_deadline = "${var.request_timeout_seconds}s"
+
+  retry_config {
+    # One retry covers a cold start or a blip. Beyond that the next scheduled
+    # run is the retry — the sweeps are idempotent, so nothing is lost by
+    # waiting, and hammering a struggling database helps no one.
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "${module.service.uri}/internal/maintenance/sweep"
+
+    oidc_token {
+      service_account_email = var.maintenance_scheduler_service_account_email
+      audience              = local.maintenance_oidc_audience
+    }
+  }
 }
