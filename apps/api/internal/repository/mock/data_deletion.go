@@ -7,6 +7,7 @@ import (
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 	"github.com/synthify/backend/apps/api/internal/repository"
+	appv1 "github.com/synthify/backend/internal/gen/synthify/app/v1"
 )
 
 var _ repository.DocumentDeletionRepository = (*Store)(nil)
@@ -64,7 +65,7 @@ func (s *Store) DeleteDocumentRows(ctx context.Context, documentID string) (int,
 				citesOther = true
 			}
 		}
-		if cites && !citesOther {
+		if cites && !citesOther && !protectedFromAutomation(item) {
 			deleted[id] = true
 		}
 	}
@@ -114,4 +115,15 @@ func (s *Store) DeleteDocumentRows(ctx context.Context, documentID string) (int,
 		delete(s.checkpoints, jobID)
 	}
 	return len(deleted), nil
+}
+
+// protectedFromAutomation mirrors the governance_state check in the postgres
+// store: nodes a person curated or locked are not deleted with a document.
+func protectedFromAutomation(item *domain.Item) bool {
+	switch item.GovernanceState {
+	case appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED,
+		appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED:
+		return true
+	}
+	return false
 }

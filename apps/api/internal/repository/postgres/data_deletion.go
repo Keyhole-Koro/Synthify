@@ -34,9 +34,13 @@ const (
       WHERE m.target_type = 'item' AND m.target_id = tree_items.id AND j.document_id <> $2))`
 
 	// exclusiveItemsWhere matches the nodes of workspace $1 that come from
-	// document $2 and from no other document.
+	// document $2 and from no other document, except nodes a person has
+	// curated or locked: like every other automated change
+	// (UpdateItemSummaryHTMLWithCapability refuses them as "protected"), the
+	// deletion leaves those alone, and they stay as hand-owned nodes.
 	exclusiveItemsWhere = `
 WHERE workspace_id = $1
+  AND governance_state NOT IN ('human_curated', 'locked')
   AND ` + nodeFromDocument + `
   AND NOT ` + nodeFromOtherDocument
 )
