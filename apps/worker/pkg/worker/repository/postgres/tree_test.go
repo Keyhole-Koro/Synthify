@@ -20,4 +20,3 @@ func TestFindPaths_DBError_ReturnsError(t *testing.T) {
 	_, _, err = store.FindPaths(context.Background(), "nonexistent_tree", "n1", "n2", 4, 3)
 	assert.Error(t, err, "expected error on DB error, got nil")
 }
-

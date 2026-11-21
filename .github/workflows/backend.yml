@@ -8,6 +8,9 @@ on:
       - apps/worker/**
       - apps/eval/**
       - internal/platform/**
+      # The gofmt step checks every Go file, apps/monitor and internal/gen
+      # included, so a change to any of them runs it.
+      - "**.go"
       - go.mod
       - go.sum
       - sqlc.yaml
@@ -26,6 +29,7 @@ on:
       - apps/worker/**
       - apps/eval/**
       - internal/platform/**
+      - "**.go"
       - go.mod
       - go.sum
       - sqlc.yaml
@@ -42,6 +46,26 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      # Every Go file in the repository, apps/monitor's module included.
+      # Generated Go (protobuf, sqlc, the Firestore job-status types) starts
+      # with the standard "Code generated ... DO NOT EDIT." line and is left
+      # to its generator.
+      - name: gofmt
+        run: |
+          set -euo pipefail
+          unformatted=()
+          while IFS= read -r file; do
+            if ! grep -qE '^// Code generated .* DO NOT EDIT\.$' "$file"; then
+              unformatted+=("$file")
+            fi
+          done < <(git ls-files '*.go' | xargs gofmt -l)
+          if [ "${#unformatted[@]}" -gt 0 ]; then
+            echo "::error::Not formatted with gofmt. Run 'gofmt -w' on these files and commit the result:"
+            printf '%s\n' "${unformatted[@]}"
+            exit 1
+          fi
+          echo "gofmt: every hand-written Go file is formatted"
 
       - name: go vet
         run: go vet ./...
