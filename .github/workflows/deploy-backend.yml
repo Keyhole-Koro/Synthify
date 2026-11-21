@@ -149,6 +149,7 @@ jobs:
         env:
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
+          PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
         run: |
           missing=()
           if [ -z "${STRIPE_PRO_PRICE_ID_JPY}" ] && [ -z "${STRIPE_PRO_PRICE_ID_USD}" ]; then
@@ -157,6 +158,10 @@ jobs:
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Refusing to deploy: missing required GitHub Environment variable(s): ${missing[*]}"
             exit 1
+          fi
+          # Not fatal: the alerts are still created, they just reach no one.
+          if [ -z "${PLATFORM_ALERT_EMAIL}" ]; then
+            echo "::warning::Secret PLATFORM_ALERT_EMAIL is not set for this environment, so the Cloud Monitoring alerts (uptime, admin changes) notify no one. See docs/alerts.md."
           fi
 
       # Run db/migrations/*.up.sql before Cloud Run sees new code, so handlers
@@ -253,6 +258,9 @@ jobs:
           NEW_RELIC_BROWSER_APP_NAME: ${{ vars.NEW_RELIC_BROWSER_APP_NAME }}
           DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
           READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
+          # A secret, not a variable: the repository and its Actions logs are
+          # public, and variables are printed in the step's env.
+          PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
         run: |
           args=(
             -auto-approve
@@ -269,6 +277,7 @@ jobs:
             -var="new_relic_api_key=${NEW_RELIC_API_KEY}"
             -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
+            -var="platform_alert_email=${PLATFORM_ALERT_EMAIL}"
           )
           terraform apply "${args[@]}"
 
@@ -283,6 +292,7 @@ jobs:
           NEW_RELIC_BROWSER_APP_NAME: ${{ vars.NEW_RELIC_BROWSER_APP_NAME }}
           DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
           READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
+          PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
         run: |
           API_URI="$(terraform output -raw api_uri)"
           args=(
@@ -301,6 +311,7 @@ jobs:
             -var="new_relic_api_key=${NEW_RELIC_API_KEY}"
             -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
+            -var="platform_alert_email=${PLATFORM_ALERT_EMAIL}"
           )
           terraform apply "${args[@]}"
 

@@ -72,6 +72,18 @@ jobs:
           terraform init -backend=false -lockfile=readonly
           terraform validate
 
+      # Stacks under terraform/manual are applied by hand, never by CD, so this
+      # is the only check they get before someone runs them.
+      - name: terraform validate (manual stacks)
+        run: |
+          set -euo pipefail
+          for dir in terraform/manual/*/; do
+            echo "::group::${dir}"
+            terraform -chdir="${dir}" init -backend=false -lockfile=readonly -input=false
+            terraform -chdir="${dir}" validate
+            echo "::endgroup::"
+          done
+
   notify:
     needs: [build, terraform]
     if: failure()
