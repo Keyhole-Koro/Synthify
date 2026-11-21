@@ -118,6 +118,56 @@ func TestUpdateMemberRole_NonOwner_ReturnsErrForbidden(t *testing.T) {
 	assert.ErrorIs(t, err, domain.ErrForbidden, "editor cannot update roles")
 }
 
+// UpdateMemberRole only changes the role of someone who is already a member of
+// the workspace. For anyone else it returns ErrNotFound and must not add them.
+func TestUpdateMemberRole_TargetNotAMember_ReturnsErrNotFound(t *testing.T) {
+	tests := []struct {
+		name   string
+		target string
+		setup  func(t *testing.T, ctx context.Context, store *mock.Store)
+	}{
+		{name: "registered user who was never invited", target: "invitee"},
+		{
+			name:   "member of another workspace",
+			target: "other-member",
+			setup: func(t *testing.T, ctx context.Context, store *mock.Store) {
+				account, err := store.GetOrCreateAccount(ctx, "other-owner")
+				require.NoError(t, err)
+				other, err := store.CreateWorkspace(ctx, account.AccountID, "other-workspace")
+				require.NoError(t, err)
+				_, err = store.UpsertUser(ctx, &domain.User{UserID: "other-member", Email: "other-member@example.com"})
+				require.NoError(t, err)
+				require.NoError(t, store.UpsertWorkspaceMember(ctx, other.WorkspaceID, "other-member", domain.WorkspaceRoleEditor, "other-owner"))
+			},
+		},
+		{name: "unknown user", target: "ghost"},
+		{name: "the owner", target: "owner"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			svc, store, wsID, _ := newMemberTestService(t)
+			if tt.setup != nil {
+				tt.setup(t, ctx, store)
+			}
+			roleBefore, err := store.GetWorkspaceRole(ctx, wsID, tt.target)
+			require.NoError(t, err)
+
+			_, err = svc.UpdateMemberRole(ctx, wsID, "owner", tt.target, domain.WorkspaceRoleEditor)
+			assert.ErrorIs(t, err, domain.ErrNotFound)
+
+			roleAfter, err := store.GetWorkspaceRole(ctx, wsID, tt.target)
+			require.NoError(t, err)
+			assert.Equal(t, roleBefore, roleAfter, "role in the workspace")
+			members, err := store.ListWorkspaceMembers(ctx, wsID)
+			require.NoError(t, err)
+			for _, member := range members {
+				assert.NotEqual(t, tt.target, member.UserID, "must not be added as a member")
+			}
+		})
+	}
+}
+
 func TestRemoveMember_Owner_RemovesMember(t *testing.T) {
 	ctx := context.Background()
 	svc, store, wsID, inviteeID := newMemberTestService(t)
