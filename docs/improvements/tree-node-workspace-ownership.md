@@ -39,7 +39,7 @@ workspace「研究ノート」          ← ツリーの根 = workspace 自身
 
 - **`item_sources`**（[0008_tree.up.sql](../../db/migrations/0008_tree.up.sql)）— `item_id ⟷ document_id/file_id/chunk_id` の出典関係。`PRIMARY KEY (item_id, document_id, chunk_id)` で **1 つの node が複数 document を出典に持てる**。これが「document は出典」の中核。
 - **`cross_document` フラグ**（proto に存在、[tree_types_pb.d.ts:111](../../apps/web/src/gen/proto/synthify/app/v1/tree_types_pb.d.ts#L111)）— node が文書をまたぐ統合ノードか。現状**未配線**だが概念は用意済み。
-- **`item_aliases` + ApproveAlias/RejectAlias**（[item.go](../../apps/api/internal/service/item.go)）— 文書ごとにできた node を「同じ概念」として統合（dedup/merge）する仕組み。部品のみ存在。
+- **`item_aliases` + ApproveAlias/RejectAlias**（[item.go](../../apps/api/internal/application/item.go)）— 文書ごとにできた node を「同じ概念」として統合（dedup/merge）する仕組み。部品のみ存在。
 
 → これらが活きるのは node が document 非従属になってから。現状の `document_root` 構造がこれらの足を引っ張っている。
 

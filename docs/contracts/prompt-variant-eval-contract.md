@@ -38,7 +38,7 @@ tool 名・prompt・render の各レイヤーで同じ語を使い回さない�
 | Eval CLI | `apps/eval/cmd` | `--variant` flag を解釈し runner に渡す |
 | Variant store | `apps/eval/variants/{name}/` | 手書き variant template。production image に混入させない |
 
-依存方向は `apps/eval` → `apps/worker/pkg/worker/prompts` の一方向に限定する（[dependency-architecture-ideal.md](../improvements/dependency-architecture-ideal.md) の理想構成と整合させ、worker は eval を import しない）。
+依存方向は `apps/eval` → `apps/worker/pkg/worker/prompts` の一方向に限定する（[dependency-architecture-ideal.md](https://github.com/Keyhole-Koro/Synthify/blob/6731ec80820fd5f53a4f948b30deab9aeeea2a4b/docs/improvements/dependency-architecture-ideal.md) の理想構成と整合させ、worker は eval を import しない）。
 
 ## 2. Prompt Renderer 契約
 
@@ -65,7 +65,7 @@ renderer は次の入力から system / user prompt を render する。入力�
 | `Instruction` | `args.Instruction`（空なら `none`） | user prompt の `Instruction:` 行 |
 | `Chunks` | `args.Chunks` | `[index] heading\ntext` 形式で連結し user prompt に埋める |
 
-- 移行は出力同値を必須とする。template 化直後の system / user prompt は、現行 [knowledge_tree.go](../../apps/worker/pkg/worker/tools/process/knowledge_tree.go) の hardcoded 文字列とバイト一致する（chunk 連結フォーマット `[%d] %s\n%s\n\n` と空 instruction の `none` 既定を含む）。
+- 移行は出力同値を必須とする。template 化直後の system / user prompt は、現行 [knowledge_tree.go](../../apps/worker/pkg/worker/tools/builtin/process/knowledge_tree.go) の hardcoded 文字列とバイト一致する（chunk 連結フォーマット `[%d] %s\n%s\n\n` と空 instruction の `none` 既定を含む）。
 - prompt の意味的変更はこの移行 PR では行わない。挙動変更は variant または別 PR で行う。
 
 ### 2.3 Worker / Eval 双方の利用契約

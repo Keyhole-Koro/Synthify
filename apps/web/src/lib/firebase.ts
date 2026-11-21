@@ -66,9 +66,13 @@ if (!getApps().length) {
 export { app, auth, db };
 
 // Playwright needs a deterministic way to establish a real Firebase session.
-// Keep the hook strictly limited to development builds backed by Auth Emulator;
-// it is never present in a production bundle/environment.
-if (isBrowser && env.nodeEnv === 'development' && env.firebase.authEmulatorUrl) {
+// Keep the hook strictly limited to development builds backed by Auth Emulator.
+// The gate reads process.env.NODE_ENV directly, not env.nodeEnv: Next.js
+// replaces it with a literal at build time, so a production build drops this
+// block. env.nodeEnv is only known once zod has parsed it at run time, which
+// left the hook's code in the production bundle. The deploy checks the bundle
+// for it (scripts/assert-no-test-hooks.sh).
+if (process.env.NODE_ENV === 'development' && isBrowser && env.firebase.authEmulatorUrl) {
   const win = window as Window & {
     __synthifyE2E?: {
       signIn(email: string, password: string): Promise<void>;

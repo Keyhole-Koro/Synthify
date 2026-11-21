@@ -63,4 +63,4 @@ Orchestrator はツール実行の前後で以下のフックを処理する。
 
 ## 関連ドキュメント
 - [gcs-fuse-ingestion-spec.md](gcs-fuse-ingestion-spec.md)
-- [llm-worker-architecture.md](llm-worker-architecture.md)
+- [llm-worker-architecture.md](../worker/llm-worker-architecture.md)

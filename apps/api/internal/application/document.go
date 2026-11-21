@@ -248,6 +248,8 @@ func (s *DocumentService) reportCreateDocumentRejection(workspaceID, userID, fil
 		reason = "file_too_large"
 	case errors.Is(cause, domain.ErrStorageQuotaExceeded):
 		reason = "storage_quota_exceeded"
+	case errors.Is(cause, domain.ErrUploadLimitReached):
+		reason = "upload_limit_reached"
 	case errors.Is(cause, domain.ErrUploadSizeMismatch):
 		reason = "size_mismatch"
 	case errors.Is(cause, domain.ErrUnsupportedDocumentType):

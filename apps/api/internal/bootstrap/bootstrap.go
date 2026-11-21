@@ -26,14 +26,18 @@ import (
 type AppContext struct {
 	Store    Store
 	Notifier jobstatus.Notifier
+	// JobStatusReaders keeps the Firestore reader documents that let
+	// workspace members, and only them, read the job status documents.
+	JobStatusReaders jobstatus.ReaderAccess
 }
 
 func Bootstrap(ctx context.Context, gcsBucket, gcsURLBase, firebaseProjectID string, logger *slog.Logger, nrApp *newrelic.Application) *AppContext {
 	store := InitStore(ctx, NewDocumentUploadURLIssuer(gcsBucket, gcsURLBase), logger, nrApp)
 	notifier := jobstatus.NewNotifier(ctx, firebaseProjectID, logger)
 	return &AppContext{
-		Store:    store,
-		Notifier: notifier,
+		Store:            store,
+		Notifier:         notifier,
+		JobStatusReaders: jobstatus.NewReaderAccess(ctx, firebaseProjectID, logger),
 	}
 }
 

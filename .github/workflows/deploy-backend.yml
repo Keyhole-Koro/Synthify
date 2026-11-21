@@ -37,23 +37,23 @@ jobs:
       TF_DIR: terraform/environments
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           submodules: recursive
 
       - id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.GCP_WIF_SA_EMAIL }}
 
       - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
       - name: Install Cloud Run proxy component
         run: gcloud components install cloud-run-proxy --quiet
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: 1.6.6
 
@@ -149,6 +149,7 @@ jobs:
         env:
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
+          PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
         run: |
           missing=()
           if [ -z "${STRIPE_PRO_PRICE_ID_JPY}" ] && [ -z "${STRIPE_PRO_PRICE_ID_USD}" ]; then
@@ -157,6 +158,10 @@ jobs:
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Refusing to deploy: missing required GitHub Environment variable(s): ${missing[*]}"
             exit 1
+          fi
+          # Not fatal: the alerts are still created, they just reach no one.
+          if [ -z "${PLATFORM_ALERT_EMAIL}" ]; then
+            echo "::warning::Secret PLATFORM_ALERT_EMAIL is not set for this environment, so the Cloud Monitoring alerts (uptime, admin changes) notify no one. See docs/alerts.md."
           fi
 
       # Run db/migrations/*.up.sql before Cloud Run sees new code, so handlers
@@ -182,7 +187,7 @@ jobs:
         run: gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       # Build and push all four images in parallel. Each uses a GHA-scoped
       # BuildKit cache keyed by image name + environment so pushes to stage
@@ -253,6 +258,9 @@ jobs:
           NEW_RELIC_BROWSER_APP_NAME: ${{ vars.NEW_RELIC_BROWSER_APP_NAME }}
           DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
           READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
+          # A secret, not a variable: the repository and its Actions logs are
+          # public, and variables are printed in the step's env.
+          PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
         run: |
           args=(
             -auto-approve
@@ -269,6 +277,7 @@ jobs:
             -var="new_relic_api_key=${NEW_RELIC_API_KEY}"
             -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
+            -var="platform_alert_email=${PLATFORM_ALERT_EMAIL}"
           )
           terraform apply "${args[@]}"
 
@@ -283,6 +292,7 @@ jobs:
           NEW_RELIC_BROWSER_APP_NAME: ${{ vars.NEW_RELIC_BROWSER_APP_NAME }}
           DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
           READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
+          PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
         run: |
           API_URI="$(terraform output -raw api_uri)"
           args=(
@@ -301,6 +311,7 @@ jobs:
             -var="new_relic_api_key=${NEW_RELIC_API_KEY}"
             -var="new_relic_browser_app_name=${NEW_RELIC_BROWSER_APP_NAME}"
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
+            -var="platform_alert_email=${PLATFORM_ALERT_EMAIL}"
           )
           terraform apply "${args[@]}"
 

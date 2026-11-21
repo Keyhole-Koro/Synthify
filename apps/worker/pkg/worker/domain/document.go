@@ -75,4 +75,3 @@ const (
 	PlanStatusFailed     PlanStatus = "failed"
 	PlanStatusRejected   PlanStatus = "rejected"
 )
-

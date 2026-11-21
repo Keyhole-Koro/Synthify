@@ -8,6 +8,9 @@ on:
       - apps/worker/**
       - apps/eval/**
       - internal/platform/**
+      # The gofmt step checks every Go file, apps/monitor and internal/gen
+      # included, so a change to any of them runs it.
+      - "**.go"
       - go.mod
       - go.sum
       - sqlc.yaml
@@ -26,6 +29,7 @@ on:
       - apps/worker/**
       - apps/eval/**
       - internal/platform/**
+      - "**.go"
       - go.mod
       - go.sum
       - sqlc.yaml
@@ -36,12 +40,32 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: true
+
+      # Every Go file in the repository, apps/monitor's module included.
+      # Generated Go (protobuf, sqlc, the Firestore job-status types) starts
+      # with the standard "Code generated ... DO NOT EDIT." line and is left
+      # to its generator.
+      - name: gofmt
+        run: |
+          set -euo pipefail
+          unformatted=()
+          while IFS= read -r file; do
+            if ! grep -qE '^// Code generated .* DO NOT EDIT\.$' "$file"; then
+              unformatted+=("$file")
+            fi
+          done < <(git ls-files '*.go' | xargs gofmt -l)
+          if [ "${#unformatted[@]}" -gt 0 ]; then
+            echo "::error::Not formatted with gofmt. Run 'gofmt -w' on these files and commit the result:"
+            printf '%s\n' "${unformatted[@]}"
+            exit 1
+          fi
+          echo "gofmt: every hand-written Go file is formatted"
 
       - name: go vet
         run: go vet ./...
@@ -55,9 +79,9 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: 1.6.6
 
@@ -71,6 +95,18 @@ jobs:
           cd terraform/environments
           terraform init -backend=false -lockfile=readonly
           terraform validate
+
+      # Stacks under terraform/manual are applied by hand, never by CD, so this
+      # is the only check they get before someone runs them.
+      - name: terraform validate (manual stacks)
+        run: |
+          set -euo pipefail
+          for dir in terraform/manual/*/; do
+            echo "::group::${dir}"
+            terraform -chdir="${dir}" init -backend=false -lockfile=readonly -input=false
+            terraform -chdir="${dir}" validate
+            echo "::endgroup::"
+          done
 
   notify:
     needs: [build, terraform]

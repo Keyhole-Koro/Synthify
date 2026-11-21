@@ -51,6 +51,10 @@ test('creates a public read-only link and revokes access', async ({ browser, pag
   // below fail for a reason that has nothing to do with sharing.
   await expect(revokeButtons).toHaveCount(1);
   await revokeButtons.click();
+  // The panel drops the link only once RevokeShareLink has returned. Reloading
+  // the viewer before that races the revocation: the link still resolves, and
+  // the page shows the workspace instead of the error.
+  await expect(revokeButtons).toHaveCount(0);
   await viewer.reload();
   await expect(viewer.getByRole('heading', { name: 'リンクを開けません' })).toBeVisible();
   await anonymous.close();

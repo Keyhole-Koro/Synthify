@@ -8,7 +8,7 @@
 ## 0. スコープ
 
 対象は **document upload → knowledge tree generation job**(Cloud Run worker が非同期に処理する
-パイプライン)のみ。[paper-native-llm-interaction.md](../improvements/paper-native-llm-interaction.md)
+パイプライン)のみ。[paper-native-llm-interaction.md](https://github.com/Keyhole-Koro/Synthify/blob/eee0e93acc931e34333ba634558989a1e4e2a7c7/docs/improvements/paper-native-llm-interaction.md)（PR #48、未マージ）
 が扱う対話(chat/dialogue)パイプラインは対象外 ── そちらは同期的にブラウザから呼ばれる別経路で、
 本ドキュメントの「デプロイ形態と有効化されるモデル」の結論がそのまま当てはまらない(§2 参照)。
 
@@ -320,4 +320,4 @@ Phase 構成をそのまま PR 粒度の目安にする)
 
 - [knowledge-tree-generation-spec.md](../core-domain/knowledge-tree-generation-spec.md) — スタイルプリセットの詳細仕様
 - [local-llm-provider.md](../improvements/local-llm-provider.md) — provider seam・配備形態・Phase 計画
-- [paper-native-llm-interaction.md](../improvements/paper-native-llm-interaction.md) — 対話パイプライン(本ドキュメントのスコープ外)
+- [paper-native-llm-interaction.md](https://github.com/Keyhole-Koro/Synthify/blob/eee0e93acc931e34333ba634558989a1e4e2a7c7/docs/improvements/paper-native-llm-interaction.md)（PR #48、未マージ） — 対話パイプライン(本ドキュメントのスコープ外)

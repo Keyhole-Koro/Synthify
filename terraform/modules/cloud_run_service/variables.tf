@@ -81,6 +81,12 @@ variable "max_instance_count" {
   default = 2
 }
 
+variable "max_instance_request_concurrency" {
+  description = "Requests one instance serves at the same time. null => Cloud Run's default (80)."
+  type        = number
+  default     = null
+}
+
 variable "ingress" {
   type    = string
   default = "INGRESS_TRAFFIC_ALL"

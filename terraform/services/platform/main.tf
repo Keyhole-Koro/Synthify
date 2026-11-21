@@ -77,6 +77,8 @@ module "pipeline_queue" {
   location   = var.region
   name       = "synthify-pipeline-${var.environment}"
 
+  max_concurrent_dispatches = var.pipeline_max_concurrent_dispatches
+
   depends_on = [google_project_service.required]
 }
 
@@ -231,6 +233,18 @@ resource "google_project_iam_member" "worker_firestore_user" {
   project = var.project_id
   role    = "roles/datastore.user"
   member  = "serviceAccount:${module.worker_service_account.email}"
+}
+
+# Workspace invitations bind only to an account that has verified the invited
+# address. The API asks Firebase Authentication through the Admin SDK
+# (GetUser, i.e. accounts:lookup), which needs firebaseauth.users.get on the
+# Firebase project; like Firestore above, that is this project. Without it
+# every invitation fails. It lives here, in the bootstrap pass of the deploy,
+# so the grant is in place before a new API revision can serve invitations.
+resource "google_project_iam_member" "api_firebaseauth_viewer" {
+  project = var.project_id
+  role    = "roles/firebaseauth.viewer"
+  member  = "serviceAccount:${module.api_service_account.email}"
 }
 
 # Vertex AI access for Gemini inference.

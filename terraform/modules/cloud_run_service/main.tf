@@ -9,6 +9,10 @@ resource "google_cloud_run_v2_service" "this" {
     service_account = var.service_account_email
     timeout         = var.timeout
 
+    # Requests one instance serves at the same time. null keeps Cloud Run's
+    # default (80).
+    max_instance_request_concurrency = var.max_instance_request_concurrency
+
     # gcsfuse requires the second-generation execution environment.
     execution_environment = var.gcs_volume != null ? "EXECUTION_ENVIRONMENT_GEN2" : null
 
