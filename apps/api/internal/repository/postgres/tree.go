@@ -94,6 +94,12 @@ func (s *Store) GetSubtree(ctx context.Context, rootItemID string, maxDepth int)
 	})
 
 	for _, r := range rows {
+		// ListChildItems matches parent_id alone. Keep only the children in the
+		// root's workspace, so an item that another workspace hung under this
+		// one never shows up in this tree.
+		if r.WorkspaceID != rootRow.WorkspaceID {
+			continue
+		}
 		items = append(items, &domain.SubtreeItem{
 			Item:        *toItemFromChildRow(r),
 			HasChildren: r.HasChildren,
@@ -119,6 +125,11 @@ func (s *Store) populateChildIDs(ctx context.Context, items []*domain.Item) {
 		}
 		childIDs := make([]string, 0, len(rows))
 		for _, row := range rows {
+			// Same rule as in GetSubtree: a child from another workspace is
+			// not part of this item's tree.
+			if row.WorkspaceID != item.WorkspaceID {
+				continue
+			}
 			childIDs = append(childIDs, row.ID)
 		}
 		item.ChildIDs = childIDs

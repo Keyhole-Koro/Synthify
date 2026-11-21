@@ -163,6 +163,16 @@ func (s *WorkspaceService) UpdateMemberRole(ctx context.Context, wsID, userID, t
 	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
 		return nil, err
 	}
+	// Only a member of wsID can have their role changed. UpsertWorkspaceMember
+	// inserts a row when there is none, so without this check any user ID
+	// would become a member here without going through InviteMember.
+	current, err := s.workspaces.GetWorkspaceRole(ctx, wsID, targetUserID)
+	if err != nil {
+		return nil, err
+	}
+	if current != domain.WorkspaceRoleEditor && current != domain.WorkspaceRoleViewer {
+		return nil, domain.ErrNotFound
+	}
 	if err := s.workspaces.UpsertWorkspaceMember(ctx, wsID, targetUserID, role, userID); err != nil {
 		return nil, err
 	}
