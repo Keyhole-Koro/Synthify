@@ -97,13 +97,3 @@ module "service" {
     },
   ]
 }
-
-# Workspace invitations bind only to an account that has verified the invited
-# address. The API asks Firebase Authentication through the Admin SDK
-# (GetUser, i.e. accounts:lookup), which needs firebaseauth.users.get on the
-# Firebase project. Without it every invitation fails.
-resource "google_project_iam_member" "firebaseauth_viewer" {
-  project = var.firebase_project_id
-  role    = "roles/firebaseauth.viewer"
-  member  = "serviceAccount:${var.service_account_email}"
-}
