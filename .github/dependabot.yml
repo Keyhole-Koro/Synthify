@@ -22,11 +22,14 @@ updates:
   # bun workspace root. apps/web and apps/monitor/ui resolve through the single
   # top-level bun.lock, so pointing at "/" covers both workspaces; pointing at
   # the workspace directories instead leaves Dependabot without a lockfile to
-  # update. Note that Dependabot's bun support is *version* updates only —
-  # security updates are not implemented for the bun ecosystem, which is why
-  # the Security workflow runs `bun audit` separately.
+  # update. apps/tree-viewer is not a workspace and has its own bun.lock. Note
+  # that Dependabot's bun support is *version* updates only — security updates
+  # are not implemented for the bun ecosystem, which is why the Security
+  # workflow runs `bun audit` separately.
   - package-ecosystem: bun
-    directory: "/"
+    directories:
+      - /
+      - /apps/tree-viewer
     schedule:
       interval: weekly
       day: monday
