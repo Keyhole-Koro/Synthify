@@ -89,7 +89,8 @@ source:
 - `path` is the file as the reader knows it: relative to the repository root for a file in a
   repository, otherwise its name (`notes.md`). Never an absolute path: the page shows it, and
   the build rejects one.
-- `lines` is the range the paper draws on, `[10, 42]`, or one line, `7`.
+- `lines` is the range the paper draws on, `[10, 42]`, or one line, `7`. `page` is the same for
+  pages: `12`, `[8, 10]`, or a label such as `"iv"`.
 - Only write places that are in the source material; never make up a path, line or URL.
 
 ## HTML
@@ -98,16 +99,19 @@ The part after `---` is an HTML fragment (no `<html>` or `<body>`). It is shown 
 frame with its own styles for text, tables, code and images, in light and dark mode.
 
 - The styled tags: `p`, `strong`, `em`, `a`, `ul`, `ol`, `li`, `table` (with `thead`, `tbody`,
-  `tr`, `th`, `td`), `code`, `pre`, `blockquote`, `figure`, `figcaption`, `img`, `h3`, `h4`.
-  Others show without styles. The title is the paper's heading, so do not repeat it as `<h1>`.
+  `tr`, `th`, `td`), `code`, `pre`, `blockquote`, `figure`, `figcaption`, `img`, `h3`. Others
+  show without styles. The title is the paper's heading, so do not repeat it as `<h1>`.
 - **Links to other papers:** `<a data-paper-id="/overview/auth">…</a>`. A child opens inside the
   paper; any other paper is opened where it is in the tree. The build fails on an unknown path.
 - **Links to the web:** `<a href="https://…">`. They open in a new tab.
 - **Images:** save the file next to the `.stif` (`images/chart.png`) and use
-  `<img src="images/chart.png" alt="…">`. Images from other sites are blocked.
+  `<img src="images/chart.png" alt="…">`. Images from other sites are blocked. An image shows
+  at its own size, up to the paper's width, so save a figure at least as wide as it should
+  appear: crop it from a page image rendered at 150–200 dpi.
 - No `<script>`, event handlers (`onclick=`), `<iframe>`, `<form>`, `<link>` or remote CSS: they
   do not work in a paper, and the build fails on them.
 - Escape `<`, `>` and `&` in text as `&lt;`, `&gt;`, `&amp;`.
 - Wrap long lines as you like. Browsers show a line break between two Japanese characters as a
   space, so the build joins such lines (not inside `<pre>`).
-- Colours in `::css` must work in light and dark mode; prefer none.
+- `::css` is for layout (widths, spacing, alignment). Fixed colours break dark mode: leave
+  colours to the theme.
