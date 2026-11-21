@@ -1,0 +1,118 @@
+import { buildPaperMap, PaperCanvas, type PaperCanvasHandle, type PaperCanvasLabels, type PaperMoveRequest } from '@keyhole-koro/paper-in-paper';
+import { StrictMode, useEffect, useMemo, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expansionFor, hashFromIds, idsFromHash, openIds, readTree, toPapers, type TreeFile } from './tree';
+
+const JA_LABELS: PaperCanvasLabels = {
+  closePaper: '閉じる',
+  pinPaper: '固定する',
+  unpinPaper: '固定をやめる',
+  addChild: '子を追加',
+  relatedLinks: '関連',
+  collapseTo: (parentTitle) => `${parentTitle} に戻る`,
+  paperTitleHint: 'Alt と矢印キーで、同じ階層の中で並べ替えます',
+  contentBlocked: 'この内容は別のページを開こうとしたので、止めました。',
+};
+
+// paper-in-paper's theme upper-cases table headers (FLOPs would read FLOPS, d_k D_K) and stretches
+// every image to the paper's width (a small figure blurs). Keep the source's case, and show images
+// at their own size, up to the paper's width.
+const PAPER_CSS = 'th { text-transform: none; letter-spacing: normal; } img { width: auto; margin-inline: auto; }';
+
+// A published tree cannot save moves: papers may be reordered in their room, not moved out of it.
+const withinRoom = ({ sourceParentId, targetParentId }: PaperMoveRequest) => sourceParentId === targetParentId;
+
+// Images of the tree, read once each as data: URLs (see withImageMarkers).
+const images = new Map<string, Promise<string>>();
+function loadImageUrl(fileId: string): Promise<string> {
+  let url = images.get(fileId);
+  if (!url) {
+    url = fetch(fileId).then(async (res) => {
+      if (!res.ok) throw new Error(`${fileId}: HTTP ${res.status}`);
+      const blob = await res.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    });
+    url.catch(() => images.delete(fileId));
+    images.set(fileId, url);
+  }
+  return url;
+}
+
+function openExternalLink(href: string) {
+  if (/^(https?:|mailto:)/i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+}
+
+function Viewer({ tree }: { tree: TreeFile }) {
+  const paperMap = useMemo(() => buildPaperMap(toPapers(tree)), [tree]);
+  const parentOf = useMemo(() => {
+    const parents = new Map(tree.papers.map((p) => [p.id, p.parentId]));
+    return (id: string) => parents.get(id);
+  }, [tree]);
+  const [defaultOpenState] = useState(() => ({ expansionMap: expansionFor(idsFromHash(location.hash), parentOf) }));
+  const handleRef = useRef<PaperCanvasHandle>(null);
+
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (!handle) return;
+    let written = location.hash;
+    const unsubscribe = handle.subscribe(() => {
+      const next = hashFromIds(openIds(handle.getState().expansionMap, tree.rootId));
+      if (next === written) return;
+      written = next;
+      history.replaceState(history.state, '', next || location.pathname + location.search);
+    });
+    // A fragment typed into the address bar (SelfHostArtifacts passes it on) or a link to this page.
+    const onHashChange = () => {
+      if (location.hash === written) return;
+      written = location.hash;
+      handle.dispatch({ type: 'SET_OPEN_STATE', expansionMap: expansionFor(idsFromHash(location.hash), parentOf) });
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('hashchange', onHashChange);
+    };
+  }, [tree, parentOf]);
+
+  return (
+    <PaperCanvas
+      ref={handleRef}
+      paperMap={paperMap}
+      rootId={tree.rootId}
+      defaultOpenState={defaultOpenState}
+      colorScheme="system"
+      overrideCss={PAPER_CSS}
+      labels={tree.lang.toLowerCase().startsWith('ja') ? JA_LABELS : undefined}
+      canDrop={withinRoom}
+      loadImageUrl={loadImageUrl}
+      onOpenExternalLink={openExternalLink}
+    />
+  );
+}
+
+async function main() {
+  const root = createRoot(document.getElementById('root')!);
+  try {
+    const res = await fetch('tree.json');
+    if (!res.ok) throw new Error(`tree.json: HTTP ${res.status}`);
+    const tree = readTree(await res.json());
+    document.title = tree.title;
+    document.documentElement.lang = tree.lang;
+    root.render(
+      <StrictMode>
+        <Viewer tree={tree} />
+      </StrictMode>,
+    );
+    document.documentElement.dataset.tree = 'ready';
+  } catch (e) {
+    root.render(<p className="status">Could not open this tree. {e instanceof Error ? e.message : String(e)}</p>);
+    document.documentElement.dataset.tree = 'error';
+  }
+}
+
+void main();
