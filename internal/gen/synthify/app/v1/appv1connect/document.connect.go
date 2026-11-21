@@ -57,6 +57,9 @@ const (
 	// DocumentServiceGetImageURLProcedure is the fully-qualified name of the DocumentService's
 	// GetImageURL RPC.
 	DocumentServiceGetImageURLProcedure = "/synthify.app.v1.DocumentService/GetImageURL"
+	// DocumentServiceDeleteDocumentProcedure is the fully-qualified name of the DocumentService's
+	// DeleteDocument RPC.
+	DocumentServiceDeleteDocumentProcedure = "/synthify.app.v1.DocumentService/DeleteDocument"
 )
 
 // DocumentServiceClient is a client for the synthify.app.v1.DocumentService service.
@@ -71,6 +74,10 @@ type DocumentServiceClient interface {
 	// 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
 	// 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
 	GetImageURL(context.Context, *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error)
+	// document を削除する。原本・抽出結果・チャンク・処理ジョブと、この document
+	// だけから作られた tree の node を消す。アップロード中・処理中は断る。
+	// 詳細は docs/data-retention.md。
+	DeleteDocument(context.Context, *connect.Request[v1.DeleteDocumentRequest]) (*connect.Response[v1.DeleteDocumentResponse], error)
 }
 
 // NewDocumentServiceClient constructs a client for the synthify.app.v1.DocumentService service. By
@@ -132,6 +139,12 @@ func NewDocumentServiceClient(httpClient connect.HTTPClient, baseURL string, opt
 			connect.WithSchema(documentServiceMethods.ByName("GetImageURL")),
 			connect.WithClientOptions(opts...),
 		),
+		deleteDocument: connect.NewClient[v1.DeleteDocumentRequest, v1.DeleteDocumentResponse](
+			httpClient,
+			baseURL+DocumentServiceDeleteDocumentProcedure,
+			connect.WithSchema(documentServiceMethods.ByName("DeleteDocument")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -145,6 +158,7 @@ type documentServiceClient struct {
 	startProcessing  *connect.Client[v1.StartProcessingRequest, v1.StartProcessingResponse]
 	resumeProcessing *connect.Client[v1.ResumeProcessingRequest, v1.ResumeProcessingResponse]
 	getImageURL      *connect.Client[v1.GetImageURLRequest, v1.GetImageURLResponse]
+	deleteDocument   *connect.Client[v1.DeleteDocumentRequest, v1.DeleteDocumentResponse]
 }
 
 // CreateDocument calls synthify.app.v1.DocumentService.CreateDocument.
@@ -187,6 +201,11 @@ func (c *documentServiceClient) GetImageURL(ctx context.Context, req *connect.Re
 	return c.getImageURL.CallUnary(ctx, req)
 }
 
+// DeleteDocument calls synthify.app.v1.DocumentService.DeleteDocument.
+func (c *documentServiceClient) DeleteDocument(ctx context.Context, req *connect.Request[v1.DeleteDocumentRequest]) (*connect.Response[v1.DeleteDocumentResponse], error) {
+	return c.deleteDocument.CallUnary(ctx, req)
+}
+
 // DocumentServiceHandler is an implementation of the synthify.app.v1.DocumentService service.
 type DocumentServiceHandler interface {
 	CreateDocument(context.Context, *connect.Request[v1.CreateDocumentRequest]) (*connect.Response[v1.CreateDocumentResponse], error)
@@ -199,6 +218,10 @@ type DocumentServiceHandler interface {
 	// 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
 	// 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
 	GetImageURL(context.Context, *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error)
+	// document を削除する。原本・抽出結果・チャンク・処理ジョブと、この document
+	// だけから作られた tree の node を消す。アップロード中・処理中は断る。
+	// 詳細は docs/data-retention.md。
+	DeleteDocument(context.Context, *connect.Request[v1.DeleteDocumentRequest]) (*connect.Response[v1.DeleteDocumentResponse], error)
 }
 
 // NewDocumentServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -256,6 +279,12 @@ func NewDocumentServiceHandler(svc DocumentServiceHandler, opts ...connect.Handl
 		connect.WithSchema(documentServiceMethods.ByName("GetImageURL")),
 		connect.WithHandlerOptions(opts...),
 	)
+	documentServiceDeleteDocumentHandler := connect.NewUnaryHandler(
+		DocumentServiceDeleteDocumentProcedure,
+		svc.DeleteDocument,
+		connect.WithSchema(documentServiceMethods.ByName("DeleteDocument")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/synthify.app.v1.DocumentService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DocumentServiceCreateDocumentProcedure:
@@ -274,6 +303,8 @@ func NewDocumentServiceHandler(svc DocumentServiceHandler, opts ...connect.Handl
 			documentServiceResumeProcessingHandler.ServeHTTP(w, r)
 		case DocumentServiceGetImageURLProcedure:
 			documentServiceGetImageURLHandler.ServeHTTP(w, r)
+		case DocumentServiceDeleteDocumentProcedure:
+			documentServiceDeleteDocumentHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -313,4 +344,8 @@ func (UnimplementedDocumentServiceHandler) ResumeProcessing(context.Context, *co
 
 func (UnimplementedDocumentServiceHandler) GetImageURL(context.Context, *connect.Request[v1.GetImageURLRequest]) (*connect.Response[v1.GetImageURLResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.DocumentService.GetImageURL is not implemented"))
+}
+
+func (UnimplementedDocumentServiceHandler) DeleteDocument(context.Context, *connect.Request[v1.DeleteDocumentRequest]) (*connect.Response[v1.DeleteDocumentResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("synthify.app.v1.DocumentService.DeleteDocument is not implemented"))
 }

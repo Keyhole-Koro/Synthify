@@ -51,6 +51,7 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 
 	objectMetadata := storage.NewObjectMetadataFetcher(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	objectStore := storage.NewDocumentObjectStore(cfg.InternalGCSUploadBase, cfg.GCSBucket)
+	objectPrefixes := storage.NewObjectPrefixDeleter(cfg.InternalGCSUploadBase, cfg.GCSBucket)
 	sourceURLBuilder := NewDocumentSourceURLBuilder(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 	imageURLIssuer := NewDocumentImageURLIssuer(cfg.GCSBucket, cfg.InternalGCSUploadBase)
 
@@ -97,6 +98,8 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		ImageURLIssuer:   imageURLIssuer,
 		ObjectMetadata:   objectMetadata,
 		ObjectStore:      objectStore,
+		Deletion:         store,
+		ObjectPrefixes:   objectPrefixes,
 		Dispatcher:       dispatcher,
 		Notifier:         appCtx.Notifier,
 		Logger:           logger,

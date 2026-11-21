@@ -192,6 +192,16 @@ resource "google_storage_bucket_iam_member" "api_uploads_reader" {
   member = "serviceAccount:${module.api_service_account.email}"
 }
 
+# Deleting a document removes its stored files from the API
+# (apps/api/internal/infrastructure/storage/prefix_deleter.go), as does the
+# cleanup of abandoned uploads. objectCreator and objectViewer grant no
+# storage.objects.delete; objectUser adds it, on this bucket only.
+resource "google_storage_bucket_iam_member" "api_uploads_deleter" {
+  bucket = module.uploads_bucket.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${module.api_service_account.email}"
+}
+
 # The worker mounts this bucket read-write via gcsfuse: it reads uploaded
 # source files as local files and writes job checkpoints under .checkpoints/.
 # objectViewer alone makes the mount read-only and every checkpoint write fails
