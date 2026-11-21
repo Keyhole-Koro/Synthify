@@ -77,6 +77,8 @@ module "pipeline_queue" {
   location   = var.region
   name       = "synthify-pipeline-${var.environment}"
 
+  max_concurrent_dispatches = var.pipeline_max_concurrent_dispatches
+
   depends_on = [google_project_service.required]
 }
 

@@ -12,6 +12,8 @@ provider "newrelic" {
 module "bootstrap" {
   source = "../services/bootstrap"
 
+  pipeline_max_concurrent_dispatches = local.worker_max_instances
+
   project_id                  = var.project_id
   region                      = var.region
   environment                 = var.environment
@@ -40,6 +42,7 @@ module "worker" {
   log_llm_payload         = var.log_llm_payload
   deletion_protection     = local.deletion_protection
   request_timeout_seconds = local.worker_request_timeout_seconds
+  max_instance_count      = local.worker_max_instances
 }
 
 module "eval" {
