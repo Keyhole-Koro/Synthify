@@ -30,8 +30,16 @@ locals {
       "roles/datastore.user",
       # CreateTask on the pipeline queue, to dispatch jobs to the worker.
       "roles/cloudtasks.enqueuer",
-      # Invitations check that the invitee has verified the address
-      # (Firebase Auth GetUser), from the invitation check in #55.
+      # Account deletion deletes the user from Firebase Auth (DeleteUser,
+      # firebaseauth.users.delete), from #75. admin is the only curated role
+      # with that permission; it also lets the API change sign-in settings and
+      # create or edit any user.
+      "roles/firebaseauth.admin",
+      # Invitations check that the invitee has verified the address (Firebase
+      # Auth GetUser, firebaseauth.users.get), from #55. admin includes this,
+      # so it is redundant while admin is granted. It stays so the invitation
+      # check does not depend on the deletion grant, which is the one to narrow
+      # (a custom role with users.get and users.delete would replace both).
       "roles/firebaseauth.viewer",
     ]
     worker = [

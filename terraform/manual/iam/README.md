@@ -2,11 +2,13 @@
 
 環境（stage・prod）ごとに、次のものを持つ。CD は apply しない。デプロイ用 SA にはできないようにしてある。
 
-- 実行用 SA 5 つ（`synthify-{api,worker,eval,eval-scheduler,monitor}-<env>`）と、そのプロジェクトのロール（Firestore、Vertex AI、Cloud Tasks、Firebase Auth の閲覧）、API の自分自身への付与（actAs、トークンの発行）
+- 実行用 SA 5 つ（`synthify-{api,worker,eval,eval-scheduler,monitor}-<env>`）と、そのプロジェクトのロール（Firestore、Vertex AI、Cloud Tasks、Firebase Auth の管理と閲覧）、API の自分自身への付与（actAs、トークンの発行）
 - デプロイ用 SA（`github-deploy`）とそのプロジェクトのロール、実行用 SA への actAs
 - デプロイ用 SA から外すロール: `resourcemanager.projectIamAdmin`、`iam.serviceAccountAdmin`、プロジェクト全体の `iam.serviceAccountTokenCreator`（`google_project_iam_member_remove`）
 - GitHub Actions からデプロイ用 SA になる道（Workload Identity のプール `github-actions` とプロバイダ `github`）。条件は「このリポジトリの、環境と同じ名前の GitHub environment の、同じ名前のブランチのジョブ」
 - デプロイ用 SA 自身の IAM ポリシー（上のプロバイダだけが使える。全体を書き換えるので、手で足した付与は消える）
+
+バケットと secret への付与（uploads のバケットの読み書きと削除、secret の読み取り）は持たない。デプロイ用 SA は `storage.admin` と `secretmanager.admin` で、CD が作るバケットと secret の IAM を変えられるので、CD（`services/platform`）に残している。
 
 ## なぜ手で apply するのか
 
@@ -26,7 +28,7 @@ IAM を変える力をデプロイ用 SA から外したので、IAM はここ�
 
 1. **この変更をその環境にデプロイする**（stage なら main を `stage` に push）。
    - CD の Terraform は 1.9.8 になる。`removed` ブロックで、実行用 SA と IAM を CD の state から外す。消しはしない。
-   - デプロイのログで、Pass 1（`Terraform apply (platform only)`）の plan を見る。実行用 SA と IAM の resource（今の main で 31 件）がすべて `will no longer be managed by Terraform, but will not be destroyed` で、`0 to destroy` であること。
+   - デプロイのログで、Pass 1（`Terraform apply (platform only)`）の plan を見る。実行用 SA と IAM の resource がすべて `will no longer be managed by Terraform, but will not be destroyed` で、`0 to destroy` であること。今の main をすべてデプロイした環境なら 36 件。前のデプロイが古ければ少ない（#67 のロール 3 件、#55 と #75 の Firebase Auth の付与が 1 件ずつ、まだ無い）。
    - この時点では、デプロイ用 SA の権限はまだ変わっていない。
 2. **このディレクトリを apply する**（自分のアカウントで）。
 
