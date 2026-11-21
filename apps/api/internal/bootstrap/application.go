@@ -184,6 +184,17 @@ func startAutoResume(documentSvc *application.DocumentService, logger *slog.Logg
 	}()
 }
 
+// expireUploadReservations marks the upload reservations that ran out without
+// being confirmed as expired and deletes whatever the client uploaded for
+// them. Nothing else removes those objects: once a reservation has run out,
+// ConfirmUpload refuses it and its bytes no longer count against the storage
+// quota. ExpireUploadReservations logs the outcome.
+func expireUploadReservations(documentSvc *application.DocumentService, now time.Time) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	_, _ = documentSvc.ExpireUploadReservations(ctx, now)
+}
+
 // stuckJobScanInterval is how often the stuck-job sweep runs. Re-emitting the
 // same job_id every interval is fine: the NR alert uses uniqueCount(job_id), so
 // repeats within the window collapse to one and running on several API
@@ -193,12 +204,14 @@ const stuckJobScanInterval = 5 * time.Minute
 // startStuckJobMonitor periodically sweeps for jobs wedged in QUEUED/RUNNING and
 // emits JobStuck events for New Relic to alert on. These never surface as
 // JobFailed, so this sweep is the only signal that a job silently stopped
-// progressing.
+// progressing. Each sweep also expires upload reservations; see
+// expireUploadReservations.
 func startStuckJobMonitor(documentSvc *application.DocumentService, logger *slog.Logger) {
 	go func() {
 		ticker := time.NewTicker(stuckJobScanInterval)
 		defer ticker.Stop()
-		for range ticker.C {
+		for now := range ticker.C {
+			expireUploadReservations(documentSvc, now.UTC())
 			scanCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			stuck, err := documentSvc.ReportStuckJobs(scanCtx)
 			cancel()
