@@ -13,7 +13,7 @@
 
 ## 切り分け
 
-失敗の理由は Cloud Monitoring の「Uptime checks」で、チェックを開くと地点ごとに見える。
+失敗の理由は Cloud Monitoring の「Uptime checks」で、チェックを開くと地点ごとに見える。ほかに見るものは[最初の 5 分](README.md#最初の-5-分)。
 
 | 落ちたもの | 疑う場所 |
 | --- | --- |
@@ -36,7 +36,7 @@ gcloud logging read "resource.labels.service_name=\"synthify-api-$ENV\" AND seve
 
 ## 対処
 
-- 直前にデプロイしていれば、Cloud Run を前の Revision に戻す: `gcloud run services update-traffic "synthify-api-$ENV" --to-revisions <revision>=100 --project "$PROJECT" --region asia-northeast1`。次の CD の apply で Terraform の状態に戻るので、原因を直してから出し直す。
+- 直前にデプロイしていれば、[戻す](README.md#戻す)。
 - DB なら、CockroachDB Cloud の状態を見る。
 - GCP や Firebase の障害なら待つ。
 

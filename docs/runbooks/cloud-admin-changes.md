@@ -37,7 +37,7 @@ gcloud logging read "logName=\"projects/$PROJECT/logs/cloudaudit.googleapis.com%
   1. 主体を止める。人のアカウントならパスワードを変えてセッションを切る。SA なら、鍵を無効にするか SA を無効にする（実行用の SA を無効にするとサービスが止まる）。
   2. 作られた SA の鍵を無効にして消す（`gcloud iam service-accounts keys disable` / `delete`）。
   3. 足された IAM のメンバーを外す。
-  4. secret に足された版を無効にする（`gcloud secrets versions disable`）。秘密の値の読み出しは Data Access の監査ログに出るが、有効にしていない。読まれたものとして、その secret の値を作り直す（DB のパスワード、Stripe の鍵、`internal-worker-token` など）。
+  4. secret に足された版を無効にする（`gcloud secrets versions disable`）。秘密の値の読み出しは Data Access の監査ログに出るが、有効にしていない。読まれたものとして、その secret の値を作り直す（[秘密が漏れたとき](README.md#秘密が漏れたとき)）。
   5. Cloud Run を CD で出し直し、Terraform の状態に戻す。
   6. 同じ主体のほかの操作を、Admin Activity の監査ログで洗い出す。
 - 古い形式のサービスエージェント（例: `service-<番号>@serverless-robot-prod.iam.gserviceaccount.com`）で鳴ったら、Google の自動の操作なので、`main.tf` の除外に足す。

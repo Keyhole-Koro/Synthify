@@ -23,7 +23,7 @@
 
 ## 対処
 
-- 不正な利用なら、利用者を止める（stage なら `allowed_user_emails`）。必要なら worker を止める（Cloud Tasks のキューを一時停止する: `gcloud tasks queues pause synthify-pipeline-<env> --location asia-northeast1 --project <project>`）。
+- 不正な利用なら、利用者を止める（stage なら `allowed_user_emails`）。必要ならジョブの処理と LLM の呼び出しを[止める](README.md#ジョブの処理と-llm-の呼び出し)。
 - 手作業による設定の変更なら、CD で Terraform を再適用して戻す。
 - 予算が実態に合わないなら、`terraform/manual/billing/variables.tf` の `monthly_amount` を変えて apply する。
 
