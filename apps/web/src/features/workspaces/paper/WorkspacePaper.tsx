@@ -6,6 +6,7 @@ import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { WorkspaceDropzone } from './components/WorkspaceDropzone';
 import { WorkspaceJobProgress } from './components/WorkspaceJobProgress';
 import { WorkspaceJobList } from './components/WorkspaceJobList';
+import { WorkspaceDocumentList } from './components/WorkspaceDocumentList';
 import { WorkspaceRootContent } from './components/WorkspaceRootContent';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { getWorkspace, WorkspaceRole, type Workspace } from '@/features/workspaces/api';
@@ -118,6 +119,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
 
   const canWrite = accessRole === WorkspaceRole.OWNER || accessRole === WorkspaceRole.EDITOR;
   const canManage = accessRole === WorkspaceRole.OWNER;
+
+  // The factory's onProcessingComplete ignores the job id and refetches the
+  // workspace tree, which is what a document deletion needs too.
+  const refreshTree = useCallback(() => {
+    void onProcessingComplete?.('');
+  }, [onProcessingComplete]);
 
   const openShare = useCallback(() => {
     setIsSharing(true);
@@ -345,6 +352,18 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
           </div>}
         </div>
       )}
+
+      {/* Outside both branches: a document whose processing failed leaves the
+          tree empty, and it must still be deletable. */}
+      <WorkspaceDocumentList
+        className="px-5 pb-4"
+        workspaceId={workspaceId}
+        currentUserId={getInitialAuthUser()?.id ?? null}
+        canManage={canManage}
+        canWrite={canWrite}
+        refreshKey={`${activeJobId ?? ''}:${uploading}:${isJustCompleted}`}
+        onDeleted={refreshTree}
+      />
     </div>
   );
 }

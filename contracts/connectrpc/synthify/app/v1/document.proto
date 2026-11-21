@@ -17,6 +17,10 @@ service DocumentService {
   // 生成 HTML に埋め込まれた画像 (data-file-id) を表示するための
   // 短命な署名付き GET URL を発行する。表示のたびに呼び出される。
   rpc GetImageURL(GetImageURLRequest) returns (GetImageURLResponse);
+  // document を削除する。原本・抽出結果・チャンク・処理ジョブと、この document
+  // だけから作られた tree の node を消す。アップロード中・処理中は断る。
+  // 詳細は docs/data-retention.md。
+  rpc DeleteDocument(DeleteDocumentRequest) returns (DeleteDocumentResponse);
 }
 
 message Document {
@@ -130,3 +134,9 @@ message ResumeProcessingResponse {
   string document_id = 1;
   Job job = 2;
 }
+
+message DeleteDocumentRequest {
+  string document_id = 1;
+}
+
+message DeleteDocumentResponse {}

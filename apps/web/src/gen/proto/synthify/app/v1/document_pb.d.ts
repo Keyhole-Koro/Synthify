@@ -453,6 +453,34 @@ export declare type ResumeProcessingResponse = Message<"synthify.app.v1.ResumePr
 export declare const ResumeProcessingResponseSchema: GenMessage<ResumeProcessingResponse>;
 
 /**
+ * @generated from message synthify.app.v1.DeleteDocumentRequest
+ */
+export declare type DeleteDocumentRequest = Message<"synthify.app.v1.DeleteDocumentRequest"> & {
+  /**
+   * @generated from field: string document_id = 1;
+   */
+  documentId: string;
+};
+
+/**
+ * Describes the message synthify.app.v1.DeleteDocumentRequest.
+ * Use `create(DeleteDocumentRequestSchema)` to create a new message.
+ */
+export declare const DeleteDocumentRequestSchema: GenMessage<DeleteDocumentRequest>;
+
+/**
+ * @generated from message synthify.app.v1.DeleteDocumentResponse
+ */
+export declare type DeleteDocumentResponse = Message<"synthify.app.v1.DeleteDocumentResponse"> & {
+};
+
+/**
+ * Describes the message synthify.app.v1.DeleteDocumentResponse.
+ * Use `create(DeleteDocumentResponseSchema)` to create a new message.
+ */
+export declare const DeleteDocumentResponseSchema: GenMessage<DeleteDocumentResponse>;
+
+/**
  * @generated from enum synthify.app.v1.DocumentLifecycleState
  */
 export enum DocumentLifecycleState {
@@ -564,6 +592,18 @@ export declare const DocumentService: GenService<{
     methodKind: "unary";
     input: typeof GetImageURLRequestSchema;
     output: typeof GetImageURLResponseSchema;
+  },
+  /**
+   * document を削除する。原本・抽出結果・チャンク・処理ジョブと、この document
+   * だけから作られた tree の node を消す。アップロード中・処理中は断る。
+   * 詳細は docs/data-retention.md。
+   *
+   * @generated from rpc synthify.app.v1.DocumentService.DeleteDocument
+   */
+  deleteDocument: {
+    methodKind: "unary";
+    input: typeof DeleteDocumentRequestSchema;
+    output: typeof DeleteDocumentResponseSchema;
   },
 }>;
 
