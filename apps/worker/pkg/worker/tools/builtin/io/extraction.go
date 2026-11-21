@@ -279,11 +279,14 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 		return ExtractionResult{}, fmt.Errorf("failed to create extraction dir: %w", err)
 	}
 
+	// Refuse a zip bomb before parsing or extracting anything (see zipLimits).
+	if err := checkZipRecords(source.Content); err != nil {
+		return ExtractionResult{}, fmt.Errorf("%w: %w", domain.ErrJobError, err)
+	}
 	r, err := zip.NewReader(bytes.NewReader(source.Content), int64(len(source.Content)))
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("%w: invalid zip file format", domain.ErrJobError)
 	}
-	// Refuse a zip bomb before extracting anything (see zipLimits).
 	if err := checkZipLimits(r.File); err != nil {
 		return ExtractionResult{}, fmt.Errorf("%w: %w", domain.ErrJobError, err)
 	}

@@ -87,10 +87,34 @@ func TestExtract_RefusesArchivesBeyondZipLimits(t *testing.T) {
 	})
 }
 
+// zip.NewReader keeps a record for every central directory entry, folders
+// included, before the limits above are checked. An archive of many tiny
+// entries is therefore refused by counting its directory records before it is
+// parsed: here 2 folders and 3 files, within the file limit but over the
+// record limit.
+func TestExtract_RefusesArchivesWithTooManyDirectoryRecords(t *testing.T) {
+	withZipLimits(t, 3, 1024, 2048, 1500)
+	zipLimits.records = 4
+	archive := zipArchive(t, [][2]string{{"docs/", ""}, {"img/", ""}, {"a.txt", "a"}, {"b.txt", "b"}, {"c.txt", "c"}})
+
+	extracted, _, err := extractArchive(t, archive)
+
+	require.ErrorIs(t, err, errZipTooLarge)
+	files, _ := os.ReadDir(extracted)
+	assert.Empty(t, files, "nothing is extracted from a refused archive")
+
+	zipLimits.records = 5
+	_, text, err := extractArchive(t, archive)
+	require.NoError(t, err, "an archive with as many records as the limit is extracted")
+	assert.Contains(t, text, "--- File: c.txt")
+}
+
 // The production limits stay above what one worker instance (512 MiB, a
 // 600-second request) can process, so they refuse only archives that could
-// not have been processed anyway.
+// not have been processed anyway. The record limit keeps parsing the
+// directory to a few tens of MiB.
 func TestZipLimits_Defaults(t *testing.T) {
+	assert.Equal(t, 200_000, zipLimits.records)
 	assert.Equal(t, 10_000, zipLimits.entries)
 	assert.Equal(t, uint64(128<<20), zipLimits.entryBytes)
 	assert.Equal(t, uint64(1<<30), zipLimits.totalBytes)
