@@ -18,6 +18,15 @@ type DocumentDeletionState struct {
 	UploadPending bool
 }
 
+// WorkspaceStorageOwners lists the documents and processing jobs of a deleted
+// workspace. The worker stores its cache per document and its checkpoints per
+// job, outside the workspace's own "{ws}/" prefix, so purging the workspace
+// has to know them.
+type WorkspaceStorageOwners struct {
+	DocumentIDs []string
+	JobIDs      []string
+}
+
 // ReparentAroundDeleted applies the tree rule for deleting nodes: a kept node
 // whose parent is deleted moves up to its nearest kept ancestor instead of
 // jumping to the workspace root. parentOf maps every node of one workspace to

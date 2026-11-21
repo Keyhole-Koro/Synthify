@@ -1,6 +1,6 @@
 # データの保持と削除
 
-利用者のデータ（上げた文書、そこから作ったツリー、アカウント）をどこに持ち、いつ・どう消すかをまとめる。実装の正本は `apps/api/internal/application/document_delete.go` と `apps/api/internal/repository/postgres/data_deletion.go`。
+利用者のデータ（上げた文書、そこから作ったツリー、アカウント）をどこに持ち、いつ・どう消すかをまとめる。実装の正本は `apps/api/internal/application/document_delete.go`・`workspace_purge.go` と `apps/api/internal/repository/postgres/data_deletion.go`・`workspace_purge.go`。
 
 ## 保存先
 
@@ -35,10 +35,22 @@ GCS の場所の組み立ては `internal/platform/storage/prefixes.go` にま�
 
 - 別の文書と統合されたノードの本文。統合のときにモデルが書き直した本文には、消した文書の内容が混ざりうる。どこまでがどの文書の内容かは分けられない。
 - 別の文書のジョブの変更記録にある、統合する前のノードの本文。
-- Firestore のジョブの表示。終わったジョブは 7 日後に TTL が消す（`terraform/services/platform/main.tf`）。終わらずに止まったジョブの分は残る。
+- Firestore のジョブの表示。終わったジョブは 7 日後に TTL が消す（`terraform/services/platform/main.tf`）。終わらずに止まったジョブの分は、ワークスペースを消しても残る。
 - 課金の記録（`usage_events` はアカウントにつながり、ジョブの ID を文字列で持つだけ）。
 - Cloud Logging と New Relic に出たファイル名と ID。保持期間はそれぞれの設定に従う。
 - DB のバックアップ。CockroachDB Serverless のバックアップの保持期間は未確認。
+
+## ワークスペースの削除
+
+所有者がワークスペースを削除すると、削除済みの印（`workspaces.deleted_at`）を付けるだけで、一覧・閲覧・共有リンクから消える。行と GCS のファイルは保持期間のあいだ残す。保持期間は API の環境変数 `DELETED_WORKSPACE_RETENTION_DAYS`（日数、既定 30）。`0` なら次の掃除で消す。
+
+保持期間を過ぎたワークスペースは、API の定期の掃除が完全に消す（`WorkspacePurger`）。
+
+- 掃除は API プロセスの中のタイマーで、起動の 1 分後と、その後 15 分ごとに動く。1 回に 10 件まで、削除の古い順。Cloud Run は CPU をリクエストの間しか割り当てず（`cpu_idle`）、インスタンスが 0 台まで減るので、保持期間を過ぎてから消えるまでに遅れが出うる。ジョブの掃除を Cloud Scheduler から呼ぶ形（#26）に移せば一定になる。
+- 消す順番は文書と同じで、GCS が先。各文書のキャッシュ、各ジョブのチェックポイント、`{ws}/` 以下の全部を、旧版も含めて消す。次に DB でワークスペースの行を消し、外部キーでつながる行（文書とその下の全部、ツリー、エイリアス、メンバー、共有リンク、ジョブとそのログ、動的ツール）もまとめて消える。確定済みのアップロードの容量をアカウントに戻す。
+- 途中で失敗したワークスペースは印が残り、次の掃除でやり直す。複数のインスタンスが同時に掃除しても、行の削除は 1 トランザクションで、ファイルの削除は何度やっても同じになる。
+- 保持期間のあいだは保存容量に数えたまま。削除したワークスペースを戻す画面や API は無い。戻すなら運営者が DB で `deleted_at` を消す。
+- 動的ツール（`dynamic_tools`）は作ったワークスペースと一緒に消える。global に昇格したツールも同じ（外部キーがそうなっている）。
 
 ## 権限
 

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/synthify/backend/apps/api/internal/domain"
 )
@@ -26,6 +27,24 @@ type DocumentDeletionRepository interface {
 	// document's sources. Nodes made by hand stay. It returns the number of
 	// nodes deleted, and ErrNotFound if the document is already gone.
 	DeleteDocumentRows(ctx context.Context, documentID string) (deletedItems int, err error)
+}
+
+// WorkspacePurgeRepository finds workspaces that were deleted (DeleteWorkspace
+// only sets deleted_at) and removes their rows for good. As for documents, the
+// stored files go first, through ObjectPrefixDeleter.
+type WorkspacePurgeRepository interface {
+	// ListWorkspacesDeletedBefore returns up to limit workspaces deleted at or
+	// before cutoff, oldest deletion first.
+	ListWorkspacesDeletedBefore(ctx context.Context, cutoff time.Time, limit int) ([]string, error)
+	// GetWorkspaceStorageOwners returns the document and job IDs of a deleted
+	// workspace. ErrNotFound if no deleted workspace has that ID.
+	GetWorkspaceStorageOwners(ctx context.Context, workspaceID string) (*domain.WorkspaceStorageOwners, error)
+	// PurgeWorkspaceRows deletes a workspace that is marked deleted, with
+	// every row that cascades from it (documents and everything under them,
+	// the tree, members, share links, jobs, dynamic tools), and gives its
+	// confirmed upload bytes back to the account. It returns false, deleting
+	// nothing, when the workspace is not marked deleted or is already gone.
+	PurgeWorkspaceRows(ctx context.Context, workspaceID string) (bool, error)
 }
 
 // ObjectPrefixDeleter deletes every stored object whose name starts with a

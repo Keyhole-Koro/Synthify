@@ -53,6 +53,7 @@ type Store interface {
 	repository.JobLogWriter
 	repository.DynamicToolRepository
 	repository.DocumentDeletionRepository
+	repository.WorkspacePurgeRepository
 	repository.Transactor
 }
 
