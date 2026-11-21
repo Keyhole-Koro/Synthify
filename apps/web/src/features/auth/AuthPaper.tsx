@@ -1,5 +1,6 @@
 import React from 'react';
 import type { AuthUser } from '@/features/auth/session';
+import { SignInLegalNotice } from '@/features/legal/LegalLinks';
 import { LoggedInProfile } from './components/LoggedInProfile';
 import { AuthForm } from './components/AuthForm';
 import { SocialLogin } from './components/SocialLogin';
@@ -32,6 +33,7 @@ export function AuthPaper({
         error={error}
         onGoogleSubmit={onGoogleSubmit}
       />
+      <SignInLegalNotice />
     </>
   );
 }

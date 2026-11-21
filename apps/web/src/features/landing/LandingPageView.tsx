@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, type CSSProperties } from 'react';
 import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
+import { LegalFooter } from '@/features/legal/LegalLinks';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
 import type { PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
 import { getImageURL } from '@/features/documents/api';
@@ -115,6 +116,7 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
 
       {!controller.isFullscreen && <BrandHeader />}
       {!controller.isFullscreen && <HeroCopy />}
+      {!controller.isFullscreen && <LegalFooter className="absolute inset-x-0 bottom-3 z-10" />}
 
       <div
         className="absolute overflow-hidden [contain:layout_paint] isolate"
