@@ -7,6 +7,8 @@
 module "platform" {
   source = "../platform"
 
+  pipeline_max_concurrent_dispatches = var.pipeline_max_concurrent_dispatches
+
   project_id                  = var.project_id
   region                      = var.region
   environment                 = var.environment
