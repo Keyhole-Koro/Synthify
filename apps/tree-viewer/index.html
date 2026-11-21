@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Paper tree</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f4f1;
+        --muted: #6b665f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #161513;
+          --muted: #a29d96;
+        }
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+      }
+      #root {
+        position: fixed;
+        inset: 0;
+      }
+      .status {
+        margin: 0;
+        padding: 24px 16px;
+        color: var(--muted);
+        font: 15px/1.6 system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"><p class="status">Loading…</p></div>
+    <noscript><p class="status">This page needs JavaScript.</p></noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
