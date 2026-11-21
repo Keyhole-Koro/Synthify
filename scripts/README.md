@@ -27,3 +27,7 @@
   * **利用箇所**: GitHub Actions (`deploy-backend.yml`) の Terraform 実行前、および `Makefile` (`make bootstrap-stage` など) から呼び出されます。
 * **`generate-firestore-types.mjs`**: Firestore の JSON スキーマ (`job-status.schema.json`) から、TypeScript (Web 用) と Go (Platform 用) の型定義を自動生成します。
   * **利用箇所**: `apps/web/package.json` の npm scripts (`npm run generate:firestore-types`) として登録されており、スキーマ変更時に実行されます。
+
+## セキュリティ
+* **`govulncheck-gate.sh`**: `govulncheck` でルートの Go モジュールをスキャンし、CI を落とすか決めます。引数に base のコミットを渡すと、そのコミットに無い到達可能な脆弱性だけで落とします（PR 用）。引数なしなら到達可能な脆弱性が 1 件でもあれば落とします。
+  * **利用箇所**: GitHub Actions (`security.yml`) の `govulncheck` ジョブで自動実行されます。ローカルでは `scripts/govulncheck-gate.sh origin/main` のように実行できます（`govulncheck` と `jq` が必要）。
