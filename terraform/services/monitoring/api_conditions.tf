@@ -1,6 +1,8 @@
-# Readiness/DB connectivity failures are checked out-of-band via a GitHub
-# Actions cron hitting /health?ready=1 (see .github/workflows), not through
-# NR Synthetics.
+# Readiness/DB connectivity failures are checked out-of-band by a Cloud
+# Monitoring uptime check on /health?ready=1 (services/platform_alerts, email),
+# not through NR Synthetics. A GitHub Actions cron
+# (.github/workflows/readiness-monitor.yml) is a best-effort second path to
+# Discord.
 
 # 5xx error rate: backend API returning server errors at an elevated rate.
 resource "newrelic_nrql_alert_condition" "api_error_rate" {

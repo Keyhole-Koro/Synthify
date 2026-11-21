@@ -41,7 +41,7 @@ REGION="$(bash scripts/tfvar.sh "$ENV" region)"
    gcloud run revisions list --service "synthify-api-$ENV" --project "$PROJECT" --region "$REGION" --limit 5
    ```
 
-3. 外から動いているかを見る。`/health` は DB に触らずに 200 を返す。DB まで見る `/health?ready=1` は鍵が要るので、Readiness Monitor を手で流して見る（`gh workflow run readiness-monitor.yml`。stage と prod の両方を見る）。
+3. 外から動いているかを見る。Cloud Monitoring の「Uptime checks」に、画面と API の `/health?ready=1` を 5 分ごとに 3 地点から見た結果がある（[uptime](uptime.md)）。`/health` は DB に触らずに 200 を返す。DB まで見る `/health?ready=1` は鍵が要るので、手で見るなら Readiness Monitor を流す（`gh workflow run readiness-monitor.yml`。stage と prod の両方を見る）。
 
    ```bash
    API_URL="$(gcloud run services describe "synthify-api-$ENV" --project "$PROJECT" --region "$REGION" --format 'value(status.url)')"
@@ -122,7 +122,7 @@ gcloud run services add-iam-policy-binding "synthify-api-$ENV" --project "$PROJE
   --member=allUsers --role=roles/run.invoker
 ```
 
-止めている間は、Readiness Monitor と New Relic のアラートが鳴る。
+止めている間は、Readiness Monitor、New Relic、Cloud Monitoring の外形監視（api unreachable）のアラートが鳴る。
 
 ### 画面
 
@@ -150,7 +150,7 @@ API には許可リストがある（環境変数 `SYNTHIFY_ALLOWED_USER_EMAILS`
    | `synthify-gemini-api-key` | Secret Manager | worker、eval | 鍵を発行した所 |
    | `synthify-new-relic-license-key` | Secret Manager | API、worker | New Relic |
    | `synthify-internal-worker-token` | Secret Manager | worker から API への呼び出し | 自分で作る（`openssl rand -base64 32`） |
-   | `READINESS_MONITOR_KEY` | GitHub の Environment（stage・prod）の secret | Readiness Monitor。CD が API にも渡す | 自分で作る |
+   | `READINESS_MONITOR_KEY` | GitHub の Environment（stage・prod）の secret | Readiness Monitor。CD が API と、Cloud Monitoring の外形監視にも渡す | 自分で作る |
    | `DISCORD_ALERT_WEBHOOK_URL` | GitHub の Environment の secret | Readiness Monitor。CD が New Relic の通知先に入れる | Discord |
    | `NEW_RELIC_API_KEY` | GitHub の Environment の secret | CD の Terraform（New Relic のアラートを作る） | New Relic |
    | `DISCORD_WEBHOOK_URL` | GitHub のリポジトリの secret | CI とデプロイの失敗の通知 | Discord |
@@ -163,7 +163,7 @@ API には許可リストがある（環境変数 `SYNTHIFY_ALLOWED_USER_EMAILS`
 
    GitHub の secret は、リポジトリの Settings の Environments（または Secrets and variables）で書き換える。
 
-3. デプロイし直して、新しい値を読ませる。Deploy Backend は毎回 API と worker の新しい revision を作り（readiness の鍵を毎回作り直すため）、新しい revision は Secret Manager の最新の版を読む。`READINESS_MONITOR_KEY` と `DISCORD_ALERT_WEBHOOK_URL` も CD が API と New Relic に入れ直す。monitor と eval は、次にインスタンスが起動したときに最新の版を読む。
+3. デプロイし直して、新しい値を読ませる。Deploy Backend は毎回 API と worker の新しい revision を作り（readiness の鍵を毎回作り直すため）、新しい revision は Secret Manager の最新の版を読む。`READINESS_MONITOR_KEY` と `DISCORD_ALERT_WEBHOOK_URL` も CD が API、外形監視、New Relic に入れ直す（鍵が変わると、外形監視は作り直される）。monitor と eval は、次にインスタンスが起動したときに最新の版を読む。
 
    ```bash
    gh workflow run deploy-backend.yml --ref "$ENV" -f environment="$ENV"

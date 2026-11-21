@@ -75,3 +75,9 @@ variable "request_timeout_seconds" {
   type        = number
   default     = 600
 }
+
+variable "max_instance_count" {
+  description = "Most worker instances, and so most jobs running at once (each instance takes one request at a time). Keep the pipeline queue's max_concurrent_dispatches equal to it."
+  type        = number
+  default     = 2
+}

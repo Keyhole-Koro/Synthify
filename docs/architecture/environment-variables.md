@@ -89,6 +89,7 @@ GitHub の `Settings > Secrets and variables > Actions` から、デプロイに
 - `GCP_WIF_SA_EMAIL`
 - `GCP_PROJECT_ID` (Variables)
 - `GCP_REGION` (Variables)
+- `PLATFORM_ALERT_EMAIL`（environment `stage`・`prod` の Secret）: Cloud Monitoring のアラート（外形監視、CD 以外の管理の操作）の宛先。リポジトリと Actions のログが公開なので、Variables ではなく Secret に置く。空ならアラートは誰にも届かない（[docs/alerts.md](../alerts.md)）
 
 ---
 

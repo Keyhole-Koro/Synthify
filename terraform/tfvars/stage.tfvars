@@ -27,7 +27,8 @@ allowed_user_emails = "korokororin47@gmail.com"
 # the api/worker runtime SAs to attach them to Cloud Run.
 deployer_principal = "serviceAccount:github-deploy@synthify-stage-491705.iam.gserviceaccount.com"
 
-# Debug: log raw LLM payloads and raw agent responses (per-turn text +
-# functionCall presence) to diagnose stuck jobs. Revert to "false" once the
-# investigation is done — response bodies end up in logs while this is on.
-log_llm_payload = "true"
+# Raw LLM payloads and agent responses (per-turn text + functionCall
+# presence) in the logs. Off: with it on, the contents of users' documents
+# end up in Cloud Logging. It was left on after the stuck-job investigation.
+# Turn it on only for an investigation, and back off when it ends.
+log_llm_payload = "false"
