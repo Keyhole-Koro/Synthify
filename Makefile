@@ -61,7 +61,7 @@ infra-prod-plan:
 SINCE ?= 1 hour ago
 LIMIT ?= 30
 STAGE_PROJECT ?= synthify-stage-491705
-PROD_PROJECT  ?= synthify-prod
+PROD_PROJECT  ?= synthify-491705
 LOG_FORMAT_ERR = value(timestamp,resource.labels.service_name,severity,jsonPayload.msg,jsonPayload.error)
 LOG_FORMAT_ALL = value(timestamp,resource.labels.service_name,jsonPayload.level,jsonPayload.msg,jsonPayload.error)
 

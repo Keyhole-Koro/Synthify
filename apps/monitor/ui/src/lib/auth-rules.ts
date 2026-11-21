@@ -18,8 +18,19 @@ export function parseAdminEmails(csv: string): Set<string> {
   );
 }
 
-// email が admin 集合に含まれるか。admin が空なら常に false = fail-closed。
-export function isAdmin(email: string | null | undefined, admins: Set<string>): boolean {
-  const normalized = (email ?? '').trim().toLowerCase();
+// 検証済み ID トークンのうち、admin 判定が読むクレーム。
+export interface AdminClaims {
+  email?: string | null;
+  email_verified?: boolean;
+}
+
+// トークンの持ち主が admin か。メールが確認済み (email_verified が true) で、
+// admin 集合に含まれるときだけ true。Firebase はメールとパスワードの登録で
+// アドレスの持ち主かを確かめないので、未確認のメールでは判定しない
+// (apps/api の principalFromClaims と同じ規則)。admin が空なら常に false =
+// fail-closed。
+export function isAdmin(claims: AdminClaims, admins: Set<string>): boolean {
+  if (claims.email_verified !== true) return false;
+  const normalized = (claims.email ?? '').trim().toLowerCase();
   return admins.size > 0 && normalized !== '' && admins.has(normalized);
 }
