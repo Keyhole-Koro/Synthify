@@ -65,14 +65,14 @@ Router job (job_123, JOB_TYPE_ROUTE_DOCUMENT)
 
 ### 3. tree-lifecycle-multi-document との関係
 
-- [tree-lifecycle-multi-document.md](tree-lifecycle-multi-document.md) は「複数ドキュメントの統合」
+- [tree-lifecycle-multi-document.md](https://github.com/Keyhole-Koro/Synthify/blob/ef777691a1dc98561bdd4b2be8c296e0c88f172a/docs/improvements/tree-lifecycle-multi-document.md) は「複数ドキュメントの統合」
 - こちらは「1ドキュメントの分割処理」
 - 実装上は重なる部分がある（merge 処理、親子ジョブの関係など）
 - 別物として扱うか、同じ仕組みで統一するか？
 
 ### 4. checkpoint との連携
 
-- 子ジョブそれぞれが [json-snapshot-checkpoints.md](json-snapshot-checkpoints.md) の仕組みで snapshot を持つ
+- 子ジョブそれぞれが [json-snapshot-checkpoints.md](https://github.com/Keyhole-Koro/Synthify/blob/b15cf39ceda8395e34d61285ad3cb5578f701f4f/docs/improvements/json-snapshot-checkpoints.md) の仕組みで snapshot を持つ
 - Router job 自体の checkpoint（どの子ジョブを dispatch 済みか）はどう定義するか？
 
 ### 5. DB の親子ジョブ関係

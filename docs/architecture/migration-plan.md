@@ -1,6 +1,6 @@
 # Migration Plan: From Current State to Target Design
 
-[current-state.md](current-state.md) で書いた現状から、[target-design.md](target-design.md) で定義した「あるべき形」に到達するための PR の連なりを定義する。
+[current-state.md](https://github.com/Keyhole-Koro/Synthify/blob/123fbf855b349abe76e7e6484d0565b0d86c5071/docs/architecture/current-state.md) で書いた現状から、[target-design.md](target-design.md) で定義した「あるべき形」に到達するための PR の連なりを定義する。
 
 ## 前提
 

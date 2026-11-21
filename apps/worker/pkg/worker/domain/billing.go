@@ -168,13 +168,13 @@ type DailyUsage struct {
 }
 
 type UsageReport struct {
-	AccountID   string        `json:"account_id"`
-	PeriodStart string        `json:"period_start"`
-	PeriodEnd   string        `json:"period_end"`
-	TotalCost   string        `json:"total_cost"`
-	Currency    string        `json:"currency"`
-	ByModel     []ModelUsage  `json:"by_model"`
-	ByDay       []DailyUsage  `json:"by_day"`
+	AccountID   string       `json:"account_id"`
+	PeriodStart string       `json:"period_start"`
+	PeriodEnd   string       `json:"period_end"`
+	TotalCost   string       `json:"total_cost"`
+	Currency    string       `json:"currency"`
+	ByModel     []ModelUsage `json:"by_model"`
+	ByDay       []DailyUsage `json:"by_day"`
 }
 
 type Invoice struct {
@@ -191,9 +191,9 @@ type Invoice struct {
 }
 
 type InvoiceList struct {
-	Invoices           []*Invoice `json:"invoices"`
-	UpcomingAmount     string     `json:"upcoming_amount"`
-	UpcomingPeriodEnd  string     `json:"upcoming_period_end"`
+	Invoices          []*Invoice `json:"invoices"`
+	UpcomingAmount    string     `json:"upcoming_amount"`
+	UpcomingPeriodEnd string     `json:"upcoming_period_end"`
 }
 
 type ModelPricing struct {

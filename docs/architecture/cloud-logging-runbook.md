@@ -5,7 +5,7 @@ Synthify の stage / prod は Cloud Run 上に居て、worker と api は slog �
 関連:
 - ショートカット定義: [Makefile](../../Makefile) の `logs-*` ターゲット
 - 構造化ログを出す interceptor: [internal/platform/observability/connect_mask.go](../../internal/platform/observability/connect_mask.go)
-- 失敗ジョブが NR にも流れる経緯: [../../docs/learn/upload-pipeline-hardening.md](../learn/upload-pipeline-hardening.md) と [apps/worker/pkg/worker/job/lifecycle/service.go](../../apps/worker/pkg/worker/job/lifecycle/service.go)
+- 失敗ジョブが NR にも流れる経緯: [../../docs/learn/upload-pipeline-hardening.md](../learn/upload-pipeline-hardening.md) と [internal/platform/job/lifecycle/service.go](../../internal/platform/job/lifecycle/service.go)
 
 ---
 

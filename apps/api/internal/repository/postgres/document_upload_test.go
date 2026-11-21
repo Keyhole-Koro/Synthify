@@ -6,6 +6,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql/driver"
 	"errors"
 	"io"
 	"log/slog"
@@ -208,6 +209,10 @@ func TestCreateDocument_HappyPath_IssuesURLAndCommits(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("FROM workspaces w\nJOIN accounts a ON a.account_id = w.account_id\nWHERE w.workspace_id = $1 AND w.deleted_at IS NULL\nFOR UPDATE OF a")).
 		WithArgs("ws_1").
 		WillReturnRows(lockWorkspaceAccountRows("acc_1", 100, 10000, 1024*1024))
+	// countRecentUploads: uploads in the last week and the last 5 hours
+	mock.ExpectQuery(regexp.QuoteMeta(countRecentUploadsQuery)).
+		WithArgs("acc_1", ago(domain.UploadWindowWeek), ago(domain.UploadWindowFiveHours)).
+		WillReturnRows(sqlmock.NewRows([]string{"week", "five_hours"}).AddRow(int64(0), int64(0)))
 	// activeReservedBytes: SELECT COALESCE(SUM(...))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT COALESCE(SUM(expected_size_bytes), 0)")).
 		WithArgs("acc_1", sqlmock.AnyArg()).
@@ -281,6 +286,77 @@ func TestCreateDocument_QuotaExceededByReservations_ReturnsErr(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+const countRecentUploadsQuery = "FROM upload_reservations\nWHERE account_id = $1 AND created_at > $2"
+
+// ago matches a time.Time argument that lies d before now, give or take a
+// minute.
+type ago time.Duration
+
+func (d ago) Match(v driver.Value) bool {
+	t, ok := v.(time.Time)
+	if !ok {
+		return false
+	}
+	off := time.Since(t) - time.Duration(d)
+	return off > -time.Minute && off < time.Minute
+}
+
+// The uploads are counted in the transaction that holds the account lock. At
+// a limit, CreateDocument stops there: no document, no reservation and no
+// upload URL.
+func TestCreateDocument_UploadCountLimits(t *testing.T) {
+	tests := []struct {
+		name        string
+		inWeek      int64
+		inFiveHours int64
+		wantErr     string // empty when the upload goes ahead
+	}{
+		// lockWorkspaceAccountRows allows 20 uploads in 5 hours and 100 in 7 days.
+		{name: "below both limits", inWeek: 99, inFiveHours: 19},
+		{name: "five hour limit reached", inWeek: 20, inFiveHours: 20, wantErr: "at most 20 uploads in 5 hours"},
+		{name: "week limit reached", inWeek: 100, inFiveHours: 0, wantErr: "at most 100 uploads in 7 days"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			issuer := fakeUploadURLIssuer{target: repository.DocumentUploadTarget{URL: "https://gcs/u", Method: "PUT"}}
+			store, mock, cleanup := newStoreWithMockForCreateDoc(t, issuer)
+			defer cleanup()
+
+			mock.ExpectBegin()
+			mock.ExpectQuery(regexp.QuoteMeta("FOR UPDATE OF a")).
+				WithArgs("ws_1").
+				WillReturnRows(lockWorkspaceAccountRows("acc_1", 0, 10000, 1024*1024))
+			mock.ExpectQuery(regexp.QuoteMeta(countRecentUploadsQuery)).
+				WithArgs("acc_1", ago(domain.UploadWindowWeek), ago(domain.UploadWindowFiveHours)).
+				WillReturnRows(sqlmock.NewRows([]string{"week", "five_hours"}).AddRow(tt.inWeek, tt.inFiveHours))
+			if tt.wantErr != "" {
+				mock.ExpectRollback()
+			} else {
+				mock.ExpectQuery(regexp.QuoteMeta("SELECT COALESCE(SUM(expected_size_bytes), 0)")).
+					WithArgs("acc_1", sqlmock.AnyArg()).
+					WillReturnRows(sqlmock.NewRows([]string{"sum"}).AddRow(int64(0)))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO documents")).WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO upload_reservations")).WillReturnResult(sqlmock.NewResult(1, 1))
+				mock.ExpectCommit()
+			}
+
+			doc, target, err := store.CreateDocument(context.Background(), "ws_1", "user_1", "paper.pdf", "application/pdf", 500)
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				assert.NotNil(t, doc)
+				assert.Equal(t, "https://gcs/u", target.URL)
+			} else {
+				assert.ErrorIs(t, err, domain.ErrUploadLimitReached)
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.Nil(t, doc)
+				assert.Empty(t, target.URL)
+			}
+			require.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
 // ── LogJobEvent ──────────────────────────────────────────────────────────────
 
 func TestLogJobEvent_InsertsRowWithExpectedArgs(t *testing.T) {
@@ -289,15 +365,15 @@ func TestLogJobEvent_InsertsRowWithExpectedArgs(t *testing.T) {
 
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO job_logs")).
 		WithArgs(
-			sqlmock.AnyArg(),     // id (newID())
-			"job_1",              // job_id
-			"ws_1",               // workspace_id
-			"doc_1",              // document_id
-			sqlmock.AnyArg(),     // created_at (nowTime())
-			"INFO",               // level
-			"job.started",        // event
-			"job started",        // message
-			sqlmock.AnyArg(),     // detail_json (serialized)
+			sqlmock.AnyArg(), // id (newID())
+			"job_1",          // job_id
+			"ws_1",           // workspace_id
+			"doc_1",          // document_id
+			sqlmock.AnyArg(), // created_at (nowTime())
+			"INFO",           // level
+			"job.started",    // event
+			"job started",    // message
+			sqlmock.AnyArg(), // detail_json (serialized)
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 

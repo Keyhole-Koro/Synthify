@@ -106,4 +106,3 @@ const (
 	GovernanceStateHumanCurated    NodeGovernanceState = "human_curated"
 	GovernanceStateLocked          NodeGovernanceState = "locked"
 )
-

@@ -21,7 +21,7 @@
 - **認可の正本**: [db/queries/workspaces.sql](../../db/queries/workspaces.sql) の `IsWorkspaceAccessible` = `workspaces JOIN account_users`。つまり「**同じ account のユーザーは全 workspace にアクセス可**」というフラットモデル
 - **重要**: この `IsWorkspaceAccessible` 1 関数が workspace / tree / item / document **全リソースの認可ゲート**になっている(`service/workspace.go` `service/tree.go` `service/item.go` `service/document.go` + `handler/authz.go`)。ここを差し替えれば共有が全体に波及する
 - membership は account 単位(`account_users`)しか無く、**workspace 単位の membership / role テーブルが存在しない**
-- **課金の紐付け**: ジョブには `requested_by`(実行ユーザー ID)が記録される([apps/api/internal/service/document.go](../../apps/api/internal/service/document.go) `startProcessingJob`)が、usage 計上は `usage_events` の `account_id` + `workspace_id` 軸([db/queries/billing.sql](../../db/queries/billing.sql))。現状コストは **workspace に紐づく account(= 所有者)** に乗るとみられ、`requested_by` の account には計上していない
+- **課金の紐付け**: ジョブには `requested_by`(実行ユーザー ID)が記録される([apps/api/internal/application/document.go](../../apps/api/internal/application/document.go) `startProcessingJob`)が、usage 計上は `usage_events` の `account_id` + `workspace_id` 軸([db/queries/billing.sql](../../db/queries/billing.sql))。現状コストは **workspace に紐づく account(= 所有者)** に乗るとみられ、`requested_by` の account には計上していない
 
 ### つまりギャップは 3 つ
 

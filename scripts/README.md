@@ -28,6 +28,10 @@
 * **`generate-firestore-types.mjs`**: Firestore の JSON スキーマ (`job-status.schema.json`) から、TypeScript (Web 用) と Go (Platform 用) の型定義を自動生成します。
   * **利用箇所**: `apps/web/package.json` の npm scripts (`npm run generate:firestore-types`) として登録されており、スキーマ変更時に実行されます。
 
+## ドキュメント
+* **`check-markdown-links.mjs`**: Markdown の相対リンクが、git で管理しているファイル・ディレクトリと、リンク先の Markdown にある見出しを指しているかを確かめます。ネットワークには出ず、`https:` などの外部リンクは見ません。
+  * **利用箇所**: GitHub Actions (`docs.yml`) が Markdown を変えた PR と main への push で実行します。手元では `node scripts/check-markdown-links.mjs`（ファイルを渡すとそのファイルだけ）。
+
 ## セキュリティ
 * **`govulncheck-gate.sh`**: `govulncheck` でルートの Go モジュールをスキャンし、CI を落とすか決めます。引数に base のコミットを渡すと、そのコミットに無い到達可能な脆弱性だけで落とします（PR 用）。引数なしなら到達可能な脆弱性が 1 件でもあれば落とします。
   * **利用箇所**: GitHub Actions (`security.yml`) の `govulncheck` ジョブで自動実行されます。ローカルでは `scripts/govulncheck-gate.sh origin/main` のように実行できます（`govulncheck` と `jq` が必要）。

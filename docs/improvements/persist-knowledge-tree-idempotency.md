@@ -73,7 +73,7 @@ persist 全体（全 item 作成 + Phase 2）を 1 つの DB transaction にし�
 
 - worker エージェントループ timeout 対策の L4-c（フル自動再開）の前提
   （実装済み・ドキュメント削除済み、git 履歴参照）
-- [resume-processing-stub.md](resume-processing-stub.md) — ResumeProcessing 本体の実装と統合
+- [resume-processing-stub.md](https://github.com/Keyhole-Koro/Synthify/blob/72d7969e961a874e604b76a9714c060348526deb/docs/improvements/resume-processing-stub.md)（削除済み） — ResumeProcessing 本体の実装と統合
 - [job-checkpoint-spec](../architecture/job-checkpoint-spec.md) — checkpoint 機構の正式仕様
 
 ## 実装前に決めること
