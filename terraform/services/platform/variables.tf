@@ -30,6 +30,8 @@ variable "required_services" {
     "storage.googleapis.com",
     "iam.googleapis.com",
     "aiplatform.googleapis.com",
+    # services/platform_alerts (uptime checks, alert policies).
+    "monitoring.googleapis.com",
     # The budgets in terraform/manual/billing are applied by hand with user
     # credentials, and the Budget API then needs a quota project that has
     # this API on. Either environment's project can be that project.
