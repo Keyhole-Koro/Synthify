@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/synthify/backend/apps/api/internal/bootstrap"
 	"github.com/synthify/backend/apps/api/internal/config"
@@ -37,18 +36,7 @@ func main() {
 	}()
 
 	logger.Info("api.started", "addr", app.Address, "env", cfg.Env)
-	// Same reasoning as the worker: http.ListenAndServe leaves every timeout at
-	// zero, so a client stalling mid-header pins a goroutine. Write/ReadTimeout
-	// are left unset because handlers here fan out to Firestore, GCS and Stripe
-	// and a blanket response deadline would cut those off; document bodies never
-	// pass through this server, they go straight to GCS via signed URLs.
-	srv := &http.Server{
-		Addr:              app.Address,
-		Handler:           app.Handler,
-		ReadHeaderTimeout: 20 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
-	if err := srv.ListenAndServe(); err != nil {
+	if err := http.ListenAndServe(app.Address, app.Handler); err != nil {
 		log.Fatal(err)
 	}
 }
