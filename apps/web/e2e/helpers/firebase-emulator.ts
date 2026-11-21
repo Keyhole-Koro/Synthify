@@ -31,6 +31,23 @@ export async function createTestUser(): Promise<TestUser> {
     const errorText = response ? await response.text() : 'No response';
     throw new Error(`Auth Emulator user creation failed: ${response?.status} ${errorText}`);
   }
+
+  // Mark the address verified, as Google sign-in (the only sign-in of the
+  // deployed app) does. The API binds a workspace invitation only to an
+  // account that has verified the invited address. The emulator takes
+  // "Bearer owner" as an admin credential.
+  const { localId } = (await response.json()) as { localId: string };
+  const verified = await fetch(
+    `${authEmulatorURL}/identitytoolkit.googleapis.com/v1/accounts:update?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer owner' },
+      body: JSON.stringify({ localId, emailVerified: true }),
+    },
+  );
+  if (!verified.ok) {
+    throw new Error(`Auth Emulator email verification failed: ${verified.status} ${await verified.text()}`);
+  }
   return user;
 }
 

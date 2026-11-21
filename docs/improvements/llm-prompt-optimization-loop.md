@@ -332,7 +332,7 @@ generated variants を GCS artifact として残すか repo commit 対象にす�
 - golden 更新は `--update-golden` 明示時のみ行う。
 - baseline より token usage が大きく増えた variant は、品質が上がっていても採用時に人間が確認する。
 - Analyst / Prompt Writer の出力は補助情報であり、採用判断の単独根拠にしない。
-- **loop 自体のコスト上限を設ける。** 1 回の最適化サイクルは Analyst + Prompt Writer + baseline eval + variant eval × iteration を LLM で回すため、1 サイクルあたりの LLM 呼び出し回数・推定トークンに上限を設定し、上限到達でループを停止する。閾値は [usage-based-billing.md](usage-based-billing.md) の予算アラート方針と整合させる。Cloud Run Job で回す場合も同じ上限を適用する。
+- **loop 自体のコスト上限を設ける。** 1 回の最適化サイクルは Analyst + Prompt Writer + baseline eval + variant eval × iteration を LLM で回すため、1 サイクルあたりの LLM 呼び出し回数・推定トークンに上限を設定し、上限到達でループを停止する。閾値は [usage-based-billing.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/usage-based-billing.md) の予算アラート方針と整合させる。Cloud Run Job で回す場合も同じ上限を適用する。
 
 ## Open Questions
 

@@ -36,26 +36,34 @@ describe('parseAdminEmails', () => {
 
 describe('isAdmin (fail-closed)', () => {
   const admins = parseAdminEmails('admin@example.com');
+  const verified = (email: string | null | undefined) => ({ email, email_verified: true });
 
-  test('allows a listed email (case-insensitive)', () => {
-    expect(isAdmin('admin@example.com', admins)).toBe(true);
-    expect(isAdmin('ADMIN@example.com', admins)).toBe(true);
-    expect(isAdmin('  admin@example.com ', admins)).toBe(true);
+  test('allows a listed, verified email (case-insensitive)', () => {
+    expect(isAdmin(verified('admin@example.com'), admins)).toBe(true);
+    expect(isAdmin(verified('ADMIN@example.com'), admins)).toBe(true);
+    expect(isAdmin(verified('  admin@example.com '), admins)).toBe(true);
+  });
+
+  // Firebase does not check that whoever signs up with an email and password
+  // owns the address, so a listed address proves nothing until it is verified.
+  test('denies a listed email that is not verified', () => {
+    expect(isAdmin({ email: 'admin@example.com', email_verified: false }, admins)).toBe(false);
+    expect(isAdmin({ email: 'admin@example.com' }, admins)).toBe(false);
   });
 
   test('denies a non-listed email', () => {
-    expect(isAdmin('someone@example.com', admins)).toBe(false);
+    expect(isAdmin(verified('someone@example.com'), admins)).toBe(false);
   });
 
   test('denies empty / missing email', () => {
-    expect(isAdmin('', admins)).toBe(false);
-    expect(isAdmin(null, admins)).toBe(false);
-    expect(isAdmin(undefined, admins)).toBe(false);
+    expect(isAdmin(verified(''), admins)).toBe(false);
+    expect(isAdmin(verified(null), admins)).toBe(false);
+    expect(isAdmin(verified(undefined), admins)).toBe(false);
   });
 
   test('fail-closed: an empty admin set denies everyone', () => {
     const none = parseAdminEmails('');
-    expect(isAdmin('admin@example.com', none)).toBe(false);
-    expect(isAdmin('', none)).toBe(false);
+    expect(isAdmin(verified('admin@example.com'), none)).toBe(false);
+    expect(isAdmin(verified(''), none)).toBe(false);
   });
 });

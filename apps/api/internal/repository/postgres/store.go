@@ -16,8 +16,8 @@ import (
 // Compile-time check: *Store satisfies both the unit-of-work boundary
 // (Transactor) and the bundle of all repositories (Repositories).
 var (
-	_ repository.Transactor    = (*Store)(nil)
-	_ repository.Repositories  = (*Store)(nil)
+	_ repository.Transactor   = (*Store)(nil)
+	_ repository.Repositories = (*Store)(nil)
 )
 
 type Store struct {

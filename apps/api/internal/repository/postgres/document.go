@@ -118,6 +118,17 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		s.logger.Warn("repository.create_document_quota_rejected", "error", err.Error(), "workspace_id", wsID, "filename", filename, "file_size", fileSize)
 		return nil, repository.DocumentUploadTarget{}, err
 	}
+	// The account row is locked, so concurrent uploads to the same account
+	// count one after another and cannot both take the last slot.
+	inFiveHours, inWeek, err := countRecentUploads(ctx, tx, account.AccountID, createdAt)
+	if err != nil {
+		s.logger.Error("repository.create_document_upload_count_failed", "error", err.Error(), "account_id", account.AccountID)
+		return nil, repository.DocumentUploadTarget{}, err
+	}
+	if err := domain.CheckUploadCount(account, inFiveHours, inWeek); err != nil {
+		s.logger.Warn("repository.create_document_upload_limit_rejected", "error", err.Error(), "account_id", account.AccountID, "workspace_id", wsID)
+		return nil, repository.DocumentUploadTarget{}, err
+	}
 	reserved, err := activeReservedBytes(ctx, tx, account.AccountID, createdAt)
 	if err != nil {
 		s.logger.Error("repository.create_document_reservation_sum_failed", "error", err.Error(), "account_id", account.AccountID)
@@ -1064,4 +1075,16 @@ func firstNonEmptyNonSQL(v, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// countRecentUploads counts the uploads the account reserved in the last
+// domain.UploadWindowFiveHours and domain.UploadWindowWeek, whether or not
+// they were confirmed.
+func countRecentUploads(ctx context.Context, tx *sql.Tx, accountID string, now time.Time) (inFiveHours, inWeek int64, err error) {
+	err = tx.QueryRowContext(ctx, `
+SELECT COUNT(*), COUNT(CASE WHEN created_at > $3 THEN 1 END)
+FROM upload_reservations
+WHERE account_id = $1 AND created_at > $2
+`, accountID, now.Add(-domain.UploadWindowWeek), now.Add(-domain.UploadWindowFiveHours)).Scan(&inWeek, &inFiveHours)
+	return inFiveHours, inWeek, err
 }

@@ -61,6 +61,47 @@ func TestHealthHandler_ReadinessRequiresKeyBeforeDependencyChecks(t *testing.T) 
 	}
 }
 
+// An unset key must never match an empty or missing one: readiness fails
+// closed (docs/architecture/stage-prod-smoke-tests.md), like the worker's.
+func TestHealthHandler_ReadinessFailsClosedWhenAKeyIsUnset(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		readiness   string
+		monitor     string
+		target      string
+		header      string
+		wantCode    int
+		wantChecked bool
+	}{
+		{name: "both keys unset, no key", target: "/health?ready=1", wantCode: http.StatusUnauthorized},
+		{name: "both keys unset, empty query key", target: "/health?ready=1&key=", wantCode: http.StatusUnauthorized},
+		{name: "both keys unset, some key", target: "/health?ready=1", header: "anything", wantCode: http.StatusUnauthorized},
+		{name: "monitor key unset, no key", readiness: "expected", target: "/health?ready=1", wantCode: http.StatusUnauthorized},
+		{name: "monitor key unset, empty query key", readiness: "expected", target: "/health?ready=1&key=", wantCode: http.StatusUnauthorized},
+		{name: "readiness key unset, no key", monitor: "monitor-expected", target: "/health?ready=1", wantCode: http.StatusUnauthorized},
+		{name: "monitor key unset, readiness key still works", readiness: "expected", target: "/health?ready=1", header: "expected", wantCode: http.StatusOK, wantChecked: true},
+		{name: "readiness key unset, monitor key still works", monitor: "monitor-expected", target: "/health?ready=1", header: "monitor-expected", wantCode: http.StatusOK, wantChecked: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &healthChecker{}
+			req := httptest.NewRequest(http.MethodGet, tc.target, nil)
+			if tc.header != "" {
+				req.Header.Set("X-Synthify-Readiness-Key", tc.header)
+			}
+			rec := httptest.NewRecorder()
+
+			healthHandler(p, tc.readiness, tc.monitor)(rec, req)
+
+			if rec.Code != tc.wantCode {
+				t.Fatalf("expected %d, got %d", tc.wantCode, rec.Code)
+			}
+			if p.called != tc.wantChecked {
+				t.Fatalf("dependency check called = %v, want %v", p.called, tc.wantChecked)
+			}
+		})
+	}
+}
+
 func TestHealthHandler_ReadinessChecksDependenciesWithValidKey(t *testing.T) {
 	p := &healthChecker{}
 	req := httptest.NewRequest(http.MethodGet, "/health?ready=1", nil)

@@ -49,6 +49,8 @@ type Repository interface {
 }
 
 type Worker struct {
+	// orchestrator holds the agent wiring. Jobs never run on it directly:
+	// Process runs each job on orchestrator.ForJob().
 	orchestrator *agents.Orchestrator
 	repo         Repository
 	lifecycle    joblifecycle.RuntimeController
@@ -196,6 +198,14 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		}
 	}
 
+	// Run the job on an orchestrator of its own: this process runs other
+	// tenants' jobs at the same time and after this one, and they must not see
+	// this job's IDs, Working Memory or images (see Orchestrator.ForJob).
+	jobOrchestrator, err := w.orchestrator.ForJob()
+	if err != nil {
+		return fmt.Errorf("build orchestrator for job %s: %w", req.JobID, err)
+	}
+
 	if err := w.lifecycle.MarkRunning(ctx, payload); err != nil {
 		return fmt.Errorf("mark job running: %w", err)
 	}
@@ -211,7 +221,7 @@ func (w *Worker) Process(ctx context.Context, req ExecutePlanRequest) error {
 		agentCtx, cancel = context.WithTimeout(ctx, w.agentBudget)
 		defer cancel()
 	}
-	if err := w.orchestrator.ProcessDocument(agentCtx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
+	if err := jobOrchestrator.ProcessDocument(agentCtx, req.JobID, req.DocumentID, req.WorkspaceID, req.FileURI, req.Filename, req.MimeType); err != nil {
 		// Distinguish a self-imposed budget abort (retryable) from a real
 		// failure. A budget abort is: the agent ctx hit its deadline while the
 		// parent request ctx is still alive. If the parent is also done, Cloud

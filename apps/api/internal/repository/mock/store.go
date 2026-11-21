@@ -71,6 +71,7 @@ type uploadReservation struct {
 	ExpectedSize int64
 	ActualSize   int64
 	Status       string
+	CreatedAt    time.Time
 	ExpiresAt    time.Time
 }
 
@@ -660,6 +661,11 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 	if err := validateMockUpload(account, fileSize); err != nil {
 		return nil, repository.DocumentUploadTarget{}, err
 	}
+	now := time.Now()
+	inFiveHours, inWeek := s.recentUploadsLocked(account.AccountID, now)
+	if err := domain.CheckUploadCount(account, inFiveHours, inWeek); err != nil {
+		return nil, repository.DocumentUploadTarget{}, err
+	}
 	if account.StorageUsedBytes+s.activeReservedBytesLocked(account.AccountID)+fileSize > account.StorageQuotaBytes {
 		return nil, repository.DocumentUploadTarget{}, domain.ErrStorageQuotaExceeded
 	}
@@ -679,6 +685,7 @@ func (s *Store) CreateDocument(ctx context.Context, wsID, uploadedBy, filename, 
 		DocumentID:   d.DocumentID,
 		ExpectedSize: fileSize,
 		Status:       "reserved",
+		CreatedAt:    now,
 		ExpiresAt:    time.Now().Add(15 * time.Minute),
 	}
 	target, err := s.uploadURLIssuer.IssueDocumentUploadURL(ctx, wsID, d.DocumentID, mimeType, fileSize)
@@ -766,6 +773,38 @@ func (s *Store) activeReservedBytesLocked(accountID string) int64 {
 		}
 	}
 	return total
+}
+
+// recentUploadsLocked counts, like the postgres store, the uploads accountID
+// reserved in the last domain.UploadWindowFiveHours and domain.UploadWindowWeek,
+// whatever became of them. The caller holds s.mu.
+func (s *Store) recentUploadsLocked(accountID string, now time.Time) (inFiveHours, inWeek int64) {
+	for _, reservation := range s.reservations {
+		if reservation.AccountID != accountID {
+			continue
+		}
+		if reservation.CreatedAt.After(now.Add(-domain.UploadWindowWeek)) {
+			inWeek++
+		}
+		if reservation.CreatedAt.After(now.Add(-domain.UploadWindowFiveHours)) {
+			inFiveHours++
+		}
+	}
+	return inFiveHours, inWeek
+}
+
+// BackdateUploadReservations moves every upload reservation of accountID back
+// by d, as if it had been made d earlier. Tests use it to age uploads out of
+// the upload count windows.
+func (s *Store) BackdateUploadReservations(accountID string, d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, reservation := range s.reservations {
+		if reservation.AccountID == accountID {
+			reservation.CreatedAt = reservation.CreatedAt.Add(-d)
+			reservation.ExpiresAt = reservation.ExpiresAt.Add(-d)
+		}
+	}
 }
 
 func (s *Store) CreateDocumentFile(ctx context.Context, docID, path, mimeType string, fileSize int64) (*domain.DocumentFile, error) {
