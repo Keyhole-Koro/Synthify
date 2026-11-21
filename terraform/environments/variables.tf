@@ -188,7 +188,16 @@ variable "readiness_api_key" {
 }
 
 variable "readiness_monitor_key" {
-  description = "Long-lived key for external uptime monitoring of /health?ready=1 (GitHub Actions cron), distinct from readiness_api_key which rotates on every deploy."
+  description = "Long-lived key for external uptime monitoring of /health?ready=1 (the Cloud Monitoring uptime check and the GitHub Actions cron), distinct from readiness_api_key which rotates on every deploy."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# The repository is public, so the address never goes in tfvars. CD passes it
+# from the GitHub environment secret PLATFORM_ALERT_EMAIL.
+variable "platform_alert_email" {
+  description = "Email address for the Cloud Monitoring alerts (uptime, admin changes). Empty => the alert policies exist but notify no one."
   type        = string
   default     = ""
   sensitive   = true
@@ -258,6 +267,9 @@ variable "deployer_principal" {
 # jobs.expiresAt). The Firestore Field/TTL API checks datastore.databases.update,
 # which is not in datastore.indexAdmin or datastore.user — only owner has it
 # among the published curated roles.
+#
+# The three monitoring roles are for services/platform_alerts: alert policies,
+# the email channel and the uptime checks, and nothing else in Monitoring.
 variable "deployer_project_roles" {
   description = "Project-level roles bound to deployer_principal so the deployer can manage all resources in this config. Empty deployer_principal => no bindings."
   type        = list(string)
@@ -270,6 +282,9 @@ variable "deployer_project_roles" {
     "roles/firebaserules.admin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountTokenCreator",
+    "roles/monitoring.alertPolicyEditor",
+    "roles/monitoring.notificationChannelEditor",
+    "roles/monitoring.uptimeCheckConfigEditor",
     "roles/resourcemanager.projectIamAdmin",
     "roles/run.admin",
     "roles/secretmanager.admin",
