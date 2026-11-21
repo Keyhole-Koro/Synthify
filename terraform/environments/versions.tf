@@ -1,5 +1,8 @@
 terraform {
-  required_version = ">= 1.6.0"
+  # 1.7 for the removed{} blocks in services/bootstrap and services/platform.
+  # State written by a newer Terraform cannot be read by an older one, so CI,
+  # CD and local applies move together (CI and CD pin 1.9.8).
+  required_version = ">= 1.7.0"
 
   required_providers {
     google = {

@@ -236,44 +236,13 @@ variable "log_llm_payload" {
   default     = "false"
 }
 
-# Principal running `terraform apply` (the CI/WIF service account). GCP
-# requires this principal to have actAs (roles/iam.serviceAccountUser) on
-# runtime SAs to attach them to Cloud Run services/jobs and Scheduler OAuth.
-# Format: "serviceAccount:<email>". Empty => skip the binding (e.g. when a
-# human with broad IAM applies locally and the binding is unneeded).
+# Principal running `terraform apply` (the CI/WIF service account, the
+# GitHub secret GCP_WIF_SA_EMAIL). Format: "serviceAccount:<email>". Its roles,
+# and its actAs on the runtime service accounts, are granted by
+# terraform/manual/iam, not here: they need project IAM admin, which this
+# account does not have.
 variable "deployer_principal" {
-  description = "CI/WIF principal that runs terraform apply; granted actAs on the api/worker runtime SAs. Format: serviceAccount:<email>. Empty => no binding."
+  description = "CI/WIF principal that runs terraform apply. Format: serviceAccount:<email>. Its IAM lives in terraform/manual/iam."
   type        = string
   default     = ""
-}
-
-# Project-level roles the deployer SA needs to create/manage every resource
-# in this config. Previously these were granted out-of-band (gcloud/console),
-# so they were non-reproducible: stage worked only because cloudscheduler.admin
-# was hand-added after a 403, and prod still lacks it. Managing them here makes
-# every environment identical and self-bootstrapping. resourcemanager.projectIamAdmin
-# (in this set) is what lets the deployer grant itself the rest.
-#
-# datastore.owner is required for google_firestore_field (TTL policy on
-# jobs.expiresAt). The Firestore Field/TTL API checks datastore.databases.update,
-# which is not in datastore.indexAdmin or datastore.user — only owner has it
-# among the published curated roles.
-variable "deployer_project_roles" {
-  description = "Project-level roles bound to deployer_principal so the deployer can manage all resources in this config. Empty deployer_principal => no bindings."
-  type        = list(string)
-  default = [
-    "roles/artifactregistry.admin",
-    "roles/cloudscheduler.admin",
-    "roles/cloudtasks.admin",
-    "roles/datastore.owner",
-    "roles/firebasehosting.admin",
-    "roles/firebaserules.admin",
-    "roles/iam.serviceAccountAdmin",
-    "roles/iam.serviceAccountTokenCreator",
-    "roles/resourcemanager.projectIamAdmin",
-    "roles/run.admin",
-    "roles/secretmanager.admin",
-    "roles/serviceusage.serviceUsageAdmin",
-    "roles/storage.admin",
-  ]
 }
