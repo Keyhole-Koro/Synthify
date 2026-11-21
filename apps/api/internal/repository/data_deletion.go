@@ -50,6 +50,27 @@ type WorkspacePurgeRepository interface {
 	PurgeWorkspaceRows(ctx context.Context, workspaceID string) (bool, error)
 }
 
+// AccountDeletionRepository supports deleting a user's account. The user's own
+// workspaces are marked deleted and purged first (WorkspacePurgeRepository),
+// so the account rows go last.
+type AccountDeletionRepository interface {
+	// GetAccountDeletionPlan returns the accounts the user alone belongs to,
+	// their workspaces, the other workspaces the user can reach, and whether a
+	// paid plan or a document upload or job still in flight stands in the way. A job counts as in flight only if it
+	// moved after jobsActiveSince.
+	GetAccountDeletionPlan(ctx context.Context, userID string, jobsActiveSince, now time.Time) (*domain.AccountDeletionPlan, error)
+	// MarkWorkspacesDeleted sets deleted_at on the workspaces not deleted yet.
+	MarkWorkspacesDeleted(ctx context.Context, workspaceIDs []string, now time.Time) error
+	// DeleteAccountRows deletes, in one transaction, the user's memberships in
+	// other workspaces, the user's ID from what they added to those workspaces
+	// (documents, jobs, nodes), the accounts they alone belong to with
+	// everything that cascades from them (usage, credits, invoices, payment
+	// methods), their membership of shared accounts, and the users row. It
+	// fails with ErrConflict while one of their accounts still has a
+	// workspace, so a workspace created meanwhile is not orphaned.
+	DeleteAccountRows(ctx context.Context, userID string) error
+}
+
 // ObjectPrefixDeleter deletes every stored object whose name starts with a
 // prefix, including the noncurrent versions bucket versioning keeps, so the
 // data is gone rather than hidden. Prefixes come from

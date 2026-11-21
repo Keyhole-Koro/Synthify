@@ -13,7 +13,8 @@ type UserUsecase interface {
 }
 
 type UserHandler struct {
-	service UserUsecase
+	service         UserUsecase
+	accountDeletion AccountDeletionUsecase
 }
 
 func NewUserHandler(svc UserUsecase) *UserHandler {

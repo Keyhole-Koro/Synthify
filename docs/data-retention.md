@@ -1,6 +1,6 @@
 # データの保持と削除
 
-利用者のデータ（上げた文書、そこから作ったツリー、アカウント）をどこに持ち、いつ・どう消すかをまとめる。実装の正本は `apps/api/internal/application/document_delete.go`・`workspace_purge.go` と `apps/api/internal/repository/postgres/data_deletion.go`・`workspace_purge.go`。
+利用者のデータ（上げた文書、そこから作ったツリー、アカウント）をどこに持ち、いつ・どう消すかをまとめる。実装の正本は `apps/api/internal/application/` の `document_delete.go`・`workspace_purge.go`・`account_deletion.go` と、`apps/api/internal/repository/postgres/` の同じ名前のファイル（`data_deletion.go`・`workspace_purge.go`・`account_deletion.go`）。
 
 ## 保存先
 
@@ -8,7 +8,7 @@
 | --- | --- |
 | CockroachDB | 文書（`documents`・`document_files`）、本文の断片（`document_chunks`）、ノードの題・説明・本文（`tree_items`）とその出典（`item_sources`）、処理ジョブ（`document_processing_jobs`）とそのログ・変更記録（`job_logs`・`job_mutation_logs`。変更前後のノードの本文を含む）、アップロードの予約、利用者・アカウント・課金 |
 | GCS（uploads バケット） | `{ws}/{doc}/source/`（原本）、`{ws}/{doc}/extracted/`（worker の展開・コピー）、`.cache/v1/{doc}/`（worker の grep キャッシュ。本文の抜粋）、`.checkpoints/{job}/`（worker の段階ごとの出力） |
-| Firestore | `workspaces/{ws}/jobs/{job}`（ジョブの進み具合の表示用） |
+| Firestore | `workspaces/{ws}/jobs/{job}`（ジョブの進み具合の表示用）、`workspaces/{ws}/readers/{user}`（それを読める利用者の写し） |
 
 GCS の場所の組み立ては `internal/platform/storage/prefixes.go` にまとめ、worker が書く場所がこの中に収まることを `apps/worker/pkg/worker/storage/deletion_layout_test.go` で確かめる。
 
@@ -55,6 +55,31 @@ GCS の場所の組み立ては `internal/platform/storage/prefixes.go` にま�
 - 保持期間のあいだは保存容量に数えたまま。削除したワークスペースを戻す画面や API は無い。戻すなら運営者が DB で `deleted_at` を消す。
 - 動的ツール（`dynamic_tools`）は作ったワークスペースと一緒に消える。global に昇格したツールも同じ（外部キーがそうなっている）。
 
+## 退会（アカウントの削除）
+
+アカウントの紙の「アカウントを削除（退会）」から消す（`UserService.DeleteAccount`）。確認を 1 回挟む。消すのは呼んだ本人のアカウントだけで、誰かは ID トークンから決める。
+
+順番。途中で失敗しても、もう一度呼べば続きから進む。
+
+1. 本人だけが属するアカウントのワークスペースに削除済みの印を付け（共有していたメンバーからも見えなくなる）、Firestore の読める人の写しをすべて消してから、保持期間を待たずにその場で完全に消す。手順はワークスペースの削除と同じで、GCS が先。
+2. DB（1 トランザクション）: 他人のワークスペースのメンバーシップを消し、他人のワークスペースに残る本人の ID（上げた文書の `uploaded_by`、ジョブの `requested_by`、手で作ったノードの `created_by`、招待の `invited_by`）を空にする。本人だけのアカウントを消すと、外部キーでつながる使用量・クレジット・請求書と支払い方法の写し・アップロードの予約も消える。共有しているアカウントからは抜けるだけ。最後に `users` の行（メールアドレスと名前）を消す。そのあと、他人のワークスペースについての本人の読める人の写しを Firestore から消す（失敗してもログに残して先へ進む）。
+3. Firebase Authentication の利用者（Admin SDK）。最後にするのは、ここより前で失敗しても本人がログインしてやり直せるようにするため。
+
+断るとき（`FailedPrecondition`）:
+
+- 有料プランが続いている（Stripe の契約があり、期間の終わりで止める設定になっていない）。消すと、こちらが知らない顧客に Stripe が課金し続ける。先に解約してもらう。課金の側には手を入れていない。
+- 自分のワークスペースに、アップロード中か処理中の文書がある（文書の削除と同じ理由）。
+
+消えずに残るもの:
+
+- 他人のワークスペースに上げた文書と、そこから作られたノード。そのワークスペースのツリーの一部なので、本人の ID だけを外して残す。消したいときは退会の前に文書を削除する（編集者は自分が上げた文書を消せる）。
+- Stripe 側の顧客と請求書。こちらの `billing_events`（Webhook の受信記録。アカウント ID と Stripe の ID を持つ）も消さない。
+- 同じアカウントでもう一度ログインすると新しいアカウントができ、無料クレジットもまた付く。消したアカウントに付与した記録は残していない。
+- ジョブの承認と変更の記録（`job_approval_requests`・`job_mutation_logs` の中身）にある本人の ID、ログに出た ID。
+
 ## 権限
 
-API のサービスアカウントは uploads バケットに `roles/storage.objectUser` を持つ（`terraform/services/platform/main.tf` の `api_uploads_deleter`）。`objectCreator` と `objectViewer` だけでは消せない。
+API のサービスアカウントは次を持つ（`terraform/services/platform/main.tf`）。
+
+- uploads バケットに `roles/storage.objectUser`（`api_uploads_deleter`）。`objectCreator` と `objectViewer` だけでは消せない。
+- プロジェクトに `roles/firebaseauth.admin`（`api_firebaseauth_admin`）。退会で Firebase Authentication の利用者を消すため。

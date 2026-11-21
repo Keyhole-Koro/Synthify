@@ -8,6 +8,29 @@ import "errors"
 // retries instead.
 var ErrDocumentBusy = errors.New("document is still being uploaded or processed")
 
+// ErrActiveSubscription is returned when an account to be deleted still has a
+// paid plan that renews. Deleting the account would leave Stripe charging a
+// customer this service no longer knows; the user cancels the plan first.
+var ErrActiveSubscription = errors.New("account has a paid plan that still renews")
+
+// AccountDeletionPlan is what deleting a user's account involves.
+type AccountDeletionPlan struct {
+	// AccountIDs are the accounts the user is the only member of. They are
+	// deleted with the user; accounts shared with others only lose the user.
+	AccountIDs []string
+	// WorkspaceIDs are the workspaces of those accounts, deleted or not.
+	WorkspaceIDs []string
+	// OtherWorkspaceIDs are the other workspaces the user can reach, as an
+	// invited member or through an account shared with others.
+	OtherWorkspaceIDs []string
+	// ActiveSubscription is true if one of those accounts has a paid plan
+	// that is not set to end.
+	ActiveSubscription bool
+	// Busy is true while a document in one of those workspaces is still
+	// uploading or being processed.
+	Busy bool
+}
+
 // DocumentDeletionState is what deleting a document has to know beforehand.
 type DocumentDeletionState struct {
 	// JobIDs lists every processing job of the document. Each may have left

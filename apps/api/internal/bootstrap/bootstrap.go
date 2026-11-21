@@ -58,6 +58,7 @@ type Store interface {
 	repository.DynamicToolRepository
 	repository.DocumentDeletionRepository
 	repository.WorkspacePurgeRepository
+	repository.AccountDeletionRepository
 	repository.Transactor
 }
 
