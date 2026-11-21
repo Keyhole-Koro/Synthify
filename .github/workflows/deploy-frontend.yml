@@ -73,6 +73,14 @@ jobs:
           NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY: ${{ vars.NEXT_PUBLIC_NEW_RELIC_BROWSER_TRUST_KEY }}
           NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID: ${{ vars.NEXT_PUBLIC_NEW_RELIC_BROWSER_AGENT_ID }}
 
+      # apps/web puts window.__synthifyE2E on the page so Playwright can sign in
+      # through the Auth emulator: the app's only sign-in path is Google OAuth,
+      # which a test runner cannot drive. The hook signs a user in from anything
+      # that can reach the global, so it must not ship. firebase.ts gates it on
+      # NODE_ENV; this checks the artifact itself, between build and deploy.
+      - name: Assert no test hooks in the bundle
+        run: bash scripts/assert-no-test-hooks.sh apps/web/out
+
       # Keyless auth via Workload Identity Federation, same as deploy-backend.
       # firebase-tools picks up the credentials through the
       # GOOGLE_APPLICATION_CREDENTIALS file exported by the auth action.
