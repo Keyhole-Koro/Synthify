@@ -123,6 +123,38 @@ func TestDeleteDocument_RemovesFilesRowsAndNodesMadeOnlyFromIt(t *testing.T) {
 	assert.EqualValues(t, 200, account.StorageUsedBytes)
 }
 
+// A node a person curated or locked is protected from automated changes, so it
+// stays, with its children, even when the deleted document was its only source.
+func TestDeleteDocument_KeepsCuratedAndLockedNodes(t *testing.T) {
+	ctx := context.Background()
+	f := newDocumentDeletionFixture(t)
+	doc, _ := f.uploadedDocument(t, "owner", "a.pdf", 10)
+	curated := f.node(t, "curated", "", doc.DocumentID)
+	locked := f.node(t, "locked", "", doc.DocumentID)
+	child := f.node(t, "child-of-curated", curated)
+	for id, state := range map[string]appv1.ItemGovernanceState{
+		curated: appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_HUMAN_CURATED,
+		locked:  appv1.ItemGovernanceState_ITEM_GOVERNANCE_STATE_LOCKED,
+	} {
+		item, err := f.store.GetItem(ctx, id)
+		require.NoError(t, err)
+		item.GovernanceState = state
+	}
+
+	require.NoError(t, f.svc.DeleteDocument(ctx, doc.DocumentID, "owner"))
+
+	for _, id := range []string{curated, locked} {
+		_, err := f.store.GetItem(ctx, id)
+		require.NoError(t, err, "%s survives", id)
+		sources, err := f.store.ListItemSources(ctx, id)
+		require.NoError(t, err)
+		assert.Empty(t, sources, "%s loses the deleted document's sources", id)
+	}
+	kept, err := f.store.GetItem(ctx, child)
+	require.NoError(t, err)
+	assert.Equal(t, curated, kept.ParentID)
+}
+
 func TestDeleteDocument_Authorization(t *testing.T) {
 	cases := []struct {
 		name       string
