@@ -34,9 +34,18 @@ export function toPapers(tree: TreeFile): Paper[] {
     childIds: p.childIds,
     title: p.title,
     description: p.description,
-    content: p.content,
+    content: withImageMarkers(p.content),
     ...(p.css ? { overrideCss: p.css } : {}),
   }));
+}
+
+/**
+ * Turns each <img> with a relative src (a file published with the tree) into a paper-in-paper
+ * image marker, which the viewer fills with a data: URL. A paper's frame loads only https:,
+ * data: and blob: images, and the page may be served over plain http (a local server).
+ */
+export function withImageMarkers(html: string): string {
+  return html.replace(/(<img\b[^>]*?\s)src(\s*=\s*(["'])(?![a-z][a-z0-9+.-]*:|\/)[^"']*\3)/gi, '$1data-file-id$2');
 }
 
 // The open papers live in the page's #fragment ("#open=/api,/api/auth"), so a link or a reload

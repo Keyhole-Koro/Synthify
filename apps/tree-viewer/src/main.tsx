@@ -17,6 +17,27 @@ const JA_LABELS: PaperCanvasLabels = {
 // A published tree cannot save moves: papers may be reordered in their room, not moved out of it.
 const withinRoom = ({ sourceParentId, targetParentId }: PaperMoveRequest) => sourceParentId === targetParentId;
 
+// Images of the tree, read once each as data: URLs (see withImageMarkers).
+const images = new Map<string, Promise<string>>();
+function loadImageUrl(fileId: string): Promise<string> {
+  let url = images.get(fileId);
+  if (!url) {
+    url = fetch(fileId).then(async (res) => {
+      if (!res.ok) throw new Error(`${fileId}: HTTP ${res.status}`);
+      const blob = await res.blob();
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(blob);
+      });
+    });
+    url.catch(() => images.delete(fileId));
+    images.set(fileId, url);
+  }
+  return url;
+}
+
 function openExternalLink(href: string) {
   if (/^(https?:|mailto:)/i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
 }
@@ -62,6 +83,7 @@ function Viewer({ tree }: { tree: TreeFile }) {
       colorScheme="system"
       labels={tree.lang.toLowerCase().startsWith('ja') ? JA_LABELS : undefined}
       canDrop={withinRoom}
+      loadImageUrl={loadImageUrl}
       onOpenExternalLink={openExternalLink}
     />
   );

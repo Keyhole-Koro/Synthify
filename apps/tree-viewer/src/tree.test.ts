@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { expansionFor, hashFromIds, idsFromHash, openIds, readTree } from './tree';
+import { expansionFor, hashFromIds, idsFromHash, openIds, readTree, withImageMarkers } from './tree';
 
 const parents: Record<string, string | null> = { '/': null, '/api': '/', '/api/auth': '/api', '/ops': '/' };
 const parentOf = (id: string) => parents[id];
@@ -36,6 +36,14 @@ describe('open state', () => {
     map.set('/api', { openChildIds: ['/api/auth'] }); // /api itself is not open
     expect(openIds(map, '/')).toEqual([]);
   });
+});
+
+test('images published with the tree become markers; others stay as they are', () => {
+  expect(withImageMarkers('<p><img alt="図 1" src="images/fig-1.png"> <IMG SRC=\'a b.svg\' width="10"></p>')).toBe(
+    '<p><img alt="図 1" data-file-id="images/fig-1.png"> <IMG data-file-id=\'a b.svg\' width="10"></p>',
+  );
+  const others = '<img src="data:image/png;base64,AA=="><img src="https://example.com/a.png"><img src="/abs.png"><img data-src="x.png">';
+  expect(withImageMarkers(others)).toBe(others);
 });
 
 test('readTree needs the format and a root', () => {
