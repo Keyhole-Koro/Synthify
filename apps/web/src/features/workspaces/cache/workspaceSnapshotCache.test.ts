@@ -16,10 +16,10 @@ describe('workspaceSnapshotCache', () => {
       name: 'Cached workspace',
       ownerId: 'account_1',
       plan: WorkspacePlan.FREE,
-      storageUsedBytes: 12n,
-      storageQuotaBytes: 34n,
-      maxFileSizeBytes: 56n,
-      maxUploadsPerDay: 78n,
+      storageUsedBytes: BigInt(12),
+      storageQuotaBytes: BigInt(34),
+      maxFileSizeBytes: BigInt(56),
+      maxUploadsPerDay: BigInt(78),
       createdAt: '2026-06-03T00:00:00Z',
     });
 
@@ -28,8 +28,8 @@ describe('workspaceSnapshotCache', () => {
     const [loaded] = loadWorkspaceSnapshot(owner);
     expect(loaded.workspaceId).toBe('ws_1');
     expect(loaded.name).toBe('Cached workspace');
-    expect(loaded.storageQuotaBytes).toBe(34n);
-    expect(loaded.maxUploadsPerDay).toBe(78n);
+    expect(loaded.storageQuotaBytes).toBe(BigInt(34));
+    expect(loaded.maxUploadsPerDay).toBe(BigInt(78));
   });
 
   it('scopes cached workspaces by user id', () => {
