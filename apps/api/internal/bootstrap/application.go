@@ -120,10 +120,11 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		return nil, fmt.Errorf("firebase user deleter init: %w", err)
 	}
 	accountDeletion := application.NewAccountDeletionService(application.AccountDeletionServiceDeps{
-		Repo:       store,
-		Workspaces: workspacePurger,
-		AuthUsers:  authUsers,
-		Logger:     logger,
+		Repo:             store,
+		Workspaces:       workspacePurger,
+		AuthUsers:        authUsers,
+		JobStatusReaders: appCtx.JobStatusReaders,
+		Logger:           logger,
 	})
 
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})

@@ -53,6 +53,18 @@ func (f *accountDeletionFakes) DeleteAccountRows(_ context.Context, userID strin
 	return nil
 }
 
+func (f *accountDeletionFakes) Grant(context.Context, string, ...string) error { return nil }
+
+func (f *accountDeletionFakes) Revoke(_ context.Context, userID, workspaceID string) error {
+	f.events = append(f.events, "revoke "+userID+" on "+workspaceID)
+	return nil
+}
+
+func (f *accountDeletionFakes) RevokeAll(_ context.Context, workspaceID string) error {
+	f.events = append(f.events, "revoke all on "+workspaceID)
+	return nil
+}
+
 func (f *accountDeletionFakes) DeleteUser(_ context.Context, userID string) error {
 	if f.authErr != nil {
 		return f.authErr
@@ -66,18 +78,20 @@ var accountDeletionNow = time.Date(2026, 11, 21, 12, 0, 0, 0, time.UTC)
 
 func newTestAccountDeletion(f *accountDeletionFakes) *AccountDeletionService {
 	return NewAccountDeletionService(AccountDeletionServiceDeps{
-		Repo:       f,
-		Workspaces: f,
-		AuthUsers:  f,
-		Logger:     discardLogger(),
-		Now:        func() time.Time { return accountDeletionNow },
+		Repo:             f,
+		Workspaces:       f,
+		AuthUsers:        f,
+		JobStatusReaders: f,
+		Logger:           discardLogger(),
+		Now:              func() time.Time { return accountDeletionNow },
 	})
 }
 
 func TestDeleteAccount_PurgesWorkspacesThenRowsThenSignIn(t *testing.T) {
 	f := &accountDeletionFakes{plan: domain.AccountDeletionPlan{
-		AccountIDs:   []string{"acc"},
-		WorkspaceIDs: []string{"ws1", "ws2"},
+		AccountIDs:        []string{"acc"},
+		WorkspaceIDs:      []string{"ws1", "ws2"},
+		OtherWorkspaceIDs: []string{"theirs"},
 	}}
 
 	err := newTestAccountDeletion(f).DeleteAccount(context.Background(), "user")
@@ -86,9 +100,12 @@ func TestDeleteAccount_PurgesWorkspacesThenRowsThenSignIn(t *testing.T) {
 	assert.Equal(t, []string{
 		"plan user",
 		"mark deleted",
+		"revoke all on ws1",
+		"revoke all on ws2",
 		"purge ws1",
 		"purge ws2",
 		"rows user",
+		"revoke user on theirs",
 		"auth user user",
 	}, f.events)
 	assert.Equal(t, []string{"ws1", "ws2"}, f.markedDeleted)

@@ -29,6 +29,16 @@ ORDER BY workspace_id
 `, userID); err != nil {
 		return nil, fmt.Errorf("list the user's workspaces: %w", err)
 	}
+	if plan.OtherWorkspaceIDs, err = s.queryIDs(ctx, `
+SELECT workspace_id FROM workspace_members WHERE user_id = $1
+UNION
+SELECT w.workspace_id FROM workspaces w
+JOIN account_users au ON au.account_id = w.account_id
+WHERE au.user_id = $1 AND w.account_id NOT IN (`+soleAccountsOfUser+`)
+ORDER BY workspace_id
+`, userID); err != nil {
+		return nil, fmt.Errorf("list workspaces shared with the user: %w", err)
+	}
 	if err := s.db.QueryRowContext(ctx, `
 SELECT
   EXISTS (

@@ -20,6 +20,9 @@ type AccountDeletionPlan struct {
 	AccountIDs []string
 	// WorkspaceIDs are the workspaces of those accounts, deleted or not.
 	WorkspaceIDs []string
+	// OtherWorkspaceIDs are the other workspaces the user can reach, as an
+	// invited member or through an account shared with others.
+	OtherWorkspaceIDs []string
 	// ActiveSubscription is true if one of those accounts has a paid plan
 	// that is not set to end.
 	ActiveSubscription bool

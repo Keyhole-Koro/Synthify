@@ -8,7 +8,7 @@
 | --- | --- |
 | CockroachDB | 文書（`documents`・`document_files`）、本文の断片（`document_chunks`）、ノードの題・説明・本文（`tree_items`）とその出典（`item_sources`）、処理ジョブ（`document_processing_jobs`）とそのログ・変更記録（`job_logs`・`job_mutation_logs`。変更前後のノードの本文を含む）、アップロードの予約、利用者・アカウント・課金 |
 | GCS（uploads バケット） | `{ws}/{doc}/source/`（原本）、`{ws}/{doc}/extracted/`（worker の展開・コピー）、`.cache/v1/{doc}/`（worker の grep キャッシュ。本文の抜粋）、`.checkpoints/{job}/`（worker の段階ごとの出力） |
-| Firestore | `workspaces/{ws}/jobs/{job}`（ジョブの進み具合の表示用） |
+| Firestore | `workspaces/{ws}/jobs/{job}`（ジョブの進み具合の表示用）、`workspaces/{ws}/readers/{user}`（それを読める利用者の写し） |
 
 GCS の場所の組み立ては `internal/platform/storage/prefixes.go` にまとめ、worker が書く場所がこの中に収まることを `apps/worker/pkg/worker/storage/deletion_layout_test.go` で確かめる。
 
@@ -58,8 +58,8 @@ GCS の場所の組み立ては `internal/platform/storage/prefixes.go` にま�
 
 順番。途中で失敗しても、もう一度呼べば続きから進む。
 
-1. 本人だけが属するアカウントのワークスペースに削除済みの印を付け（共有していたメンバーからも見えなくなる）、保持期間を待たずにその場で完全に消す。手順はワークスペースの削除と同じで、GCS が先。
-2. DB（1 トランザクション）: 他人のワークスペースのメンバーシップを消し、他人のワークスペースに残る本人の ID（上げた文書の `uploaded_by`、ジョブの `requested_by`、手で作ったノードの `created_by`、招待の `invited_by`）を空にする。本人だけのアカウントを消すと、外部キーでつながる使用量・クレジット・請求書と支払い方法の写し・アップロードの予約も消える。共有しているアカウントからは抜けるだけ。最後に `users` の行（メールアドレスと名前）を消す。
+1. 本人だけが属するアカウントのワークスペースに削除済みの印を付け（共有していたメンバーからも見えなくなる）、Firestore の読める人の写しをすべて消してから、保持期間を待たずにその場で完全に消す。手順はワークスペースの削除と同じで、GCS が先。
+2. DB（1 トランザクション）: 他人のワークスペースのメンバーシップを消し、他人のワークスペースに残る本人の ID（上げた文書の `uploaded_by`、ジョブの `requested_by`、手で作ったノードの `created_by`、招待の `invited_by`）を空にする。本人だけのアカウントを消すと、外部キーでつながる使用量・クレジット・請求書と支払い方法の写し・アップロードの予約も消える。共有しているアカウントからは抜けるだけ。最後に `users` の行（メールアドレスと名前）を消す。そのあと、他人のワークスペースについての本人の読める人の写しを Firestore から消す（失敗してもログに残して先へ進む）。
 3. Firebase Authentication の利用者（Admin SDK）。最後にするのは、ここより前で失敗しても本人がログインしてやり直せるようにするため。
 
 断るとき（`FailedPrecondition`）:

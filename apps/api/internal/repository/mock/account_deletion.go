@@ -36,6 +36,12 @@ func (s *Store) GetAccountDeletionPlan(ctx context.Context, userID string, jobsA
 	}
 	plan.AccountIDs = []string{account.AccountID}
 	plan.WorkspaceIDs = s.ownedWorkspaceIDsLocked(userID)
+	for id, members := range s.wsMembers {
+		if _, ok := members[userID]; ok {
+			plan.OtherWorkspaceIDs = append(plan.OtherWorkspaceIDs, id)
+		}
+	}
+	sort.Strings(plan.OtherWorkspaceIDs)
 	plan.ActiveSubscription = account.StripeSubscriptionID != "" &&
 		account.BillingStatus != string(domain.BillingStatusFree) &&
 		account.BillingStatus != string(domain.BillingStatusCanceled) &&

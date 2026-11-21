@@ -55,12 +55,14 @@ func TestAccountDeletion_DB(t *testing.T) {
 	both := f.account(0)
 	f.member(both, u)
 	f.member(both, v)
+	ofBoth := f.workspace(both)
 
 	jobsActiveSince := f.now.Add(-30 * time.Minute)
 	plan, err := store.GetAccountDeletionPlan(ctx, u, jobsActiveSince, f.now)
 	require.NoError(t, err)
 	assert.Equal(t, []string{own}, plan.AccountIDs, "an account shared with others is not the user's to delete")
 	assert.ElementsMatch(t, []string{live, earlier}, plan.WorkspaceIDs)
+	assert.ElementsMatch(t, []string{shared, ofBoth}, plan.OtherWorkspaceIDs, "reached as a member or through a shared account")
 	assert.False(t, plan.ActiveSubscription)
 	assert.False(t, plan.Busy)
 
@@ -110,6 +112,7 @@ func TestAccountDeletion_DB(t *testing.T) {
 	assert.Equal(t, 1, f.count(`SELECT count(*) FROM tree_items WHERE id = $1`, handMade))
 	assert.Equal(t, 1, f.count(`SELECT count(*) FROM workspaces WHERE workspace_id = $1 AND deleted_at IS NULL`, shared))
 	assert.Equal(t, 1, f.count(`SELECT count(*) FROM account_users WHERE account_id = $1 AND user_id = $2`, both, v))
+	assert.Equal(t, 1, f.count(`SELECT count(*) FROM workspaces WHERE workspace_id = $1 AND deleted_at IS NULL`, ofBoth))
 	assert.Equal(t, 1, f.count(`SELECT count(*) FROM users WHERE user_id = $1`, v))
 
 	require.NoError(t, store.DeleteAccountRows(ctx, u), "deleting again is a no-op")

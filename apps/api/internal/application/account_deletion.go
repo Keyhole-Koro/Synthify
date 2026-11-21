@@ -26,6 +26,7 @@ type AccountDeletionService struct {
 	repo       repository.AccountDeletionRepository
 	workspaces WorkspacePurgePort
 	authUsers  AuthUserDeleter
+	jobReaders JobStatusReaders
 	logger     *slog.Logger
 	now        func() time.Time
 }
@@ -34,8 +35,12 @@ type AccountDeletionServiceDeps struct {
 	Repo       repository.AccountDeletionRepository
 	Workspaces WorkspacePurgePort
 	AuthUsers  AuthUserDeleter
-	Logger     *slog.Logger
-	Now        func() time.Time
+	// JobStatusReaders is the Firestore mirror of workspace access. The
+	// deletion removes access without going through WorkspaceService, so it
+	// revokes the mirrored access itself.
+	JobStatusReaders JobStatusReaders
+	Logger           *slog.Logger
+	Now              func() time.Time
 }
 
 func NewAccountDeletionService(deps AccountDeletionServiceDeps) *AccountDeletionService {
@@ -43,6 +48,7 @@ func NewAccountDeletionService(deps AccountDeletionServiceDeps) *AccountDeletion
 		repo:       deps.Repo,
 		workspaces: deps.Workspaces,
 		authUsers:  deps.AuthUsers,
+		jobReaders: deps.JobStatusReaders,
 		logger:     deps.Logger,
 		now:        deps.Now,
 	}
@@ -58,11 +64,13 @@ func NewAccountDeletionService(deps AccountDeletionServiceDeps) *AccountDeletion
 // DeleteAccount deletes the user's account for good, in this order:
 //
 //  1. the workspaces of the accounts the user alone belongs to are marked
-//     deleted (they disappear for everyone at once) and purged right away,
-//     stored files first, without waiting for the retention period;
+//     deleted (they disappear for everyone at once, and every reader of
+//     their job status documents is revoked) and purged right away, stored
+//     files first, without waiting for the retention period;
 //  2. the account rows: memberships in other people's workspaces, the user's
 //     ID on what they added there, the accounts with their usage and billing
-//     records, and the users row;
+//     records, and the users row; then the user's job status access to the
+//     other workspaces is revoked;
 //  3. the Firebase Authentication user, last, so a failure before it leaves
 //     the user able to sign in and try again.
 //
@@ -92,12 +100,18 @@ func (s *AccountDeletionService) DeleteAccount(ctx context.Context, userID strin
 		return err
 	}
 	for _, workspaceID := range plan.WorkspaceIDs {
+		s.revokeAllJobStatusReads(ctx, workspaceID)
+	}
+	for _, workspaceID := range plan.WorkspaceIDs {
 		if err := s.workspaces.PurgeWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("purge workspace %s: %w", workspaceID, err)
 		}
 	}
 	if err := s.repo.DeleteAccountRows(ctx, userID); err != nil {
 		return err
+	}
+	for _, workspaceID := range plan.OtherWorkspaceIDs {
+		s.revokeJobStatusReads(ctx, userID, workspaceID)
 	}
 	if err := s.authUsers.DeleteUser(ctx, userID); err != nil {
 		return fmt.Errorf("delete sign-in user: %w", err)
@@ -108,4 +122,27 @@ func (s *AccountDeletionService) DeleteAccount(ctx context.Context, userID strin
 		"workspaces", len(plan.WorkspaceIDs),
 	)
 	return nil
+}
+
+// Revoking the mirrored access is best effort, as in WorkspaceService: a
+// failure is logged as an error and the deletion goes on. The account is
+// gone either way; a reader document left behind only names a user who can
+// no longer sign in.
+
+func (s *AccountDeletionService) revokeAllJobStatusReads(ctx context.Context, workspaceID string) {
+	if s.jobReaders == nil {
+		return
+	}
+	if err := s.jobReaders.RevokeAll(ctx, workspaceID); err != nil {
+		s.logger.Error("account.job_status_revoke_all_failed", "error", err.Error(), "workspace_id", workspaceID)
+	}
+}
+
+func (s *AccountDeletionService) revokeJobStatusReads(ctx context.Context, userID, workspaceID string) {
+	if s.jobReaders == nil {
+		return
+	}
+	if err := s.jobReaders.Revoke(ctx, userID, workspaceID); err != nil {
+		s.logger.Error("account.job_status_revoke_failed", "error", err.Error(), "user_id", userID, "workspace_id", workspaceID)
+	}
 }

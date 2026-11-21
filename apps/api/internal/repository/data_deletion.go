@@ -52,8 +52,8 @@ type WorkspacePurgeRepository interface {
 // so the account rows go last.
 type AccountDeletionRepository interface {
 	// GetAccountDeletionPlan returns the accounts the user alone belongs to,
-	// their workspaces, and whether a paid plan or a document upload or job
-	// still in flight stands in the way. A job counts as in flight only if it
+	// their workspaces, the other workspaces the user can reach, and whether a
+	// paid plan or a document upload or job still in flight stands in the way. A job counts as in flight only if it
 	// moved after jobsActiveSince.
 	GetAccountDeletionPlan(ctx context.Context, userID string, jobsActiveSince, now time.Time) (*domain.AccountDeletionPlan, error)
 	// MarkWorkspacesDeleted sets deleted_at on the workspaces not deleted yet.
