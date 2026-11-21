@@ -82,5 +82,5 @@ RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
 ```
 
 ## 関連ドキュメント
-- [worker-gcs-fuse.md](worker-gcs-fuse.md)
-- [worker-tools-stub.md](worker-tools-stub.md)
+- [worker-gcs-fuse.md](https://github.com/Keyhole-Koro/Synthify/blob/8f8893c92d4db33db4ac2e6d8541ea244826b7d2/docs/improvements/worker-gcs-fuse.md)（削除済み。後継は [../architecture/gcs-fuse-ingestion-spec.md](../architecture/gcs-fuse-ingestion-spec.md)）
+- [worker-tools-stub.md](https://github.com/Keyhole-Koro/Synthify/blob/72d7969e961a874e604b76a9714c060348526deb/docs/improvements/worker-tools-stub.md)（削除済み）

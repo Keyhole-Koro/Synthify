@@ -1,6 +1,6 @@
 # Target Design: Vocabulary, Responsibilities, and Contracts
 
-[current-state.md](current-state.md) で記述した歪みを解消するための「あるべき形」を定義する。実装には踏み込まず、**「この設計に従って書けば、読み手はコードを 1 回見ただけで挙動を理解できる」** を目標にする。
+[current-state.md](https://github.com/Keyhole-Koro/Synthify/blob/123fbf855b349abe76e7e6484d0565b0d86c5071/docs/architecture/current-state.md) で記述した歪みを解消するための「あるべき形」を定義する。実装には踏み込まず、**「この設計に従って書けば、読み手はコードを 1 回見ただけで挙動を理解できる」** を目標にする。
 
 ゴール: 読みやすさ / チーム作業でのバグ耐性。スケールビリティと最適化は副次的な検討事項。
 

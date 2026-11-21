@@ -7,12 +7,12 @@ billing に関わる関数・インターフェイス・データフローを **
 
 関連:
 
-- 仕様ドラフト: [../improvements/usage-based-billing.md](../improvements/usage-based-billing.md)
+- 仕様ドラフト: [../improvements/usage-based-billing.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/usage-based-billing.md)（削除済み）
 - 認可契約: [./api-authorization-contract.md](./api-authorization-contract.md)
-- DB スキーマ: [../../db/init/004_billing.sql](../../db/init/004_billing.sql),
-  [005_usage_billing.sql](../../db/init/005_usage_billing.sql),
-  [008_credits.sql](../../db/init/008_credits.sql),
-  [009_usage_events_split.sql](../../db/init/009_usage_events_split.sql)
+- DB スキーマ: [../../db/migrations/0004_billing.up.sql](../../db/migrations/0004_billing.up.sql),
+  [0006_usage_billing.up.sql](../../db/migrations/0006_usage_billing.up.sql),
+  [0009_credits.up.sql](../../db/migrations/0009_credits.up.sql),
+  [0010_usage_events_split.up.sql](../../db/migrations/0010_usage_events_split.up.sql)
 
 ---
 
@@ -683,6 +683,6 @@ account.StripeCustomerID = "cus_test"
 
 - `GrantCredit` の admin 判定が account_users.role に暗黙依存。明示的な admin claim を導入したい。
 - `account_usage_daily.event_count` が重複送信で増える問題（§5.5）。
-- 予算 90% で UI 通知 / degraded worker モード（[../improvements/usage-based-billing.md](../improvements/usage-based-billing.md) 末尾）。
+- 予算 90% で UI 通知 / degraded worker モード（[../improvements/usage-based-billing.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/usage-based-billing.md) 末尾）。
 - クレジット消費の grant 失敗時の再試行キュー。
 - `purchased` クレジット（プリペイド購入）の Stripe Payment Intent 連携は未実装。

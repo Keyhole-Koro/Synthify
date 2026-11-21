@@ -300,7 +300,7 @@ documents.model_selection TEXT NULL
 provider・model・fixture・所要時間・入出力サイズ・検証結果・失敗分類を記録する。
 
 **`ContentNode[]` の structured output はモデルごとに品質が変わりうる**ため、Claude と Gemini
-の両方で検証する（[paper-native-llm-interaction.md](paper-native-llm-interaction.md) 参照）。
+の両方で検証する（[paper-native-llm-interaction.md](https://github.com/Keyhole-Koro/Synthify/blob/eee0e93acc931e34333ba634558989a1e4e2a7c7/docs/improvements/paper-native-llm-interaction.md) 参照。PR #48、未マージ）。
 
 ### Phase 7: agent runtime の判断
 
@@ -409,8 +409,8 @@ Synthify Cloud:
 ## 関連
 
 - `codex-provider-migration.md` — 本ドキュメントの前身（Codex 前提）。統合済み
-- [../contracts/chat-turn-contract.md](../contracts/chat-turn-contract.md) — 対話の契約。
+- [../contracts/chat-turn-contract.md](https://github.com/Keyhole-Koro/Synthify/blob/eee0e93acc931e34333ba634558989a1e4e2a7c7/docs/contracts/chat-turn-contract.md)（PR #48、未マージ） — 対話の契約。
   `content: ContentNode[]` は provider に依存しない
-- [paper-native-llm-interaction.md](paper-native-llm-interaction.md) — `ContentNode[]` と
+- [paper-native-llm-interaction.md](https://github.com/Keyhole-Koro/Synthify/blob/eee0e93acc931e34333ba634558989a1e4e2a7c7/docs/improvements/paper-native-llm-interaction.md)（PR #48、未マージ） — `ContentNode[]` と
   `Command` の構想。structured output の品質が provider 選定に効く
-- [usage-based-billing.md](usage-based-billing.md) — サーバー版のコスト転嫁。本設計と補完関係
+- [usage-based-billing.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/usage-based-billing.md)（削除済み） — サーバー版のコスト転嫁。本設計と補完関係

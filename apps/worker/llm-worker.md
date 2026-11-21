@@ -1,7 +1,7 @@
 # LLM Worker Overview
 
 このドキュメントは、Synthify の LLM worker を「今の実装がどう動くか」という観点で読むための概要である。
-ツール仕様の詳細は [../docs/llm-worker-tools.md](../docs/llm-worker-tools.md) を参照。
+ツール仕様の詳細は [docs/worker/llm-worker-tools.md](../../docs/worker/llm-worker-tools.md) を参照。
 
 ## 1. 役割
 
@@ -18,7 +18,7 @@ API backend は job の作成と認可を担当し、worker は重い処理を�
 
 ## 2. エントリポイント
 
-worker server の起動点は [main.go](/home/unix/Synthify/worker/cmd/server/main.go)。
+worker server の起動点は [main.go](cmd/server/main.go)。
 
 ここで行っていること:
 
@@ -28,13 +28,13 @@ worker server の起動点は [main.go](/home/unix/Synthify/worker/cmd/server/ma
 - Vertex AI 用の project / location を解決して ADK model を作る
 - `WorkerService` の Connect handler を公開する
 
-公開 RPC は [worker.proto](/home/unix/Synthify/contracts/connectrpc/synthify/worker/v1/worker.proto) の 3 つ:
+公開 RPC は [worker.proto](../../contracts/connectrpc/synthify/worker/v1/worker.proto) の 3 つ:
 
 - `GenerateExecutionPlan`
 - `ExecuteApprovedPlan`
 - `EvaluateJobArtifact`
 
-Connect handler 実装は [connect.go](/home/unix/Synthify/worker/pkg/worker/connect.go)。
+Connect handler 実装は [connect.go](pkg/worker/connect.go)。
 
 ## 3. 処理フロー
 
@@ -52,7 +52,7 @@ Connect handler 実装は [connect.go](/home/unix/Synthify/worker/pkg/worker/con
 
 ## 4. Worker 内部
 
-主処理は [worker.go](/home/unix/Synthify/worker/pkg/worker/worker.go) の `Process`。
+主処理は [worker.go](pkg/worker/worker.go) の `Process`。
 
 高レベルにはこう動く。
 
@@ -94,7 +94,7 @@ worker は ADK agent を初期化するが、今の実装では deterministic pi
 
 ## 6. ツール群
 
-orchestrator に登録されている tool 群は [orchestrator.go](/home/unix/Synthify/worker/pkg/worker/agents/orchestrator.go) にある。
+orchestrator に登録されている tool 群は [orchestrator.go](pkg/worker/agents/orchestrator.go) にある。
 
 代表例:
 
@@ -125,7 +125,7 @@ worker が OLTP DB に書いてよいのは、capability を満たす mutation �
 
 ## 8. Firestore status
 
-job progress は [notifier.go](/home/unix/Synthify/shared/jobstatus/notifier.go) から Firestore に出る。
+job progress は [notifier.go](../../internal/platform/job/status/notifier.go) から Firestore に出る。
 
 path:
 
@@ -172,8 +172,8 @@ Firestore の内容だけで UI を確定しないのが前提。
 
 最初に読む順番はこれがよい。
 
-1. [worker.go](/home/unix/Synthify/worker/pkg/worker/worker.go)
-2. [connect.go](/home/unix/Synthify/worker/pkg/worker/connect.go)
-3. [notifier.go](/home/unix/Synthify/shared/jobstatus/notifier.go)
-4. [orchestrator.go](/home/unix/Synthify/worker/pkg/worker/agents/orchestrator.go)
-5. [llm-worker-tools.md](/home/unix/Synthify/docs/llm-worker-tools.md)
+1. [worker.go](pkg/worker/worker.go)
+2. [connect.go](pkg/worker/connect.go)
+3. [notifier.go](../../internal/platform/job/status/notifier.go)
+4. [orchestrator.go](pkg/worker/agents/orchestrator.go)
+5. [llm-worker-tools.md](../../docs/worker/llm-worker-tools.md)

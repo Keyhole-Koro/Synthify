@@ -33,5 +33,5 @@
 - **Worker サービスの保護**: Worker 側のエンドポイントも API サーバーからのリクエスト（サービス間トークン）のみを受け付けるように多層防御を強化。
 
 ## 関連ドキュメント
-- [monitor-bi-dashboards.md](monitor-bi-dashboards.md) (BI機能としての詳細)
+- [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md) (BI機能としての詳細)
 - [../contracts/api-authorization-contract.md](../contracts/api-authorization-contract.md) (API認可モデル)
