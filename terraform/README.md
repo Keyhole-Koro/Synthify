@@ -9,10 +9,15 @@ terraform/
   services/       # service 単位の構成 (platform/api/worker)
   environments/   # 単一 root。stage/prod は tfvars + backend で切替
   tfvars/         # 環境別 tfvars
+  manual/         # 人が手で apply する root。CD は apply しない
 ```
 
 stage/prod でディレクトリは分けない。単一 root (`environments/`) を
 `-backend-config` と `-var-file` で切り替えて再利用する。
+
+`manual/` の下は、デプロイ用 SA の権限では apply できない（させない）もの。
+人が一度だけ手で apply する。手順は各ディレクトリの README にある。CI
+(`backend.yml`) は validate だけを流す。
 
 ## 構成方針
 
