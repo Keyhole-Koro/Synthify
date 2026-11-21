@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { ConfirmUploadRequest, ConfirmUploadResponse, CreateDocumentRequest, CreateDocumentResponse, GetDocumentRequest, GetDocumentResponse, GetImageURLRequest, GetImageURLResponse, GetUploadURLRequest, GetUploadURLResponse, ListDocumentsRequest, ListDocumentsResponse, ResumeProcessingRequest, ResumeProcessingResponse, StartProcessingRequest, StartProcessingResponse } from "./document_pb.js";
+import { ConfirmUploadRequest, ConfirmUploadResponse, CreateDocumentRequest, CreateDocumentResponse, DeleteDocumentRequest, DeleteDocumentResponse, GetDocumentRequest, GetDocumentResponse, GetImageURLRequest, GetImageURLResponse, GetUploadURLRequest, GetUploadURLResponse, ListDocumentsRequest, ListDocumentsResponse, ResumeProcessingRequest, ResumeProcessingResponse, StartProcessingRequest, StartProcessingResponse } from "./document_pb.js";
 import { MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -85,6 +85,19 @@ export const DocumentService = {
       name: "GetImageURL",
       I: GetImageURLRequest,
       O: GetImageURLResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * document を削除する。原本・抽出結果・チャンク・処理ジョブと、この document
+     * だけから作られた tree の node を消す。アップロード中・処理中は断る。
+     * 詳細は docs/data-retention.md。
+     *
+     * @generated from rpc synthify.app.v1.DocumentService.DeleteDocument
+     */
+    deleteDocument: {
+      name: "DeleteDocument",
+      I: DeleteDocumentRequest,
+      O: DeleteDocumentResponse,
       kind: MethodKind.Unary,
     },
   }

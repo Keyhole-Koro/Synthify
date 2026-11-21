@@ -32,6 +32,7 @@ type DocumentUsecase interface {
 	StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error)
 	ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error)
 	IssueImageURL(ctx context.Context, fileID, userID string) (repository.SignedURL, error)
+	DeleteDocument(ctx context.Context, documentID, userID string) error
 }
 
 // WorkspaceUsecase is the application behavior required by WorkspaceHandler.

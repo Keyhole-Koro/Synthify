@@ -36,6 +36,7 @@ type DocumentUsecase interface {
 	StartProcessing(ctx context.Context, documentID, userID string, forceReprocess bool) (*domain.DocumentProcessingJob, error)
 	ResumeProcessing(ctx context.Context, documentID, userID string) (*domain.DocumentProcessingJob, error)
 	IssueImageURL(ctx context.Context, fileID, userID string) (repository.SignedURL, error)
+	DeleteDocument(ctx context.Context, documentID, userID string) error
 }
 
 const (
@@ -61,6 +62,8 @@ type DocumentService struct {
 	imageURLIssuer   repository.DocumentImageURLIssuer
 	objectMetadata   ObjectMetadataFetcher
 	objectStore      repository.DocumentObjectStore
+	deletion         repository.DocumentDeletionRepository
+	objectPrefixes   repository.ObjectPrefixDeleter
 	dispatcher       WorkerDispatcher
 	lifecycle        joblifecycle.QueuedNotifier
 	notifier         jobstatus.Notifier
@@ -80,6 +83,8 @@ type DocumentServiceDeps struct {
 	ImageURLIssuer   repository.DocumentImageURLIssuer
 	ObjectMetadata   ObjectMetadataFetcher
 	ObjectStore      repository.DocumentObjectStore
+	Deletion         repository.DocumentDeletionRepository
+	ObjectPrefixes   repository.ObjectPrefixDeleter
 	Dispatcher       WorkerDispatcher
 	Notifier         jobstatus.Notifier
 	Logger           *slog.Logger
@@ -98,6 +103,8 @@ func NewDocumentService(deps DocumentServiceDeps) *DocumentService {
 		imageURLIssuer:   deps.ImageURLIssuer,
 		objectMetadata:   deps.ObjectMetadata,
 		objectStore:      deps.ObjectStore,
+		deletion:         deps.Deletion,
+		objectPrefixes:   deps.ObjectPrefixes,
 		dispatcher:       deps.Dispatcher,
 		lifecycle:        joblifecycle.New(deps.LifecycleRepo, deps.Notifier, deps.Logger, deps.NRApp),
 		notifier:         deps.Notifier,
