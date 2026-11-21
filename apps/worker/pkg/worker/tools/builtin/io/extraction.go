@@ -41,6 +41,13 @@ func NewExtractionTool(b *base.Context) (core.Tool, error) {
 		if err := json.Unmarshal(in, &args); err != nil {
 			return nil, core.Usage{}, err
 		}
+		// The IDs come from the model: bind them to the running job so a call
+		// cannot read or write another workspace's files on the shared mount.
+		scope, err := b.BindJobScope(ctx, base.JobScope{WorkspaceID: args.WorkspaceID, DocumentID: args.DocumentID})
+		if err != nil {
+			return nil, core.Usage{}, err
+		}
+		args.WorkspaceID, args.DocumentID = scope.WorkspaceID, scope.DocumentID
 		result, err := runExtraction(ctx, b, args)
 		if err != nil {
 			return nil, core.Usage{}, err
@@ -272,9 +279,16 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 		return ExtractionResult{}, fmt.Errorf("failed to create extraction dir: %w", err)
 	}
 
+	// Refuse a zip bomb before parsing or extracting anything (see zipLimits).
+	if err := checkZipRecords(source.Content); err != nil {
+		return ExtractionResult{}, fmt.Errorf("%w: %w", domain.ErrJobError, err)
+	}
 	r, err := zip.NewReader(bytes.NewReader(source.Content), int64(len(source.Content)))
 	if err != nil {
 		return ExtractionResult{}, fmt.Errorf("%w: invalid zip file format", domain.ErrJobError)
+	}
+	if err := checkZipLimits(r.File); err != nil {
+		return ExtractionResult{}, fmt.Errorf("%w: %w", domain.ErrJobError, err)
 	}
 
 	var combinedText strings.Builder
@@ -286,7 +300,11 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 		}
 
 		relPath := f.Name
-		destPath := filepath.Join(extractDir, relPath)
+		destPath, ok := zipEntryPath(extractDir, relPath)
+		if !ok {
+			b.Logger.Warn("extraction.unsafe_zip_entry_skipped", "path", relPath)
+			continue
+		}
 
 		// Create parent dirs
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
@@ -328,6 +346,9 @@ func processZip(ctx context.Context, b *base.Context, source domain.SourceFile) 
 
 		// Only append text files to the combined result for the LLM's initial view
 		if isLikelyText(content, mimeType) {
+			if combinedText.Len()+len(content) > zipLimits.textBytes {
+				return ExtractionResult{}, fmt.Errorf("%w: %w: the text files exceed %d bytes", domain.ErrJobError, errZipTooLarge, zipLimits.textBytes)
+			}
 			fileID := ""
 			if fileRecord != nil {
 				fileID = fileRecord.FileID

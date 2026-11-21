@@ -36,6 +36,8 @@ type WorkspaceService struct {
 	workspaces repository.WorkspaceRepository
 	users      repository.UserRepository
 	logger     *slog.Logger
+	jobReaders JobStatusReaders
+	emails     VerifiedEmails
 }
 
 type WorkspaceServiceDeps struct {
@@ -43,6 +45,14 @@ type WorkspaceServiceDeps struct {
 	Workspaces repository.WorkspaceRepository
 	Users      repository.UserRepository
 	Logger     *slog.Logger
+
+	// JobStatusReaders mirrors workspace access for the job status documents
+	// in Firestore (see workspace_job_readers.go). nil mirrors nothing, and
+	// then nobody can read them.
+	JobStatusReaders JobStatusReaders
+	// VerifiedEmails tells whether an invitee has verified the invited
+	// address (see workspace_invitee.go). nil lets nobody be invited.
+	VerifiedEmails VerifiedEmails
 }
 
 func NewWorkspaceService(deps WorkspaceServiceDeps) *WorkspaceService {
@@ -51,11 +61,22 @@ func NewWorkspaceService(deps WorkspaceServiceDeps) *WorkspaceService {
 		workspaces: deps.Workspaces,
 		users:      deps.Users,
 		logger:     deps.Logger,
+		jobReaders: deps.JobStatusReaders,
+		emails:     deps.VerifiedEmails,
 	}
 }
 
 func (s *WorkspaceService) ListWorkspaces(ctx context.Context, userID string) ([]*domain.Workspace, error) {
-	return s.workspaces.ListWorkspacesByUser(ctx, userID)
+	workspaces, err := s.workspaces.ListWorkspacesByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(workspaces))
+	for _, ws := range workspaces {
+		ids = append(ids, ws.WorkspaceID)
+	}
+	s.grantJobStatusReads(ctx, userID, ids...)
+	return workspaces, nil
 }
 
 func (s *WorkspaceService) GetWorkspace(ctx context.Context, id, userID string) (*domain.Workspace, error) {
@@ -70,6 +91,7 @@ func (s *WorkspaceService) GetWorkspace(ctx context.Context, id, userID string) 
 	if err != nil {
 		return nil, err
 	}
+	s.grantJobStatusReads(ctx, userID, ws.WorkspaceID)
 	return ws, nil
 }
 
@@ -78,7 +100,12 @@ func (s *WorkspaceService) CreateWorkspace(ctx context.Context, name, userID str
 	if err != nil {
 		return nil, err
 	}
-	return s.workspaces.CreateWorkspace(ctx, account.AccountID, name)
+	ws, err := s.workspaces.CreateWorkspace(ctx, account.AccountID, name)
+	if err != nil {
+		return nil, err
+	}
+	s.grantJobStatusReads(ctx, userID, ws.WorkspaceID)
+	return ws, nil
 }
 
 func (s *WorkspaceService) UpdateWorkspace(ctx context.Context, id, name, userID string) (*domain.Workspace, error) {
@@ -104,7 +131,11 @@ func (s *WorkspaceService) DeleteWorkspace(ctx context.Context, id, userID strin
 	if !role.CanManageMembers() {
 		return domain.ErrForbidden
 	}
-	return s.workspaces.DeleteWorkspace(ctx, id)
+	if err := s.workspaces.DeleteWorkspace(ctx, id); err != nil {
+		return err
+	}
+	s.revokeAllJobStatusReads(ctx, id)
+	return nil
 }
 
 // requireManageMembers はメンバー管理操作 (招待 / role 変更 / 削除) の権限を確認する。
@@ -144,9 +175,18 @@ func (s *WorkspaceService) InviteMember(ctx context.Context, wsID, userID, email
 	if err != nil {
 		return nil, err
 	}
+	// The stored email is not proof of ownership (see workspace_invitee.go).
+	verified, err := s.inviteeHasVerifiedEmail(ctx, user.UserID, email)
+	if err != nil {
+		return nil, err
+	}
+	if !verified {
+		return nil, domain.ErrNotFound
+	}
 	if err := s.workspaces.UpsertWorkspaceMember(ctx, wsID, user.UserID, role, userID); err != nil {
 		return nil, err
 	}
+	s.grantJobStatusReads(ctx, user.UserID, wsID)
 	return &domain.WorkspaceMember{
 		WorkspaceID: wsID,
 		UserID:      user.UserID,
@@ -193,7 +233,11 @@ func (s *WorkspaceService) RemoveMember(ctx context.Context, wsID, userID, targe
 	if err := s.requireManageMembers(ctx, wsID, userID); err != nil {
 		return err
 	}
-	return s.workspaces.RemoveWorkspaceMember(ctx, wsID, targetUserID)
+	if err := s.workspaces.RemoveWorkspaceMember(ctx, wsID, targetUserID); err != nil {
+		return err
+	}
+	s.revokeJobStatusReads(ctx, targetUserID, wsID)
+	return nil
 }
 
 // isAssignableRole は招待 / role 変更で指定可能な role か。

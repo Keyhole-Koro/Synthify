@@ -33,6 +33,13 @@ func NewChunkingTool(b *base.Context) (core.Tool, error) {
 		if err := json.Unmarshal(in, &args); err != nil {
 			return nil, core.Usage{}, err
 		}
+		// document_id comes from the model, and saving replaces that
+		// document's chunks: allow only the running job's document.
+		scope, err := b.BindJobScope(ctx, base.JobScope{DocumentID: args.DocumentID})
+		if err != nil {
+			return nil, core.Usage{}, err
+		}
+		args.DocumentID = scope.DocumentID
 		chunks, outline, _, err := ChunkAndSave(ctx, b, args.DocumentID, args.FileID, args.RawText)
 		if err != nil {
 			return nil, core.Usage{}, err

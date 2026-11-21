@@ -15,11 +15,11 @@ import (
 // supported as inline output.
 const maxFetchBytes = 20 << 20 // 20 MiB
 
-// fetchClient is the HTTP client used for external image fetches. A fresh
-// client with no special transport keeps redirects on by default; the size cap
-// is enforced on the body, not via Content-Length, so a lying server is still
-// bounded.
-var fetchClient = &http.Client{}
+// fetchClient is the HTTP client used for external image fetches. It follows
+// redirects like the default client, but connects only to public addresses
+// (see fetch_guard.go); the size cap is enforced on the body, not via
+// Content-Length, so a lying server is still bounded.
+var fetchClient = newGuardedFetchClient()
 
 // fetchHTTP populates file.Content by downloading file.URI over HTTP(S). It is
 // the path-B counterpart to the gcsfuse mount read in Load: external images the

@@ -40,6 +40,12 @@ func NewGenerateKnowledgeTreeTool(b *base.Context) (core.Tool, error) {
 		if err := json.Unmarshal(in, &args); err != nil {
 			return nil, core.Usage{}, err
 		}
+		// The IDs come from the model: load only the running job's tree.
+		scope, err := b.BindJobScope(ctx, base.JobScope{JobID: args.JobID, WorkspaceID: args.WorkspaceID, DocumentID: args.DocumentID})
+		if err != nil {
+			return nil, core.Usage{}, err
+		}
+		args.JobID, args.WorkspaceID, args.DocumentID = scope.JobID, scope.WorkspaceID, scope.DocumentID
 		// Show the LLM the workspace's current tree so it can merge new
 		// concepts into existing nodes instead of duplicating them. Best
 		// effort: a fetch failure just means generation proceeds without

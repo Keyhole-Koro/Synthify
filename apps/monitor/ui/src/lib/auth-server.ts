@@ -8,7 +8,7 @@ export interface AdminPrincipal {
   email: string;
 }
 
-// 認証 (Firebase ID トークン検証) と認可 (admin メール判定) を行う。
+// 認証 (Firebase ID トークン検証) と認可 (確認済みの admin メール判定) を行う。
 // いずれかに失敗したら NextResponse (401/403) を、成功したら AdminPrincipal を返す。
 // admin メールが未設定の場合は fail-closed で全リクエストを 403 にする。
 export async function authenticateAdmin(
@@ -26,7 +26,7 @@ export async function authenticateAdmin(
     return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
   }
 
-  if (!isAdmin(decoded.email, parseAdminEmails(config.SYNTHIFY_ADMIN_USER_EMAILS))) {
+  if (!isAdmin(decoded, parseAdminEmails(config.SYNTHIFY_ADMIN_USER_EMAILS))) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 

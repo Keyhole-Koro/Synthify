@@ -45,6 +45,13 @@ func NewPersistenceTool(b *base.Context) (core.Tool, error) {
 		if b == nil || b.Repo == nil {
 			return nil, core.Usage{}, fmt.Errorf("repository is not configured")
 		}
+		// The IDs come from the model: write only with the running job's
+		// capability, into its own workspace and document.
+		scope, err := b.BindJobScope(ctx, base.JobScope{JobID: args.JobID, WorkspaceID: args.WorkspaceID, DocumentID: args.DocumentID})
+		if err != nil {
+			return nil, core.Usage{}, err
+		}
+		args.JobID, args.WorkspaceID, args.DocumentID = scope.JobID, scope.WorkspaceID, scope.DocumentID
 		if err := b.IncrementItemCreations(ctx, len(args.Items)); err != nil {
 			return nil, core.Usage{}, err
 		}
