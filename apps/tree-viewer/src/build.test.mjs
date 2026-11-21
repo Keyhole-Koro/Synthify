@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { compileStif } from '../../../skills/synthify-tree/scripts/build.mjs';
+import { compileStif, serveFolder } from '../../../skills/synthify-tree/scripts/build.mjs';
 
 const GOOD = `#STIF/1
 @tree title="検索 API"
@@ -89,6 +89,38 @@ test('a source may name one line, and an equal range shows as one line', () => {
 test('Japanese lines wrapped in the file are joined, as browsers would show the break as a space', () => {
   const { tree } = compileStif('#STIF/1\n::item /r\ntitle: R\ndescription: d\n---\n<p>この API は<a data-paper-id="/r">認証</a>し、\n失敗は<a data-paper-id="/r">エラー形式</a>\n  で返す。API は\nBearer token を使う。</p>\n<pre>一行目\n二行目</pre>\n::end\n');
   expect(tree.papers[0].content).toBe('<p>この API は<a data-paper-id="/r">認証</a>し、失敗は<a data-paper-id="/r">エラー形式</a>で返す。API は\nBearer token を使う。</p>\n<pre>一行目\n二行目</pre>\n');
+});
+
+test('a source may name one page, a page label or a range of pages', () => {
+  const { tree, errors } = compileStif('#STIF/1\n::item /r\ntitle: R\ndescription: d\nsource:\n  - type: document\n    title: Paper\n    page: [8, 10]\n  - type: document\n    title: Paper\n    page: 3\n  - type: document\n    title: Book\n    page: "iv"\n---\n<p>x</p>\n::end\n');
+  expect(errors).toEqual([]);
+  expect(tree.papers[0].content).toContain('Sources: Paper pp.8–10 · Paper p.3 · Book p.iv</footer>');
+  const bad = compileStif('#STIF/1\n::item /r\ntitle: R\nsource:\n  - type: document\n    page: [10, 8]\n---\n<p>x</p>\n::end\n', { file: 't.stif' });
+  expect(bad.errors).toEqual(['t.stif:5: page is one page (12, or a label such as "iv") or a range [first, last]']);
+});
+
+test('--serve serves the built folder on 127.0.0.1, on a port the system picks, and nothing outside it', async () => {
+  const parent = mkdtempSync(join(tmpdir(), 'site-'));
+  const dir = join(parent, 'tree-page');
+  mkdirSync(dir);
+  writeFileSync(join(dir, 'index.html'), '<!doctype html><title>t</title>');
+  writeFileSync(join(dir, 'tree.json'), '{}');
+  writeFileSync(join(parent, 'secret.txt'), 'outside the folder');
+  let server;
+  const url = await new Promise((resolve) => {
+    server = serveFolder(dir, resolve);
+  });
+  try {
+    expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    const page = await fetch(url);
+    expect(page.status).toBe(200);
+    expect(page.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect((await fetch(`${url}tree.json`)).headers.get('content-type')).toBe('application/json; charset=utf-8');
+    expect((await fetch(`${url}..%2fsecret.txt`)).status).toBe(404);
+    expect((await fetch(`${url}missing.png`)).status).toBe(404);
+  } finally {
+    server.close();
+  }
 });
 
 test('English papers get the English label and lang', () => {

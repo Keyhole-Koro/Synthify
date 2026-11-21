@@ -14,6 +14,11 @@ const JA_LABELS: PaperCanvasLabels = {
   contentBlocked: 'この内容は別のページを開こうとしたので、止めました。',
 };
 
+// paper-in-paper's theme upper-cases table headers (FLOPs would read FLOPS, d_k D_K) and stretches
+// every image to the paper's width (a small figure blurs). Keep the source's case, and show images
+// at their own size, up to the paper's width.
+const PAPER_CSS = 'th { text-transform: none; letter-spacing: normal; } img { width: auto; margin-inline: auto; }';
+
 // A published tree cannot save moves: papers may be reordered in their room, not moved out of it.
 const withinRoom = ({ sourceParentId, targetParentId }: PaperMoveRequest) => sourceParentId === targetParentId;
 
@@ -81,6 +86,7 @@ function Viewer({ tree }: { tree: TreeFile }) {
       rootId={tree.rootId}
       defaultOpenState={defaultOpenState}
       colorScheme="system"
+      overrideCss={PAPER_CSS}
       labels={tree.lang.toLowerCase().startsWith('ja') ? JA_LABELS : undefined}
       canDrop={withinRoom}
       loadImageUrl={loadImageUrl}

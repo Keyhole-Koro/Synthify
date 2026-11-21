@@ -17,7 +17,9 @@ selfhost-artifact-publish skill).
 
 1. **Read all of the source.** For a long source (more than about 20 pages, or several files),
    first take a short note per section, with where it is (file and lines, or page), and build
-   the tree from the notes. Keep such notes outside the folder you publish.
+   the tree from the notes. Keep such notes outside the folder you publish. For a PDF,
+   `pdftotext -layout` gives the text but scrambles tables: read tables and figures from the
+   page images (`pdftoppm -png -r 150 -f <page> -l <page>`).
 2. **Decide the root:** the one or two sentences a reader should know after reading only the
    root paper. The root paper says them and links to the main topics.
 3. **Plan the structure** with "Structure" in `references/authoring.md`: the main topics under
@@ -28,7 +30,9 @@ selfhost-artifact-publish skill).
    `references/authoring.md` for the papers. Images go in an `images/` folder next to it.
 5. **Build:** `node <this skill's folder>/scripts/build.mjs tree.stif`. It writes `tree-page/`
    next to the file. Fix every error and read every warning, then build again until it passes.
-   `--check` checks without building.
+   `--check` checks without building. To look at the page in a browser before publishing, add
+   `--serve`: it serves the folder on a free local port and prints the URL (Ctrl-C stops it).
+   Do not start other servers for it, and never stop a process you did not start.
 6. **Publish the folder** with the `publish` tool of the self-hosted `artifact` MCP server:
    `publish({ file_path: "<absolute path>/tree-page", description: "<the root's description>" })`,
    or `artifact publish tree-page` in a terminal. The page's title is the root's title. A tool
@@ -38,7 +42,7 @@ selfhost-artifact-publish skill).
 
 If the self-hosted `artifact` tool is not available, give the user the folder: it is a static
 site that any web server can serve (opening `index.html` as a file does not work, because it
-fetches `tree.json`).
+fetches `tree.json`; `--serve` shows it on this computer).
 
 ## Changing a tree
 

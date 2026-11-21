@@ -13,8 +13,12 @@ each link is a promise that the paper behind it answers what the link says.
 - **Main topics** are usually 3 to 7 under the root. The user's request decides what they are
   about: a spec by its parts (authentication, errors, limits), meeting notes by outcome
   (decisions, open questions, action items), a paper by question (problem, method, results,
-  limits). Within that, keep the source's own sections and their names where they fit. Keep
-  what the request does not mention as well, after what it asks for; do not drop it.
+  limits). Make only the topics the source has: a paper without a limitations section gets no
+  "limits" paper, and the trade-offs it states go where it discusses them. Within that, keep
+  the source's own sections and their names where they fit. Keep what the request does not
+  mention as well, after what it asks for; do not drop it.
+- **Bibliographic details** (authors, venue, acknowledgements, the reference list) go in one
+  paper at the end. Leave out contact details such as email addresses.
 - **Depth** follows the source. Make a child when a part of a paper is a separate idea a reader
   may or may not want. A long source usually needs 2 to 4 levels; do not make a paper for a
   single sentence or a single number there.
@@ -58,6 +62,10 @@ In Japanese, end with 「〜を扱う」 or 「〜を説明する」.
 - **Lists** for steps and other items without attributes, even when the source writes them as
   sentences. Everything else is prose.
 - Keep every number, unit and name exactly as the source has it.
+- **Figures** from the source (an architecture diagram, a key plot) when they explain more than
+  the text; see "Images" in `stif.md`. Give each a `<figcaption>` with its number and where it
+  comes from (「図 1（原論文 p.3）」). Include them when the source's license or the user allows
+  it; papers often allow reproduction with attribution.
 - Each paper stands alone: name the subject again instead of "it" or "the above", and do not
   rely on the parent having been read.
 
@@ -76,13 +84,23 @@ In Japanese, end with 「〜を扱う」 or 「〜を説明する」.
   do not list everything that is missing.
 - Keep the source's uncertainty: an open question stays open, a proposal is not a decision, a
   target (「目標とする」) is not a guarantee.
+- When the source contradicts itself (the text gives 41.0 where its table gives 41.8), say so
+  in the paper where the reader would look, with both values and where each appears. Do not
+  pick one silently.
 - Record where each paper comes from with `source` (see `stif.md`). Never invent a path, line,
   page, URL or document.
 
 ## Language
 
 Write the papers in the language of the source, unless the user asks for another, and set
-`@tree lang` to it. Keep technical terms as the source writes them.
+`@tree lang` to it. Keep technical terms as the source writes them. When the papers are in
+another language than the source (an English paper organised in Japanese):
+
+- Translate the prose. Keep the names of methods, models, datasets and metrics as the source
+  writes them (`Multi-Head Attention`, `BLEU`). A general term may be translated, with the
+  source's word in parentheses the first time: 残差接続（residual connection）.
+- Keep numbers and units as written (`36M`, `28.4 BLEU`). Translating number words is fine
+  (4.5 million → 450 万); changing a value is not.
 
 ## Writing styles the user may ask for
 

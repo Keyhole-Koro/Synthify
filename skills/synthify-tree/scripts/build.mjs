@@ -4,9 +4,11 @@
 //
 //   node build.mjs <tree.stif> [<out-dir>]   build (out-dir defaults to <name>-page next to the file)
 //   node build.mjs --check <tree.stif>       check only
+//   node build.mjs --serve <tree.stif>       build, then serve the folder on 127.0.0.1 to look at it
 //
 // No dependencies: Node 18 or later, or Bun.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { basename, dirname, extname, join, normalize, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -214,6 +216,7 @@ function checkTree(parsed, report, stifDir) {
       if (!s.type) report.error(s.line, 'each source needs a type (local_file, web, github, document or chat)');
       if (typeof s.path === 'string' && /^(\/|~|[A-Za-z]:[\\/])/.test(s.path)) report.error(s.line, `source path ${s.path} is absolute and would show on the page: write it relative to the repository, or just the file name`);
       if (s.lines !== undefined && !isLines(s.lines)) report.error(s.line, 'lines is a range [first, last] or one line number');
+      if (s.page !== undefined && !(isLines(s.page) || (typeof s.page === 'string' && s.page.trim()))) report.error(s.line, 'page is one page (12, or a label such as "iv") or a range [first, last]');
     }
     if (!item.content.trim()) report.warn(item.contentLine, `::item ${item.path} has no content`);
     if (item.content.length > MAX_CONTENT) report.warn(item.contentLine, `::item ${item.path} has ${item.content.length} bytes of content; split it into child papers`);
@@ -270,7 +273,8 @@ function sourcesHtml(sources, lang) {
     const name = s.title ?? s.path ?? s.url ?? s.id ?? s.type;
     const [first, last] = Array.isArray(s.lines) ? s.lines : [s.lines, s.lines];
     const lines = first === undefined ? '' : first === last ? ` L${first}` : ` L${first}–${last}`;
-    const page = s.page !== undefined ? ` p.${s.page}` : '';
+    const [from, to] = Array.isArray(s.page) ? s.page : [s.page, s.page];
+    const page = from === undefined ? '' : from === to ? ` p.${from}` : ` pp.${from}–${to}`;
     const text = escapeHtml(`${name}${lines}${page}`);
     return typeof s.url === 'string' && /^https?:\/\//.test(s.url) ? `<a href="${escapeHtml(s.url)}">${text}</a>` : text;
   });
@@ -363,11 +367,51 @@ export function compileStif(text, { file = 'tree.stif', dir = '.' } = {}) {
   return { tree, images: checked?.images ?? new Set(), errors: report.errors, warnings: report.warnings, depth: tree ? depthOf(tree) : 0 };
 }
 
+const CONTENT_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.stif': 'text/plain; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.avif': 'image/avif',
+};
+
+/**
+ * Serves a built folder on 127.0.0.1, on a port the system picks (so it never takes one that is
+ * in use), to look at the page before publishing. Calls onListening with the URL.
+ */
+export function serveFolder(out, onListening) {
+  const root = resolve(out);
+  const server = createServer((req, res) => {
+    let path = '';
+    try {
+      path = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    } catch {
+      // A malformed escape names no file.
+    }
+    const file = resolve(root, `.${path.endsWith('/') ? `${path}index.html` : path}`);
+    if (!file.startsWith(root + sep) || !existsSync(file) || !statSync(file).isFile()) {
+      res.writeHead(404, { 'content-type': 'text/plain' }).end('not found');
+      return;
+    }
+    res.writeHead(200, { 'content-type': CONTENT_TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream', 'cache-control': 'no-store' });
+    res.end(readFileSync(file));
+  });
+  server.listen(0, '127.0.0.1', () => onListening(`http://127.0.0.1:${server.address().port}/`));
+  return server;
+}
+
 function main(argv) {
   const check = argv.includes('--check');
-  const [stifArg, outArg] = argv.filter((a) => a !== '--check');
+  const serve = argv.includes('--serve');
+  const [stifArg, outArg] = argv.filter((a) => !a.startsWith('--'));
   if (!stifArg) {
-    console.error('usage: node build.mjs <tree.stif> [<out-dir>]\n       node build.mjs --check <tree.stif>');
+    console.error('usage: node build.mjs <tree.stif> [<out-dir>] [--serve]\n       node build.mjs --check <tree.stif>');
     return 2;
   }
   const stifPath = resolve(stifArg);
@@ -391,6 +435,7 @@ function main(argv) {
   writeSite(out, stifPath, tree, images);
   console.log(`Built ${out}: ${summary}.`);
   console.log(`Publish the folder (artifact publish ${out}). A link to <page url>#open=${tree.papers[1]?.id ?? tree.rootId} opens that paper.`);
+  if (serve) serveFolder(out, (url) => console.log(`Serving it at ${url} to look at before publishing. Stop it with Ctrl-C.`));
   return 0;
 }
 
