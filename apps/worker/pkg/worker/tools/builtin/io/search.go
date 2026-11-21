@@ -36,6 +36,12 @@ func NewSearchTool(b *base.Context) (core.Tool, error) {
 		if err := json.Unmarshal(in, &args); err != nil {
 			return nil, core.Usage{}, err
 		}
+		// workspace_id comes from the model: search only the running job's workspace.
+		scope, err := b.BindJobScope(ctx, base.JobScope{WorkspaceID: args.WorkspaceID})
+		if err != nil {
+			return nil, core.Usage{}, err
+		}
+		args.WorkspaceID = scope.WorkspaceID
 		if b == nil || b.Repo == nil {
 			return nil, core.Usage{}, fmt.Errorf("repository is not configured")
 		}

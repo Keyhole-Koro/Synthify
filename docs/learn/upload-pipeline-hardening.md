@@ -6,7 +6,7 @@
 - 署名 URL 発行: [apps/api/internal/bootstrap/bootstrap.go](../../apps/api/internal/bootstrap/bootstrap.go) の `gcsSignedDocumentUploadURLIssuer`
 - 予約と確認: [apps/api/internal/repository/postgres/document.go](../../apps/api/internal/repository/postgres/document.go) の `CreateDocument` / `ConfirmDocumentUpload`
 - 削除フロー: [apps/api/internal/infrastructure/storage/metadata.go](../../apps/api/internal/infrastructure/storage/metadata.go) の `*DocumentObjectStore`
-- 監視: [apps/api/internal/service/document.go](../../apps/api/internal/service/document.go) の `reportUploadIncident` / `reportCreateDocumentRejection`
+- 監視: [apps/api/internal/application/document.go](../../apps/api/internal/application/document.go) の `reportUploadIncident` / `reportCreateDocumentRejection`
 
 ---
 

@@ -25,7 +25,6 @@ type Task struct {
 	DependsOn   []string      `json:"depends_on,omitempty"`
 }
 
-
 type Journal struct {
 	mu    sync.RWMutex
 	tasks []Task

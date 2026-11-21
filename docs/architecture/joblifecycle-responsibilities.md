@@ -161,10 +161,10 @@ document status まで含めた完全な lifecycle 集約にする。
 
 現状の集約先:
 
-- [service.go](/home/unix/Synthify/apps/api/internal/job/lifecycle/service.go:1)
+- [service.go](../../internal/platform/job/lifecycle/service.go)
 
 ここから呼ぶ側の代表:
 
-- [document.go](/home/unix/Synthify/apps/api/internal/service/document.go:1)
-- [worker.go](/home/unix/Synthify/apps/worker/pkg/worker/worker.go:1)
-- [job.go](/home/unix/Synthify/apps/api/internal/handler/job.go:1)
+- [document.go](../../apps/api/internal/application/document.go)
+- [worker.go](../../apps/worker/pkg/worker/worker.go)
+- [job.go](../../apps/api/internal/handler/job.go)

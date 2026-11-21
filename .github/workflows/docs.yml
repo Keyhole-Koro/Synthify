@@ -1,0 +1,43 @@
+name: Docs
+
+# Relative links in Markdown break silently when a file moves or is deleted.
+# The check is offline: it reads only the files git tracks and the headings in
+# them, never the network, so it takes a second and cannot flake.
+on:
+  pull_request:
+    paths:
+      - "**.md"
+      - scripts/check-markdown-links.mjs
+      - .github/workflows/docs.yml
+  push:
+    branches:
+      - main
+    paths:
+      - "**.md"
+      - scripts/check-markdown-links.mjs
+      - .github/workflows/docs.yml
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # The runner's own node is enough: the script uses node: built-ins only.
+      - name: Check relative links in Markdown
+        run: node scripts/check-markdown-links.mjs
+
+  notify:
+    needs: [links]
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Docs
+      job_name: links
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

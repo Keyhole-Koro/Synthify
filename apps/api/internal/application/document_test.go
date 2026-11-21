@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -606,4 +607,70 @@ func (d *fakeDispatcher) ExecuteApprovedPlan(ctx context.Context, req domain.Exe
 		return d.executeErr
 	}
 	return nil
+}
+
+// CreateDocument counts every upload the account reserved in the last 5 hours
+// and the last 7 days, confirmed or not, against MaxUploadsPerFiveH and
+// MaxUploadsPerWeek.
+func TestCreateDocument_EnforcesUploadCountLimits(t *testing.T) {
+	tests := []struct {
+		name          string
+		maxFiveHours  int64
+		maxWeek       int64
+		earlier       int           // uploads reserved before the one under test
+		age           time.Duration // how long ago they were reserved
+		expireEarlier bool          // they were abandoned and have expired
+		wantErr       string        // empty when the upload goes ahead
+	}{
+		{name: "below the limits", maxFiveHours: 3, maxWeek: 10, earlier: 2},
+		{name: "five hour limit reached", maxFiveHours: 3, maxWeek: 10, earlier: 3, wantErr: "at most 3 uploads in 5 hours"},
+		{name: "abandoned uploads still count", maxFiveHours: 3, maxWeek: 10, earlier: 3, expireEarlier: true, wantErr: "at most 3 uploads in 5 hours"},
+		{name: "earlier uploads left the five hour window", maxFiveHours: 3, maxWeek: 10, earlier: 3, age: 6 * time.Hour},
+		{name: "week limit reached", maxFiveHours: 10, maxWeek: 3, earlier: 3, age: 6 * time.Hour, wantErr: "at most 3 uploads in 7 days"},
+		{name: "earlier uploads left the week", maxFiveHours: 10, maxWeek: 3, earlier: 3, age: 8 * 24 * time.Hour},
+		{name: "zero limits mean no limit", earlier: 30},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			store := mock.NewStore()
+			account, err := store.GetOrCreateAccount(ctx, "owner")
+			require.NoError(t, err)
+			account.MaxUploadsPerFiveH = tt.maxFiveHours
+			account.MaxUploadsPerWeek = tt.maxWeek
+			ws, err := store.CreateWorkspace(ctx, account.AccountID, "docs")
+			require.NoError(t, err)
+			svc := NewDocumentService(DocumentServiceDeps{
+				Repo:             store,
+				Jobs:             store,
+				LifecycleRepo:    store,
+				Workspaces:       store,
+				Tree:             store,
+				Transactor:       store,
+				SourceURLBuilder: documentSourceURL,
+				Logger:           discardLogger(),
+			})
+			for i := 0; i < tt.earlier; i++ {
+				_, _, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", fmt.Sprintf("earlier-%d.pdf", i), "application/pdf", 10)
+				require.NoError(t, err)
+			}
+			store.BackdateUploadReservations(account.AccountID, tt.age)
+			if tt.expireEarlier {
+				_, err := svc.ExpireUploadReservations(ctx, time.Now().Add(16*time.Minute))
+				require.NoError(t, err)
+			}
+
+			doc, target, err := svc.CreateDocument(ctx, ws.WorkspaceID, "owner", "next.pdf", "application/pdf", 10)
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				assert.NotNil(t, doc)
+				return
+			}
+			assert.ErrorIs(t, err, domain.ErrUploadLimitReached)
+			assert.ErrorContains(t, err, tt.wantErr)
+			assert.Nil(t, doc)
+			assert.Empty(t, target)
+		})
+	}
 }

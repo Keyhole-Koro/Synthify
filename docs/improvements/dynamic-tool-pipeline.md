@@ -215,6 +215,6 @@ Phase D (shared/tool 統合) はどの Phase ともクロスせず独立
   `apps/eval/runner/tool.go` の doc コメント
 - prompt 変異 eval: [../contracts/prompt-variant-eval-contract.md](../contracts/prompt-variant-eval-contract.md)
 - eval runner: [llm-eval-runner.md](llm-eval-runner.md)
-- monitor BI: [monitor-bi-dashboards.md](monitor-bi-dashboards.md)
+- monitor BI: [log-viewer-bi-dashboards.md](log-viewer-bi-dashboards.md)
 - monitor 認証: [admin-dashboard-security.md](admin-dashboard-security.md)
 - 旧 dynamic-tool-synthesis.md / transform-engine-registry.md は git 履歴に存在（設計再考のため削除済み）

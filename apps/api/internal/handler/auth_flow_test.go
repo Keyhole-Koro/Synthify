@@ -106,6 +106,35 @@ func TestDocumentHandler_AuthFlow(t *testing.T) {
 	})
 }
 
+// The upload count limits reach the client as ResourceExhausted, as the
+// storage quota does, with a message that names the limit.
+func TestDocumentHandler_CreateDocument_UploadLimitIsResourceExhausted(t *testing.T) {
+	ctx := context.Background()
+	store := mock.NewStore()
+	fixture := mock.CreateUserWorkspaceFixture(t, ctx, store, "owner")
+	account, err := store.GetAccountByUser(ctx, "owner")
+	require.NoError(t, err)
+	account.MaxUploadsPerFiveH = 2
+	handler := newTestDocumentHandler(store)
+	authedCtx := auth.ContextWithPrincipal(ctx, auth.Principal{Kind: auth.PrincipalKindUser, SubjectID: "owner", Email: "owner@example.com"})
+	create := func(filename string) error {
+		_, err := handler.CreateDocument(authedCtx, connect.NewRequest(&appv1.CreateDocumentRequest{
+			WorkspaceId: fixture.Workspace.WorkspaceID,
+			Filename:    filename,
+			MimeType:    "application/pdf",
+			FileSize:    42,
+		}))
+		return err
+	}
+
+	require.NoError(t, create("first.pdf"))
+	require.NoError(t, create("second.pdf"))
+	err = create("third.pdf")
+
+	assertConnectCode(t, err, connect.CodeResourceExhausted)
+	assert.ErrorContains(t, err, "upload limit reached: at most 2 uploads in 5 hours")
+}
+
 func TestTreeHandler_AuthFlow(t *testing.T) {
 	ctx := context.Background()
 	store := mock.NewStore()

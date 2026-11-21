@@ -127,7 +127,14 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 	})
 
 	itemSvc := application.NewItemService(application.ItemServiceDeps{Repo: store, Workspaces: store, Logger: logger})
-	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger})
+	// InviteMember asks Firebase Authentication whether the invitee has
+	// verified the invited address.
+	verifiedEmails, err := apiauth.NewFirebaseEmailVerifier(ctx, cfg.FirebaseProjectID)
+	if err != nil {
+		_ = closeDispatcher()
+		return nil, fmt.Errorf("email verifier init: %w", err)
+	}
+	workspaceSvc := application.NewWorkspaceService(application.WorkspaceServiceDeps{Accounts: store, Workspaces: store, Users: store, Logger: logger, JobStatusReaders: appCtx.JobStatusReaders, VerifiedEmails: verifiedEmails})
 	userSvc := application.NewUserService(application.UserServiceDeps{Users: store, Accounts: store, Billing: billingSvc, Logger: logger})
 	treeSvc := application.NewTreeService(application.TreeServiceDeps{Tree: store, Workspaces: store, Logger: logger})
 	devSeedSvc := application.NewDevSeedService(application.DevSeedServiceDeps{Accounts: store, Workspaces: store, Tree: store, Items: store})
@@ -205,6 +212,17 @@ func startAutoResume(documentSvc *application.DocumentService, logger *slog.Logg
 	}()
 }
 
+// expireUploadReservations marks the upload reservations that ran out without
+// being confirmed as expired and deletes whatever the client uploaded for
+// them. Nothing else removes those objects: once a reservation has run out,
+// ConfirmUpload refuses it and its bytes no longer count against the storage
+// quota. ExpireUploadReservations logs the outcome.
+func expireUploadReservations(documentSvc *application.DocumentService, now time.Time) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	_, _ = documentSvc.ExpireUploadReservations(ctx, now)
+}
+
 // stuckJobScanInterval is how often the stuck-job sweep runs. Re-emitting the
 // same job_id every interval is fine: the NR alert uses uniqueCount(job_id), so
 // repeats within the window collapse to one and running on several API
@@ -214,12 +232,14 @@ const stuckJobScanInterval = 5 * time.Minute
 // startStuckJobMonitor periodically sweeps for jobs wedged in QUEUED/RUNNING and
 // emits JobStuck events for New Relic to alert on. These never surface as
 // JobFailed, so this sweep is the only signal that a job silently stopped
-// progressing.
+// progressing. Each sweep also expires upload reservations; see
+// expireUploadReservations.
 func startStuckJobMonitor(documentSvc *application.DocumentService, logger *slog.Logger) {
 	go func() {
 		ticker := time.NewTicker(stuckJobScanInterval)
 		defer ticker.Stop()
-		for range ticker.C {
+		for now := range ticker.C {
+			expireUploadReservations(documentSvc, now.UTC())
 			scanCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 			stuck, err := documentSvc.ReportStuckJobs(scanCtx)
 			cancel()
@@ -283,11 +303,11 @@ func healthHandler(store any, readinessKey, readinessMonitorKey string) http.Han
 			return
 		}
 
+		// Only the header carries the key: a key in the query string would be
+		// written to the request logs.
 		provided := r.Header.Get("X-Synthify-Readiness-Key")
-		if provided == "" {
-			provided = r.URL.Query().Get("key")
-		}
-		if !constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey) {
+		// An empty key never authorizes, so an unset key cannot match it (fail closed).
+		if provided == "" || (!constantTimeEqual(provided, readinessKey) && !constantTimeEqual(provided, readinessMonitorKey)) {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
