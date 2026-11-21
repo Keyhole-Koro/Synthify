@@ -84,5 +84,5 @@ Cloud Storage FUSE を活用することで、大規模ドキュメントの効�
   gcsfuse 上の追加検討事項。現状はマウント RW）。
 
 ## 関連ドキュメント
-- [llm-worker-architecture.md](llm-worker-architecture.md)
-- [job-entity-field-spec-status.md](../improvements/job-entity-field-spec.md)
+- [llm-worker-architecture.md](../worker/llm-worker-architecture.md)
+- [job-entity-field-spec.md](https://github.com/Keyhole-Koro/Synthify/blob/b15cf39ceda8395e34d61285ad3cb5578f701f4f/docs/improvements/job-entity-field-spec.md)（削除済み）

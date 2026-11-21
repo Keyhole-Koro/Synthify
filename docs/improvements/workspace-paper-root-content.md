@@ -49,7 +49,7 @@ workspace（ツリーの根、DB実体なし）
 
 ### UI：root content を iframe 表示
 
-- paper-in-paper には既に **`PaperContentFrame`** があり、`content`(HTML string) + `overrideCss` を **iframe で CSS 隔離描画**する（[PaperContentFrame.tsx:55](../../apps/web/vender/paper-in-paper/src/lib/react/components/PaperContentFrame.tsx#L55)）。基盤は流用できる。
+- paper-in-paper には既に **`PaperContentFrame`** があり、`content`(HTML string) + `overrideCss` を **iframe で CSS 隔離描画**する（[PaperContentFrame.tsx:55](https://github.com/Keyhole-Koro/paper-in-paper/blob/685f21c1324677a7599f67b9b513979ac3c8a8b2/src/lib/react/components/PaperContentFrame.tsx#L55)）。基盤は流用できる。
 - ワークスペース paper の content に、root node の `content` を表示する領域を設ける。CSS 隔離が iframe を使う主目的（`override_css` を親ページと衝突させない）。
 - アップロード欄・ジョブ一覧・リネームなどの操作 UI（現 `WorkspacePaper`）は **iframe の外（chrome 部分）**に残す。iframe は「読む中身」、その周りが「操作」。
 

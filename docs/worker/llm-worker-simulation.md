@@ -223,4 +223,4 @@ items = [
 - `quality_critique` — 静的チェックのみで構造的な問題を検出できない
 
 シミュレーション上の流れは正しく、`process/` ツール群の LLM 化が次のステップとなる。
-詳細設計は [improvements/process-tools-llm-implementation.md](improvements/process-tools-llm-implementation.md) を参照。
+詳細設計は [improvements/process-tools-llm-implementation.md](https://github.com/Keyhole-Koro/Synthify/blob/72d7969e961a874e604b76a9714c060348526deb/docs/improvements/process-tools-llm-implementation.md) を参照。

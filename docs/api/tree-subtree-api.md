@@ -12,7 +12,7 @@ Connect RPC ではなく、HTTP endpoint として登録されている。
 mux.HandleFunc("GET /tree/subtree", treeHandler.GetSubtreeHTTP)
 ```
 
-実装は [api/internal/handler/tree.go](/home/unix/Synthify/api/internal/handler/tree.go) の `GetSubtreeHTTP`。
+実装は [apps/api/internal/handler/tree.go](../../apps/api/internal/handler/tree.go) の `GetSubtreeHTTP`。
 
 ## Request
 
@@ -48,7 +48,7 @@ parameters:
 
 ## Repository
 
-repository interface は [shared/repository/interfaces.go](/home/unix/Synthify/shared/repository/interfaces.go) にある。
+repository interface は [apps/api/internal/repository/interfaces.go](../../apps/api/internal/repository/interfaces.go) にある。
 
 ```go
 GetSubtree(ctx context.Context, rootItemID string, maxDepth int) ([]*domain.SubtreeItem, error)

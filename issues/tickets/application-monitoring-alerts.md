@@ -4,7 +4,7 @@
 
 New Relic(APM: バックエンド、Browser: フロントエンド)によるログ・エラー・メトリクス収集基盤は整っているが、そこから先のアラートポリシー・通知チャネルは一切定義されていない。本番障害が発生しても誰も気づけない状態。
 
-[ci-cd-failure-alerts.md](./ci-cd-failure-alerts.md) はCI/CD失敗の通知が対象で、本チケットは本番稼働中のアプリケーション異常を対象とする。
+[ci-cd-failure-alerts.md](https://github.com/Keyhole-Koro/Synthify/blob/51503c1e45d2c17241dbab2b952849214ff78f64/issues/tickets/ci-cd-failure-alerts.md)（PR #45、未マージ）はCI/CD失敗の通知が対象で、本チケットは本番稼働中のアプリケーション異常を対象とする。
 
 ## 通知先
 
@@ -26,7 +26,7 @@ Alert PolicyはCritical/Warningで2つに分ける(Discord側で緊急度を区�
 
 ### 1. readiness監視(GitHub Actions cron)
 
-- CI/CD失敗通知([ci-cd-failure-alerts.md](./ci-cd-failure-alerts.md))のreusable workflow (`notify-discord.yml`) を再利用
+- CI/CD失敗通知([ci-cd-failure-alerts.md](https://github.com/Keyhole-Koro/Synthify/blob/51503c1e45d2c17241dbab2b952849214ff78f64/issues/tickets/ci-cd-failure-alerts.md)、PR #45、未マージ)のreusable workflow (`notify-discord.yml`) を再利用
 - `schedule` トリガーで数分おきに `/health?ready=1` を叩き、失敗(2回連続)したらDiscordへ通知
 - 追加コストはGitHub Actions実行時間のみ(Actions minutes枠内)
 

@@ -35,7 +35,7 @@ account / user
 - そのユーザーが対象 resource を見たり変更したりできるかを確認する
 - 実装上は `authorizeWorkspace` / `authorizeDocument` / `authorizeItem` を使う
 
-該当コードは [api/internal/handler/authz.go](/home/unix/Synthify/api/internal/handler/authz.go) にある。
+該当コードは [apps/api/internal/handler/authz.go](../../apps/api/internal/handler/authz.go) にある。
 
 ## `currentUser`
 
@@ -201,9 +201,9 @@ resource はあるがアクセス不可  -> PermissionDenied
 
 体系的に追うなら、次の順で読むとよい。
 
-1. [shared/repository/interfaces.go](/home/unix/Synthify/shared/repository/interfaces.go) で repository interface を見る
-2. [api/internal/handler/authz.go](/home/unix/Synthify/api/internal/handler/authz.go) で authorization helper を見る
-3. [api/internal/handler/workspace.go](/home/unix/Synthify/api/internal/handler/workspace.go) で workspace 直指定 API を見る
-4. [api/internal/handler/document.go](/home/unix/Synthify/api/internal/handler/document.go) で document から workspace を逆引きする流れを見る
-5. [api/internal/handler/job.go](/home/unix/Synthify/api/internal/handler/job.go) で job から document を経由して workspace access を確認する流れを見る
+1. [apps/api/internal/repository/interfaces.go](../../apps/api/internal/repository/interfaces.go) で repository interface を見る
+2. [apps/api/internal/handler/authz.go](../../apps/api/internal/handler/authz.go) で authorization helper を見る
+3. [apps/api/internal/handler/workspace.go](../../apps/api/internal/handler/workspace.go) で workspace 直指定 API を見る
+4. [apps/api/internal/handler/document.go](../../apps/api/internal/handler/document.go) で document から workspace を逆引きする流れを見る
+5. [apps/api/internal/handler/job.go](../../apps/api/internal/handler/job.go) で job から document を経由して workspace access を確認する流れを見る
 

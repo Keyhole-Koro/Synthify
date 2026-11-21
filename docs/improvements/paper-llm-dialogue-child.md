@@ -250,7 +250,7 @@ Phase F (rules deploy / 認証方針) は C/D のデプロイ前提として並�
 
 - Firestore 進捗パターン: `internal/platform/job/status/notifier.go`,
   `apps/web/src/lib/firestore/useAuthedDoc.ts`, `contracts/firestore/job-status.schema.json`
-- paper-in-paper レイアウト挙動: [paper-in-paper-sibling-share.md](paper-in-paper-sibling-share.md),
-  [paper-in-paper-importance-direction.md](paper-in-paper-importance-direction.md)
-- LLM Worker 設計: [../llm-worker-architecture.md](../llm-worker-architecture.md)
+- paper-in-paper レイアウト挙動: `paper-in-paper-sibling-share.md`,
+  `paper-in-paper-importance-direction.md`（どちらも文書はリポジトリに無い）
+- LLM Worker 設計: [../worker/llm-worker-architecture.md](../worker/llm-worker-architecture.md)
 - routing 統合構想（/w/[id] 廃止しトップ paper-in-paper に統合）はメモリ参照

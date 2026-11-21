@@ -12,7 +12,7 @@ monitor を「ログ閲覧ツール」から「運用 BI」へ拡張する。
 ## Motivation
 - 現状 monitor はジョブログを横串で見るだけで、集計値や時系列を出せない
 - ジョブ成功率や失敗ステージを毎回 psql で取るのは効率が悪い
-- 従量課金 ([usage-based-billing.md](usage-based-billing.md)) を導入すると、
+- 従量課金 ([usage-based-billing.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/usage-based-billing.md)) を導入すると、
   当月予算消費・モデル別コスト・予算アラートの状況をすぐ見たい場面が増える
 - production で「いま何が遅い / 失敗している」を素早く把握する手段が欲しい
 
@@ -84,5 +84,5 @@ monitor を「ログ閲覧ツール」から「運用 BI」へ拡張する。
   エラー率)、というスライスで分離するのが現実的。
 
 ## References
-- [usage-based-billing.md](usage-based-billing.md) — Cost ダッシュボードのデータソース
-- [logging.md](logging.md) — Job Health ダッシュボードのデータソースとなる構造化ログ
+- [usage-based-billing.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/usage-based-billing.md)（削除済み） — Cost ダッシュボードのデータソース
+- [logging.md](https://github.com/Keyhole-Koro/Synthify/blob/d1d38d97caefad0f26e4b0b672cbcfe0635651fa/docs/improvements/logging.md)（削除済み） — Job Health ダッシュボードのデータソースとなる構造化ログ
