@@ -1,0 +1,90 @@
+name: Tree viewer
+
+# apps/tree-viewer is not a root workspace: it has its own bun.lock, so the Web
+# workflow never installs, type-checks or tests it. Its tests also cover the
+# synthify-tree skill's build script (src/build.test.mjs imports
+# skills/synthify-tree/scripts/build.mjs), and the skill ships the viewer's
+# build, so a change under either path runs this.
+on:
+  pull_request:
+    paths:
+      - apps/tree-viewer/**
+      - skills/**
+      - .github/workflows/tree-viewer.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps/tree-viewer/**
+      - skills/**
+      - .github/workflows/tree-viewer.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # bun runs tsc and vite with node (their bin scripts say so), and vite 8
+      # needs node ^20.19 or >=22.12, so do not depend on the runner image's.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.13
+
+      - name: Install dependencies
+        working-directory: apps/tree-viewer
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: apps/tree-viewer
+        run: bun run typecheck
+
+      - name: Test
+        working-directory: apps/tree-viewer
+        run: bun test src
+
+      - name: Build
+        working-directory: apps/tree-viewer
+        run: bun run build
+
+      # The skill ships the built viewer, so the build is committed
+      # (apps/tree-viewer/README.md). The output file names are fixed, so a
+      # fresh build of the source must leave the committed copy unchanged;
+      # otherwise the skill hands out a viewer that is not the one in
+      # apps/tree-viewer. --stat because viewer.js is one minified line, and
+      # git diff does not show a file the build added, so untracked files are
+      # checked as well.
+      - name: Check the committed viewer matches the source
+        run: |
+          set -euo pipefail
+          viewer=skills/synthify-tree/assets/viewer
+          if ! git diff --exit-code --stat -- "$viewer"; then
+            echo "::error::${viewer} differs from a fresh build of apps/tree-viewer. Run 'bun run build' in apps/tree-viewer and commit the result."
+            exit 1
+          fi
+          untracked="$(git ls-files --others --exclude-standard -- "$viewer")"
+          if [ -n "$untracked" ]; then
+            echo "::error::The build wrote files that are not committed under ${viewer}. Run 'bun run build' in apps/tree-viewer and commit the result."
+            printf '%s\n' "$untracked"
+            exit 1
+          fi
+          echo "${viewer} matches a fresh build"
+
+  notify:
+    needs: [check]
+    if: failure()
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      status: failure
+      workflow_name: Tree viewer
+      job_name: check
+    secrets:
+      DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
