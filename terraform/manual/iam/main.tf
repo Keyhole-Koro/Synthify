@@ -225,6 +225,33 @@ resource "google_project_iam_member_remove" "deploy" {
   }
 }
 
+# Log-based alert policies (services/platform_alerts admin_changes, #67) are
+# backed by Logging notification rules: creating one needs
+# logging.notificationRules.create as well as monitoring.alertPolicyEditor.
+# The only predefined role with these permissions, logging.configWriter, can
+# also change sinks, exclusions and log buckets.
+resource "google_project_iam_custom_role" "deploy_log_alerts" {
+  project     = var.project_id
+  role_id     = "synthifyDeployLogAlerts"
+  title       = "Synthify deploy: log-based alerts"
+  description = "Manage the Logging notification rules behind log-based alert policies."
+  permissions = [
+    "logging.notificationRules.create",
+    "logging.notificationRules.delete",
+    "logging.notificationRules.get",
+    "logging.notificationRules.list",
+    "logging.notificationRules.update",
+  ]
+
+  depends_on = [google_project_service.identity]
+}
+
+resource "google_project_iam_member" "deploy_log_alerts" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.deploy_log_alerts.name
+  member  = local.deploy_member
+}
+
 # Attaching a service account to a Cloud Run service or job, or to a Cloud
 # Scheduler job's OAuth token, needs actAs on that account.
 resource "google_service_account_iam_member" "deploy_acts_as" {
