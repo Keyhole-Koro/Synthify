@@ -5,6 +5,7 @@
 - 実行用 SA 5 つ（`synthify-{api,worker,eval,eval-scheduler,monitor}-<env>`）と、そのプロジェクトのロール（Firestore、Vertex AI、Cloud Tasks）、API の自分自身への付与（actAs、トークンの発行）
 - API が Firebase Auth の利用者を読む・消すだけのカスタムロール `synthifyApiFirebaseAuthUsers`（`firebaseauth.users.get` は招待の確認、`firebaseauth.users.delete` は退会）とその付与
 - デプロイ用 SA（`github-deploy`）とそのプロジェクトのロール、実行用 SA への actAs
+- デプロイ用 SA がログに基づくアラート（#67 の `admin_changes`）を作るためのカスタムロール `synthifyDeployLogAlerts`（`logging.notificationRules.*` の 5 つ）とその付与。この権限を持つ既定のロールは `logging.configWriter` だけで、それだとログのシンクや除外も変えられる
 - デプロイ用 SA から外すロール: `resourcemanager.projectIamAdmin`、`iam.serviceAccountAdmin`、プロジェクト全体の `iam.serviceAccountTokenCreator`（`google_project_iam_member_remove`）
 - API から外すロール: CD が前に付けた `firebaseauth.admin`（#75）と `firebaseauth.viewer`（#55）。上のカスタムロールに替わる。admin では、ログインの設定を変えたり、どの利用者でも作ったり書き換えたりできた
 - GitHub Actions からデプロイ用 SA になる道（Workload Identity のプール `github-actions` とプロバイダ `github`）。条件は「このリポジトリの、環境と同じ名前の GitHub environment の、同じ名前のブランチのジョブ」
@@ -51,6 +52,7 @@ IAM を変える力をデプロイ用 SA から外したので、IAM はここ�
    - SA は「作成」と出るが、既にあるものを取り込むだけ（`create_ignore_already_exists`）。
    - `google_project_iam_member_remove.deploy` が 3 件。ここで 3 つのロールが外れる。
    - カスタムロール `google_project_iam_custom_role.api_firebase_auth_users` と、その API への付与が 1 件ずつ。そのあと `google_project_iam_member_remove.api` が 2 件で、API から `firebaseauth.admin` と `firebaseauth.viewer` が外れる（付いていない環境では何もしない）。
+   - カスタムロール `google_project_iam_custom_role.deploy_log_alerts` と、そのデプロイ用 SA への付与が 1 件ずつ。
    - `google_service_account_iam_policy.deploy` が、デプロイ用 SA のポリシーを `workloadIdentityUser` の 1 つだけにする。
    - destroy が 0 件。
    - CD のデプロイ用 SA はこの state バケットにも書ける。plan に覚えの無いものがあれば apply しない。
@@ -60,7 +62,8 @@ IAM を変える力をデプロイ用 SA から外したので、IAM はここ�
 4. 確かめる。
 
    ```bash
-   # デプロイ用 SA のロール。13 個で、projectIamAdmin・serviceAccountAdmin・serviceAccountTokenCreator が無い
+   # デプロイ用 SA のロール。既定のロール 13 個と projects/<project>/roles/synthifyDeployLogAlerts で、
+   # projectIamAdmin・serviceAccountAdmin・serviceAccountTokenCreator が無い
    gcloud projects get-iam-policy "$PROJECT" --flatten="bindings[].members" \
      --filter="bindings.members:github-deploy@" --format="value(bindings.role)"
    # プロバイダの条件
@@ -74,6 +77,8 @@ IAM を変える力をデプロイ用 SA から外したので、IAM はここ�
      --filter="bindings.members:synthify-api-${ENV}@" --format="value(bindings.role)"
    # カスタムロールの権限。firebaseauth.users.delete と firebaseauth.users.get だけ
    gcloud iam roles describe synthifyApiFirebaseAuthUsers --project "$PROJECT" --format="value(includedPermissions)"
+   # デプロイ用 SA のカスタムロールの権限。logging.notificationRules の create・delete・get・list・update だけ
+   gcloud iam roles describe synthifyDeployLogAlerts --project "$PROJECT" --format="value(includedPermissions)"
    ```
 
 CD 以外の管理の操作を知らせるアラート（`admin change outside CD`）を入れていれば、2 の操作で鳴る。自分の作業なので、記録して閉じる。
@@ -87,7 +92,7 @@ CD 以外の管理の操作を知らせるアラート（`admin change outside C
 
 ## 戻すとき・困ったとき
 
-- デプロイが 403 で落ちたら、エラーの権限を見て、それを含むロールを `variables.tf` の `deploy_project_roles` に足して apply する。外した 3 つは足さない（precondition で止まる）。
+- デプロイが 403 で落ちたら、エラーの権限を見て、それを含むロールを `variables.tf` の `deploy_project_roles` に足して apply する。外した 3 つは足さない（precondition で止まる）。それを含む既定のロールが広すぎるときは、`deploy_log_alerts` のようにカスタムロールにする。
 - API が Firebase Auth の権限（`firebaseauth.users.*` など）で 403 になったら、その権限をカスタムロール `api_firebase_auth_users` の `permissions` に足して apply する。`firebaseauth.admin` と `firebaseauth.viewer` は API のロールに戻さない（precondition で止まる）。
 - GCP の認証（Workload Identity）で落ちたら、ジョブのブランチと environment を見る。条件を一時的に戻すなら `main.tf` の `attribute_condition` を変えて apply する。急ぐなら次のコマンドで戻せるが、次の apply で条件はまた変わる。
 
