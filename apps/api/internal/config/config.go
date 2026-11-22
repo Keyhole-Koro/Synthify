@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/synthify/backend/internal/platform/storage"
@@ -27,6 +28,11 @@ type API struct {
 	Billing                  Billing
 	NewRelic                 NewRelic
 	DataRetention            DataRetention
+	// IntakeClosed stops new documents and paid plans: the API refuses to
+	// start document work and Stripe Checkout, and tells the web so. Existing
+	// data stays readable, shareable and deletable. SYNTHIFY_INTAKE_CLOSED,
+	// default false (docs/runbooks/README.md).
+	IntakeClosed bool
 }
 
 // WorkerDispatch controls how the API hands jobs to the worker. When
@@ -132,6 +138,7 @@ func LoadAPI() API {
 			LicenseKey: os.Getenv("NEW_RELIC_LICENSE_KEY"),
 		},
 		DataRetention: loadDataRetention(),
+		IntakeClosed:  mustBool("SYNTHIFY_INTAKE_CLOSED", false),
 	}
 }
 
@@ -192,6 +199,21 @@ func getInt(key string, def int) int {
 		}
 	}
 	return def
+}
+
+// mustBool reads a true/false switch and panics on any other value, like
+// mustBaseURL: a typo must not silently decide whether people can upload and
+// pay.
+func mustBool(key string, fallback bool) bool {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return fallback
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		panic(fmt.Sprintf("%s must be true or false, got %q", key, raw))
+	}
+	return value
 }
 
 func mustBaseURL(name, value string) string {

@@ -2,13 +2,13 @@
 // @generated from file synthify/app/v1/common.proto (package synthify.app.v1, syntax proto3)
 /* eslint-disable */
 
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc, tsEnum } from "@bufbuild/protobuf/codegenv2";
 
 /**
  * Describes the file synthify/app/v1/common.proto.
  */
 export const file_synthify_app_v1_common = /*@__PURE__*/
-  fileDesc("ChxzeW50aGlmeS9hcHAvdjEvY29tbW9uLnByb3RvEg9zeW50aGlmeS5hcHAudjEivwEKDURvY3VtZW50Q2h1bmsSEwoLZG9jdW1lbnRfaWQYASABKAkSEAoIY2h1bmtfaWQYAiABKAkSEwoLY2h1bmtfaW5kZXgYAyABKAMSDAoEdGV4dBgEIAEoCRIXCg9zb3VyY2VfZmlsZW5hbWUYBSABKAkSEwoLc291cmNlX3BhZ2UYBiABKAMSGwoTc291cmNlX29mZnNldF9zdGFydBgHIAEoAxIZChFzb3VyY2Vfb2Zmc2V0X2VuZBgIIAEoA0JAWj5naXRodWIuY29tL3N5bnRoaWZ5L2JhY2tlbmQvaW50ZXJuYWwvZ2VuL3N5bnRoaWZ5L2FwcC92MTthcHB2MWIGcHJvdG8z");
+  fileDesc("ChxzeW50aGlmeS9hcHAvdjEvY29tbW9uLnByb3RvEg9zeW50aGlmeS5hcHAudjEivwEKDURvY3VtZW50Q2h1bmsSEwoLZG9jdW1lbnRfaWQYASABKAkSEAoIY2h1bmtfaWQYAiABKAkSEwoLY2h1bmtfaW5kZXgYAyABKAMSDAoEdGV4dBgEIAEoCRIXCg9zb3VyY2VfZmlsZW5hbWUYBSABKAkSEwoLc291cmNlX3BhZ2UYBiABKAMSGwoTc291cmNlX29mZnNldF9zdGFydBgHIAEoAxIZChFzb3VyY2Vfb2Zmc2V0X2VuZBgIIAEoAyI7CgtFcnJvckRldGFpbBIsCgZyZWFzb24YASABKA4yHC5zeW50aGlmeS5hcHAudjEuRXJyb3JSZWFzb24qSwoLRXJyb3JSZWFzb24SHAoYRVJST1JfUkVBU09OX1VOU1BFQ0lGSUVEEAASHgoaRVJST1JfUkVBU09OX0lOVEFLRV9DTE9TRUQQAUJAWj5naXRodWIuY29tL3N5bnRoaWZ5L2JhY2tlbmQvaW50ZXJuYWwvZ2VuL3N5bnRoaWZ5L2FwcC92MTthcHB2MWIGcHJvdG8z");
 
 /**
  * Describes the message synthify.app.v1.DocumentChunk.
@@ -16,4 +16,23 @@ export const file_synthify_app_v1_common = /*@__PURE__*/
  */
 export const DocumentChunkSchema = /*@__PURE__*/
   messageDesc(file_synthify_app_v1_common, 0);
+
+/**
+ * Describes the message synthify.app.v1.ErrorDetail.
+ * Use `create(ErrorDetailSchema)` to create a new message.
+ */
+export const ErrorDetailSchema = /*@__PURE__*/
+  messageDesc(file_synthify_app_v1_common, 1);
+
+/**
+ * Describes the enum synthify.app.v1.ErrorReason.
+ */
+export const ErrorReasonSchema = /*@__PURE__*/
+  enumDesc(file_synthify_app_v1_common, 0);
+
+/**
+ * @generated from enum synthify.app.v1.ErrorReason
+ */
+export const ErrorReason = /*@__PURE__*/
+  tsEnum(ErrorReasonSchema);
 

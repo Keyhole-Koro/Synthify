@@ -105,7 +105,11 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		Logger:           logger,
 		NRApp:            nrApp,
 	})
-	startAutoResume(documentSvc, logger)
+	// Auto-resume hands failed jobs to the worker and the LLM again, which is
+	// the work closed intake stops.
+	if !cfg.IntakeClosed {
+		startAutoResume(documentSvc, logger)
+	}
 	startStuckJobMonitor(documentSvc, logger)
 	workspacePurger := application.NewWorkspacePurger(application.WorkspacePurgerDeps{
 		Repo:      store,
@@ -156,11 +160,12 @@ func NewApplication(ctx context.Context, cfg config.API, logger *slog.Logger, nr
 		observability.ConnectHandlerOptions(nrApp),
 		observability.MaskInternalErrorsHandlerOptions(logger)...,
 	)
+	connectOptions = append(connectOptions, handler.IntakeClosedHandlerOptions(cfg.IntakeClosed)...)
 	mux.Handle(appv1connect.NewDocumentServiceHandler(handler.NewDocumentHandler(documentSvc, store), connectOptions...))
 	mux.Handle(appv1connect.NewTreeServiceHandler(handler.NewTreeHandler(treeSvc), connectOptions...))
 	mux.Handle(appv1connect.NewItemServiceHandler(handler.NewItemHandler(itemSvc), connectOptions...))
 	mux.Handle(appv1connect.NewWorkspaceServiceHandler(handler.NewWorkspaceHandler(workspaceSvc), connectOptions...))
-	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc).WithAccountDeletion(accountDeletion), connectOptions...))
+	mux.Handle(appv1connect.NewUserServiceHandler(handler.NewUserHandler(userSvc).WithAccountDeletion(accountDeletion).WithIntakeClosed(cfg.IntakeClosed), connectOptions...))
 	mux.Handle(appv1connect.NewJobServiceHandler(handler.NewJobHandler(store, store, store, store, store, logger), connectOptions...))
 	mux.Handle(appv1connect.NewBillingServiceHandler(handler.NewBillingHandler(billingSvc), connectOptions...))
 	mux.HandleFunc("/stripe/webhook", handler.NewBillingWebhookHTTPHandler(billingSvc, logger))

@@ -79,6 +79,16 @@ export declare type SignInUserResponse = Message<"synthify.app.v1.SignInUserResp
    * @generated from field: bool is_new_account = 2;
    */
   isNewAccount: boolean;
+
+  /**
+   * 新しい文書と有料プランの受け付けを終えているか（SYNTHIFY_INTAKE_CLOSED）。
+   * true のあいだ、アップロード、処理の開始と再開、Checkout は
+   * FailedPrecondition（ErrorReason INTAKE_CLOSED）で断られる。
+   * 見る・共有する・削除することはできる。
+   *
+   * @generated from field: bool intake_closed = 3;
+   */
+  intakeClosed: boolean;
 };
 
 /**

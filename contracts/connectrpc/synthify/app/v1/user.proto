@@ -33,6 +33,11 @@ message SignInUserResponse {
   // 今回の呼び出しで account を新規作成したか。
   // users 行があっても accounts が無い回復ケースでも true になる。
   bool is_new_account = 2;
+  // 新しい文書と有料プランの受け付けを終えているか（SYNTHIFY_INTAKE_CLOSED）。
+  // true のあいだ、アップロード、処理の開始と再開、Checkout は
+  // FailedPrecondition（ErrorReason INTAKE_CLOSED）で断られる。
+  // 見る・共有する・削除することはできる。
+  bool intake_closed = 3;
 }
 
 message GetMeRequest {}
