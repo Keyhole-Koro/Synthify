@@ -106,7 +106,7 @@ gcloud tasks queues resume "synthify-pipeline-$ENV" --project "$PROJECT" --locat
 gcloud scheduler jobs resume "synthify-eval-$ENV-schedule" --project "$PROJECT" --location "$REGION"
 ```
 
-- Terraform はこの 2 つの止まっている状態を管理しないので、デプロイしても再開しない。手で再開する。
+- Terraform はこの 2 つの止まっている状態を管理しないので、デプロイしても再開しない。手で再開する。ただし `intake_closed` が `true` の間は、デプロイが eval のスケジュールを止める（下の「新しい文書と有料プランの受け付け」）。
 - 止めている間は、待っているジョブで Stuck job spike が鳴ることがある。
 
 ### 新しい文書と有料プランの受け付け
@@ -118,6 +118,7 @@ API の環境変数 `SYNTHIFY_INTAKE_CLOSED` を `true` にすると、新しい
 - 文書の受け付けと処理（「新しい文書の受け付けは終了しました。」）: `DocumentService` の `CreateDocument`、`GetUploadURL`、`ConfirmUpload`、`StartProcessing`、`ResumeProcessing`、`JobService` の `ApproveJobApproval`
 - 有料プランの申し込み（「有料プランの受け付けは終了しました。」）: `BillingService` の `CreateCheckoutSession`
 - API が起動したときに、失敗したジョブを worker に渡し直す処理（auto-resume）もしない。
+- LLM の評価を毎日起動する Cloud Scheduler の `synthify-eval-<env>-schedule` も、デプロイの Terraform が止める。新しい文書が処理されないので測るものが無く、Gemini を呼ぶだけになるため。
 
 画面は `SignInUser` の答え（`intake_closed`）を見て、上に受け付けを終えたことを書いた帯を出し、アップロードの場所（最初の画面とワークスペース。失敗したジョブの再試行も）とアップグレードの入り口を出さない。
 
@@ -125,7 +126,7 @@ API の環境変数 `SYNTHIFY_INTAKE_CLOSED` を `true` にすると、新しい
 
 - すでに Cloud Tasks に積まれたジョブは、worker が処理を続ける（LLM を呼ぶ）。止めるなら、上の queue も止める。
 - 新しい申し込みは止まるが、続いているサブスクリプションは止まらない。Stripe のダッシュボードで、残っているサブスクリプションを解約する。解約するまで請求は続く。有料プランが続いている人の退会（`DeleteAccount`）は、解約されるまで断られる。
-- 受け付けを再開するときは、`intake_closed` を `false` にして（行を消してもよい）デプロイする。画面は、次に開いたときの `SignInUser` の答えから元に戻る。
+- 受け付けを再開するときは、`intake_closed` を `false` にして（行を消してもよい）デプロイする。画面は、次に開いたときの `SignInUser` の答えから元に戻る。eval のスケジュールは止まったままなので、要るなら上の `gcloud scheduler jobs resume` で再開する。
 - ローカルでは、`SYNTHIFY_INTAKE_CLOSED=true` を付けて `docker compose up` すると同じ状態になる。
 
 ### API

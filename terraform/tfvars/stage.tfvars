@@ -35,8 +35,8 @@ deployer_principal = "serviceAccount:github-deploy@synthify-stage-491705.iam.gse
 log_llm_payload = "false"
 
 # New documents and paid plans are closed: the API refuses uploads, document
-# processing and Stripe Checkout, and the web says so. Trees are made on
-# users' own machines with the agent skill now. Existing trees stay readable,
-# shareable and deletable. To reopen, set false and deploy
-# (docs/runbooks/README.md).
+# processing and Stripe Checkout, the web says so, and the daily LLM eval is
+# paused. Trees are made on users' own machines with the agent skill now.
+# Existing trees stay readable, shareable and deletable. To reopen, set false
+# and deploy (docs/runbooks/README.md).
 intake_closed = true
