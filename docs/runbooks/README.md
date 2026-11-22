@@ -109,6 +109,25 @@ gcloud scheduler jobs resume "synthify-eval-$ENV-schedule" --project "$PROJECT" 
 - Terraform はこの 2 つの止まっている状態を管理しないので、デプロイしても再開しない。手で再開する。
 - 止めている間は、待っているジョブで Stuck job spike が鳴ることがある。
 
+### 新しい文書と有料プランの受け付け
+
+API の環境変数 `SYNTHIFY_INTAKE_CLOSED` を `true` にすると、新しい文書と有料プランを受け付けなくなる。Terraform の変数は `intake_closed`（`terraform/tfvars/<env>.tfvars`）。stage と prod では `true` にしている。ツリーは利用者の手元で agent の skill で作るようにして、サーバーで LLM を呼ぶ処理と有料プランをやめたため。
+
+止まるもの。API は次の RPC を FailedPrecondition で断る。理由を error detail（`synthify.app.v1.ErrorDetail` の `ERROR_REASON_INTAKE_CLOSED`）で返し、画面はそれを見て API のメッセージをそのまま出す。
+
+- 文書の受け付けと処理（「新しい文書の受け付けは終了しました。」）: `DocumentService` の `CreateDocument`、`GetUploadURL`、`ConfirmUpload`、`StartProcessing`、`ResumeProcessing`、`JobService` の `ApproveJobApproval`
+- 有料プランの申し込み（「有料プランの受け付けは終了しました。」）: `BillingService` の `CreateCheckoutSession`
+- API が起動したときに、失敗したジョブを worker に渡し直す処理（auto-resume）もしない。
+
+画面は `SignInUser` の答え（`intake_closed`）を見て、上に受け付けを終えたことを書いた帯を出し、アップロードの場所（最初の画面とワークスペース。失敗したジョブの再試行も）とアップグレードの入り口を出さない。
+
+続けて使えるもの: サインイン、ワークスペースとツリーを見る、共有リンク、メンバーと招待、手で足すアイテム（`CreateItem`）、文書・ワークスペース・アカウントの削除、Stripe のポータル（`CreatePortalSession`。有料プランの人が解約できるように）、Stripe の webhook、monitor、readiness。
+
+- すでに Cloud Tasks に積まれたジョブは、worker が処理を続ける（LLM を呼ぶ）。止めるなら、上の queue も止める。
+- 新しい申し込みは止まるが、続いているサブスクリプションは止まらない。Stripe のダッシュボードで、残っているサブスクリプションを解約する。解約するまで請求は続く。有料プランが続いている人の退会（`DeleteAccount`）は、解約されるまで断られる。
+- 受け付けを再開するときは、`intake_closed` を `false` にして（行を消してもよい）デプロイする。画面は、次に開いたときの `SignInUser` の答えから元に戻る。
+- ローカルでは、`SYNTHIFY_INTAKE_CLOSED=true` を付けて `docker compose up` すると同じ状態になる。
+
 ### API
 
 API は誰でも呼べる設定（`allUsers` に `roles/run.invoker`。Terraform の `allow_unauthenticated`）になっている。これを外すと、ブラウザからの呼び出しも、Stripe の webhook も、worker から API への呼び出しも、Cloud Run が 403 で断る。先に上の queue を止めておく。止めないと、処理中のジョブが API を呼べずに失敗する。
