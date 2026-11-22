@@ -277,6 +277,8 @@ resource "google_project_iam_custom_role" "api_firebase_auth_users" {
     "firebaseauth.users.delete",
     "firebaseauth.users.get",
   ]
+
+  depends_on = [google_project_service.identity]
 }
 
 resource "google_project_iam_member" "api_firebase_auth_users" {
