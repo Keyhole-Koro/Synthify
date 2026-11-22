@@ -6,6 +6,7 @@ import type { Paper } from '@keyhole-koro/paper-in-paper';
 import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
 import { WorkspaceSchema } from '@/gen/proto/synthify/app/v1/workspace_pb';
 import { useAuthState } from '@/features/auth/useAuthState';
+import { useIntakeClosed } from '@/features/intake/intakeStatus';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import { useWorkspaceTree } from '@/features/workspaces/useWorkspaceTree';
 import { useHomeCanvasViewState } from '@/features/paperMap/hooks/useHomeCanvasViewState';
@@ -71,6 +72,7 @@ export function useLandingPageController() {
   const [workspacePaperGroups, setWorkspacePaperGroups] = useState<Map<string, Paper[]>>(new Map());
   const [pendingRevealNodeId, setPendingRevealNodeId] = useState<string | null>(null);
   const { hasMounted, winSize } = useViewportSize();
+  const intakeClosed = useIntakeClosed();
 
   const {
     canvasKey,
@@ -195,6 +197,7 @@ export function useLandingPageController() {
     handleOpenWorkspace: tree.handleOpenWorkspace,
     buildWsPaper: tree.buildWsPaper,
     onRetryWorkspaces: retryWorkspaces,
+    intakeClosed,
   });
 
   useEffect(() => {
@@ -312,6 +315,7 @@ export function useLandingPageController() {
   return {
     isReady: hasMounted && hasDefaultOpenState,
     isFullscreen,
+    intakeClosed,
     winSize,
     paperMap,
     canvasKey,

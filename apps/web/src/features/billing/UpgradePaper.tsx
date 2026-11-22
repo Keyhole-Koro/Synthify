@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { IntakeClosedNote } from '@/features/intake/IntakeClosedNotice';
+import { INTAKE_CLOSED_PAID_PLANS_MESSAGE, useIntakeClosed } from '@/features/intake/intakeStatus';
+import { toAppError } from '@/lib/error_normalize';
+import { isIntakeClosedError } from '@/lib/errors';
 import { createCheckoutSession, type BillingCurrency } from './api';
 
 interface UpgradePaperProps {
@@ -12,8 +16,11 @@ export function UpgradePaper({ accountId }: UpgradePaperProps) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const intakeClosed = useIntakeClosed();
 
   useEffect(() => {
+    // No checkout for a plan that is no longer sold.
+    if (intakeClosed) return;
     let cancelled = false;
     createCheckoutSession(accountId, currency)
       .then((nextUrl) => {
@@ -22,10 +29,11 @@ export function UpgradePaper({ accountId }: UpgradePaperProps) {
           setError(null);
         }
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) {
+          const appError = toAppError(err);
           setUrl(null);
-          setError('決済URLを取得できませんでした。');
+          setError(isIntakeClosedError(appError) ? appError.message : '決済URLを取得できませんでした。');
         }
       })
       .finally(() => {
@@ -36,7 +44,11 @@ export function UpgradePaper({ accountId }: UpgradePaperProps) {
     return () => {
       cancelled = true;
     };
-  }, [accountId, currency]);
+  }, [accountId, currency, intakeClosed]);
+
+  if (intakeClosed) {
+    return <IntakeClosedNote message={INTAKE_CLOSED_PAID_PLANS_MESSAGE} />;
+  }
 
   return (
     <div style={{ display: 'grid', gap: 12 }}>

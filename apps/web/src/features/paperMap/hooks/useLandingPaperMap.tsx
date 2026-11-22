@@ -32,6 +32,8 @@ interface UseLandingPaperMapProps {
   handleOpenWorkspace: (workspaceId: string) => Promise<void>;
   onRetryWorkspaces: () => void;
   buildWsPaper: (workspaceId: string, childPapers: { id: string; title: string }[]) => Paper;
+  // No new documents or paid plans: no root upload drop, no upgrade.
+  intakeClosed: boolean;
 }
 
 const ABOUT_CHILD_IDS = [
@@ -712,6 +714,7 @@ export function useLandingPaperMap({
   handleOpenWorkspace,
   onRetryWorkspaces,
   buildWsPaper,
+  intakeClosed,
 }: UseLandingPaperMapProps) {
   const paperMap = useMemo<PaperMap>(() => {
     if (typeof window !== 'undefined' && (window as { __pipDebug?: boolean }).__pipDebug) {
@@ -745,7 +748,7 @@ export function useLandingPaperMap({
               <PaperLinkCard key={card.id} id={card.id} title={card.title} body={card.body} hue={card.hue} />
             ))}
           </div>
-          {user && (
+          {user && !intakeClosed && (
             <RootUploadPaper
               disabled={loading}
               onUpload={handleRootUpload}
@@ -880,10 +883,12 @@ export function useLandingPaperMap({
           content: <InvoicePaper accountId={accountId} />,
         });
 
+        // Kept while intake is closed, with no link to it, so a page open
+        // when it closed still has somewhere to say so.
         map.set('billing:upgrade', {
           id: 'billing:upgrade',
-          title: 'アップグレード',
-          description: 'Usage-Based プランへ移行',
+          title: intakeClosed ? '有料プラン' : 'アップグレード',
+          description: intakeClosed ? '受け付けを終了しました' : 'Usage-Based プランへ移行',
           hue: CATEGORY_HUES.billing,
           parentId: 'billing',
           childIds: [],
@@ -921,7 +926,7 @@ export function useLandingPaperMap({
     handleGoogleSubmit, handleLogout, handleCreateWorkspace,
     handleRootUpload,
     handleOpenWorkspace, buildWsPaper, onRetryWorkspaces,
-    workspacePaperGroups,
+    workspacePaperGroups, intakeClosed,
   ]);
 
 
