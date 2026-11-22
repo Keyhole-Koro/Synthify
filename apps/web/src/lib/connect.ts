@@ -3,7 +3,9 @@ import type { DescService } from '@bufbuild/protobuf';
 import { createConnectTransport } from '@connectrpc/connect-web';
 import { env } from '@/config/env';
 import { getAuthHeaders } from '@/features/auth/session';
+import { setIntakeClosed } from '@/features/intake/intakeStatus';
 import { toAppError } from './error_normalize';
+import { isIntakeClosedError } from './errors';
 
 const baseUrl = env.apiBaseUrl;
 
@@ -25,7 +27,13 @@ const transport = createConnectTransport({
         return await next(req);
       } catch (err) {
         // Normalize RPC errors
-        throw toAppError(err);
+        const appError = toAppError(err);
+        // A page loaded before intake closed learns it from the first
+        // refusal, and hides the rest of the upload and upgrade entry points.
+        if (isIntakeClosedError(appError)) {
+          setIntakeClosed(true);
+        }
+        throw appError;
       }
     },
   ],

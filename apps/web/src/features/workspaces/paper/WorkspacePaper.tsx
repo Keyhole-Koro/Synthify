@@ -11,6 +11,8 @@ import { WorkspaceRootContent } from './components/WorkspaceRootContent';
 import { WorkspaceEmptyHeader } from './components/WorkspaceEmptyHeader';
 import { getWorkspace, WorkspaceRole, type Workspace } from '@/features/workspaces/api';
 import { getInitialAuthUser } from '@/features/auth/session';
+import { IntakeClosedNote } from '@/features/intake/IntakeClosedNotice';
+import { INTAKE_CLOSED_DOCUMENTS_MESSAGE, useIntakeClosed } from '@/features/intake/intakeStatus';
 import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
@@ -106,6 +108,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [accessRole, setAccessRole] = useState<WorkspaceRole>(WorkspaceRole.OWNER);
+  const intakeClosed = useIntakeClosed();
 
   useEffect(() => {
     const userId = getInitialAuthUser()?.id;
@@ -306,9 +309,12 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
             />
           )}
 
-          {/* Upload zone / add button */}
+          {/* Upload zone / add button. While intake is closed a note takes
+              their place (retrying a failed job is an upload too); a job
+              already running still shows its progress below. */}
           {canWrite && <div className={!isPopulated ? 'flex flex-1 flex-col justify-center' : ''}>
-            <WorkspaceDropzone
+            {intakeClosed && <IntakeClosedNote message={INTAKE_CLOSED_DOCUMENTS_MESSAGE} />}
+            {!intakeClosed && <WorkspaceDropzone
               isTreeMissing={isTreeMissing}
               hasChildItems={childItems.length > 0}
               uploading={uploading}
@@ -321,9 +327,9 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-            />
+            />}
 
-            {uploadMessage && (
+            {uploadMessage && !intakeClosed && (
               <div className="mt-2.5 text-center">
                 {uploadMessage.includes('失敗') || uploadMessage.includes('エラー') ? (
                   <InlineError message={uploadMessage} className="justify-center" />
@@ -335,10 +341,11 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
               </div>
             )}
 
-            {/* Progress: populated mode only (empty mode shows it inline inside the drop zone).
+            {/* Progress: populated mode only (empty mode shows it inline inside
+                the drop zone, so with intake closed it shows here too).
                 Hide once succeeded so the bar disappears after completion; the
                 completion toast / Recent jobs list takes over from there. */}
-            {isPopulated && (jobStatusError || (jobStatus && !isJobSucceeded(jobStatus))) && (
+            {(isPopulated || intakeClosed) && (jobStatusError || (jobStatus && !isJobSucceeded(jobStatus))) && (
               <WorkspaceJobProgress
                 message={jobStatusError?.message ?? jobStatus?.errorMessage ?? jobStatus?.message}
                 progress={jobStatus?.progress}

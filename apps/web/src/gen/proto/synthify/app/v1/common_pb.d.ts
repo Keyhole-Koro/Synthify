@@ -2,7 +2,7 @@
 // @generated from file synthify/app/v1/common.proto (package synthify.app.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
 import type { Message } from "@bufbuild/protobuf";
 
 /**
@@ -62,4 +62,47 @@ export declare type DocumentChunk = Message<"synthify.app.v1.DocumentChunk"> & {
  * Use `create(DocumentChunkSchema)` to create a new message.
  */
 export declare const DocumentChunkSchema: GenMessage<DocumentChunk>;
+
+/**
+ * ErrorDetail travels as a Connect error detail, so the web can tell why the
+ * API refused a request without matching on the message text.
+ *
+ * @generated from message synthify.app.v1.ErrorDetail
+ */
+export declare type ErrorDetail = Message<"synthify.app.v1.ErrorDetail"> & {
+  /**
+   * @generated from field: synthify.app.v1.ErrorReason reason = 1;
+   */
+  reason: ErrorReason;
+};
+
+/**
+ * Describes the message synthify.app.v1.ErrorDetail.
+ * Use `create(ErrorDetailSchema)` to create a new message.
+ */
+export declare const ErrorDetailSchema: GenMessage<ErrorDetail>;
+
+/**
+ * @generated from enum synthify.app.v1.ErrorReason
+ */
+export enum ErrorReason {
+  /**
+   * @generated from enum value: ERROR_REASON_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * The service no longer takes new documents or paid plans
+   * (SYNTHIFY_INTAKE_CLOSED). Comes with FailedPrecondition; retrying does
+   * not help until an operator reopens intake.
+   *
+   * @generated from enum value: ERROR_REASON_INTAKE_CLOSED = 1;
+   */
+  INTAKE_CLOSED = 1,
+}
+
+/**
+ * Describes the enum synthify.app.v1.ErrorReason.
+ */
+export declare const ErrorReasonSchema: GenEnum<ErrorReason>;
 

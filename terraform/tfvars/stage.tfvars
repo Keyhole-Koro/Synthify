@@ -33,3 +33,10 @@ deployer_principal = "serviceAccount:github-deploy@synthify-stage-491705.iam.gse
 # end up in Cloud Logging. It was left on after the stuck-job investigation.
 # Turn it on only for an investigation, and back off when it ends.
 log_llm_payload = "false"
+
+# New documents and paid plans are closed: the API refuses uploads, document
+# processing and Stripe Checkout, and the web says so. Trees are made on
+# users' own machines with the agent skill now. Existing trees stay readable,
+# shareable and deletable. To reopen, set false and deploy
+# (docs/runbooks/README.md).
+intake_closed = true

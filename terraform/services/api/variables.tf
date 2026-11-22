@@ -169,6 +169,12 @@ variable "log_llm_payload" {
   default = "false"
 }
 
+variable "intake_closed" {
+  description = "true => refuse new documents and paid plans (SYNTHIFY_INTAKE_CLOSED)."
+  type        = bool
+  default     = false
+}
+
 variable "deletion_protection" {
   description = "Cloud Run delete guard. false in non-prod so a tainted service can be replaced."
   type        = bool

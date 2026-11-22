@@ -2,6 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { getBillingAccount, createCheckoutSession, createPortalSession, type BillingAccount, type BillingCurrency } from '@/features/billing/api';
+import { useIntakeClosed } from '@/features/intake/intakeStatus';
+import { toAppError } from '@/lib/error_normalize';
+import { isIntakeClosedError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 
 interface BillingPanelProps {
@@ -13,6 +16,7 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
   const [currency, setCurrency] = useState<BillingCurrency>('jpy');
   const [pendingAction, setPendingAction] = useState<'checkout' | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const intakeClosed = useIntakeClosed();
 
   useEffect(() => {
     getBillingAccount(accountId).then(setAccount).catch((err) => {
@@ -34,6 +38,8 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
   const usagePercent = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
   const isUsageBased = account.plan === 'usage_based';
   const billingStatus = account.billingStatus;
+  // No upgrade once paid plans are closed; the portal stays for subscribers.
+  const canUpgrade = !isUsageBased && !intakeClosed;
 
   async function openCheckout() {
     setPendingAction('checkout');
@@ -43,7 +49,8 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
       window.location.assign(url);
     } catch (err) {
       log.error('Checkout failed', { source: 'billing_checkout', accountId }, err);
-      setError('決済画面を開けませんでした。');
+      const appError = toAppError(err);
+      setError(isIntakeClosedError(appError) ? appError.message : '決済画面を開けませんでした。');
       setPendingAction(null);
     }
   }
@@ -79,7 +86,7 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
             </p>
           )}
         </div>
-        {!isUsageBased && (
+        {canUpgrade && (
           <div className="flex shrink-0 overflow-hidden rounded-md border border-stone-200">
             {(['jpy', 'usd'] as BillingCurrency[]).map((value) => (
               <button
@@ -103,7 +110,7 @@ export function BillingPanel({ accountId }: BillingPanelProps) {
       </div>
 
       <div className="mt-3 flex gap-2">
-        {!isUsageBased && (
+        {canUpgrade && (
           <button
             type="button"
             disabled={pendingAction !== null}

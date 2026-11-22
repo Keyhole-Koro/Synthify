@@ -60,6 +60,8 @@ module "service" {
     # Empty => no restriction (prod default).
     SYNTHIFY_ALLOWED_USER_EMAILS = var.allowed_user_emails
     LOG_LLM_PAYLOAD              = var.log_llm_payload
+    # true => refuse uploads, document processing and Stripe Checkout.
+    SYNTHIFY_INTAKE_CLOSED = tostring(var.intake_closed)
   }
 
   sensitive_env_vars = {

@@ -46,6 +46,7 @@
 | `GCS_SIGNED_URL_TTL_MINUTES` | Signed URL の有効期限 | `15` |
 | `SYNTHIFY_ADMIN_USER_EMAILS` | 管理者の email (カンマ区切り) | 追加権限。空で admin なし |
 | `DELETED_WORKSPACE_RETENTION_DAYS` | 削除したワークスペースを DB と GCS から完全に消すまでの日数（API） | 未設定なら `30`。`0` で次の掃除で消す。整数でない値では API が起動しない |
+| `SYNTHIFY_INTAKE_CLOSED` | `true` で新しい文書と有料プランの受け付けを止める（API）。Terraform の変数は `intake_closed` | 未設定なら `false`。stage と prod は `true`。`true`/`false` 以外の値では API が起動しない。止まるものと再開の仕方は[手順書](../runbooks/README.md#新しい文書と有料プランの受け付け) |
 | `SYNTHIFY_ALLOWED_USER_EMAILS` | アクセス許可 email (カンマ区切り) | **非空なら API は許可 email のみ**。空で無制限。stage を 1 アカウントに絞る用途。アドレスは公開のリポジトリに置かない。CD は GitHub Environment の secret `SYNTHIFY_ALLOWED_USER_EMAILS` を `-var` で渡し、未設定なら tfvars の値を使う。stage の tfvars はどのアカウントにも当たらない仮の値で、stage の secret が無いとデプロイは止まる。手元の `scripts/manage-env.sh` には環境変数 `ALLOWED_USER_EMAILS` で渡す |
 | `NEXT_PUBLIC_NEW_RELIC_BROWSER_LICENSE_KEY` | New Relic Browser の browser license key | frontend から参照される公開値 |
 | `NEXT_PUBLIC_NEW_RELIC_BROWSER_APPLICATION_ID` | New Relic Browser application ID | frontend から参照される公開値 |

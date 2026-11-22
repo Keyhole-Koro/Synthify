@@ -1,5 +1,6 @@
 import { ConnectError, Code } from '@connectrpc/connect';
-import { type AppError, type AppErrorKind, createAppError, isAppError } from './errors';
+import { ErrorDetailSchema, ErrorReason } from '@/gen/proto/synthify/app/v1/common_pb';
+import { type AppError, type AppErrorKind, type AppErrorReason, createAppError, isAppError } from './errors';
 
 /**
  * Normalizes various error types (Connect, Firebase, Fetch) into a unified AppError.
@@ -15,6 +16,7 @@ export function toAppError(err: unknown): AppError {
       message: mapConnectErrorMessage(err),
       retryable: isConnectCodeRetryable(err.code),
       code: Code[err.code],
+      reason: refusalReason(err),
       cause: err,
     });
   }
@@ -88,6 +90,20 @@ export function toAppError(err: unknown): AppError {
     retryable: false,
     cause: err,
   });
+}
+
+function refusalReason(err: ConnectError): AppErrorReason | undefined {
+  // RPC callers get the transport's AppError (lib/connect.ts) back wrapped in
+  // a ConnectError with code Unknown: connect-es wraps whatever an
+  // interceptor throws. The reason is on that AppError.
+  if (isAppError(err.cause) && err.cause.reason) {
+    return err.cause.reason;
+  }
+  const details = err.findDetails(ErrorDetailSchema);
+  if (details.some((detail) => detail.reason === ErrorReason.INTAKE_CLOSED)) {
+    return 'intake_closed';
+  }
+  return undefined;
 }
 
 function mapConnectErrorMessage(err: ConnectError): string {

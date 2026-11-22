@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listWorkspaces, type Workspace } from '@/features/workspaces/api';
 import { signInUser } from '@/features/auth/userApi';
+import { setIntakeClosed } from '@/features/intake/intakeStatus';
 import { getInitialAuthUser, signInWithGoogleSession, subscribeAuthUser, type AuthUser } from '@/features/auth/session';
 import { loadWorkspaceSnapshot, saveWorkspaceSnapshot } from '@/features/workspaces/cache/workspaceSnapshotCache';
 import { type AppError } from '@/lib/errors';
@@ -30,6 +31,7 @@ export function useAuthState() {
       // to avoid a reload/cold-start race where the workspace exists but the
       // current user is not attached to an account yet.
       const provision = await signInUser();
+      setIntakeClosed(provision.intakeClosed);
       const ws = await listWorkspaces();
       
       const accountId = provision.user?.accountId;

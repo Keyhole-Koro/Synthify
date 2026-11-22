@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useIntakeClosed } from '@/features/intake/intakeStatus';
 import { getBillingAccount, type BillingAccount } from './api';
 
 interface BillingSummaryProps {
@@ -10,6 +11,7 @@ interface BillingSummaryProps {
 export function BillingSummary({ accountId }: BillingSummaryProps) {
   const [account, setAccount] = useState<BillingAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const intakeClosed = useIntakeClosed();
 
   useEffect(() => {
     getBillingAccount(accountId)
@@ -67,7 +69,7 @@ export function BillingSummary({ accountId }: BillingSummaryProps) {
           <NavLink paperId="billing:budget" title="予算設定" hint="月次上限・通知" />
           <NavLink paperId="billing:usage" title="使用量" hint="モデル別内訳" />
           <NavLink paperId="billing:invoice" title="請求・支払い" hint="請求書・カード" />
-          <NavLink paperId="billing:upgrade" title="アップグレード" hint="Pro へ移行" />
+          {!intakeClosed && <NavLink paperId="billing:upgrade" title="アップグレード" hint="Pro へ移行" />}
           <NavLink paperId="billing:manage" title="管理" hint="Stripe ポータル" />
         </div>
       </div>

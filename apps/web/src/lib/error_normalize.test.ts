@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { ConnectError, Code } from '@connectrpc/connect';
+import { errorFromJson } from '@connectrpc/connect/protocol-connect';
 import { toAppError } from './error_normalize';
-import { createAppError } from './errors';
+import { createAppError, isIntakeClosedError } from './errors';
 
 describe('toAppError', () => {
   it('returns the same error if it is already an AppError', () => {
@@ -35,6 +36,53 @@ describe('toAppError', () => {
       const err = new ConnectError('unsupported document type', Code.InvalidArgument);
       const result = toAppError(err);
       expect(result.message).toContain('実行ファイル形式はアップロードできません');
+    });
+
+    // The body the API sends while SYNTHIFY_INTAKE_CLOSED is on: the detail is
+    // synthify.app.v1.ErrorDetail{reason: ERROR_REASON_INTAKE_CLOSED}.
+    it('recognises the intake-closed refusal and keeps its message', () => {
+      const err = errorFromJson(
+        {
+          code: 'failed_precondition',
+          message: '新しい文書の受け付けは終了しました。',
+          details: [{ type: 'synthify.app.v1.ErrorDetail', value: 'CAE' }],
+        },
+        undefined,
+        new ConnectError('fallback', Code.Unknown),
+      );
+      const result = toAppError(err);
+      expect(result.reason).toBe('intake_closed');
+      expect(isIntakeClosedError(result)).toBe(true);
+      expect(result.code).toBe('FailedPrecondition');
+      expect(result.message).toBe('新しい文書の受け付けは終了しました。');
+      expect(result.retryable).toBe(false);
+    });
+
+    // lib/connect.ts turns the response into an AppError, and connect-es hands
+    // the caller that AppError wrapped in a ConnectError with code Unknown.
+    it('keeps the intake-closed reason through the transport and connect-es', () => {
+      const fromTransport = toAppError(errorFromJson(
+        {
+          code: 'failed_precondition',
+          message: '有料プランの受け付けは終了しました。',
+          details: [{ type: 'synthify.app.v1.ErrorDetail', value: 'CAE' }],
+        },
+        undefined,
+        new ConnectError('fallback', Code.Unknown),
+      ));
+      const wrapped = ConnectError.from(fromTransport);
+      expect(wrapped.code).toBe(Code.Unknown);
+
+      const result = toAppError(wrapped);
+      expect(isIntakeClosedError(result)).toBe(true);
+      expect(result.message).toBe('有料プランの受け付けは終了しました。');
+    });
+
+    it('does not take other failed preconditions for closed intake', () => {
+      const err = new ConnectError('document is still being uploaded or processed', Code.FailedPrecondition);
+      const result = toAppError(err);
+      expect(result.reason).toBeUndefined();
+      expect(isIntakeClosedError(result)).toBe(false);
     });
   });
 

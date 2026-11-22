@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { createCheckoutSession, createPortalSession, type BillingCurrency } from '@/features/billing/api';
+import { useIntakeClosed } from '@/features/intake/intakeStatus';
 import { type Workspace } from '@/features/workspaces/api';
 import { WorkspacePlan } from '@/gen/proto/synthify/app/v1/workspace_pb';
+import { toAppError } from '@/lib/error_normalize';
+import { isIntakeClosedError } from '@/lib/errors';
 import { log } from '@/lib/observability/log';
 
 interface WorkspaceBillingPanelProps {
@@ -12,11 +15,14 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
   const [currency, setCurrency] = useState<BillingCurrency>('jpy');
   const [pendingAction, setPendingAction] = useState<'checkout' | 'portal' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const intakeClosed = useIntakeClosed();
 
   const quota = Number(workspace.storageQuotaBytes);
   const used = Number(workspace.storageUsedBytes);
   const usagePercent = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
   const isUsageBased = workspace.plan === WorkspacePlan.PRO;
+  // No upgrade once paid plans are closed; the portal stays for subscribers.
+  const canUpgrade = !isUsageBased && !intakeClosed;
 
   async function openCheckout() {
     setPendingAction('checkout');
@@ -26,7 +32,8 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
       window.location.assign(url);
     } catch (err) {
       log.error('Checkout failed', { source: 'billing_checkout', ownerId: workspace.ownerId }, err);
-      setError('決済画面を開けませんでした。');
+      const appError = toAppError(err);
+      setError(isIntakeClosedError(appError) ? appError.message : '決済画面を開けませんでした。');
       setPendingAction(null);
     }
   }
@@ -54,7 +61,7 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
             {formatBytes(used)} / {formatBytes(quota)} used
           </p>
         </div>
-        <div className="flex shrink-0 overflow-hidden rounded-md border border-stone-200">
+        {canUpgrade && <div className="flex shrink-0 overflow-hidden rounded-md border border-stone-200">
           {(['jpy', 'usd'] as BillingCurrency[]).map((value) => (
             <button
               key={value}
@@ -68,7 +75,7 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
               {value}
             </button>
           ))}
-        </div>
+        </div>}
       </div>
 
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-stone-100">
@@ -76,7 +83,7 @@ export function WorkspaceBillingPanel({ workspace }: WorkspaceBillingPanelProps)
       </div>
 
       <div className="mt-3 flex gap-2">
-        {!isUsageBased && (
+        {canUpgrade && (
           <button
             type="button"
             disabled={pendingAction !== null}

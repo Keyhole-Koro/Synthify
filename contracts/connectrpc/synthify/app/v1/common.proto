@@ -15,3 +15,17 @@ message DocumentChunk {
   int64 source_offset_start = 7;
   int64 source_offset_end = 8;
 }
+
+// ErrorDetail travels as a Connect error detail, so the web can tell why the
+// API refused a request without matching on the message text.
+message ErrorDetail {
+  ErrorReason reason = 1;
+}
+
+enum ErrorReason {
+  ERROR_REASON_UNSPECIFIED = 0;
+  // The service no longer takes new documents or paid plans
+  // (SYNTHIFY_INTAKE_CLOSED). Comes with FailedPrecondition; retrying does
+  // not help until an operator reopens intake.
+  ERROR_REASON_INTAKE_CLOSED = 1;
+}

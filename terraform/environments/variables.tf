@@ -245,6 +245,14 @@ variable "log_llm_payload" {
   default     = "false"
 }
 
+# Stops new documents and paid plans (SYNTHIFY_INTAKE_CLOSED). Existing data
+# stays readable, shareable and deletable. See docs/runbooks/README.md.
+variable "intake_closed" {
+  description = "true => the API refuses uploads, document processing and Stripe Checkout, and the web says intake is closed."
+  type        = bool
+  default     = false
+}
+
 # Principal running `terraform apply` (the CI/WIF service account, the
 # GitHub secret GCP_WIF_SA_EMAIL). Format: "serviceAccount:<email>". Here it
 # only keeps CD's own changes out of the admin-change alert

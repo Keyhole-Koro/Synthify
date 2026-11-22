@@ -15,10 +15,19 @@ type UserUsecase interface {
 type UserHandler struct {
 	service         UserUsecase
 	accountDeletion AccountDeletionUsecase
+	intakeClosed    bool
 }
 
 func NewUserHandler(svc UserUsecase) *UserHandler {
 	return &UserHandler{service: svc}
+}
+
+// WithIntakeClosed makes SignInUser tell the web that intake is closed
+// (SYNTHIFY_INTAKE_CLOSED), so it hides uploads and upgrades before anyone
+// tries them.
+func (h *UserHandler) WithIntakeClosed(closed bool) *UserHandler {
+	h.intakeClosed = closed
+	return h
 }
 
 func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1.SignInUserRequest]) (*connect.Response[appv1.SignInUserResponse], error) {
@@ -35,6 +44,7 @@ func (h *UserHandler) SignInUser(ctx context.Context, req *connect.Request[appv1
 	return connect.NewResponse(&appv1.SignInUserResponse{
 		User:         toProtoUser(result.User),
 		IsNewAccount: result.IsNewAccount,
+		IntakeClosed: h.intakeClosed,
 	}), nil
 }
 

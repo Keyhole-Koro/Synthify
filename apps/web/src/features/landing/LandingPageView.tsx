@@ -6,6 +6,7 @@ import { ROOT_ID } from '@/features/paperMap/defaultOpenState';
 import type { LandingPageController } from '@/features/landing/useLandingPageController';
 import type { PaperCanvasHandle } from '@keyhole-koro/paper-in-paper';
 import { getImageURL } from '@/features/documents/api';
+import { IntakeClosedBanner } from '@/features/intake/IntakeClosedNotice';
 
 const PaperCanvas = dynamic(
   () => import('@keyhole-koro/paper-in-paper').then((mod) => mod.PaperCanvas),
@@ -106,33 +107,36 @@ export function LandingPageView({ controller }: { controller: LandingPageControl
   if (!controller.isReady) return <LoadingScreen />;
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden" style={{ background: 'radial-gradient(ellipse at top left, #fff8ee 0%, #f0e6d3 50%, #e8dbc8 100%)' }}>
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-24 -top-24 h-[480px] w-[480px] rounded-full bg-amber-200/40 blur-[80px]" />
-        <div className="absolute -bottom-32 right-1/4 h-[400px] w-[400px] rounded-full bg-orange-100/50 blur-[80px]" />
-        <div className="absolute right-0 top-1/3 h-[300px] w-[300px] rounded-full bg-yellow-100/40 blur-[60px]" />
-      </div>
+    <div className="flex h-screen w-screen flex-col overflow-hidden">
+      {controller.intakeClosed && <IntakeClosedBanner />}
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden" style={{ background: 'radial-gradient(ellipse at top left, #fff8ee 0%, #f0e6d3 50%, #e8dbc8 100%)' }}>
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -left-24 -top-24 h-[480px] w-[480px] rounded-full bg-amber-200/40 blur-[80px]" />
+          <div className="absolute -bottom-32 right-1/4 h-[400px] w-[400px] rounded-full bg-orange-100/50 blur-[80px]" />
+          <div className="absolute right-0 top-1/3 h-[300px] w-[300px] rounded-full bg-yellow-100/40 blur-[60px]" />
+        </div>
 
-      {!controller.isFullscreen && <BrandHeader />}
-      {!controller.isFullscreen && <HeroCopy />}
+        {!controller.isFullscreen && <BrandHeader />}
+        {!controller.isFullscreen && <HeroCopy />}
 
-      <div
-        className="absolute overflow-hidden [contain:layout_paint] isolate"
-        style={getCanvasFrameStyle(controller.isFullscreen, controller.winSize)}
-      >
-        <PaperCanvas
-          ref={canvasRef}
-          key={controller.canvasKey}
-          paperMap={controller.paperMap}
-          rootId={ROOT_ID}
-          defaultOpenState={controller.defaultOpenState}
-          isFullscreen={controller.isFullscreen}
-          debug={false}
-          loadImageUrl={getImageURL}
-          onExpansionMapChange={controller.handleExpansionMapChange}
-          onFocusedNodeIdChange={controller.handleFocusedNodeIdChange}
-          onFullscreenChange={controller.setCanvasFullscreen}
-        />
+        <div
+          className="absolute overflow-hidden [contain:layout_paint] isolate"
+          style={getCanvasFrameStyle(controller.isFullscreen, controller.winSize)}
+        >
+          <PaperCanvas
+            ref={canvasRef}
+            key={controller.canvasKey}
+            paperMap={controller.paperMap}
+            rootId={ROOT_ID}
+            defaultOpenState={controller.defaultOpenState}
+            isFullscreen={controller.isFullscreen}
+            debug={false}
+            loadImageUrl={getImageURL}
+            onExpansionMapChange={controller.handleExpansionMapChange}
+            onFocusedNodeIdChange={controller.handleFocusedNodeIdChange}
+            onFullscreenChange={controller.setCanvasFullscreen}
+          />
+        </div>
       </div>
     </div>
   );

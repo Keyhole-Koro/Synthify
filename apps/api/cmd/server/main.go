@@ -35,7 +35,7 @@ func main() {
 		}
 	}()
 
-	logger.Info("api.started", "addr", app.Address, "env", cfg.Env)
+	logger.Info("api.started", "addr", app.Address, "env", cfg.Env, "intake_closed", cfg.IntakeClosed)
 	if err := httpserver.New(app.Address, app.Handler).ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
