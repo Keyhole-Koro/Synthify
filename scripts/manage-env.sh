@@ -30,6 +30,14 @@ TF_DIR="terraform/environments"
 TFVARS="../tfvars/${ENVIRONMENT}.tfvars"
 BACKEND_CONFIG="../backend/${ENVIRONMENT}.hcl"
 
+# The stage allowlist is not in the public tfvars, which hold a placeholder that
+# matches no account. Pass the real list the way CD does, from ALLOWED_USER_EMAILS
+# (comma-separated), after -var-file so it wins.
+VAR_ARGS=()
+if [ -n "${ALLOWED_USER_EMAILS:-}" ]; then
+    VAR_ARGS+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
+fi
+
 # Single root reused across envs: -reconfigure swaps the backend cleanly.
 #
 # Guardrail: the root at terraform/environments is shared by stage and prod,
@@ -54,15 +62,18 @@ case $COMMAND in
     plan)
         log "Planning $ENVIRONMENT infrastructure..."
         tf_init
-        terraform -chdir=$TF_DIR plan -var-file=$TFVARS
+        terraform -chdir=$TF_DIR plan -var-file=$TFVARS "${VAR_ARGS[@]}"
         ;;
 
     up)
+        if [ "$ENVIRONMENT" = "stage" ] && [ ${#VAR_ARGS[@]} -eq 0 ]; then
+            warn "ALLOWED_USER_EMAILS is not set: stage will accept no account (the tfvars placeholder matches nobody)."
+        fi
         log "Initializing Terraform ($ENVIRONMENT)..."
         tf_init
 
         log "Applying infrastructure (Pass 1/2)..."
-        terraform -chdir=$TF_DIR apply -var-file=$TFVARS -auto-approve
+        terraform -chdir=$TF_DIR apply -var-file=$TFVARS "${VAR_ARGS[@]}" -auto-approve
 
         PROJECT_ID=$(terraform -chdir=$TF_DIR output -raw project_id)
         ENVIRONMENT_OUT=$(terraform -chdir=$TF_DIR output -raw environment)
@@ -94,6 +105,7 @@ case $COMMAND in
 
         terraform -chdir=$TF_DIR apply \
             -var-file=$TFVARS \
+            "${VAR_ARGS[@]}" \
             -var="api_base_url=$API_URI" \
             -auto-approve
 

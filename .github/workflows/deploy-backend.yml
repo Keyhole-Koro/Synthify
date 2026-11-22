@@ -150,10 +150,16 @@ jobs:
           STRIPE_PRO_PRICE_ID_JPY: ${{ vars.STRIPE_PRO_PRICE_ID_JPY }}
           STRIPE_PRO_PRICE_ID_USD: ${{ vars.STRIPE_PRO_PRICE_ID_USD }}
           PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
+          ALLOWED_USER_EMAILS: ${{ secrets.SYNTHIFY_ALLOWED_USER_EMAILS }}
         run: |
           missing=()
           if [ -z "${STRIPE_PRO_PRICE_ID_JPY}" ] && [ -z "${STRIPE_PRO_PRICE_ID_USD}" ]; then
             missing+=(STRIPE_PRO_PRICE_ID_JPY/STRIPE_PRO_PRICE_ID_USD)
+          fi
+          # stage.tfvars holds a placeholder that matches no account; without the
+          # secret, stage would lock everyone out.
+          if [ "${ENVIRONMENT}" = "stage" ] && [ -z "${ALLOWED_USER_EMAILS}" ]; then
+            missing+=("SYNTHIFY_ALLOWED_USER_EMAILS (secret)")
           fi
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Refusing to deploy: missing required GitHub Environment variable(s): ${missing[*]}"
@@ -261,6 +267,7 @@ jobs:
           # A secret, not a variable: the repository and its Actions logs are
           # public, and variables are printed in the step's env.
           PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
+          ALLOWED_USER_EMAILS: ${{ secrets.SYNTHIFY_ALLOWED_USER_EMAILS }}
         run: |
           args=(
             -auto-approve
@@ -279,6 +286,11 @@ jobs:
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
             -var="platform_alert_email=${PLATFORM_ALERT_EMAIL}"
           )
+          # The allowlist secret, when set, comes after -var-file so it replaces
+          # the placeholder in stage.tfvars.
+          if [ -n "${ALLOWED_USER_EMAILS}" ]; then
+            args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
+          fi
           terraform apply "${args[@]}"
 
       # --- Pass 3: feed the API URL back so the worker can call it.
@@ -293,6 +305,7 @@ jobs:
           DISCORD_ALERT_WEBHOOK_URL: ${{ secrets.DISCORD_ALERT_WEBHOOK_URL }}
           READINESS_MONITOR_KEY: ${{ secrets.READINESS_MONITOR_KEY }}
           PLATFORM_ALERT_EMAIL: ${{ secrets.PLATFORM_ALERT_EMAIL }}
+          ALLOWED_USER_EMAILS: ${{ secrets.SYNTHIFY_ALLOWED_USER_EMAILS }}
         run: |
           API_URI="$(terraform output -raw api_uri)"
           args=(
@@ -313,6 +326,11 @@ jobs:
             -var="discord_alert_webhook_url=${DISCORD_ALERT_WEBHOOK_URL}"
             -var="platform_alert_email=${PLATFORM_ALERT_EMAIL}"
           )
+          # The allowlist secret, when set, comes after -var-file so it replaces
+          # the placeholder in stage.tfvars.
+          if [ -n "${ALLOWED_USER_EMAILS}" ]; then
+            args+=(-var="allowed_user_emails=${ALLOWED_USER_EMAILS}")
+          fi
           terraform apply "${args[@]}"
 
       - name: Outputs

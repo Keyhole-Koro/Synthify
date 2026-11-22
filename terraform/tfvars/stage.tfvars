@@ -18,10 +18,11 @@ web_base_url = "https://stage.synthify.keyhole.work"
 monitor_domain = ""
 # monitor_domain = "stage.monitor.synthify.keyhole.work"
 
-# Lock stage to a single account. CD overrides this with the GitHub
-# Environment variable ALLOWED_USER_EMAILS when set; this value is the
-# fallback so a manual `make infra-stage-up` is locked down too.
-allowed_user_emails = "korokororin47@gmail.com"
+# Lock stage to its allowlist. The addresses are not kept in this public file:
+# CD passes the stage environment secret SYNTHIFY_ALLOWED_USER_EMAILS, and
+# scripts/manage-env.sh passes ALLOWED_USER_EMAILS. This placeholder matches no
+# account, so an apply without either locks stage to nobody instead of opening it.
+allowed_user_emails = "nobody@allowlist.invalid"
 
 # CI/WIF SA that runs terraform apply (GCP_WIF_SA_EMAIL). Needs actAs on
 # the api/worker runtime SAs to attach them to Cloud Run.
