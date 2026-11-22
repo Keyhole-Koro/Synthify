@@ -1,7 +1,14 @@
+import { ConnectError } from '@connectrpc/connect';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppError } from '@/lib/errors';
 import { WorkspaceDocumentList } from './WorkspaceDocumentList';
+
+// What a client call rejects with: the AppError that lib/connect.ts builds,
+// wrapped by connect-es in a ConnectError with code Unknown.
+function refused(kind: 'validation' | 'auth', code: string, message: string) {
+  return ConnectError.from(createAppError({ kind, code, message }));
+}
 
 const api = vi.hoisted(() => ({
   listDocuments: vi.fn(),
@@ -95,7 +102,7 @@ describe('WorkspaceDocumentList', () => {
 
   it('keeps the document and explains why when the server refuses', async () => {
     api.listDocuments.mockResolvedValue([doc('mine', 'editor')]);
-    api.deleteDocument.mockRejectedValue(createAppError({ kind: 'validation', message: 'busy', code: 'FailedPrecondition' }));
+    api.deleteDocument.mockRejectedValue(refused('validation', 'FailedPrecondition', 'document is still being uploaded or processed'));
     const { onDeleted } = renderList();
     fireEvent.click(await screen.findByRole('button', { name: 'mine.pdf を削除' }));
     fireEvent.click(screen.getByRole('button', { name: '削除する' }));
@@ -103,5 +110,15 @@ describe('WorkspaceDocumentList', () => {
     expect(await screen.findByText(/アップロード中か処理中のため/)).toBeTruthy();
     expect(screen.getByText('mine.pdf')).toBeTruthy();
     expect(onDeleted).not.toHaveBeenCalled();
+  });
+
+  it('says so when the server refuses for lack of permission', async () => {
+    api.listDocuments.mockResolvedValue([doc('mine', 'editor')]);
+    api.deleteDocument.mockRejectedValue(refused('auth', 'PermissionDenied', 'forbidden'));
+    renderList();
+    fireEvent.click(await screen.findByRole('button', { name: 'mine.pdf を削除' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除する' }));
+
+    expect(await screen.findByText('このドキュメントを削除する権限がありません。')).toBeTruthy();
   });
 });

@@ -1,8 +1,10 @@
+import { ConnectError } from '@connectrpc/connect';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FirestoreJobStatus } from '@/features/jobs/firestore/useJobStatus';
 import type { Workspace } from '@/features/workspaces/api';
 import { setIntakeClosed } from '@/features/intake/intakeStatus';
+import { createAppError } from '@/lib/errors';
 import { WorkspacePaper } from './WorkspacePaper';
 
 const mocks = vi.hoisted(() => ({
@@ -57,7 +59,10 @@ const failedJob = {
   errorMessage: 'E2E fixture worker failure',
 } as unknown as FirestoreJobStatus;
 
-function renderPaper(childItems: { id: string; title: string }[] = []) {
+function renderPaper(
+  childItems: { id: string; title: string }[] = [],
+  onDeleteWorkspace: () => Promise<void> = vi.fn(),
+) {
   return render(
     <WorkspacePaper
       workspace={{ workspaceId: 'ws_1', name: 'Research' } as Workspace}
@@ -69,7 +74,7 @@ function renderPaper(childItems: { id: string; title: string }[] = []) {
       rootOverrideCss={null}
       onUploadFile={vi.fn()}
       onRenameWorkspace={vi.fn()}
-      onDeleteWorkspace={vi.fn()}
+      onDeleteWorkspace={onDeleteWorkspace}
       onSuggestedWorkspaceName={vi.fn()}
     />,
   );
@@ -134,5 +139,30 @@ describe('WorkspacePaper upload entry points', () => {
     renderPaper();
     expect(screen.getByRole('button', { name: '共有' })).toBeTruthy();
     expect(screen.getByRole('button', { name: '削除' })).toBeTruthy();
+  });
+});
+
+describe('WorkspacePaper deletion', () => {
+  beforeEach(() => {
+    mocks.session = session();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('shows why the server refused, without the wrapper connect-es puts around it', async () => {
+    // What the client call rejects with: the AppError lib/connect.ts builds,
+    // wrapped by connect-es in a ConnectError with code Unknown.
+    const refused = ConnectError.from(createAppError({
+      kind: 'auth', code: 'PermissionDenied', message: 'only the owner can delete the workspace',
+    }));
+    renderPaper([], vi.fn().mockRejectedValue(refused));
+
+    fireEvent.click(screen.getByRole('button', { name: '削除' }));
+    fireEvent.click(screen.getByRole('button', { name: '削除を確定' }));
+
+    expect(await screen.findByText('only the owner can delete the workspace')).toBeTruthy();
+    expect(screen.queryByText(/\[unknown\]/)).toBeNull();
   });
 });

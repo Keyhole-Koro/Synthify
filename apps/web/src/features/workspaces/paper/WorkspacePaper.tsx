@@ -15,6 +15,7 @@ import { IntakeClosedNote } from '@/features/intake/IntakeClosedNotice';
 import { INTAKE_CLOSED_DOCUMENTS_MESSAGE, useIntakeClosed } from '@/features/intake/intakeStatus';
 import { SharePanel } from '@/features/sharing/SharePanel';
 import { InlineError } from '@/components/error/InlineError';
+import { toAppError } from '@/lib/error_normalize';
 import { useWorkspaceSession } from '../session/useWorkspaceSession';
 
 // WORKSPACE_PAPER_HUE matches the hue the factory assigns to the workspace
@@ -139,7 +140,7 @@ export function WorkspacePaper(props: WorkspacePaperProps) {
     try {
       await onDeleteWorkspace();
     } catch (error) {
-      setDeleteError(error instanceof Error ? error.message : 'ワークスペースの削除に失敗しました');
+      setDeleteError(toAppError(error).message || 'ワークスペースの削除に失敗しました');
       setDeleting(false);
     }
   }, [onDeleteWorkspace]);

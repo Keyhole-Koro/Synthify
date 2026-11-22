@@ -58,24 +58,12 @@ describe('toAppError', () => {
       expect(result.retryable).toBe(false);
     });
 
-    // lib/connect.ts turns the response into an AppError, and connect-es hands
-    // the caller that AppError wrapped in a ConnectError with code Unknown.
-    it('keeps the intake-closed reason through the transport and connect-es', () => {
-      const fromTransport = toAppError(errorFromJson(
-        {
-          code: 'failed_precondition',
-          message: '有料プランの受け付けは終了しました。',
-          details: [{ type: 'synthify.app.v1.ErrorDetail', value: 'CAE' }],
-        },
-        undefined,
-        new ConnectError('fallback', Code.Unknown),
-      ));
-      const wrapped = ConnectError.from(fromTransport);
-      expect(wrapped.code).toBe(Code.Unknown);
-
-      const result = toAppError(wrapped);
-      expect(isIntakeClosedError(result)).toBe(true);
-      expect(result.message).toBe('有料プランの受け付けは終了しました。');
+    it('does not mistake a ConnectError with an unrelated cause for a wrapped AppError', () => {
+      const err = ConnectError.from(new Error('socket hang up'));
+      const result = toAppError(err);
+      expect(result.kind).toBe('unknown');
+      expect(result.code).toBe('Unknown');
+      expect(result.message).toBe('socket hang up');
     });
 
     it('does not take other failed preconditions for closed intake', () => {
@@ -83,6 +71,59 @@ describe('toAppError', () => {
       const result = toAppError(err);
       expect(result.reason).toBeUndefined();
       expect(isIntakeClosedError(result)).toBe(false);
+    });
+  });
+
+  // lib/connect.ts turns every failed call into an AppError, and connect-es
+  // hands the caller that AppError wrapped in a ConnectError with code Unknown
+  // (runUnaryCall rejects with ConnectError.from(reason)). What callers
+  // inspect must be the AppError, not the wrapper.
+  describe('an RPC error as the caller receives it', () => {
+    // What the transport builds from the API's error body.
+    function fromTransport(code: string, message: string, details: { type: string; value: string }[] = []) {
+      return toAppError(errorFromJson({ code, message, details }, undefined, new ConnectError('fallback', Code.Unknown)));
+    }
+
+    it('is the AppError the transport built', () => {
+      const appError = fromTransport('failed_precondition', 'account has a paid plan that still renews');
+      const wrapped = ConnectError.from(appError);
+      expect(wrapped.code).toBe(Code.Unknown);
+      expect(wrapped.message).toBe('[unknown] account has a paid plan that still renews');
+
+      const result = toAppError(wrapped);
+      expect(result).toBe(appError);
+      expect(result.kind).toBe('validation');
+      expect(result.code).toBe('FailedPrecondition');
+      expect(result.message).toBe('account has a paid plan that still renews');
+    });
+
+    it('keeps not found, which the share link viewer looks for', () => {
+      const result = toAppError(ConnectError.from(fromTransport('not_found', 'not found')));
+      expect(result.kind).toBe('not_found');
+      expect(result.code).toBe('NotFound');
+    });
+
+    it('stays retryable when the server is unavailable', () => {
+      const result = toAppError(ConnectError.from(fromTransport('unavailable', 'upstream connect error')));
+      expect(result.kind).toBe('unavailable');
+      expect(result.retryable).toBe(true);
+    });
+
+    it('keeps the intake-closed reason', () => {
+      const result = toAppError(ConnectError.from(fromTransport(
+        'failed_precondition',
+        '有料プランの受け付けは終了しました。',
+        [{ type: 'synthify.app.v1.ErrorDetail', value: 'CAE' }],
+      )));
+      expect(isIntakeClosedError(result)).toBe(true);
+      expect(result.message).toBe('有料プランの受け付けは終了しました。');
+    });
+
+    it('keeps a network failure retryable', () => {
+      const network = toAppError(new TypeError('Failed to fetch'));
+      const result = toAppError(ConnectError.from(network));
+      expect(result.kind).toBe('network');
+      expect(result.retryable).toBe(true);
     });
   });
 

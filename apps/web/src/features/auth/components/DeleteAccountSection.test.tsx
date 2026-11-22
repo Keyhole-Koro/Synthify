@@ -1,7 +1,14 @@
+import { ConnectError } from '@connectrpc/connect';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAppError } from '@/lib/errors';
 import { DeleteAccountSection } from './DeleteAccountSection';
+
+// What a client call rejects with: the AppError that lib/connect.ts builds,
+// wrapped by connect-es in a ConnectError with code Unknown.
+function refused(message: string) {
+  return ConnectError.from(createAppError({ kind: 'validation', code: 'FailedPrecondition', message }));
+}
 
 const api = vi.hoisted(() => ({ deleteAccount: vi.fn() }));
 
@@ -43,9 +50,7 @@ describe('DeleteAccountSection', () => {
   });
 
   it('explains a refusal for a paid plan and stays signed in', async () => {
-    api.deleteAccount.mockRejectedValue(createAppError({
-      kind: 'validation', code: 'FailedPrecondition', message: 'account has a paid plan that still renews',
-    }));
+    api.deleteAccount.mockRejectedValue(refused('account has a paid plan that still renews'));
     const { onDeleted } = openConfirmation();
     fireEvent.click(screen.getByRole('button', { name: '退会する' }));
     expect(await screen.findByText(/先に「プラン・課金」から解約してください/)).toBeTruthy();
@@ -53,9 +58,7 @@ describe('DeleteAccountSection', () => {
   });
 
   it('explains a refusal while a document is processing', async () => {
-    api.deleteAccount.mockRejectedValue(createAppError({
-      kind: 'validation', code: 'FailedPrecondition', message: 'document is still being uploaded or processed',
-    }));
+    api.deleteAccount.mockRejectedValue(refused('document is still being uploaded or processed'));
     openConfirmation();
     fireEvent.click(screen.getByRole('button', { name: '退会する' }));
     expect(await screen.findByText(/処理中のドキュメントがあります/)).toBeTruthy();

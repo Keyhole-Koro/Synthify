@@ -6,7 +6,7 @@ import {
   type Document,
 } from '@/features/documents/api';
 import { InlineError } from '@/components/error/InlineError';
-import { isAppError } from '@/lib/errors';
+import { toAppError } from '@/lib/error_normalize';
 
 interface WorkspaceDocumentListProps {
   workspaceId: string;
@@ -145,13 +145,12 @@ export function WorkspaceDocumentList({
 }
 
 function deleteErrorMessage(err: unknown): string {
-  if (isAppError(err)) {
-    if (err.code === 'FailedPrecondition') {
-      return 'アップロード中か処理中のため、まだ削除できません。終わってからもう一度試してください。';
-    }
-    if (err.code === 'PermissionDenied') {
-      return 'このドキュメントを削除する権限がありません。';
-    }
+  const { code } = toAppError(err);
+  if (code === 'FailedPrecondition') {
+    return 'アップロード中か処理中のため、まだ削除できません。終わってからもう一度試してください。';
+  }
+  if (code === 'PermissionDenied') {
+    return 'このドキュメントを削除する権限がありません。';
   }
   return 'ドキュメントの削除に失敗しました。時間をおいてもう一度試してください。';
 }
