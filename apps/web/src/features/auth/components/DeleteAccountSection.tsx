@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { deleteAccount } from '@/features/auth/userApi';
 import { InlineError } from '@/components/error/InlineError';
-import { isAppError } from '@/lib/errors';
+import { toAppError } from '@/lib/error_normalize';
 
 interface DeleteAccountSectionProps {
   /** Called once the account is gone; the caller signs out. */
@@ -77,8 +77,9 @@ export function DeleteAccountSection({ onDeleted }: DeleteAccountSectionProps) {
 }
 
 function deleteAccountErrorMessage(err: unknown): string {
-  if (isAppError(err) && err.code === 'FailedPrecondition') {
-    if (err.message.includes('paid plan')) {
+  const appError = toAppError(err);
+  if (appError.code === 'FailedPrecondition') {
+    if (appError.message.includes('paid plan')) {
       return '有料プランの契約が続いています。先に「プラン・課金」から解約してください。';
     }
     return '処理中のドキュメントがあります。終わってからもう一度試してください。';

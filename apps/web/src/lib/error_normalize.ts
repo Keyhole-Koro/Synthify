@@ -8,6 +8,12 @@ import { type AppError, type AppErrorKind, type AppErrorReason, createAppError, 
 export function toAppError(err: unknown): AppError {
   if (isAppError(err)) return err;
 
+  // An RPC caller never sees the AppError that the transport's interceptor
+  // (lib/connect.ts) throws as it is: connect-es rejects the call with
+  // ConnectError.from(reason), a ConnectError with code Unknown whose cause is
+  // that AppError. Its kind, code and reason are the ones that count.
+  if (err instanceof ConnectError && isAppError(err.cause)) return err.cause;
+
   // Handle ConnectError
   if (err instanceof ConnectError) {
     const kind = mapConnectCodeToKind(err.code);
@@ -93,12 +99,6 @@ export function toAppError(err: unknown): AppError {
 }
 
 function refusalReason(err: ConnectError): AppErrorReason | undefined {
-  // RPC callers get the transport's AppError (lib/connect.ts) back wrapped in
-  // a ConnectError with code Unknown: connect-es wraps whatever an
-  // interceptor throws. The reason is on that AppError.
-  if (isAppError(err.cause) && err.cause.reason) {
-    return err.cause.reason;
-  }
   const details = err.findDetails(ErrorDetailSchema);
   if (details.some((detail) => detail.reason === ErrorReason.INTAKE_CLOSED)) {
     return 'intake_closed';
