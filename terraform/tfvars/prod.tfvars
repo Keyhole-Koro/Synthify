@@ -15,3 +15,10 @@ monitor_domain = ""
 # CI/WIF SA that runs terraform apply (GCP_WIF_SA_EMAIL). Needs actAs on
 # the api/worker runtime SAs to attach them to Cloud Run.
 deployer_principal = "serviceAccount:github-deploy@synthify-491705.iam.gserviceaccount.com"
+
+# New documents and paid plans are closed: the API refuses uploads, document
+# processing and Stripe Checkout, and the web says so. Trees are made on
+# users' own machines with the agent skill now. Existing trees stay readable,
+# shareable and deletable. To reopen, set false and deploy
+# (docs/runbooks/README.md).
+intake_closed = true
