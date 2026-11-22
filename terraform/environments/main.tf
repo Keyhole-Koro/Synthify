@@ -19,9 +19,6 @@ module "bootstrap" {
   environment                 = var.environment
   uploads_bucket_name         = local.uploads_bucket_name
   uploads_bucket_cors_origins = local.cors_allowed_origin_list
-  deployer_principal          = var.deployer_principal
-  deployer_project_roles      = var.deployer_project_roles
-  gcs_upload_issuer           = var.gcs_upload_issuer
 }
 
 module "worker" {
@@ -157,10 +154,13 @@ resource "google_cloud_run_v2_service_iam_member" "api_invokes_worker" {
   member   = "serviceAccount:${module.bootstrap.api_service_account_email}"
 }
 
-# NOTE: the Pass-1 IAM grants (api_self_sign_blob, deployer actAs, deployer
-# project roles) and the platform module now live in module.bootstrap.
+# NOTE: service accounts and every IAM grant that needs project IAM admin
+# (runtime roles, deployer roles and actAs, the API's grants on itself) live in
+# terraform/manual/iam, applied by hand. The removed{} blocks that hand them
+# over sit inside module.bootstrap, next to where the resources were, so the
+# Pass-1 -target=module.bootstrap covers them.
 #
-# State for existing environments was migrated once via `terraform state mv`,
+# Earlier, state for existing environments was migrated once via `terraform state mv`,
 # NOT moved{} blocks. moved{} is incompatible with the Pass-1
 # -target=module.bootstrap: the moved *from* addresses sit at root scope, fall
 # outside the target, and Terraform hard-fails with "Moved resource instances

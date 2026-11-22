@@ -32,7 +32,8 @@ gcloud logging read "logName=\"projects/$PROJECT/logs/cloudaudit.googleapis.com%
 
 - 自分の作業なら、何をしたかを記録して閉じる。
   - Cloud Run の変更は、次の CD の apply で Terraform の状態に戻る。
-  - IAM は、Terraform が付けた権限を外した場合は次の apply で付け直される。Terraform の外で足したメンバー、SA の鍵、Terraform の外で作った secret と版は残る。要らなければ消す。
+  - IAM は、Terraform が付けた権限を外した場合、付け直される。バケットと secret の IAM は次の CD の apply で戻る。プロジェクトと SA の IAM、Workload Identity は CD では戻らないので、[terraform/manual/iam](../../terraform/manual/iam/README.md) を apply し直す（デプロイ用 SA 自身のポリシーは、手で足したものも消える）。
+  - Terraform の外で足したメンバー、SA の鍵、Terraform の外で作った secret と版は残る。要らなければ消す。
 - 心当たりが無ければ、侵害として扱う。
   1. 主体を止める。人のアカウントならパスワードを変えてセッションを切る。SA なら、鍵を無効にするか SA を無効にする（実行用の SA を無効にするとサービスが止まる）。
   2. 作られた SA の鍵を無効にして消す（`gcloud iam service-accounts keys disable` / `delete`）。

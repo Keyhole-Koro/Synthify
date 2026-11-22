@@ -79,7 +79,7 @@ GCS の場所の組み立ては `internal/platform/storage/prefixes.go` にま�
 
 ## 権限
 
-API のサービスアカウントは次を持つ（`terraform/services/platform/main.tf`）。
+API のサービスアカウントは次を持つ。
 
-- uploads バケットに `roles/storage.objectUser`（`api_uploads_deleter`）。`objectCreator` と `objectViewer` だけでは消せない。
-- プロジェクトに `roles/firebaseauth.admin`（`api_firebaseauth_admin`）。退会で Firebase Authentication の利用者を消すため。
+- uploads バケットに `roles/storage.objectUser`（`terraform/services/platform/main.tf` の `api_uploads_deleter`）。`objectCreator` と `objectViewer` だけでは消せない。
+- プロジェクトに、Firebase Authentication の利用者を読む・消すだけのカスタムロール（`terraform/manual/iam` の `api_firebase_auth_users`。`firebaseauth.users.get` と `firebaseauth.users.delete`）。退会で利用者を消すため（読むのは招待の確認）。手で apply する（[terraform/manual/iam/README.md](../terraform/manual/iam/README.md)）。

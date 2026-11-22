@@ -7,23 +7,23 @@ output "uploads_bucket_url" {
 }
 
 output "api_service_account_email" {
-  value = module.api_service_account.email
+  value = local.service_account_emails["api"]
 }
 
 output "worker_service_account_email" {
-  value = module.worker_service_account.email
+  value = local.service_account_emails["worker"]
 }
 
 output "eval_service_account_email" {
-  value = module.eval_service_account.email
+  value = local.service_account_emails["eval"]
 }
 
 output "eval_scheduler_service_account_email" {
-  value = module.eval_scheduler_service_account.email
+  value = local.service_account_emails["eval_scheduler"]
 }
 
 output "monitor_service_account_email" {
-  value = module.monitor_service_account.email
+  value = local.service_account_emails["monitor"]
 }
 
 output "pipeline_queue_name" {

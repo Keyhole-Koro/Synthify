@@ -55,7 +55,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
-          terraform_version: 1.6.6
+          terraform_version: 1.9.8
 
       # project id / region は tfvars が持つ。GitHub Variables に同じ事実を置くと、
       # リポジトリを読んでも実効値が分からず、compose と web.yml が離れたのと同じ
@@ -102,16 +102,16 @@ jobs:
         run: terraform init -reconfigure -lockfile=readonly -backend-config=../backend/${ENVIRONMENT}.hcl
 
       # --- Pass 1: create just the platform layer (Artifact Registry,
-      # APIs, service accounts, secrets) so we have a repo to push to.
+      # APIs, buckets, secrets) so we have a repo to push to.
       # Cloud Run services are NOT created here — they need the image.
       - name: Terraform apply (platform only)
         working-directory: ${{ env.TF_DIR }}
         run: |
           # Pass 1: everything that must exist before images are pushed —
-          # platform (SAs, buckets, secrets, registry, queues) plus every
-          # deployer IAM grant. All of it lives in module.bootstrap, so this
-          # is a single -target. Adding an IAM binding to the module never
-          # requires editing this workflow again.
+          # platform (buckets, secrets, registry, queues). It all lives in
+          # module.bootstrap, so this is a single -target. Service accounts and
+          # IAM grants are not applied here: this account cannot set them, and
+          # terraform/manual/iam (applied by hand) owns them.
           terraform apply -auto-approve \
             -var-file=../tfvars/${ENVIRONMENT}.tfvars \
             -target=module.bootstrap

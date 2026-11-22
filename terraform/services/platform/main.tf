@@ -20,54 +20,14 @@ module "uploads_bucket" {
   depends_on = [google_project_service.required]
 }
 
-module "api_service_account" {
-  source = "../../modules/service_account"
-
-  project_id   = var.project_id
-  account_id   = "synthify-api-${var.environment}"
-  display_name = "Synthify API (${var.environment})"
-
-  depends_on = [google_project_service.required]
-}
-
-module "worker_service_account" {
-  source = "../../modules/service_account"
-
-  project_id   = var.project_id
-  account_id   = "synthify-worker-${var.environment}"
-  display_name = "Synthify Worker (${var.environment})"
-
-  depends_on = [google_project_service.required]
-}
-
-module "eval_service_account" {
-  source = "../../modules/service_account"
-
-  project_id   = var.project_id
-  account_id   = "synthify-eval-${var.environment}"
-  display_name = "Synthify Eval (${var.environment})"
-
-  depends_on = [google_project_service.required]
-}
-
-module "eval_scheduler_service_account" {
-  source = "../../modules/service_account"
-
-  project_id   = var.project_id
-  account_id   = "synthify-eval-scheduler-${var.environment}"
-  display_name = "Synthify Eval Scheduler (${var.environment})"
-
-  depends_on = [google_project_service.required]
-}
-
-module "monitor_service_account" {
-  source = "../../modules/service_account"
-
-  project_id   = var.project_id
-  account_id   = "synthify-monitor-${var.environment}"
-  display_name = "Synthify Monitor (${var.environment})"
-
-  depends_on = [google_project_service.required]
+# The runtime service accounts are created in terraform/manual/iam, applied
+# by hand: the deploy account cannot create service accounts. Their emails
+# follow from the names.
+locals {
+  service_account_emails = {
+    for key in ["api", "worker", "eval", "eval_scheduler", "monitor"] :
+    key => "synthify-${replace(key, "_", "-")}-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
+  }
 }
 
 module "pipeline_queue" {
@@ -150,46 +110,46 @@ resource "google_secret_manager_secret_iam_member" "api_accessor" {
   for_each  = local.api_secrets
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.api_service_account.email}"
+  member    = "serviceAccount:${local.service_account_emails["api"]}"
 }
 
 resource "google_secret_manager_secret_iam_member" "worker_accessor" {
   for_each  = local.worker_secrets
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.worker_service_account.email}"
+  member    = "serviceAccount:${local.service_account_emails["worker"]}"
 }
 
 resource "google_secret_manager_secret_iam_member" "eval_accessor" {
   for_each  = local.eval_secrets
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.eval_service_account.email}"
+  member    = "serviceAccount:${local.service_account_emails["eval"]}"
 }
 
 resource "google_secret_manager_secret_iam_member" "monitor_accessor" {
   for_each  = local.monitor_secrets
   secret_id = google_secret_manager_secret.secrets[each.value].id
   role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${module.monitor_service_account.email}"
+  member    = "serviceAccount:${local.service_account_emails["monitor"]}"
 }
 
 resource "google_storage_bucket_iam_member" "eval_artifact_writer" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.eval_service_account.email}"
+  member = "serviceAccount:${local.service_account_emails["eval"]}"
 }
 
 resource "google_storage_bucket_iam_member" "api_uploads_writer" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectCreator"
-  member = "serviceAccount:${module.api_service_account.email}"
+  member = "serviceAccount:${local.service_account_emails["api"]}"
 }
 
 resource "google_storage_bucket_iam_member" "api_uploads_reader" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.api_service_account.email}"
+  member = "serviceAccount:${local.service_account_emails["api"]}"
 }
 
 # Deleting a document removes its stored files from the API
@@ -199,16 +159,7 @@ resource "google_storage_bucket_iam_member" "api_uploads_reader" {
 resource "google_storage_bucket_iam_member" "api_uploads_deleter" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectUser"
-  member = "serviceAccount:${module.api_service_account.email}"
-}
-
-# Account deletion removes the user from Firebase Authentication through the
-# Admin SDK (apps/api/internal/auth/user_deleter.go), which needs
-# firebaseauth.users.delete on the Firebase project, i.e. this project.
-resource "google_project_iam_member" "api_firebaseauth_admin" {
-  project = var.project_id
-  role    = "roles/firebaseauth.admin"
-  member  = "serviceAccount:${module.api_service_account.email}"
+  member = "serviceAccount:${local.service_account_emails["api"]}"
 }
 
 # The worker mounts this bucket read-write via gcsfuse: it reads uploaded
@@ -219,89 +170,123 @@ resource "google_project_iam_member" "api_firebaseauth_admin" {
 resource "google_storage_bucket_iam_member" "worker_uploads_reader" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${module.worker_service_account.email}"
+  member = "serviceAccount:${local.service_account_emails["worker"]}"
 }
 
 resource "google_storage_bucket_iam_member" "worker_uploads_writer" {
   bucket = module.uploads_bucket.name
   role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${module.worker_service_account.email}"
+  member = "serviceAccount:${local.service_account_emails["worker"]}"
 }
 
-# Firestore job-status notifier (apps/api, apps/worker) writes to
-# workspaces/{ws}/jobs/{job} via the Admin SDK. Native-mode Firestore
-# access is controlled by roles/datastore.user; without it the writes
-# fail with PermissionDenied even though the database exists.
-resource "google_project_iam_member" "api_firestore_user" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${module.api_service_account.email}"
+# Moved to terraform/manual/iam: the service accounts, their project roles
+# (Firestore, Vertex AI, Cloud Tasks, Firebase Auth) and the API's grants on
+# itself. Bucket and secret bindings stay above: storage.admin and
+# secretmanager.admin let the deploy account manage IAM on its own buckets
+# and secrets, but not on the project or on service accounts. They
+# need projectIamAdmin and serviceAccountAdmin, which the deploy account no
+# longer has. These blocks make CD drop them from its state without
+# destroying them, so the accounts and grants stay while the manual stack
+# takes them over. They can go once every environment has deployed this.
+removed {
+  from = module.api_service_account
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "google_project_iam_member" "worker_firestore_user" {
-  project = var.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${module.worker_service_account.email}"
+removed {
+  from = module.worker_service_account
+  lifecycle {
+    destroy = false
+  }
 }
 
-# Workspace invitations bind only to an account that has verified the invited
-# address. The API asks Firebase Authentication through the Admin SDK
-# (GetUser, i.e. accounts:lookup), which needs firebaseauth.users.get on the
-# Firebase project; like Firestore above, that is this project. Without it
-# every invitation fails. It lives here, in the bootstrap pass of the deploy,
-# so the grant is in place before a new API revision can serve invitations.
-resource "google_project_iam_member" "api_firebaseauth_viewer" {
-  project = var.project_id
-  role    = "roles/firebaseauth.viewer"
-  member  = "serviceAccount:${module.api_service_account.email}"
+removed {
+  from = module.eval_service_account
+  lifecycle {
+    destroy = false
+  }
 }
 
-# Vertex AI access for Gemini inference.
-# The worker SA calls aiplatform.googleapis.com via the genai client; eval
-# uses the same path when run in CI / Cloud Run. Without this binding the
-# Vertex backend returns PERMISSION_DENIED at the first request.
-resource "google_project_iam_member" "worker_aiplatform_user" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${module.worker_service_account.email}"
+removed {
+  from = module.eval_scheduler_service_account
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "google_project_iam_member" "eval_aiplatform_user" {
-  project = var.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${module.eval_service_account.email}"
+removed {
+  from = module.monitor_service_account
+  lifecycle {
+    destroy = false
+  }
 }
 
-# Cloud Tasks dispatch (apps/api -> worker). The API enqueues onto
-# pipeline_queue with an OIDC token minted for its own service account;
-# Cloud Tasks then pushes the task to worker as that SA. roles/run.invoker
-# on the worker is already granted at the environment level
-# (google_cloud_run_v2_service_iam_member.api_invokes_worker), so the SA
-# only needs:
-#   1. cloudtasks.enqueuer to call CreateTask, and
-#   2. iam.serviceAccountUser on itself: CreateTask with an OidcToken whose
-#      ServiceAccountEmail is the API SA requires the caller to actAs that SA,
-#      and iam.serviceAccounts.actAs lives only in serviceAccountUser (NOT in
-#      serviceAccountTokenCreator). Without it CreateTask returns
-#      PermissionDenied and the job is stuck in queued.
-#   3. iam.serviceAccountTokenCreator on itself so Cloud Tasks can later mint
-#      the OIDC token (getOpenIdToken) when it pushes to the worker.
-resource "google_project_iam_member" "api_cloudtasks_enqueuer" {
-  project = var.project_id
-  role    = "roles/cloudtasks.enqueuer"
-  member  = "serviceAccount:${module.api_service_account.email}"
+removed {
+  from = google_project_iam_member.api_firestore_user
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "google_service_account_iam_member" "api_self_user" {
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.api_service_account.email}"
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${module.api_service_account.email}"
+removed {
+  from = google_project_iam_member.worker_firestore_user
+  lifecycle {
+    destroy = false
+  }
 }
 
-resource "google_service_account_iam_member" "api_self_token_creator" {
-  service_account_id = "projects/${var.project_id}/serviceAccounts/${module.api_service_account.email}"
-  role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "serviceAccount:${module.api_service_account.email}"
+# Added by the invitation check (#55) and by account deletion (#75). A removed
+# block for a resource that is not in the state does nothing, so these are
+# safe whether or not those changes were deployed before this one.
+removed {
+  from = google_project_iam_member.api_firebaseauth_viewer
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_project_iam_member.api_firebaseauth_admin
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_project_iam_member.worker_aiplatform_user
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_project_iam_member.eval_aiplatform_user
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_project_iam_member.api_cloudtasks_enqueuer
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_service_account_iam_member.api_self_user
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = google_service_account_iam_member.api_self_token_creator
+  lifecycle {
+    destroy = false
+  }
 }
 
 # TTL policy: Firestore deletes workspaces/{ws}/jobs/{job} documents
