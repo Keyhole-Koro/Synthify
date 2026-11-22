@@ -25,21 +25,21 @@
     "seed:jobs": "node ./scripts/seed-firestore-jobs.mjs"
   },
   "dependencies": {
-    "@bufbuild/protobuf": "^2.12.0",
-    "@connectrpc/connect": "^2.1.1",
-    "@connectrpc/connect-web": "^2.1.1",
+    "@bufbuild/protobuf": "^2.17.0",
+    "@connectrpc/connect": "^2.3.0",
+    "@connectrpc/connect-web": "^2.3.0",
     "@keyhole-koro/paper-in-paper": "file:./vender/paper-in-paper",
-    "@newrelic/browser-agent": "^1.315.0",
+    "@newrelic/browser-agent": "^1.324.1",
     "firebase": "^12.12.0",
     "next": "^16.4.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "zod": "^4.3.6"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@playwright/test": "^1.61.1",
-    "@tailwindcss/postcss": "^4.2.2",
+    "@playwright/test": "^1.65.1",
+    "@tailwindcss/postcss": "^4.3.5",
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/node": "^24.10.0",
