@@ -134,7 +134,7 @@ Firebase Hosting がサイトを出さなくなる（独自ドメインも）。
 
 ### 一部のアカウントだけに絞る
 
-API には許可リストがある（環境変数 `SYNTHIFY_ALLOWED_USER_EMAILS`。空なら制限なし）。stage はこれで 1 アカウントに絞っている。prod でも、`terraform/tfvars/prod.tfvars` に `allowed_user_emails`（メールアドレスをカンマ区切り）を書いてデプロイすると、それ以外のアカウントの操作は PermissionDenied になる。デプロイが要るのですぐには効かない。リポジトリは public なので、書いたアドレスは公開される。
+API には許可リストがある（環境変数 `SYNTHIFY_ALLOWED_USER_EMAILS`。空なら制限なし）。stage はこれで 1 アカウントに絞っている。prod でも、GitHub の environment `prod` に secret `SYNTHIFY_ALLOWED_USER_EMAILS`（メールアドレスをカンマ区切り）を足してデプロイすると、それ以外のアカウントの操作は PermissionDenied になる。デプロイが要るのですぐには効かない。リポジトリは public なので、アドレスは tfvars に書かない。
 
 ## 秘密が漏れたとき
 
