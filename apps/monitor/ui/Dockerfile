@@ -4,7 +4,7 @@
 # ビルドコンテキストはリポジトリルート:  docker build -f apps/monitor/ui/Dockerfile .
 
 # ---- deps: lockfile + 全ワークスペースの package.json だけで依存解決 ----
-FROM oven/bun:1.3.13-alpine AS deps
+FROM oven/bun:1.4.4-alpine AS deps
 WORKDIR /repo
 COPY package.json bun.lock ./
 COPY apps/web/package.json apps/web/package.json
@@ -18,7 +18,7 @@ COPY apps/web/vender/paper-in-paper apps/web/vender/paper-in-paper
 RUN bun install --frozen-lockfile
 
 # ---- builder: ソースを載せて monitor を standalone ビルド ----
-FROM oven/bun:1.3.13-alpine AS builder
+FROM oven/bun:1.4.4-alpine AS builder
 WORKDIR /repo
 COPY --from=deps /repo/node_modules ./node_modules
 # bun installs a workspace member's own dependencies under that member, not at
@@ -47,7 +47,7 @@ WORKDIR /repo/apps/monitor/ui
 RUN bun run build
 
 # ---- runner: standalone 出力のみを載せた薄いイメージ ----
-FROM oven/bun:1.3.13-alpine AS runner
+FROM oven/bun:1.4.4-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
