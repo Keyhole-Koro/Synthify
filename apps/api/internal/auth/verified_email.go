@@ -24,7 +24,7 @@ type FirebaseEmailVerifier struct {
 
 // NewFirebaseEmailVerifier returns a verifier for the Firebase project.
 // Reading user accounts needs firebaseauth.users.get on that project (the
-// Firebase Authentication Viewer role).
+// API's custom role in terraform/manual/iam).
 func NewFirebaseEmailVerifier(ctx context.Context, projectID string) (*FirebaseEmailVerifier, error) {
 	projectID = strings.TrimSpace(projectID)
 	if projectID == "" {

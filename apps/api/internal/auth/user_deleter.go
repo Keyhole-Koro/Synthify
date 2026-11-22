@@ -11,8 +11,8 @@ import (
 
 // FirebaseUserDeleter deletes Firebase Authentication users when an account
 // is deleted. The Admin SDK call needs firebaseauth.users.delete on the
-// project (roles/firebaseauth.admin); against the Auth emulator
-// (FIREBASE_AUTH_EMULATOR_HOST) it needs no credentials.
+// project (the API's custom role in terraform/manual/iam); against the Auth
+// emulator (FIREBASE_AUTH_EMULATOR_HOST) it needs no credentials.
 type FirebaseUserDeleter struct {
 	client *firebaseauth.Client
 }

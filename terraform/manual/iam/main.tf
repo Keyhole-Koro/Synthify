@@ -30,17 +30,7 @@ locals {
       "roles/datastore.user",
       # CreateTask on the pipeline queue, to dispatch jobs to the worker.
       "roles/cloudtasks.enqueuer",
-      # Account deletion deletes the user from Firebase Auth (DeleteUser,
-      # firebaseauth.users.delete), from #75. admin is the only curated role
-      # with that permission; it also lets the API change sign-in settings and
-      # create or edit any user.
-      "roles/firebaseauth.admin",
-      # Invitations check that the invitee has verified the address (Firebase
-      # Auth GetUser, firebaseauth.users.get), from #55. admin includes this,
-      # so it is redundant while admin is granted. It stays so the invitation
-      # check does not depend on the deletion grant, which is the one to narrow
-      # (a custom role with users.get and users.delete would replace both).
-      "roles/firebaseauth.viewer",
+      # Firebase Auth: the custom role api_firebase_auth_users, below.
     ]
     worker = [
       "roles/datastore.user",
@@ -66,6 +56,14 @@ locals {
     "roles/resourcemanager.projectIamAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountTokenCreator",
+  ]
+
+  # The curated Firebase Auth roles CD granted the API before this stack:
+  # viewer (#55) and admin (#75). CD's removed blocks leave them in place; the
+  # custom role api_firebase_auth_users replaces both.
+  api_removed_roles = [
+    "roles/firebaseauth.admin",
+    "roles/firebaseauth.viewer",
   ]
 
   deploy_member = google_service_account.deploy.member
@@ -263,4 +261,46 @@ resource "google_service_account_iam_member" "api_self" {
   service_account_id = google_service_account.runtime["api"].name
   role               = each.value
   member             = google_service_account.runtime["api"].member
+}
+
+# Firebase Authentication users, for the API: the invitation check reads the
+# invitee's account (GetUser, #55) and account deletion deletes the user
+# (DeleteUser, #75). No curated role fits. viewer cannot delete; admin, the
+# only one that can, can also change the sign-in settings, read the password
+# hash settings, and create, edit or email any user.
+resource "google_project_iam_custom_role" "api_firebase_auth_users" {
+  project     = var.project_id
+  role_id     = "synthifyApiFirebaseAuthUsers"
+  title       = "Synthify API: Firebase Auth users"
+  description = "Read and delete Firebase Authentication users, for the API's invitation check and account deletion."
+  permissions = [
+    "firebaseauth.users.delete",
+    "firebaseauth.users.get",
+  ]
+}
+
+resource "google_project_iam_member" "api_firebase_auth_users" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.api_firebase_auth_users.name
+  member  = google_service_account.runtime["api"].member
+}
+
+# The curated roles come off only after the custom role is granted, so the API
+# is not left without the permissions in between (IAM can still take a few
+# minutes to apply either change). Nothing happens where they are not granted.
+resource "google_project_iam_member_remove" "api" {
+  for_each = toset(local.api_removed_roles)
+
+  project = var.project_id
+  role    = each.value
+  member  = google_service_account.runtime["api"].member
+
+  depends_on = [google_project_iam_member.api_firebase_auth_users]
+
+  lifecycle {
+    precondition {
+      condition     = !contains(local.runtime_project_roles.api, each.value)
+      error_message = "${each.value} must not be in runtime_project_roles.api: the custom role api_firebase_auth_users replaces it."
+    }
+  }
 }
