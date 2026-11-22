@@ -248,7 +248,7 @@ variable "log_llm_payload" {
 # Stops new documents and paid plans (SYNTHIFY_INTAKE_CLOSED). Existing data
 # stays readable, shareable and deletable. See docs/runbooks/README.md.
 variable "intake_closed" {
-  description = "true => the API refuses uploads, document processing and Stripe Checkout, and the web says intake is closed."
+  description = "true => the API refuses uploads, document processing and Stripe Checkout, the web says intake is closed, and the daily eval schedule is paused."
   type        = bool
   default     = false
 }

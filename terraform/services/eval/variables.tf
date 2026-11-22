@@ -41,6 +41,12 @@ variable "schedule" {
   type        = string
 }
 
+variable "paused" {
+  description = "true pauses the daily schedule. null (the default) leaves it as it is."
+  type        = bool
+  default     = null
+}
+
 variable "time_zone" {
   type    = string
   default = "Asia/Tokyo"

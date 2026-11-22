@@ -56,6 +56,10 @@ module "eval" {
   output_gcs_uri                  = "gs://${module.bootstrap.uploads_bucket_name}/eval/${var.environment}/runs"
   schedule                        = var.eval_schedule
   time_zone                       = var.eval_time_zone
+  # Closed intake runs nothing new through the pipeline, so the daily eval has
+  # nothing to measure and would only call Gemini. Open intake leaves the
+  # schedule as it is: reopening does not resume it (docs/runbooks/README.md).
+  paused = var.intake_closed ? true : null
 }
 
 module "api" {

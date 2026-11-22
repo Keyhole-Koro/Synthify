@@ -78,6 +78,9 @@ resource "google_cloud_scheduler_job" "this" {
   description = "Runs Synthify LLM eval cases as a Cloud Run Job."
   schedule    = var.schedule
   time_zone   = var.time_zone
+  # null leaves the paused state as it is, so a pause made by hand
+  # (docs/runbooks/README.md) survives a deploy.
+  paused = var.paused
 
   http_target {
     http_method = "POST"
