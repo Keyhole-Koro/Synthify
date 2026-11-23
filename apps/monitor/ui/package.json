@@ -26,7 +26,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",
     "openapi-typescript": "^7.10.1",
-    "@types/bun": "^1.4.4",
+    "@types/bun": "^1.4.5",
     "@types/node": "^24.10.0",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.2.2",
