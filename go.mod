@@ -25,9 +25,9 @@ require (
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/text v0.44.0
 	golang.org/x/time v0.16.0
-	google.golang.org/adk v1.9.0
-	google.golang.org/api v0.312.0
-	google.golang.org/genai v1.79.0
+	google.golang.org/adk v1.10.0
+	google.golang.org/api v0.316.0
+	google.golang.org/genai v1.79.1
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 )
