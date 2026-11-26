@@ -30,6 +30,15 @@ updates:
     directories:
       - /
       - /apps/tree-viewer
+    # apps/web/vender/paper-in-paper is a submodule that apps/web takes as a
+    # file: dependency, not a workspace. Dependabot still reads its
+    # package.json and runs `bun update --filter ./apps/web/vender/paper-in-paper`,
+    # which bun refuses ("No workspace packages matched the filter"), and the
+    # update of every dependency it shares with apps/web (react, @types/react)
+    # fails with it. paper-in-paper's own dependencies are updated in its
+    # repository.
+    exclude-paths:
+      - apps/web/vender/**
     schedule:
       interval: weekly
       day: monday
