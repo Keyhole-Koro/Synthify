@@ -1,14 +1,10 @@
 import { expect, test } from './fixtures/test';
+import { chooseFile, createWorkspace } from './helpers/workspace';
 
 async function uploadFixture(page: import('@playwright/test').Page) {
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    page.getByText('ファイルをアップロード').last().click(),
-  ]);
-  await chooser.setFiles({ name: `paper-${Date.now()}.md`, mimeType: 'text/markdown', buffer: Buffer.from('# fixture') });
+  await createWorkspace(page);
+  await chooseFile(page, { name: `paper-${Date.now()}.md`, mimeType: 'text/markdown', buffer: Buffer.from('# fixture') });
   await expect(page.frameLocator('iframe[title="workspace-root-content"]').getByRole('heading', { name: 'E2E Fixture Report' })).toBeVisible({ timeout: 30_000 });
 }
 
