@@ -1,5 +1,6 @@
 import { expect, test } from './fixtures/test';
 import { createTestUser, signInThroughApp } from './helpers/firebase-emulator';
+import { chooseFile, createWorkspace } from './helpers/workspace';
 
 const authEmulatorURL = process.env.E2E_FIREBASE_AUTH_URL ?? 'http://127.0.0.1:9099';
 const gcsURL = process.env.E2E_GCS_URL ?? 'http://127.0.0.1:4443';
@@ -13,14 +14,9 @@ test('deletes the account with its workspaces, stored files and sign-in', async 
   await signInThroughApp(page, user);
   await expect(page.getByRole('button', { name: 'ログアウト' })).toBeVisible();
 
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
   const created = page.waitForResponse('**/synthify.app.v1.DocumentService/CreateDocument');
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    page.getByText('ファイルをアップロード').last().click(),
-  ]);
-  await chooser.setFiles({ name: 'e2e-account.md', mimeType: 'text/markdown', buffer: Buffer.from('# mine') });
+  await chooseFile(page, { name: 'e2e-account.md', mimeType: 'text/markdown', buffer: Buffer.from('# mine') });
   const { document } = (await (await created).json()) as { document: { workspaceId: string } };
   await expect(page.frameLocator('iframe[title="workspace-root-content"]').getByRole('heading', { name: 'E2E Fixture Report' }))
     .toBeVisible({ timeout: 30_000 });
