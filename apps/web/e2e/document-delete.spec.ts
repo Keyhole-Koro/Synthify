@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures/test';
+import { chooseFile, createWorkspace } from './helpers/workspace';
 
 const gcsURL = process.env.E2E_GCS_URL ?? 'http://127.0.0.1:4443';
 
@@ -12,15 +13,10 @@ async function listStoredObjects(prefix: string): Promise<string[]> {
 test('deletes a processed document with its tree nodes and stored files', async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto('/');
-  await page.getByText('ワークスペース', { exact: true }).first().click();
-  await page.getByRole('button', { name: '新規ワークスペース' }).first().click();
+  await createWorkspace(page);
 
   const created = page.waitForResponse('**/synthify.app.v1.DocumentService/CreateDocument');
-  const [chooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    page.getByText('ファイルをアップロード').last().click(),
-  ]);
-  await chooser.setFiles({ name: 'e2e-delete.md', mimeType: 'text/markdown', buffer: Buffer.from('# delete me') });
+  await chooseFile(page, { name: 'e2e-delete.md', mimeType: 'text/markdown', buffer: Buffer.from('# delete me') });
   const { document } = (await (await created).json()) as { document: { documentId: string; workspaceId: string } };
   const documentPrefix = `${document.workspaceId}/${document.documentId}/`;
 
